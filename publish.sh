@@ -263,7 +263,6 @@ class ${FORMULA_CLASS} < Formula
   homepage ${HOMEPAGE_RUBY}
   url ${ARCHIVE_URL_RUBY}
   sha256 ${SHA256_RUBY}
-  version ${VERSION_RUBY}
 
   depends_on "node"
   depends_on "python" => :build
@@ -304,13 +303,42 @@ run_brew_audit() {
     return
   fi
 
+  if [[ "$DRY_RUN" == "1" ]]; then
+    info "Dry run, skipping brew audit"
+    return
+  fi
+
   if ! command -v brew >/dev/null 2>&1; then
     info "brew not found, skipping audit"
     return
   fi
 
+  local audit_tap="sqlite-hub/publish-audit"
+  local brew_repo
+  local audit_owner
+  local audit_repo
+  local audit_tap_path
+  local formula_ref
+  local status=0
+
+  brew_repo="$(brew --repository)"
+  audit_owner="${audit_tap%%/*}"
+  audit_repo="${audit_tap##*/}"
+  audit_tap_path="${brew_repo}/Library/Taps/${audit_owner}/homebrew-${audit_repo}"
+  formula_ref="${audit_tap}/${FORMULA_NAME}"
+
+  mkdir -p "$(dirname "$audit_tap_path")"
+  rm -rf "$audit_tap_path"
+  ln -s "$TAP_DIR" "$audit_tap_path"
+
   info "Running brew audit on generated formula"
-  run brew audit --strict --formula "$FORMULA_PATH"
+  brew audit --strict --formula "$formula_ref" || status=$?
+
+  rm -f "$audit_tap_path"
+
+  if [[ "$status" -ne 0 ]]; then
+    exit "$status"
+  fi
 }
 
 require_cmd git
@@ -333,6 +361,9 @@ TAG="v${VERSION}"
 ARCHIVE_URL="https://github.com/${SOURCE_REPO}/archive/refs/tags/${TAG}.tar.gz"
 TAP_REPO="${TAP_REPO_OVERRIDE:-${OWNER}/homebrew-tap}"
 TAP_DIR="${TAP_DIR_OVERRIDE:-$(cd "$ROOT_DIR/.." && pwd)/homebrew-tap}"
+TAP_OWNER="${TAP_REPO%%/*}"
+TAP_REPO_NAME="${TAP_REPO##*/}"
+BREW_TAP_NAME="${TAP_OWNER}/${TAP_REPO_NAME#homebrew-}"
 FORMULA_NAME="${FORMULA_NAME_OVERRIDE:-$PACKAGE_NAME}"
 FORMULA_CLASS="$(formula_class_name "$FORMULA_NAME")"
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
@@ -340,11 +371,11 @@ CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 DESC_RUBY="$(ruby_string "$DESCRIPTION")"
 HOMEPAGE_RUBY="$(ruby_string "$HOMEPAGE")"
 ARCHIVE_URL_RUBY="$(ruby_string "$ARCHIVE_URL")"
-VERSION_RUBY="$(ruby_string "$VERSION")"
 
 info "Publishing ${PACKAGE_NAME} ${VERSION}"
 info "Source repo: ${SOURCE_REPO}"
 info "Tap repo: ${TAP_REPO}"
+info "Brew tap: ${BREW_TAP_NAME}"
 info "Tap dir: ${TAP_DIR}"
 info "Formula: ${FORMULA_NAME}"
 
@@ -371,7 +402,6 @@ class ${FORMULA_CLASS} < Formula
   homepage ${HOMEPAGE_RUBY}
   url ${ARCHIVE_URL_RUBY}
   sha256 ${SHA256_RUBY}
-  version ${VERSION_RUBY}
 
   depends_on "node"
   depends_on "python" => :build
@@ -397,4 +427,4 @@ run_brew_audit
 commit_and_push_tap
 
 info "Published ${FORMULA_NAME} ${VERSION}"
-info "Install with: brew tap ${TAP_REPO} && brew install ${FORMULA_NAME}"
+info "Install with: brew install ${BREW_TAP_NAME}/${FORMULA_NAME}"
