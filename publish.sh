@@ -270,12 +270,19 @@ class ${FORMULA_CLASS} < Formula
   def install
     ENV["npm_config_build_from_source"] = "true"
     system "npm", "install", *std_npm_args
+    cd libexec/"lib/node_modules/${PACKAGE_NAME}" do
+      system "npm", "rebuild", "better-sqlite3"
+    end
     bin.install_symlink libexec.glob("bin/*")
   end
 
   test do
-    output = shell_output("#{bin}/${FORMULA_NAME} --help")
-    assert_match "SQLite Hub CLI", output
+    output = shell_output(
+      "cd #{libexec}/lib/node_modules/${PACKAGE_NAME} && #{Formula["node"].opt_bin}/node -e " \
+      "'const Database = require(\"better-sqlite3\"); const db = new Database(\":memory:\"); " \
+      "console.log(db.prepare(\"select 1 as value\").get().value); db.close();'"
+    )
+    assert_equal "1\n", output
   end
 end
 EOF
@@ -409,12 +416,19 @@ class ${FORMULA_CLASS} < Formula
   def install
     ENV["npm_config_build_from_source"] = "true"
     system "npm", "install", *std_npm_args
+    cd libexec/"lib/node_modules/${PACKAGE_NAME}" do
+      system "npm", "rebuild", "better-sqlite3"
+    end
     bin.install_symlink libexec.glob("bin/*")
   end
 
   test do
-    output = shell_output("#{bin}/${FORMULA_NAME} --help")
-    assert_match "SQLite Hub CLI", output
+    output = shell_output(
+      "cd #{libexec}/lib/node_modules/${PACKAGE_NAME} && #{Formula["node"].opt_bin}/node -e " \
+      "'const Database = require(\"better-sqlite3\"); const db = new Database(\":memory:\"); " \
+      "console.log(db.prepare(\"select 1 as value\").get().value); db.close();'"
+    )
+    assert_equal "1\n", output
   end
 end
 EOF
