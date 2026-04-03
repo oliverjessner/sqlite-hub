@@ -166,6 +166,27 @@ ensure_clean_worktree() {
   fi
 }
 
+wait_for_tap_repo() {
+  local repo_url="https://github.com/${TAP_REPO}.git"
+  local attempts=12
+
+  for ((attempt = 1; attempt <= attempts; attempt += 1)); do
+    if gh repo view "$TAP_REPO" >/dev/null 2>&1 || git ls-remote "$repo_url" >/dev/null 2>&1; then
+      return 0
+    fi
+
+    sleep 2
+  done
+
+  echo "Tap repository did not become available in time: $TAP_REPO" >&2
+  exit 1
+}
+
+clone_tap_repo() {
+  local repo_url="https://github.com/${TAP_REPO}.git"
+  run git clone "$repo_url" "$TAP_DIR"
+}
+
 ensure_tap_repo() {
   if [[ -d "$TAP_DIR/.git" ]]; then
     info "Using existing tap checkout at $TAP_DIR"
@@ -174,13 +195,16 @@ ensure_tap_repo() {
 
   if gh repo view "$TAP_REPO" >/dev/null 2>&1; then
     info "Cloning existing tap repo $TAP_REPO"
-    run gh repo clone "$TAP_REPO" "$TAP_DIR"
+    clone_tap_repo
     return
   fi
 
   info "Creating tap repo $TAP_REPO"
   run gh repo create "$TAP_REPO" --public --clone=false --description "Homebrew tap for $OWNER tools"
-  run gh repo clone "$TAP_REPO" "$TAP_DIR"
+  if [[ "$DRY_RUN" != "1" ]]; then
+    wait_for_tap_repo
+  fi
+  clone_tap_repo
 }
 
 ensure_git_tag() {
