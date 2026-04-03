@@ -4,6 +4,21 @@ A cyberpunk inspired management app for sqlite
 
 ![](/assets/mockups/home.png)
 
+## Install
+
+Install via Homebrew:
+
+```bash
+brew install oliverjessner/tap/sqlite-hub
+```
+
+Or tap first and then install:
+
+```bash
+brew tap oliverjessner/tap
+brew install sqlite-hub
+```
+
 ## Run
 
 Start the app and open it automatically in the default browser:
