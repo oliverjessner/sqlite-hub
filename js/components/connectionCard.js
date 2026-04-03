@@ -18,7 +18,7 @@ export function renderConnectionCard(connection, activeConnectionId) {
       class="connection-card clipped-corner ${isActive ? "is-active" : ""}"
       style="--clip-path: ${clipPath};"
     >
-      <div class="p-6">
+      <div class="flex-1 p-6">
         <div class="mb-6 flex items-start justify-between">
           <div
             class="clipped-corner flex h-10 w-10 items-center justify-center transition-colors ${
@@ -40,7 +40,10 @@ export function renderConnectionCard(connection, activeConnectionId) {
         }">
           ${escapeHtml(connection.label)}
         </h3>
-        <p class="font-mono text-[10px] text-outline-variant">
+        <p
+          class="block overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-outline-variant"
+          title="${escapeHtml(connection.path)}"
+        >
           ${escapeHtml(truncateMiddle(connection.path, 68))}
         </p>
         <div class="mt-8 grid grid-cols-2 gap-4">

@@ -13,12 +13,12 @@ function renderConnectionsActionButton({
   const toneClassName =
     tone === "primary"
       ? "clipped-corner border border-primary-container bg-primary-container text-on-primary shadow-[0_0_18px_-10px_rgba(252,227,0,0.65)] hover:bg-primary-fixed"
-      : "border-l-2 border-primary-container bg-surface-container-highest text-primary-container hover:bg-surface-bright";
+      : "clipped-corner border border-outline-variant/20 bg-surface-container-highest text-primary-container shadow-[inset_2px_0_0_0_rgba(252,227,0,0.95)] hover:bg-surface-bright";
   const iconClassName =
     tone === "primary"
       ? "text-base text-on-primary"
       : "text-base text-primary-container/90";
-  const clipStyle = tone === "primary" ? `style="--clip-path: ${clipPath};"` : "";
+  const clipStyle = `style="--clip-path: ${clipPath};"`;
 
   return `
     <button
