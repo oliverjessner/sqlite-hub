@@ -8,7 +8,8 @@
     },
     "scripts": {
         "start": "node bin/sqlite-hub.js",
-        "dev": "node --watch server/server.js"
+        "dev": "node --watch server/server.js",
+        "publish": "sh publish.sh"
     },
     "dependencies": {
         "better-sqlite3": "^11.8.1",
