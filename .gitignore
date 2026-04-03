@@ -1,0 +1,6 @@
+node_modules
+tests/tmp
+.DS_Store
+sqlite-hub-state.db
+sqlite-hub-state.db-shm
+sqlite-hub-state.db-wal

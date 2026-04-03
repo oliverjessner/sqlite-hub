@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>SQLite Hub</title>
+    <link href="/assets/images/logo_raw.png" rel="icon" type="image/png" />
+    <link href="/assets/images/logo_raw.png" rel="shortcut icon" type="image/png" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&family=Roboto+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary-fixed": "#1c1b1b",
+              background: "#131313",
+              "inverse-primary": "#6a5f00",
+              "primary-fixed": "#fde403",
+              tertiary: "#fbfffe",
+              outline: "#979177",
+              "on-secondary": "#313030",
+              "error-container": "#93000a",
+              "on-primary-fixed-variant": "#504700",
+              "on-tertiary-container": "#006f72",
+              "on-tertiary-fixed-variant": "#004f51",
+              "secondary-fixed-dim": "#c8c6c5",
+              "tertiary-fixed-dim": "#00dce1",
+              "on-background": "#e5e2e1",
+              "surface-tint": "#dec800",
+              "primary-fixed-dim": "#dec800",
+              "on-surface": "#e5e2e1",
+              "surface-container-low": "#1c1b1b",
+              "on-tertiary": "#003738",
+              "surface-container": "#201f1f",
+              "on-surface-variant": "#cdc7ab",
+              "on-primary-container": "#706400",
+              "on-error": "#690005",
+              "surface-container-high": "#2a2a2a",
+              "surface-container-highest": "#353534",
+              error: "#ffb4ab",
+              primary: "#fffeff",
+              "outline-variant": "#4b4732",
+              "on-error-container": "#ffdad6",
+              "on-secondary-fixed-variant": "#474746",
+              "surface-container-lowest": "#0e0e0e",
+              "inverse-surface": "#e5e2e1",
+              surface: "#131313",
+              "tertiary-container": "#04faff",
+              "on-tertiary-fixed": "#002021",
+              "tertiary-fixed": "#2dfaff",
+              "surface-variant": "#353534",
+              "on-primary": "#373100",
+              "primary-container": "#fce300",
+              "inverse-on-surface": "#313030",
+              secondary: "#c8c6c5",
+              "on-secondary-container": "#b7b5b4",
+              "on-primary-fixed": "#201c00",
+              "secondary-container": "#474746",
+              "surface-dim": "#131313",
+              "surface-bright": "#3a3939",
+              "secondary-fixed": "#e5e2e1",
+            },
+            fontFamily: {
+              headline: ["Space Grotesk"],
+              body: ["Inter"],
+              label: ["Inter"],
+              mono: ["Roboto Mono"],
+            },
+            borderRadius: {
+              DEFAULT: "0px",
+              lg: "0px",
+              xl: "0px",
+              full: "9999px",
+            },
+          },
+        },
+      };
+    </script>
+    <link href="styles/tokens.css" rel="stylesheet" />
+    <link href="styles/base.css" rel="stylesheet" />
+    <link href="styles/layout.css" rel="stylesheet" />
+    <link href="styles/components.css" rel="stylesheet" />
+    <link href="styles/views.css" rel="stylesheet" />
+  </head>
+  <body
+    class="bg-background text-on-surface font-body selection:bg-primary-container selection:text-on-primary overflow-hidden"
+  >
+    <div id="app"></div>
+    <script src="js/app.js" type="module"></script>
+  </body>
+</html>

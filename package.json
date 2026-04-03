@@ -1,0 +1,17 @@
+{
+    "name": "sqlite-hub",
+    "version": "0.1.0",
+    "description": "SQLite-only local management app backend and SPA shell",
+    "main": "server/server.js",
+    "bin": {
+        "sqlite-hub": "bin/sqlite-hub.js"
+    },
+    "scripts": {
+        "start": "node bin/sqlite-hub.js",
+        "dev": "node --watch server/server.js"
+    },
+    "dependencies": {
+        "better-sqlite3": "^11.8.1",
+        "express": "^4.21.2"
+    }
+}

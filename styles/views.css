@@ -1,0 +1,84 @@
+.machined-grid {
+  background-image: radial-gradient(var(--color-grid-dot) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.data-grid-texture {
+  background-image: radial-gradient(var(--color-primary-container) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.03;
+}
+
+.view-surface {
+  background: var(--color-surface);
+  min-height: 100%;
+}
+
+.view-frame {
+  min-height: 100%;
+  padding: var(--spacing-8);
+}
+
+.view-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.landing-view {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.landing-accent {
+  background: rgba(75, 71, 50, 0.2);
+  height: 1px;
+  position: absolute;
+}
+
+.landing-accent--a {
+  left: 3rem;
+  top: 2.5rem;
+  transform: rotate(45deg);
+  width: 8rem;
+}
+
+.landing-accent--b {
+  bottom: 2.5rem;
+  right: 3rem;
+  transform: rotate(-12deg);
+  width: 16rem;
+}
+
+.landing-accent--c {
+  border-bottom: 1px solid rgba(75, 71, 50, 0.12);
+  border-right: 1px solid rgba(75, 71, 50, 0.12);
+  height: 4rem;
+  left: 0;
+  top: 50%;
+  width: 4rem;
+}
+
+.system-placeholder-grid {
+  display: grid;
+  gap: var(--spacing-4);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.system-placeholder-card {
+  background: var(--color-surface-low);
+  border-bottom: 2px solid rgba(49, 48, 48, 1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-height: 160px;
+  padding: var(--spacing-6);
+}
+
+.system-placeholder-card.is-primary {
+  border-bottom-color: var(--color-primary-container);
+}

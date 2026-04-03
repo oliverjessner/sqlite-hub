@@ -1,2 +1,25 @@
 # sqlite-hub
+
 A cyberpunk inspired management app for sqlite
+
+![](/assets/mockups/home.png)
+
+## Run
+
+Start the app and open it automatically in the default browser:
+
+```bash
+npm start
+```
+
+Use a custom port via CLI. If omitted, `4173` is used:
+
+```bash
+npm start -- --port:1203
+```
+
+After linking or installing globally, the binary can also be called directly:
+
+```bash
+sqlite-hub --port:1203
+```

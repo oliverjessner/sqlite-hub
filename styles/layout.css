@@ -1,0 +1,101 @@
+#app {
+  height: 100%;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.app-top-nav {
+  flex: 0 0 var(--top-nav-height);
+  height: var(--top-nav-height);
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.app-sidebar {
+  display: none;
+  flex: 0 0 var(--sidebar-width);
+  min-height: 0;
+  width: var(--sidebar-width);
+}
+
+.app-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.app-main-scroll {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+
+.app-main-scroll--locked {
+  overflow: hidden;
+}
+
+.app-view {
+  height: 100%;
+  min-height: 0;
+}
+
+.app-right-panel {
+  background: var(--color-surface-low);
+  border-left: 1px solid rgba(75, 71, 50, 0.2);
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  top: 0;
+  transform: translateX(100%);
+  transition: transform var(--transition-standard), opacity var(--transition-fast);
+  width: min(var(--panel-width), 100%);
+  z-index: 30;
+}
+
+.app-shell.panel-open .app-right-panel {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.app-status-bar {
+  flex: 0 0 var(--status-bar-height);
+  height: var(--status-bar-height);
+}
+
+@media (min-width: 768px) {
+  .app-sidebar {
+    display: flex;
+  }
+}
+
+@media (max-width: 767px) {
+  .app-right-panel {
+    bottom: 0;
+    left: 0;
+    width: 100%;
+  }
+}
