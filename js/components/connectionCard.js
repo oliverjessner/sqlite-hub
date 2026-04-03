@@ -11,6 +11,7 @@ export function renderConnectionCard(connection, activeConnectionId) {
     ? connection.id === activeConnectionId
     : Boolean(connection.isActive);
   const clipPath = "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)";
+  const primaryActionLabel = isActive ? "Open Overview" : "Set Active";
 
   return `
     <article
@@ -68,17 +69,19 @@ export function renderConnectionCard(connection, activeConnectionId) {
         </div>
       </div>
       <div class="border-t border-outline-variant/10 bg-surface-container-low px-4 py-3">
-        <div class="flex items-center gap-2">
+        <div class="grid grid-cols-[minmax(0,1fr)_5.1rem_5.8rem] gap-2">
           <button
-            class="flex-1 bg-primary-container px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-on-primary"
+            class="clipped-corner min-w-0 bg-primary-container px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-on-primary shadow-[0_0_18px_-10px_rgba(252,227,0,0.7)] transition-[filter,box-shadow] hover:brightness-105"
             data-action="select-connection"
             data-connection-id="${escapeHtml(connection.id)}"
+            style="--clip-path: ${clipPath};"
             type="button"
+            title="${primaryActionLabel}"
           >
-            ${isActive ? "Open Overview" : "Set Active"}
+            ${primaryActionLabel}
           </button>
           <button
-            class="border border-outline-variant/20 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant hover:bg-surface-container-highest"
+            class="border border-outline-variant/20 bg-surface-container px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-on-surface-variant transition-colors hover:bg-surface-container-highest"
             data-action="edit-connection"
             data-connection-id="${escapeHtml(connection.id)}"
             type="button"
@@ -86,7 +89,7 @@ export function renderConnectionCard(connection, activeConnectionId) {
             Edit
           </button>
           <button
-            class="border border-outline-variant/20 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant hover:bg-surface-container-highest"
+            class="border border-outline-variant/20 bg-surface-container px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-on-surface-variant transition-colors hover:bg-surface-container-highest"
             data-action="remove-connection"
             data-connection-id="${escapeHtml(connection.id)}"
             type="button"
