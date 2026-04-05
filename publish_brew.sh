@@ -304,6 +304,27 @@ commit_and_push_tap() {
   run git -C "$TAP_DIR" push origin HEAD
 }
 
+refresh_local_brew_tap_checkout() {
+  local brew_repo
+  local installed_tap_path
+
+  if ! command -v brew >/dev/null 2>&1; then
+    info "brew not found, skipping local tap refresh"
+    return
+  fi
+
+  brew_repo="$(brew --repository)"
+  installed_tap_path="${brew_repo}/Library/Taps/${TAP_OWNER}/${TAP_REPO_NAME}"
+
+  if [[ ! -d "$installed_tap_path/.git" ]]; then
+    info "No installed Homebrew tap checkout at ${installed_tap_path}, skipping local refresh"
+    return
+  fi
+
+  info "Refreshing installed Homebrew tap checkout at ${installed_tap_path}"
+  run git -C "$installed_tap_path" pull --ff-only
+}
+
 run_brew_audit() {
   if [[ "$SKIP_AUDIT" == "1" ]]; then
     info "Skipping brew audit"
@@ -439,6 +460,7 @@ ensure_tap_repo
 write_formula
 run_brew_audit
 commit_and_push_tap
+refresh_local_brew_tap_checkout
 
 info "Published ${FORMULA_NAME} ${VERSION}"
 info "Install with: brew install ${BREW_TAP_NAME}/${FORMULA_NAME}"
