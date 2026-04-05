@@ -6,7 +6,7 @@ A cyberpunk inspired management app for sqlite
 
 ## Install
 
-Install via Homebrew:
+### Homebrew
 
 ```bash
 brew install oliverjessner/tap/sqlite-hub
@@ -17,6 +17,12 @@ Or tap first and then install:
 ```bash
 brew tap oliverjessner/tap
 brew install sqlite-hub
+```
+
+### NPM
+
+```bash
+npm install sqlite-hub
 ```
 
 ## Run
