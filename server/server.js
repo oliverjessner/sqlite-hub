@@ -1,6 +1,7 @@
 const express = require("express");
 const path = require("node:path");
 const { errorMiddleware } = require("./utils/errors");
+const { resolveAppStatePaths } = require("./utils/appPaths");
 const { AppStateStore } = require("./services/storage/appStateStore");
 const { ConnectionManager } = require("./services/sqlite/connectionManager");
 const { OverviewService } = require("./services/sqlite/overviewService");
@@ -17,12 +18,17 @@ const { createDataRouter } = require("./routes/data");
 const { createSettingsRouter } = require("./routes/settings");
 const { createExportRouter } = require("./routes/export");
 
-const APP_STATE_DB_PATH = path.resolve(__dirname, "..", "data", "sqlite-hub-state.db");
-const LEGACY_STATE_PATH = path.resolve(__dirname, "..", "data", "app-state.json");
+const PACKAGE_ROOT = path.resolve(__dirname, "..");
+const {
+  appStateDbPath: APP_STATE_DB_PATH,
+  legacyStatePath: LEGACY_STATE_PATH,
+  legacyDatabasePaths: LEGACY_DATABASE_PATHS,
+} = resolveAppStatePaths(PACKAGE_ROOT);
 const DEFAULT_PORT = 4173;
 
 const appStateStore = new AppStateStore(APP_STATE_DB_PATH, {
   legacyFilePath: LEGACY_STATE_PATH,
+  legacyDatabasePaths: LEGACY_DATABASE_PATHS,
 });
 const connectionManager = new ConnectionManager({ appStateStore });
 const overviewService = new OverviewService({ connectionManager });

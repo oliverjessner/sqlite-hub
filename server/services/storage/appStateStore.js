@@ -20,6 +20,9 @@ class AppStateStore {
   constructor(filePath, options = {}) {
     this.filePath = filePath;
     this.legacyFilePath = options.legacyFilePath ?? null;
+    this.legacyDatabasePaths = Array.isArray(options.legacyDatabasePaths)
+      ? options.legacyDatabasePaths
+      : [];
     this.isFreshDatabase = !fs.existsSync(filePath);
 
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
@@ -29,8 +32,10 @@ class AppStateStore {
     this.ensureSchema();
     this.seedDefaultSettings();
 
-    if (this.shouldImportLegacyState()) {
-      this.importLegacyState();
+    const importedLegacyDatabase = this.importFirstLegacyDatabase();
+
+    if (!importedLegacyDatabase && this.shouldImportLegacyState()) {
+      this.tryImportLegacyState();
     }
   }
 
@@ -121,8 +126,90 @@ class AppStateStore {
     };
   }
 
-  importLegacyState() {
-    const legacyState = this.readLegacyState();
+  getExistingLegacyDatabasePaths() {
+    return this.legacyDatabasePaths
+      .filter(Boolean)
+      .map((legacyPath) => path.resolve(legacyPath))
+      .filter(
+        (legacyPath, index, legacyPaths) =>
+          legacyPath !== path.resolve(this.filePath) &&
+          legacyPaths.indexOf(legacyPath) === index &&
+          fs.existsSync(legacyPath)
+      );
+  }
+
+  readLegacyDatabase(legacyDatabasePath) {
+    const legacyDb = new Database(legacyDatabasePath, {
+      readonly: true,
+      fileMustExist: true,
+    });
+
+    try {
+      legacyDb.pragma("query_only = ON");
+
+      const tables = new Set(
+        legacyDb
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+          .all()
+          .map((row) => row.name)
+      );
+
+      return {
+        settings: tables.has("settings")
+          ? Object.fromEntries(
+              legacyDb
+                .prepare("SELECT key, value FROM settings")
+                .all()
+                .map((row) => [row.key, row.value])
+            )
+          : {},
+        recentConnections: tables.has("recent_connections")
+          ? legacyDb
+              .prepare(`
+                SELECT
+                  id,
+                  label,
+                  path,
+                  lastOpenedAt,
+                  lastModifiedAt,
+                  sizeBytes,
+                  readOnly
+                FROM recent_connections
+                ORDER BY lastOpenedAt DESC, id ASC
+              `)
+              .all()
+          : [],
+        sqlHistory: tables.has("sql_history")
+          ? legacyDb
+              .prepare(`
+                SELECT
+                  id,
+                  connectionId,
+                  connectionLabel,
+                  sql,
+                  statementCount,
+                  resultKind,
+                  affectedRowCount,
+                  rowCount,
+                  timingMs,
+                  executedAt
+                FROM sql_history
+                ORDER BY executedAt DESC, id ASC
+              `)
+              .all()
+          : [],
+        activeConnectionId: tables.has("app_meta")
+          ? legacyDb
+              .prepare("SELECT value FROM app_meta WHERE key = ?")
+              .get("activeConnectionId")?.value ?? null
+          : null,
+      };
+    } finally {
+      legacyDb.close();
+    }
+  }
+
+  importStateSnapshot(legacyState, sourcePath) {
     const insertSetting = this.db.prepare(`
       INSERT INTO settings (key, value)
       VALUES (?, ?)
@@ -175,7 +262,10 @@ class AppStateStore {
 
     this.db.transaction(() => {
       for (const [key, value] of Object.entries(legacyState.settings ?? {})) {
-        insertSetting.run(key, JSON.stringify(value));
+        const normalizedValue =
+          typeof value === "string" ? this.parseStoredValue(value) : value;
+
+        insertSetting.run(key, JSON.stringify(normalizedValue));
       }
 
       for (const connection of legacyState.recentConnections ?? []) {
@@ -208,9 +298,41 @@ class AppStateStore {
       this.setMetaValue("activeConnectionId", legacyState.activeConnectionId ?? null);
       this.setMetaValue(
         "legacyImportSource",
-        path.relative(path.dirname(this.filePath), this.legacyFilePath)
+        path.relative(path.dirname(this.filePath), sourcePath)
       );
     })();
+  }
+
+  importFirstLegacyDatabase() {
+    if (!this.isFreshDatabase) {
+      return false;
+    }
+
+    for (const legacyDatabasePath of this.getExistingLegacyDatabasePaths()) {
+      try {
+        this.importStateSnapshot(
+          this.readLegacyDatabase(legacyDatabasePath),
+          legacyDatabasePath
+        );
+        return true;
+      } catch (error) {
+        console.warn(
+          `Could not import legacy app state database from ${legacyDatabasePath}: ${error.message}`
+        );
+      }
+    }
+
+    return false;
+  }
+
+  tryImportLegacyState() {
+    try {
+      this.importStateSnapshot(this.readLegacyState(), this.legacyFilePath);
+    } catch (error) {
+      console.warn(
+        `Could not import legacy app state from ${this.legacyFilePath}: ${error.message}`
+      );
+    }
   }
 
   parseStoredValue(value) {

@@ -44,3 +44,5 @@ After linking or installing globally, the binary can also be called directly:
 ```bash
 sqlite-hub --port:1203
 ```
+
+App state such as recent connections, SQL history, and local settings is stored in the user profile instead of the install directory. On macOS this lives under `~/Library/Application Support/sqlite-hub/`, so Homebrew upgrades keep the internal state across versions.
