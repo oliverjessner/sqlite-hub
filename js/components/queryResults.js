@@ -1,7 +1,10 @@
 import { renderDataGrid } from "./dataGrid.js";
 import { escapeHtml, formatCellValue, formatNumber } from "../utils/format.js";
 
-export function renderQueryResultsPane(result, { exporting = false } = {}) {
+export function renderQueryResultsPane(
+  result,
+  { exporting = false, selectedRowIndex = null, editable = false, editStatusMessage = "" } = {}
+) {
   if (!result) {
     return `
       <div class="flex h-full flex-col items-center justify-center bg-surface-container-lowest text-on-surface-variant/30">
@@ -45,6 +48,16 @@ export function renderQueryResultsPane(result, { exporting = false } = {}) {
           <div class="text-[10px] font-mono text-on-surface-variant/60">
             EXEC: ${escapeHtml(String(result.timingMs ?? 0))}ms
           </div>
+          ${
+            editStatusMessage
+              ? `
+                  <div class="h-3 w-px bg-outline-variant/30"></div>
+                  <div class="text-[10px] font-mono text-on-surface-variant/60">
+                    ${escapeHtml(editStatusMessage)}
+                  </div>
+                `
+              : ""
+          }
         </div>
         <div class="flex gap-4 text-[10px] font-mono uppercase">
           <button
@@ -66,17 +79,19 @@ export function renderQueryResultsPane(result, { exporting = false } = {}) {
       <div class="custom-scrollbar min-h-0 flex-1 overflow-auto bg-surface-container-lowest">
         ${
           result.columns?.length
-            ? renderDataGrid({
-                columns,
-                rows: result.rows ?? [],
-                tableClass: "min-w-full border-collapse text-left font-mono text-xs",
-                theadClass: "sticky top-0 z-10 bg-surface-container-highest text-on-surface",
-                tbodyClass: "divide-y divide-outline-variant/5",
-                getRowClass: (_, index) =>
-                  `${
-                    index % 2 === 0 ? "bg-surface-container-low" : "bg-surface-container-lowest"
-                  } transition-colors hover:bg-surface-bright`,
-              })
+              ? renderDataGrid({
+                  columns,
+                  rows: result.rows ?? [],
+                  tableClass: "min-w-full border-collapse text-left font-mono text-xs",
+                  theadClass: "sticky top-0 z-10 bg-surface-container-highest text-on-surface",
+                  tbodyClass: "divide-y divide-outline-variant/5",
+                  getRowClass: (_, index) =>
+                    `${selectedRowIndex === index ? "bg-surface-bright" : index % 2 === 0 ? "bg-surface-container-low" : "bg-surface-container-lowest"} transition-colors ${
+                      editable ? "cursor-pointer hover:bg-surface-bright" : "hover:bg-surface-bright"
+                    }`,
+                  getRowAttrs: (_, index) =>
+                    editable ? `data-action="select-editor-row" data-row-index="${index}"` : "",
+                })
             : `
                 <div class="flex h-full flex-col items-center justify-center text-center text-on-surface-variant/35">
                   <span class="material-symbols-outlined mb-3 text-4xl">rule</span>

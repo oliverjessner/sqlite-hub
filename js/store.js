@@ -60,6 +60,9 @@ const state = {
     result: null,
     error: null,
     exportLoading: false,
+    selectedRowIndex: null,
+    saving: false,
+    saveError: null,
   },
   structure: {
     data: null,
@@ -107,6 +110,29 @@ function normalizeDataPageSize(value, fallback = 50) {
   return fallback;
 }
 
+function canEditQueryResult(snapshot = state) {
+  return Boolean(snapshot.editor.result?.editing?.enabled) && !snapshot.connections.active?.readOnly;
+}
+
+function buildUpdatedEditorResultRow(existingRow, updatedSourceRow, editableColumns) {
+  const nextRow = {
+    ...existingRow,
+    __identity: updatedSourceRow?.__identity ?? existingRow?.__identity ?? null,
+  };
+
+  editableColumns.forEach((column) => {
+    if (column.sourceColumn === "rowid") {
+      nextRow[column.resultName] =
+        updatedSourceRow?.__identity?.values?.rowid ?? existingRow?.[column.resultName] ?? null;
+      return;
+    }
+
+    nextRow[column.resultName] = updatedSourceRow?.[column.sourceColumn] ?? null;
+  });
+
+  return nextRow;
+}
+
 function getCurrentStructureEntry(snapshot = state) {
   const entries = snapshot.structure.data?.entries ?? [];
   return entries.find((entry) => entry.name === snapshot.structure.selectedName) ?? null;
@@ -150,6 +176,11 @@ function syncRouteContext() {
     state.editor.activeTab = "results";
   } else if (route.name === "editor" && state.editor.activeTab === "results") {
     state.editor.activeTab = "messages";
+  }
+
+  if (route.name !== "editorResults") {
+    state.editor.selectedRowIndex = null;
+    state.editor.saveError = null;
   }
 
   if (
@@ -733,6 +764,9 @@ export function clearCurrentQuery() {
 export function clearEditorResults() {
   state.editor.result = null;
   state.editor.error = null;
+  state.editor.selectedRowIndex = null;
+  state.editor.saving = false;
+  state.editor.saveError = null;
   if (state.editor.activeTab === "results") {
     state.editor.activeTab = "messages";
   }
@@ -747,6 +781,9 @@ export function setEditorTab(tab) {
 export async function executeCurrentQuery() {
   state.editor.executing = true;
   state.editor.error = null;
+  state.editor.selectedRowIndex = null;
+  state.editor.saving = false;
+  state.editor.saveError = null;
   emitChange();
 
   try {
@@ -817,6 +854,28 @@ export function selectDataRow(index) {
 
   state.dataBrowser.selectedRowIndex = numericIndex;
   state.dataBrowser.saveError = null;
+  emitChange();
+}
+
+export function selectEditorRow(index) {
+  const numericIndex = Number(index);
+
+  if (!Number.isInteger(numericIndex) || numericIndex < 0 || !canEditQueryResult()) {
+    return;
+  }
+
+  state.editor.selectedRowIndex = numericIndex;
+  state.editor.saveError = null;
+  emitChange();
+}
+
+export function clearEditorRowSelection() {
+  if (state.editor.selectedRowIndex === null) {
+    return;
+  }
+
+  state.editor.selectedRowIndex = null;
+  state.editor.saveError = null;
   emitChange();
 }
 
@@ -899,6 +958,53 @@ export async function submitDataRowUpdate(rowIndex, values) {
     return null;
   } finally {
     state.dataBrowser.saving = false;
+    emitChange();
+  }
+}
+
+export async function submitEditorRowUpdate(rowIndex, values) {
+  const numericIndex = Number(rowIndex);
+  const result = state.editor.result;
+  const row = result?.rows?.[numericIndex];
+  const tableName = result?.editing?.tableName ?? null;
+
+  if (!tableName || !row || !canEditQueryResult()) {
+    pushToast("The selected query result row could not be loaded.", "alert");
+    return null;
+  }
+
+  state.editor.saving = true;
+  state.editor.saveError = null;
+  emitChange();
+
+  try {
+    const response = await api.updateDataTableRow(tableName, {
+      identity: row.__identity,
+      values,
+    });
+    const editableColumns = result.editing?.columns ?? [];
+    const nextRows = [...(result.rows ?? [])];
+
+    nextRows[numericIndex] = buildUpdatedEditorResultRow(
+      row,
+      response.data?.row ?? null,
+      editableColumns
+    );
+    state.editor.result = {
+      ...result,
+      rows: nextRows,
+    };
+    state.editor.selectedRowIndex = null;
+    invalidateDatabaseCaches();
+    pushToast(response.message || "Query result row updated.", "success");
+    emitChange();
+    return response.data;
+  } catch (error) {
+    state.editor.saveError = normalizeError(error);
+    emitChange();
+    return null;
+  } finally {
+    state.editor.saving = false;
     emitChange();
   }
 }

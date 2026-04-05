@@ -1,4 +1,5 @@
 import { renderDataGrid } from "../components/dataGrid.js";
+import { renderRowEditorPanel } from "../components/rowEditorPanel.js";
 import {
   escapeHtml,
   formatCellValue,
@@ -298,18 +299,7 @@ function renderTableSurface(state) {
   `;
 }
 
-function renderReadonlyField(label, value) {
-  return `
-    <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
-      <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
-        ${escapeHtml(label)}
-      </div>
-      <div class="mt-2 text-sm text-on-surface">${escapeHtml(value)}</div>
-    </div>
-  `;
-}
-
-function renderRowEditorPanel(state) {
+function renderDataRowEditorPanel(state) {
   const table = state.dataBrowser.table;
   const rowIndex = state.dataBrowser.selectedRowIndex;
   const row = getSelectedRow(state);
@@ -349,123 +339,36 @@ function renderRowEditorPanel(state) {
     return isBlobPreview(value) || (value && typeof value === "object");
   });
 
-  return `
-    <section class="flex h-full min-h-0 flex-col bg-surface-low">
-      <header class="border-b border-outline-variant/10 bg-surface-container px-6 py-5">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
-              Row Editor
-            </div>
-            <h2 class="mt-2 font-headline text-3xl font-black uppercase tracking-tight text-primary-container">
-              ${escapeHtml(table.name)}
-            </h2>
-            <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-              row ${escapeHtml(String(rowIndex + 1))}
-            </div>
-          </div>
-          <button
-            class="border border-outline-variant/20 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface hover:bg-surface-container-highest"
-            data-action="clear-data-row-selection"
-            type="button"
-          >
-            Close
-          </button>
-        </div>
-      </header>
-      <div class="custom-scrollbar flex-1 overflow-auto px-6 py-6">
-        ${
-          state.connections.active?.readOnly || table.notSafelyUpdatable
-            ? `
-                <div class="border border-error/20 bg-error-container/10 px-4 py-4 text-sm text-on-surface">
-                  ${
-                    state.connections.active?.readOnly
-                      ? "The active database is opened read-only, so row editing is disabled."
-                      : "This table has no stable identity column, so SQLite Hub cannot safely update rows."
-                  }
-                </div>
-              `
-            : `
-                <form class="space-y-6" data-form="save-data-row">
-                  <input name="rowIndex" type="hidden" value="${escapeHtml(String(rowIndex))}" />
-                  ${
-                    editableColumns.length
-                      ? `
-                          <div class="space-y-4">
-                            ${editableColumns
-                              .map((column) => {
-                                const value = row[column.name];
-                                const fieldValue =
-                                  value === null || value === undefined ? "" : String(value);
+  return renderRowEditorPanel({
+    title: table.name,
+    sectionLabel: "Row Editor",
+    subtitle: `row ${rowIndex + 1}`,
+    closeAction: "clear-data-row-selection",
+    formName: "save-data-row",
+    hiddenFields: [{ name: "rowIndex", value: String(rowIndex) }],
+    disabledMessage: state.connections.active?.readOnly
+      ? "The active database is opened read-only, so row editing is disabled."
+      : table.notSafelyUpdatable
+        ? "This table has no stable identity column, so SQLite Hub cannot safely update rows."
+        : "",
+    editableFields: editableColumns.map((column) => {
+      const value = row[column.name];
 
-                                return `
-                                  <label class="block space-y-2">
-                                    <span class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
-                                      ${escapeHtml(column.name)}
-                                    </span>
-                                    <textarea
-                                      class="min-h-[112px] w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
-                                      name="field:${escapeHtml(column.name)}"
-                                    >${escapeHtml(fieldValue)}</textarea>
-                                  </label>
-                                `;
-                              })
-                              .join("")}
-                          </div>
-                        `
-                      : '<div class="text-sm text-on-surface-variant/55">This row has no editable scalar columns.</div>'
-                  }
-                  ${
-                    state.dataBrowser.saveError
-                      ? `
-                          <div class="border border-error/20 bg-error-container/10 px-4 py-4 text-sm text-on-surface">
-                            <div class="font-headline text-xs font-bold uppercase tracking-[0.18em] text-error">
-                              ${escapeHtml(state.dataBrowser.saveError.code)}
-                            </div>
-                            <div class="mt-2">${escapeHtml(state.dataBrowser.saveError.message)}</div>
-                          </div>
-                        `
-                      : ""
-                  }
-                  <div class="flex items-center justify-end gap-3 border-t border-outline-variant/10 pt-6">
-                    <button
-                      class="border border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-on-surface hover:bg-surface-container-highest"
-                      data-action="reload-data-route"
-                      type="button"
-                    >
-                      Reload
-                    </button>
-                    <button
-                      class="bg-primary-container px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-on-primary"
-                      type="submit"
-                    >
-                      ${state.dataBrowser.saving ? "Saving..." : "Save Row"}
-                    </button>
-                  </div>
-                </form>
-              `
-        }
-        ${
-          readonlyColumns.length
-            ? `
-                <div class="mt-8 space-y-3">
-                  <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
-                    Locked Fields
-                  </div>
-                  <div class="space-y-3">
-                    ${readonlyColumns
-                      .map((column) =>
-                        renderReadonlyField(column.name, formatCellValue(row[column.name]))
-                      )
-                      .join("")}
-                  </div>
-                </div>
-              `
-            : ""
-        }
-      </div>
-    </section>
-  `;
+      return {
+        name: column.name,
+        label: column.name,
+        value: value === null || value === undefined ? "" : String(value),
+      };
+    }),
+    readonlyFields: readonlyColumns.map((column) => ({
+      name: column.name,
+      label: column.name,
+      value: formatCellValue(row[column.name]),
+    })),
+    saveError: state.dataBrowser.saveError,
+    saving: state.dataBrowser.saving,
+    reloadAction: "reload-data-route",
+  });
 }
 
 export function renderDataView(state) {
@@ -492,6 +395,6 @@ export function renderDataView(state) {
         </div>
       </section>
     `,
-    panel: renderRowEditorPanel(state),
+    panel: renderDataRowEditorPanel(state),
   };
 }

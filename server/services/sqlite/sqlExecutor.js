@@ -1,6 +1,7 @@
 const crypto = require("node:crypto");
 const { ValidationError } = require("../../utils/errors");
 const { serializeRows } = require("../../utils/sqliteTypes");
+const { getTableDetail } = require("./introspection");
 
 function getFirstKeyword(statement) {
   const trimmed = statement.trim().replace(/^--.*$/gm, "").trim();
@@ -153,6 +154,166 @@ function splitSqlStatements(sql) {
   return statements.filter((statement) => statement.trim());
 }
 
+function buildRowIdentity(tableDetail, row) {
+  if (tableDetail.identityStrategy?.type === "rowid") {
+    return {
+      kind: "rowid",
+      values: {
+        rowid: row.rowid,
+      },
+    };
+  }
+
+  if (tableDetail.identityStrategy?.type === "primaryKey") {
+    return {
+      kind: "primaryKey",
+      columns: tableDetail.identityStrategy.columns,
+      values: Object.fromEntries(
+        tableDetail.identityStrategy.columns.map((columnName) => [columnName, row[columnName]])
+      ),
+    };
+  }
+
+  return null;
+}
+
+function getEditableResultReason(tableDetail) {
+  if (tableDetail.notSafelyUpdatable) {
+    return "This result table has no stable identity column, so rows cannot be edited safely.";
+  }
+
+  if (tableDetail.identityStrategy?.type === "primaryKey") {
+    return "Include all primary key columns in the query result to edit rows here.";
+  }
+
+  if (tableDetail.identityStrategy?.type === "rowid") {
+    return "Include rowid in the query result to edit rows for tables without a primary key.";
+  }
+
+  return "Only direct single-table SELECT results can be edited here.";
+}
+
+function mapEditableColumns(tableDetail, columnDefinitions) {
+  const tableColumnsByName = new Map(
+    tableDetail.columns.map((column) => [column.name, column])
+  );
+  const identityColumns = new Set(
+    tableDetail.identityStrategy?.type === "primaryKey"
+      ? tableDetail.identityStrategy.columns ?? []
+      : tableDetail.identityStrategy?.type === "rowid"
+        ? ["rowid"]
+        : []
+  );
+
+  return columnDefinitions.map((definition) => {
+    const isRowId = definition.column === "rowid";
+    const columnMeta = isRowId ? null : tableColumnsByName.get(definition.column) ?? null;
+
+    return {
+      resultName: definition.name,
+      sourceColumn: definition.column,
+      sourceTable: definition.table,
+      visible: isRowId ? true : Boolean(columnMeta?.visible),
+      generated: Boolean(columnMeta?.generated),
+      identity: identityColumns.has(definition.column),
+    };
+  });
+}
+
+function hasRequiredIdentityColumns(tableDetail, editableColumns) {
+  const availableSourceColumns = new Set(editableColumns.map((column) => column.sourceColumn));
+
+  if (tableDetail.identityStrategy?.type === "primaryKey") {
+    return (tableDetail.identityStrategy.columns ?? []).every((columnName) =>
+      availableSourceColumns.has(columnName)
+    );
+  }
+
+  if (tableDetail.identityStrategy?.type === "rowid") {
+    return availableSourceColumns.has("rowid");
+  }
+
+  return false;
+}
+
+function buildIdentityRowFromResult(editableColumns, row) {
+  return Object.fromEntries(
+    editableColumns.map((column) => [column.sourceColumn, row[column.resultName]])
+  );
+}
+
+function resolveEditableResult(db, columnDefinitions, serializedRows) {
+  if (!columnDefinitions.length) {
+    return null;
+  }
+
+  const directColumns = columnDefinitions.filter(
+    (definition) => definition.table && definition.column && definition.database === "main"
+  );
+
+  if (directColumns.length !== columnDefinitions.length) {
+    return {
+      enabled: false,
+      reason: "Only direct single-table SELECT results can be edited here.",
+    };
+  }
+
+  const [firstColumn] = directColumns;
+  const sameSourceTable = directColumns.every(
+    (definition) =>
+      definition.table === firstColumn.table && definition.database === firstColumn.database
+  );
+
+  if (!sameSourceTable) {
+    return {
+      enabled: false,
+      reason: "Only direct single-table SELECT results can be edited here.",
+    };
+  }
+
+  const tableDetail = getTableDetail(db, firstColumn.table, {
+    includeRowCount: false,
+  });
+
+  if (tableDetail.type !== "table") {
+    return {
+      enabled: false,
+      tableName: firstColumn.table,
+      reason: "Only table results can be edited here.",
+    };
+  }
+
+  const editableColumns = mapEditableColumns(tableDetail, columnDefinitions);
+
+  if (!hasRequiredIdentityColumns(tableDetail, editableColumns)) {
+    return {
+      enabled: false,
+      tableName: tableDetail.name,
+      reason: getEditableResultReason(tableDetail),
+      columns: editableColumns,
+      identityStrategy: tableDetail.identityStrategy,
+    };
+  }
+
+  const rows = serializedRows.map((row) => {
+    const identityRow = buildIdentityRowFromResult(editableColumns, row);
+
+    return {
+      ...row,
+      __identity: buildRowIdentity(tableDetail, identityRow),
+    };
+  });
+
+  return {
+    enabled: true,
+    tableName: tableDetail.name,
+    reason: "",
+    columns: editableColumns,
+    identityStrategy: tableDetail.identityStrategy,
+    rows,
+  };
+}
+
 class SqlExecutor {
   constructor({ connectionManager, appStateStore }) {
     this.connectionManager = connectionManager;
@@ -189,8 +350,10 @@ class SqlExecutor {
 
       if (prepared.reader) {
         const rows = prepared.all();
+        const columnDefinitions = prepared.columns();
         const serializedRows = serializeRows(rows);
-        const columns = prepared.columns().map((column) => column.name);
+        const editableResult = resolveEditableResult(db, columnDefinitions, serializedRows);
+        const columns = columnDefinitions.map((column) => column.name);
         const result = {
           index,
           sql: statement,
@@ -198,7 +361,16 @@ class SqlExecutor {
           kind: "resultSet",
           rowCount: serializedRows.length,
           columns,
-          rows: serializedRows,
+          rows: editableResult?.rows ?? serializedRows,
+          editing: editableResult
+            ? {
+                enabled: editableResult.enabled,
+                tableName: editableResult.tableName ?? null,
+                reason: editableResult.reason ?? "",
+                columns: editableResult.columns ?? [],
+                identityStrategy: editableResult.identityStrategy ?? null,
+              }
+            : null,
         };
         results.push(result);
         lastResultSet = result;
@@ -229,6 +401,7 @@ class SqlExecutor {
       statements: results,
       rows: lastResultSet?.rows ?? [],
       columns: lastResultSet?.columns ?? [],
+      editing: lastResultSet?.editing ?? null,
       affectedRowCount: totalChanges,
       resultKind: lastResultSet ? "resultSet" : results.at(-1)?.kind ?? "unknown",
     };

@@ -8,6 +8,7 @@ import { createRouter } from "./router.js";
 import {
   clearCurrentQuery,
   clearDataRowSelection,
+  clearEditorRowSelection,
   clearEditorResults,
   clearSqlHistoryStateAndData,
   closeModal,
@@ -22,6 +23,7 @@ import {
   refreshCurrentRoute,
   removeConnection,
   selectDataRow,
+  selectEditorRow,
   selectConnection,
   selectStructureEntry,
   setDataPage,
@@ -31,6 +33,7 @@ import {
   setRoute,
   submitCreateConnection,
   submitDataRowUpdate,
+  submitEditorRowUpdate,
   submitEditConnection,
   submitImportSql,
   submitOpenConnection,
@@ -303,8 +306,16 @@ async function handleAction(actionNode) {
         selectDataRow(actionNode.dataset.rowIndex);
       }
       return;
+    case "select-editor-row":
+      if (actionNode.dataset.rowIndex) {
+        selectEditorRow(actionNode.dataset.rowIndex);
+      }
+      return;
     case "clear-data-row-selection":
       clearDataRowSelection();
+      return;
+    case "clear-editor-row-selection":
+      clearEditorRowSelection();
       return;
     case "set-data-page":
       if (actionNode.dataset.page) {
@@ -349,6 +360,12 @@ document.addEventListener("keydown", (event) => {
   if (state.route.name === "data" && typeof state.dataBrowser.selectedRowIndex === "number") {
     event.preventDefault();
     clearDataRowSelection();
+    return;
+  }
+
+  if (state.route.name === "editorResults" && typeof state.editor.selectedRowIndex === "number") {
+    event.preventDefault();
+    clearEditorRowSelection();
   }
 });
 
@@ -470,6 +487,23 @@ document.addEventListener("submit", async (event) => {
       }
 
       await submitDataRowUpdate(
+        String(formData.get("rowIndex") ?? ""),
+        values
+      );
+      return;
+    }
+    case "save-editor-row": {
+      const values = {};
+
+      for (const [key, value] of formData.entries()) {
+        if (!key.startsWith("field:")) {
+          continue;
+        }
+
+        values[key.slice("field:".length)] = String(value ?? "");
+      }
+
+      await submitEditorRowUpdate(
         String(formData.get("rowIndex") ?? ""),
         values
       );

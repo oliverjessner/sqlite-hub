@@ -1,8 +1,14 @@
 import { renderBottomTabs } from "../components/bottomTabs.js";
 import { renderQueryEditor } from "../components/queryEditor.js";
+import { renderRowEditorPanel } from "../components/rowEditorPanel.js";
 import { renderQueryResultsPane } from "../components/queryResults.js";
 import { getCurrentConnection, getQueryMessages, getQueryPerformance } from "../store.js";
-import { escapeHtml, formatNumber } from "../utils/format.js";
+import {
+  escapeHtml,
+  formatCellValue,
+  formatNumber,
+  isBlobPreview,
+} from "../utils/format.js";
 
 function renderMissingDatabase() {
   return `
@@ -80,6 +86,115 @@ function renderPerformancePane(state) {
   `;
 }
 
+function getResultEditingState(state) {
+  const editing = state.editor.result?.editing;
+
+  if (!editing) {
+    return {
+      enabled: false,
+      message: "",
+    };
+  }
+
+  if (state.connections.active?.readOnly) {
+    return {
+      enabled: false,
+      message: "The active database is opened read-only, so query result editing is disabled.",
+    };
+  }
+
+  if (!editing.enabled) {
+    return {
+      enabled: false,
+      message: editing.reason || "Only direct single-table SELECT results can be edited here.",
+    };
+  }
+
+  return {
+    enabled: true,
+    message: `Click a row to edit it in ${editing.tableName}.`,
+  };
+}
+
+function getUniqueResultColumns(columns = []) {
+  const uniqueColumns = [];
+  const seen = new Set();
+
+  columns.forEach((column) => {
+    if (!column?.sourceColumn || seen.has(column.sourceColumn)) {
+      return;
+    }
+
+    seen.add(column.sourceColumn);
+    uniqueColumns.push(column);
+  });
+
+  return uniqueColumns;
+}
+
+function renderEditorRowPanel(state) {
+  const result = state.editor.result;
+  const rowIndex = state.editor.selectedRowIndex;
+  const row = typeof rowIndex === "number" ? result?.rows?.[rowIndex] ?? null : null;
+
+  if (!result || !row || typeof rowIndex !== "number") {
+    return "";
+  }
+
+  const uniqueColumns = getUniqueResultColumns(result.editing?.columns ?? []);
+  const editableColumns = uniqueColumns.filter((column) => {
+    if (column.identity || column.generated || !column.visible) {
+      return false;
+    }
+
+    const value = row[column.resultName];
+    if (isBlobPreview(value) || (value && typeof value === "object")) {
+      return false;
+    }
+
+    return true;
+  });
+  const readonlyColumns = uniqueColumns.filter((column) => {
+    if (!column.visible) {
+      return false;
+    }
+
+    if (column.identity || column.generated) {
+      return true;
+    }
+
+    const value = row[column.resultName];
+    return isBlobPreview(value) || (value && typeof value === "object");
+  });
+  const editingState = getResultEditingState(state);
+
+  return renderRowEditorPanel({
+    title: result.editing?.tableName ?? "Query Result",
+    sectionLabel: "Row Editor",
+    subtitle: `query row ${rowIndex + 1}`,
+    closeAction: "clear-editor-row-selection",
+    formName: "save-editor-row",
+    hiddenFields: [{ name: "rowIndex", value: String(rowIndex) }],
+    disabledMessage: editingState.enabled ? "" : editingState.message,
+    editableFields: editableColumns.map((column) => {
+      const value = row[column.resultName];
+
+      return {
+        name: column.sourceColumn,
+        label: column.sourceColumn,
+        value: value === null || value === undefined ? "" : String(value),
+      };
+    }),
+    readonlyFields: readonlyColumns.map((column) => ({
+      name: column.sourceColumn,
+      label: column.sourceColumn,
+      value: formatCellValue(row[column.resultName]),
+    })),
+    saveError: state.editor.saveError,
+    saving: state.editor.saving,
+  });
+}
+
 function renderResultsSurface(state, isResultsRoute) {
   const activeTab = state.editor.activeTab;
   const counts = {
@@ -93,9 +208,14 @@ function renderResultsSurface(state, isResultsRoute) {
   if (activeTab === "performance") {
     content = renderPerformancePane(state);
   } else if (activeTab === "results") {
+    const editingState = getResultEditingState(state);
+
     content = state.connections.active
       ? renderQueryResultsPane(state.editor.result, {
           exporting: state.editor.exportLoading,
+          selectedRowIndex: state.editor.selectedRowIndex,
+          editable: editingState.enabled,
+          editStatusMessage: editingState.message,
         })
       : renderMissingDatabase();
   }
@@ -134,6 +254,6 @@ export function renderEditorView(state, { isResultsRoute = false } = {}) {
         </div>
       </section>
     `,
-    panel: "",
+    panel: isResultsRoute ? renderEditorRowPanel(state) : "",
   };
 }
