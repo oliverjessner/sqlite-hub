@@ -71,4 +71,4 @@ npm install -g sqlit-hub
 
 ## Changelog
 
-[](changelog.md)
+[Changelog](changelog.md)
