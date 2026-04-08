@@ -24,6 +24,7 @@ const state = {
     recent: [],
     active: null,
     loading: false,
+    backupLoading: false,
     error: null,
   },
   settings: {
@@ -47,6 +48,7 @@ const state = {
     page: 1,
     pageSize: 50,
     selectedRowIndex: null,
+    exportLoading: false,
     error: null,
     saveError: null,
   },
@@ -159,6 +161,7 @@ function setMissingDatabaseState() {
   state.dataBrowser.table = null;
   state.dataBrowser.page = 1;
   state.dataBrowser.selectedRowIndex = null;
+  state.dataBrowser.exportLoading = false;
   state.dataBrowser.error = error;
   state.dataBrowser.saveError = null;
 
@@ -480,6 +483,7 @@ function invalidateDatabaseCaches() {
   state.dataBrowser.table = null;
   state.dataBrowser.page = 1;
   state.dataBrowser.selectedRowIndex = null;
+  state.dataBrowser.exportLoading = false;
   state.dataBrowser.error = null;
   state.dataBrowser.saveError = null;
   state.structure.data = null;
@@ -739,6 +743,32 @@ export async function removeConnection(id) {
     return null;
   } finally {
     state.connections.loading = false;
+    emitChange();
+  }
+}
+
+export async function createActiveConnectionBackup() {
+  if (!state.connections.active) {
+    pushToast("No active SQLite database selected for backup.", "alert");
+    return null;
+  }
+
+  state.connections.backupLoading = true;
+  emitChange();
+
+  try {
+    const response = await api.createActiveConnectionBackup();
+    await refreshConnectionsState();
+    pushToast(response.message || "Backup created.", "success");
+    return response.data;
+  } catch (error) {
+    pushToast(
+      normalizeError(error)?.message || "Backup could not be created.",
+      "alert"
+    );
+    return null;
+  } finally {
+    state.connections.backupLoading = false;
     emitChange();
   }
 }
@@ -1023,6 +1053,31 @@ export async function exportCurrentQueryCsv() {
     return false;
   } finally {
     state.editor.exportLoading = false;
+    emitChange();
+  }
+}
+
+export async function exportCurrentDataTableCsv() {
+  const tableName = state.dataBrowser.selectedTable;
+
+  if (!tableName) {
+    pushToast("No table selected for export.", "alert");
+    return false;
+  }
+
+  state.dataBrowser.exportLoading = true;
+  emitChange();
+
+  try {
+    await api.downloadTableCsv(tableName);
+    pushToast(`CSV export started for ${tableName}.`, "success");
+    return true;
+  } catch (error) {
+    state.dataBrowser.error = normalizeError(error);
+    emitChange();
+    return false;
+  } finally {
+    state.dataBrowser.exportLoading = false;
     emitChange();
   }
 }

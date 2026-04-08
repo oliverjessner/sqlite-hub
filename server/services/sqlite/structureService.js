@@ -11,6 +11,18 @@ class StructureService {
   getStructureOverview() {
     const db = this.connectionManager.getActiveDatabase();
     const entries = getRawStructureEntries(db);
+    const tables = entries
+      .filter((entry) => entry.type === "table")
+      .map((entry) => getTableDetail(db, entry.name, { includeRowCount: false }));
+    const relationshipCount = tables.reduce(
+      (count, table) =>
+        count +
+        table.foreignKeys.reduce(
+          (tableCount, foreignKey) => tableCount + foreignKey.mappings.length,
+          0
+        ),
+      0
+    );
 
     return {
       entries,
@@ -19,6 +31,20 @@ class StructureService {
         views: entries.filter((entry) => entry.type === "view"),
         indexes: entries.filter((entry) => entry.type === "index"),
         triggers: entries.filter((entry) => entry.type === "trigger"),
+      },
+      graph: {
+        tables: tables.map((table) => ({
+          type: table.type,
+          name: table.name,
+          ddl: table.ddl,
+          withoutRowId: table.withoutRowId,
+          strict: table.strict,
+          columns: table.columns,
+          foreignKeys: table.foreignKeys,
+          identityStrategy: table.identityStrategy,
+          notSafelyUpdatable: table.notSafelyUpdatable,
+        })),
+        relationshipCount,
       },
     };
   }

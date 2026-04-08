@@ -113,6 +113,12 @@ export function updateRecentConnection(id, payload) {
   });
 }
 
+export function createActiveConnectionBackup() {
+  return request("/api/connections/backup-active", {
+    method: "POST",
+  });
+}
+
 export function getOverview() {
   return request("/api/db/overview");
 }
@@ -189,5 +195,13 @@ export function downloadQueryCsv(sql) {
     method: "POST",
     body: { sql },
     fallbackFilename: "query-results.csv",
+  });
+}
+
+export function downloadTableCsv(tableName) {
+  return download("/api/export/table.csv", {
+    method: "POST",
+    body: { tableName },
+    fallbackFilename: `${tableName || "table"}.csv`,
   });
 }

@@ -1,9 +1,8 @@
-# v0.3.0
+# v0.3.1
 
 - visualize tables
 - export csv from data and sql_editor
 - Backup mode
-- auto add the sqlitehub database
 
 # v0.2.0
 

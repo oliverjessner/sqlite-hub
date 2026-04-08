@@ -1,6 +1,6 @@
 {
     "name": "sqlite-hub",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "description": "SQLite-only local management app backend and SPA shell",
     "main": "server/server.js",
     "bin": {
@@ -13,6 +13,9 @@
     },
     "dependencies": {
         "better-sqlite3": "^11.8.1",
+        "cytoscape": "^3.33.2",
+        "cytoscape-elk": "^2.3.0",
+        "elkjs": "^0.11.1",
         "express": "^4.21.2"
     }
 }

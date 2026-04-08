@@ -38,6 +38,7 @@ export function renderQueryEditor({
   query,
   title,
   executing = false,
+  exporting = false,
   history = [],
   historyLoading = false,
 }) {
@@ -74,6 +75,13 @@ export function renderQueryEditor({
       type="button"
     >
       Clear
+    </button>
+    <button
+      class="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface hover:bg-surface-container-highest transition-colors"
+      data-action="export-query-csv"
+      type="button"
+    >
+      ${exporting ? "Exporting..." : "Export CSV"}
     </button>
     <button
       class="bg-primary-container px-6 py-1.5 text-xs font-black uppercase tracking-tighter text-on-primary shadow-[0_0_15px_-5px_rgba(252,227,0,0.4)] transition-all hover:brightness-110"

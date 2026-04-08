@@ -5,9 +5,11 @@ import { escapeHtml } from "../utils/format.js";
 function renderConnectionsActionButton({
   label,
   icon,
+  action = "open-modal",
   modal,
   tone = "secondary",
   className = "",
+  disabled = false,
 }) {
   const clipPath = "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)";
   const toneClassName =
@@ -19,14 +21,16 @@ function renderConnectionsActionButton({
       ? "text-base text-on-primary"
       : "text-base text-primary-container/90";
   const clipStyle = `style="--clip-path: ${clipPath};"`;
+  const modalAttribute = modal ? `data-modal="${modal}"` : "";
 
   return `
     <button
-      class="flex h-11 items-center justify-between gap-6 px-5 font-headline text-xs font-bold uppercase tracking-[0.18em] transition-colors ${toneClassName} ${className}"
-      data-action="open-modal"
-      data-modal="${modal}"
+      class="flex h-11 items-center justify-between gap-6 px-5 font-headline text-xs font-bold uppercase tracking-[0.18em] transition-colors disabled:cursor-default disabled:opacity-40 ${toneClassName} ${className}"
+      data-action="${escapeHtml(action)}"
+      ${modalAttribute}
       ${clipStyle}
       type="button"
+      ${disabled ? "disabled" : ""}
     >
       <span>${label}</span>
       <span class="material-symbols-outlined ${iconClassName}">${icon}</span>
@@ -112,6 +116,17 @@ export function renderConnectionsView(state) {
       modal: "create-connection",
       className: "min-w-[13rem]",
     })}
+    ${
+      state.connections.active
+        ? renderConnectionsActionButton({
+            label: state.connections.backupLoading ? "Creating Backup..." : "Create Backup",
+            icon: "inventory_2",
+            action: "create-backup",
+            className: "min-w-[13rem]",
+            disabled: state.connections.backupLoading,
+          })
+        : ""
+    }
   `;
 
   return {

@@ -2,10 +2,16 @@ import { renderAppShell } from "./components/appShell.js";
 import { renderModal } from "./components/modal.js";
 import { renderSidebar } from "./components/sidebar.js";
 import { renderStatusBar } from "./components/statusBar.js";
+import {
+  mountStructureGraph,
+  resetPersistedStructureGraphState,
+  teardownStructureGraph,
+} from "./components/structureGraph.js";
 import { renderToasts } from "./components/toast.js";
 import { renderTopNav } from "./components/topNav.js";
 import { createRouter } from "./router.js";
 import {
+  createActiveConnectionBackup,
   clearCurrentQuery,
   clearDataRowSelection,
   clearEditorRowSelection,
@@ -14,6 +20,7 @@ import {
   closeModal,
   dismissToast,
   executeCurrentQuery,
+  exportCurrentDataTableCsv,
   exportCurrentQueryCsv,
   getState,
   initializeApp,
@@ -62,6 +69,10 @@ const shellRefs = {
   modal: document.querySelector("#modal-root"),
   toast: document.querySelector("#toast-root"),
 };
+
+function resetStructureGraphForDatabaseChange() {
+  resetPersistedStructureGraphState();
+}
 
 function renderQueryHighlightMarkup(query) {
   if (query) {
@@ -212,6 +223,7 @@ function renderApp(state) {
   const { main, panel } = resolveView(state);
   const isLockedRoute = ["editor", "editorResults", "data"].includes(state.route.name);
 
+  teardownStructureGraph();
   shellRefs.topNav.innerHTML = renderTopNav(state);
   shellRefs.sidebar.innerHTML = renderSidebar(state);
   shellRefs.statusBar.innerHTML = renderStatusBar(state);
@@ -222,6 +234,12 @@ function renderApp(state) {
   shellRefs.toast.innerHTML = renderToasts(state.toasts);
   shellRefs.shell.classList.toggle("panel-open", Boolean(panel));
   restoreFocusedInputState(focusedInput);
+
+  if (state.route.name === "structure") {
+    mountStructureGraph(state).catch((error) => {
+      console.error("Failed to mount structure graph.", error);
+    });
+  }
 }
 
 const router = createRouter((route) => {
@@ -251,6 +269,7 @@ async function handleAction(actionNode) {
       dismissToast(actionNode.dataset.toastId);
       return;
     case "select-connection": {
+      resetStructureGraphForDatabaseChange();
       const next = await selectConnection(actionNode.dataset.connectionId);
       if (next) {
         router.navigate("/overview");
@@ -258,6 +277,12 @@ async function handleAction(actionNode) {
       return;
     }
     case "remove-connection": {
+      const isActiveConnection = getState().connections.active?.id === actionNode.dataset.connectionId;
+
+      if (isActiveConnection) {
+        resetStructureGraphForDatabaseChange();
+      }
+
       const removed = await removeConnection(actionNode.dataset.connectionId);
       if (removed) {
         const nextState = getState();
@@ -269,6 +294,9 @@ async function handleAction(actionNode) {
       }
       return;
     }
+    case "create-backup":
+      await createActiveConnectionBackup();
+      return;
     case "execute-query": {
       const success = await executeCurrentQuery();
       router.navigate(success ? "/editor/results" : "/editor");
@@ -295,6 +323,9 @@ async function handleAction(actionNode) {
       return;
     case "export-query-csv":
       await exportCurrentQueryCsv();
+      return;
+    case "export-data-csv":
+      await exportCurrentDataTableCsv();
       return;
     case "select-structure-entry":
       if (actionNode.dataset.entryName) {
@@ -422,6 +453,7 @@ document.addEventListener("submit", async (event) => {
 
   switch (form.dataset.form) {
     case "open-connection": {
+      resetStructureGraphForDatabaseChange();
       const connection = await submitOpenConnection({
         path: String(formData.get("path") ?? ""),
         label: String(formData.get("label") ?? ""),
@@ -434,6 +466,7 @@ document.addEventListener("submit", async (event) => {
       return;
     }
     case "create-connection": {
+      resetStructureGraphForDatabaseChange();
       const connection = await submitCreateConnection({
         path: String(formData.get("path") ?? ""),
         label: String(formData.get("label") ?? ""),
@@ -445,6 +478,7 @@ document.addEventListener("submit", async (event) => {
       return;
     }
     case "import-sql": {
+      resetStructureGraphForDatabaseChange();
       const targetMode = String(formData.get("targetMode") ?? "active");
       const payload = {
         sqlFilePath: String(formData.get("sqlFilePath") ?? ""),
@@ -467,7 +501,14 @@ document.addEventListener("submit", async (event) => {
       return;
     }
     case "edit-connection": {
-      await submitEditConnection(String(formData.get("connectionId") ?? ""), {
+      const connectionId = String(formData.get("connectionId") ?? "");
+      const isActiveConnection = getState().connections.active?.id === connectionId;
+
+      if (isActiveConnection) {
+        resetStructureGraphForDatabaseChange();
+      }
+
+      await submitEditConnection(connectionId, {
         path: String(formData.get("path") ?? ""),
         label: String(formData.get("label") ?? ""),
         readOnly: formData.get("readOnly") === "on",

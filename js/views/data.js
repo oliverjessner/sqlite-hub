@@ -95,6 +95,19 @@ function renderWorkspaceHeader(state) {
           </div>
         </div>
         <div class="flex items-center gap-3">
+          ${
+            table
+              ? `
+                  <button
+                    class="border border-outline-variant/20 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface hover:bg-surface-container-highest"
+                    data-action="export-data-csv"
+                    type="button"
+                  >
+                    ${state.dataBrowser.exportLoading ? "Exporting..." : "Export CSV"}
+                  </button>
+                `
+              : ""
+          }
           <button
             class="border border-outline-variant/20 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface hover:bg-surface-container-highest"
             data-action="refresh-view"

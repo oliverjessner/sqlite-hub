@@ -7,6 +7,7 @@ const { ConnectionManager } = require("./services/sqlite/connectionManager");
 const { OverviewService } = require("./services/sqlite/overviewService");
 const { SqlExecutor } = require("./services/sqlite/sqlExecutor");
 const { ImportService } = require("./services/sqlite/importService");
+const { BackupService } = require("./services/sqlite/backupService");
 const { ExportService } = require("./services/sqlite/exportService");
 const { StructureService } = require("./services/sqlite/structureService");
 const { DataBrowserService } = require("./services/sqlite/dataBrowserService");
@@ -34,8 +35,10 @@ const connectionManager = new ConnectionManager({ appStateStore });
 const overviewService = new OverviewService({ connectionManager });
 const sqlExecutor = new SqlExecutor({ connectionManager, appStateStore });
 const importService = new ImportService({ connectionManager });
+const backupService = new BackupService({ connectionManager });
 const exportService = new ExportService({
   appStateStore,
+  connectionManager,
   sqlExecutor,
 });
 const structureService = new StructureService({ connectionManager, appStateStore });
@@ -65,6 +68,7 @@ app.use(
   createConnectionsRouter({
     connectionManager,
     importService,
+    backupService,
   })
 );
 app.use("/api/db", createOverviewRouter({ overviewService }));
@@ -86,6 +90,18 @@ app.get("/index.html", (req, res) => {
   res.sendFile(path.resolve(__dirname, "..", "index.html"));
 });
 
+app.use(
+  "/vendor/cytoscape",
+  express.static(path.resolve(__dirname, "..", "node_modules", "cytoscape"))
+);
+app.use(
+  "/vendor/cytoscape-elk",
+  express.static(path.resolve(__dirname, "..", "node_modules", "cytoscape-elk"))
+);
+app.use(
+  "/vendor/elkjs",
+  express.static(path.resolve(__dirname, "..", "node_modules", "elkjs"))
+);
 app.use("/js", express.static(path.resolve(__dirname, "..", "js")));
 app.use("/styles", express.static(path.resolve(__dirname, "..", "styles")));
 app.use("/assets", express.static(path.resolve(__dirname, "..", "assets")));

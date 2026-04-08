@@ -243,6 +243,7 @@ export function renderEditorView(state, { isResultsRoute = false } = {}) {
             ${renderQueryEditor({
               query: state.editor.sqlText,
               executing: state.editor.executing,
+              exporting: state.editor.exportLoading,
               history: state.editor.history,
               historyLoading: state.editor.historyLoading,
               title: connection?.label ?? "SQLite Query Workspace",

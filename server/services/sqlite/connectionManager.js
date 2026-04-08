@@ -121,6 +121,21 @@ class ConnectionManager {
     return this.getActiveConnection();
   }
 
+  rememberConnection({ filePath, label, readOnly = false, makeActive = false }) {
+    const resolvedPath = validateSqlitePath(filePath, { mustExist: true });
+    const connection = this.buildConnectionRecord(resolvedPath, {
+      label,
+      readOnly,
+    });
+
+    this.appStateStore.upsertRecentConnection(connection, { makeActive });
+
+    return {
+      ...connection,
+      isActive: this.current?.id === connection.id,
+    };
+  }
+
   createConnection({ filePath, label }) {
     const resolvedPath = resolveUserPath(filePath);
     ensureFileDoesNotExist(resolvedPath, "SQLite database");

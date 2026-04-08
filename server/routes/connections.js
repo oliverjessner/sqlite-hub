@@ -1,7 +1,7 @@
 const express = require("express");
 const { route, successResponse } = require("../utils/errors");
 
-function createConnectionsRouter({ connectionManager, importService }) {
+function createConnectionsRouter({ connectionManager, importService, backupService }) {
   const router = express.Router();
 
   router.post(
@@ -63,6 +63,20 @@ function createConnectionsRouter({ connectionManager, importService }) {
           warnings: result.warnings,
           timingMs: result.timingMs,
           readOnly: result.importedInto.readOnly,
+        })
+      );
+    })
+  );
+
+  router.post(
+    "/backup-active",
+    route((req, res) => {
+      const backup = backupService.createActiveBackup();
+
+      res.json(
+        successResponse({
+          message: `Backup created: ${backup.fileName}`,
+          data: backup,
         })
       );
     })

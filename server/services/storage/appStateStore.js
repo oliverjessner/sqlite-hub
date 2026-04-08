@@ -444,7 +444,9 @@ class AppStateStore {
       }));
   }
 
-  upsertRecentConnection(connection) {
+  upsertRecentConnection(connection, options = {}) {
+    const makeActive = options.makeActive !== false;
+
     this.db.transaction(() => {
       this.db
         .prepare(`
@@ -476,7 +478,10 @@ class AppStateStore {
           connection.readOnly ? 1 : 0
         );
 
-      this.setMetaValue("activeConnectionId", connection.id);
+      if (makeActive) {
+        this.setMetaValue("activeConnectionId", connection.id);
+      }
+
       this.trimRecentConnections();
     })();
 
