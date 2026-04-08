@@ -15,6 +15,8 @@ SQLite Hub keeps that workflow sharp:
 - browse tables and rows
 - inspect schema and structure
 - edit records in place
+- export tables and query results as CSV
+- create simple local backups of the active database
 - run SQL in a syntax-highlighted editor
 - stay local and move fast
 
@@ -30,7 +32,7 @@ Inspect tables, columns, types, and schema details without losing pace. Visualiz
 
 ![](/assets/mockups/data.png)
 
-Scan rows, sort fast, and move through local data quickly.
+Scan rows, sort fast, move through local data quickly, and export full tables as CSV.
 
 ### Row editing
 
@@ -42,7 +44,11 @@ Open one record, edit it in place, commit, continue.
 
 ![](/assets/mockups/sql_editor.png)
 
-Write queries in a syntax-highlighted editor and inspect results in the same workflow.
+Write queries in a syntax-highlighted editor, inspect results in the same workflow, and export result sets as CSV.
+
+### Simple backups
+
+Create timestamped local backups of the active SQLite database in one click. Backups are stored as plain file copies in a local `backups` folder next to the database.
 
 ### Local-first
 
@@ -62,3 +68,7 @@ brew install sqlite-hub
 ```bash
 npm install -g sqlit-hub
 ```
+
+## Changelog
+
+[](changelog.md)
