@@ -380,6 +380,10 @@ function renderDataRowEditorPanel(state) {
     })),
     saveError: state.dataBrowser.saveError,
     saving: state.dataBrowser.saving,
+    deleting: state.dataBrowser.deleting,
+    deleteAction: "delete-data-row",
+    deleteRowIndex: rowIndex,
+    deleteEnabled: Boolean(row.__identity),
     reloadAction: "reload-data-route",
   });
 }

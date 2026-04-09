@@ -1,5 +1,5 @@
 import * as api from "./api.js";
-import { inferStatusTone } from "./utils/format.js";
+import { formatCellValue, inferStatusTone, truncateMiddle } from "./utils/format.js";
 
 const listeners = new Set();
 const DEFAULT_SETTINGS = {
@@ -45,6 +45,7 @@ const state = {
     loading: false,
     tableLoading: false,
     saving: false,
+    deleting: false,
     page: 1,
     pageSize: 50,
     selectedRowIndex: null,
@@ -64,6 +65,7 @@ const state = {
     exportLoading: false,
     selectedRowIndex: null,
     saving: false,
+    deleting: false,
     saveError: null,
   },
   structure: {
@@ -138,6 +140,32 @@ function buildUpdatedEditorResultRow(existingRow, updatedSourceRow, editableColu
 function getCurrentStructureEntry(snapshot = state) {
   const entries = snapshot.structure.data?.entries ?? [];
   return entries.find((entry) => entry.name === snapshot.structure.selectedName) ?? null;
+}
+
+function buildDeleteRowPreview(fields = []) {
+  return fields
+    .filter((field) => field && field.label)
+    .slice(0, 8)
+    .map((field) => {
+      const fullValue = formatCellValue(field.value);
+
+      return {
+        label: String(field.label),
+        value: truncateMiddle(fullValue, 96),
+        fullValue,
+      };
+    });
+}
+
+function buildFallbackDeleteRowPreview(row) {
+  return buildDeleteRowPreview(
+    Object.entries(row ?? {})
+      .filter(([key]) => key !== "__identity")
+      .map(([key, value]) => ({
+        label: key,
+        value,
+      }))
+  );
 }
 
 function clearRouteSlices() {
@@ -621,6 +649,69 @@ export function openEditConnectionModal(id) {
   emitChange();
 }
 
+export function openDeleteDataRowModal(rowIndex) {
+  const numericIndex = Number(rowIndex);
+  const tableName = state.dataBrowser.selectedTable;
+  const row = state.dataBrowser.table?.rows?.[numericIndex];
+  const rowPreview = buildDeleteRowPreview(
+    (state.dataBrowser.table?.columnMeta ?? [])
+      .filter((column) => column.visible)
+      .map((column) => ({
+        label: column.name,
+        value: row[column.name],
+      }))
+  );
+
+  if (!tableName || !row?.__identity) {
+    pushToast("The selected row could not be loaded.", "alert");
+    return;
+  }
+
+  state.modal = {
+    kind: "delete-row",
+    target: "data",
+    rowIndex: numericIndex,
+    tableName,
+    rowLabel: `row ${numericIndex + 1}`,
+    rowPreview: rowPreview.length ? rowPreview : buildFallbackDeleteRowPreview(row),
+    error: null,
+    submitting: false,
+  };
+  emitChange();
+}
+
+export function openDeleteEditorRowModal(rowIndex) {
+  const numericIndex = Number(rowIndex);
+  const tableName = state.editor.result?.editing?.tableName ?? null;
+  const row = state.editor.result?.rows?.[numericIndex];
+  const columns = state.editor.result?.editing?.columns ?? [];
+  const rowPreview = buildDeleteRowPreview(
+    columns
+      .filter((column) => column.visible !== false)
+      .map((column) => ({
+        label: column.sourceColumn || column.resultName,
+        value: row[column.resultName],
+      }))
+  );
+
+  if (!tableName || !row?.__identity || !canEditQueryResult()) {
+    pushToast("The selected query result row could not be loaded.", "alert");
+    return;
+  }
+
+  state.modal = {
+    kind: "delete-row",
+    target: "editor",
+    rowIndex: numericIndex,
+    tableName,
+    rowLabel: `query row ${numericIndex + 1}`,
+    rowPreview: rowPreview.length ? rowPreview : buildFallbackDeleteRowPreview(row),
+    error: null,
+    submitting: false,
+  };
+  emitChange();
+}
+
 export function closeModal() {
   closeModalInternal();
 }
@@ -992,6 +1083,51 @@ export async function submitDataRowUpdate(rowIndex, values) {
   }
 }
 
+export async function submitDataRowDelete(rowIndex, options = {}) {
+  const numericIndex = Number(rowIndex);
+  const tableName = state.dataBrowser.selectedTable;
+  const row = state.dataBrowser.table?.rows?.[numericIndex];
+  const reportErrorToModal = Boolean(options.reportErrorToModal);
+
+  if (!tableName || !row?.__identity) {
+    pushToast("The selected row could not be loaded.", "alert");
+    return null;
+  }
+
+  const shouldStepBackPage =
+    (state.dataBrowser.table?.rows?.length ?? 0) <= 1 && state.dataBrowser.page > 1;
+
+  state.dataBrowser.deleting = true;
+  state.dataBrowser.saveError = null;
+  emitChange();
+
+  try {
+    const response = await api.deleteDataTableRow(tableName, {
+      identity: row.__identity,
+    });
+
+    if (shouldStepBackPage) {
+      state.dataBrowser.page -= 1;
+    }
+
+    pushToast(response.message || "Table row deleted.", "success");
+    await loadDataTable(++routeLoadVersion);
+    state.dataBrowser.selectedRowIndex = null;
+    return response.data;
+  } catch (error) {
+    if (reportErrorToModal) {
+      withModalError(error);
+    } else {
+      state.dataBrowser.saveError = normalizeError(error);
+      emitChange();
+    }
+    return null;
+  } finally {
+    state.dataBrowser.deleting = false;
+    emitChange();
+  }
+}
+
 export async function submitEditorRowUpdate(rowIndex, values) {
   const numericIndex = Number(rowIndex);
   const result = state.editor.result;
@@ -1037,6 +1173,73 @@ export async function submitEditorRowUpdate(rowIndex, values) {
     state.editor.saving = false;
     emitChange();
   }
+}
+
+export async function submitEditorRowDelete(rowIndex, options = {}) {
+  const numericIndex = Number(rowIndex);
+  const result = state.editor.result;
+  const row = result?.rows?.[numericIndex];
+  const tableName = result?.editing?.tableName ?? null;
+  const reportErrorToModal = Boolean(options.reportErrorToModal);
+
+  if (!tableName || !row?.__identity || !canEditQueryResult()) {
+    pushToast("The selected query result row could not be loaded.", "alert");
+    return null;
+  }
+
+  state.editor.deleting = true;
+  state.editor.saveError = null;
+  emitChange();
+
+  try {
+    const response = await api.deleteDataTableRow(tableName, {
+      identity: row.__identity,
+    });
+    const nextRows = [...(result.rows ?? [])];
+
+    nextRows.splice(numericIndex, 1);
+    state.editor.result = {
+      ...result,
+      rows: nextRows,
+    };
+    state.editor.selectedRowIndex = null;
+    invalidateDatabaseCaches();
+    pushToast(response.message || "Query result row deleted.", "success");
+    emitChange();
+    return response.data;
+  } catch (error) {
+    if (reportErrorToModal) {
+      withModalError(error);
+    } else {
+      state.editor.saveError = normalizeError(error);
+      emitChange();
+    }
+    return null;
+  } finally {
+    state.editor.deleting = false;
+    emitChange();
+  }
+}
+
+export async function submitDeleteRowConfirmation() {
+  const modal = state.modal;
+
+  if (modal?.kind !== "delete-row") {
+    return null;
+  }
+
+  startModalSubmission();
+
+  const result =
+    modal.target === "editor"
+      ? await submitEditorRowDelete(modal.rowIndex, { reportErrorToModal: true })
+      : await submitDataRowDelete(modal.rowIndex, { reportErrorToModal: true });
+
+  if (result) {
+    closeModalInternal();
+  }
+
+  return result;
 }
 
 export async function exportCurrentQueryCsv() {

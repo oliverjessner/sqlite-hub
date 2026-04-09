@@ -179,6 +179,13 @@ export function updateDataTableRow(tableName, payload) {
   });
 }
 
+export function deleteDataTableRow(tableName, payload) {
+  return request(`/api/data/${encodeURIComponent(tableName)}/rows`, {
+    method: "DELETE",
+    body: payload,
+  });
+}
+
 export function getSettings() {
   return request("/api/settings");
 }

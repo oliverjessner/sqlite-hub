@@ -69,6 +69,12 @@ brew install sqlite-hub
 npm install -g sqlit-hub
 ```
 
+## alternative port
+
+```bash
+sqlit-hub --port:4174
+```
+
 ## Changelog
 
-[Changelog](changelog.md)
+[Changelog](/changelog.md)

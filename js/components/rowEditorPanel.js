@@ -23,16 +23,23 @@ export function renderRowEditorPanel({
   disabledMessage = "",
   saveError = null,
   saving = false,
+  deleting = false,
   reloadAction = "",
-  submitLabel = "Save Row",
+  submitLabel = "Save",
+  deleteAction = "",
+  deleteRowIndex = null,
+  deleteLabel = "Delete Row",
+  deleteEnabled = false,
   emptyEditableMessage = "This row has no editable scalar columns.",
 }) {
   const canSubmit = !disabledMessage && editableFields.length > 0;
+  const canDelete = !disabledMessage && deleteEnabled;
+  const formId = `${formName}-panel-form`;
 
   return `
     <section class="flex h-full min-h-0 flex-col bg-surface-low">
       <header class="border-b border-outline-variant/10 bg-surface-container px-6 py-5">
-        <div class="flex items-start justify-between gap-4">
+        <div class="space-y-4">
           <div>
             <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
               ${escapeHtml(sectionLabel)}
@@ -50,13 +57,58 @@ export function renderRowEditorPanel({
                 : ""
             }
           </div>
-          <button
-            class="border border-outline-variant/20 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface hover:bg-surface-container-highest"
-            data-action="${escapeHtml(closeAction)}"
-            type="button"
-          >
-            Close
-          </button>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            ${
+              reloadAction
+                ? `
+                    <button
+                      class="border border-outline-variant/20 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface hover:bg-surface-container-highest"
+                      data-action="${escapeHtml(reloadAction)}"
+                      type="button"
+                    >
+                      Reload
+                    </button>
+                  `
+                : ""
+            }
+            ${
+              canSubmit
+                ? `
+                    <button
+                      class="bg-primary-container px-5 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-on-primary disabled:cursor-default disabled:opacity-40"
+                      form="${escapeHtml(formId)}"
+                      type="submit"
+                      ${saving || deleting ? "disabled" : ""}
+                    >
+                      ${escapeHtml(saving ? "Saving..." : submitLabel)}
+                    </button>
+                  `
+                : ""
+            }
+            ${
+              canDelete
+                ? `
+                    <button
+                      class="border border-error/25 bg-error-container/10 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-error transition-colors hover:bg-error-container/20 disabled:cursor-default disabled:opacity-40"
+                      data-action="${escapeHtml(deleteAction)}"
+                      data-row-index="${escapeHtml(String(deleteRowIndex ?? ""))}"
+                      type="button"
+                      ${saving || deleting ? "disabled" : ""}
+                    >
+                      ${escapeHtml(deleting ? "Deleting..." : deleteLabel)}
+                    </button>
+                  `
+                : ""
+            }
+            <button
+              aria-label="Close panel"
+              class="flex h-11 w-11 items-center justify-center border border-outline-variant/20 text-on-surface hover:bg-surface-container-highest"
+              data-action="${escapeHtml(closeAction)}"
+              type="button"
+            >
+              <span class="material-symbols-outlined text-base">close</span>
+            </button>
+          </div>
         </div>
       </header>
       <div class="custom-scrollbar flex-1 overflow-auto px-6 py-6">
@@ -68,7 +120,7 @@ export function renderRowEditorPanel({
                 </div>
               `
             : `
-                <form class="space-y-6" data-form="${escapeHtml(formName)}">
+                <form class="space-y-6" data-form="${escapeHtml(formName)}" id="${escapeHtml(formId)}">
                   ${hiddenFields
                     .map(
                       (field) => `
@@ -92,7 +144,7 @@ export function renderRowEditorPanel({
                                       ${escapeHtml(field.label ?? field.name)}
                                     </span>
                                     <textarea
-                                      class="min-h-[112px] w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+                                      class="min-h-[56px] w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
                                       name="field:${escapeHtml(field.name)}"
                                     >${escapeHtml(field.value ?? "")}</textarea>
                                   </label>
@@ -117,28 +169,6 @@ export function renderRowEditorPanel({
                         `
                       : ""
                   }
-                  <div class="flex items-center justify-end gap-3 border-t border-outline-variant/10 pt-6">
-                    ${
-                      reloadAction
-                        ? `
-                            <button
-                              class="border border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-on-surface hover:bg-surface-container-highest"
-                              data-action="${escapeHtml(reloadAction)}"
-                              type="button"
-                            >
-                              Reload
-                            </button>
-                          `
-                        : ""
-                    }
-                    <button
-                      class="bg-primary-container px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-on-primary disabled:cursor-default disabled:opacity-40"
-                      type="submit"
-                      ${canSubmit ? "" : "disabled"}
-                    >
-                      ${escapeHtml(saving ? "Saving..." : submitLabel)}
-                    </button>
-                  </div>
                 </form>
               `
         }

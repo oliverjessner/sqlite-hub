@@ -192,6 +192,10 @@ function renderEditorRowPanel(state) {
     })),
     saveError: state.editor.saveError,
     saving: state.editor.saving,
+    deleting: state.editor.deleting,
+    deleteAction: "delete-editor-row",
+    deleteRowIndex: rowIndex,
+    deleteEnabled: editingState.enabled && Boolean(row.__identity),
   });
 }
 

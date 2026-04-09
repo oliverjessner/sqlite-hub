@@ -51,6 +51,20 @@ function createDataRouter({ dataBrowserService }) {
     })
   );
 
+  router.delete(
+    "/:tableName/rows",
+    route((req, res) => {
+      const data = dataBrowserService.deleteTableRow(req.params.tableName, req.body ?? {});
+
+      res.json(
+        successResponse({
+          message: "Table row deleted.",
+          data,
+        })
+      );
+    })
+  );
+
   return router;
 }
 

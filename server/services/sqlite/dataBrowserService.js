@@ -171,6 +171,36 @@ class DataBrowserService {
     };
   }
 
+  deleteTableRow(tableName, payload = {}) {
+    this.connectionManager.assertWritable();
+
+    const db = this.connectionManager.getActiveDatabase();
+    const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
+    const identity = payload.identity ?? null;
+
+    if (tableDetail.notSafelyUpdatable) {
+      throw new ValidationError(
+        `Table ${tableName} cannot be safely updated because it has no stable row identity.`
+      );
+    }
+
+    const where = this.buildWhereClause(tableDetail, identity);
+    const result = db
+      .prepare(`DELETE FROM ${quoteIdentifier(tableName)} WHERE ${where.clause}`)
+      .run(...where.params);
+
+    if (!result.changes) {
+      throw new NotFoundError(`Row not found in table: ${tableName}`);
+    }
+
+    return {
+      tableName,
+      deleted: true,
+      identity,
+      affectedRowCount: result.changes,
+    };
+  }
+
   buildWhereClause(tableDetail, identity) {
     if (tableDetail.identityStrategy?.type === "rowid") {
       const rowid = identity?.values?.rowid;

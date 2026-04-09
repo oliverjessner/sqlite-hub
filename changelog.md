@@ -1,3 +1,8 @@
+# v0.3.2
+
+- delete rows
+- modal windows for rows
+
 # v0.3.1
 
 - visualize tables

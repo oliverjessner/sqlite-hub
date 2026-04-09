@@ -26,6 +26,8 @@ import {
   initializeApp,
   loadQueryFromHistory,
   openModal,
+  openDeleteDataRowModal,
+  openDeleteEditorRowModal,
   openEditConnectionModal,
   refreshCurrentRoute,
   removeConnection,
@@ -39,6 +41,7 @@ import {
   setEditorTab,
   setRoute,
   submitCreateConnection,
+  submitDeleteRowConfirmation,
   submitDataRowUpdate,
   submitEditorRowUpdate,
   submitEditConnection,
@@ -302,6 +305,12 @@ async function handleAction(actionNode) {
       router.navigate(success ? "/editor/results" : "/editor");
       return;
     }
+    case "delete-data-row":
+      openDeleteDataRowModal(actionNode.dataset.rowIndex);
+      return;
+    case "delete-editor-row":
+      openDeleteEditorRowModal(actionNode.dataset.rowIndex);
+      return;
     case "clear-query":
       clearCurrentQuery();
       return;
@@ -516,6 +525,9 @@ document.addEventListener("submit", async (event) => {
 
       return;
     }
+    case "delete-row-confirm":
+      await submitDeleteRowConfirmation();
+      return;
     case "save-data-row": {
       const values = {};
 

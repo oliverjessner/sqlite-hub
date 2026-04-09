@@ -107,7 +107,27 @@ app.use("/styles", express.static(path.resolve(__dirname, "..", "styles")));
 app.use("/assets", express.static(path.resolve(__dirname, "..", "assets")));
 app.use(errorMiddleware);
 
-function resolvePort(value = process.env.PORT) {
+function parsePortArgument(argv = process.argv.slice(2)) {
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+
+    if (argument.startsWith("--port:")) {
+      return argument.slice("--port:".length);
+    }
+
+    if (argument.startsWith("--port=")) {
+      return argument.slice("--port=".length);
+    }
+
+    if (argument === "--port") {
+      return argv[index + 1];
+    }
+  }
+
+  return undefined;
+}
+
+function resolvePort(value = process.env.PORT ?? parsePortArgument()) {
   if (value === undefined || value === null || value === "") {
     return DEFAULT_PORT;
   }
@@ -153,6 +173,7 @@ module.exports = {
   appStateStore,
   connectionManager,
   DEFAULT_PORT,
+  parsePortArgument,
   resolvePort,
   startServer,
 };

@@ -254,6 +254,75 @@ function renderImportSqlForm(modal, state) {
   `;
 }
 
+function renderDeleteRowConfirmForm(modal) {
+  const rowPreview = modal.rowPreview ?? [];
+
+  return `
+    <form class="space-y-5" data-form="delete-row-confirm">
+      <div class="space-y-3">
+        <p class="text-sm leading-7 text-on-surface">
+          Delete this row from <span class="font-bold text-primary-container">${escapeHtml(
+            modal.tableName ?? "the current table"
+          )}</span>?
+        </p>
+        <p class="text-sm leading-7 text-on-surface-variant/65">
+          This action cannot be undone.
+        </p>
+        ${
+          modal.rowLabel
+            ? `
+                <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
+                  ${escapeHtml(modal.rowLabel)}
+                </div>
+              `
+            : ""
+        }
+        ${
+          rowPreview.length
+            ? `
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  ${rowPreview
+                    .map(
+                      (field) => `
+                        <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
+                          <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
+                            ${escapeHtml(field.label)}
+                          </div>
+                          <div
+                            class="mt-2 text-sm text-on-surface"
+                            title="${escapeHtml(field.fullValue ?? field.value ?? "")}"
+                          >
+                            ${escapeHtml(field.value ?? "")}
+                          </div>
+                        </div>
+                      `
+                    )
+                    .join("")}
+                </div>
+              `
+            : ""
+        }
+      </div>
+      ${renderError(modal.error)}
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button
+          class="border border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant hover:bg-surface-container-highest"
+          data-action="close-modal"
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          class="border border-error/25 bg-error-container/10 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-error"
+          type="submit"
+        >
+          ${modal.submitting ? "Deleting..." : "Delete Row"}
+        </button>
+      </div>
+    </form>
+  `;
+}
+
 export function renderModal(state) {
   const modal = state.modal;
 
@@ -281,6 +350,11 @@ export function renderModal(state) {
       eyebrow: "Registry // Update saved SQLite target",
       title: "Edit Connection",
       body: renderEditConnectionForm(modal),
+    },
+    "delete-row": {
+      eyebrow: "Mutation // Confirm row deletion",
+      title: "Delete Row",
+      body: renderDeleteRowConfirmForm(modal),
     },
   };
 
