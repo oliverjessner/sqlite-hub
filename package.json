@@ -9,7 +9,7 @@
     "scripts": {
         "start": "node bin/sqlite-hub.js",
         "dev": "node --watch server/server.js --port:4180",
-        "publish": "bash publish_brew.sh && bash publish_npm.sh"
+        "publish": "bash publish_brew.sh && sleep 10 && bash publish_npm.sh"
     },
     "dependencies": {
         "better-sqlite3": "^11.8.1",
