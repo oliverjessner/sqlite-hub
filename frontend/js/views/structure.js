@@ -6,8 +6,8 @@ function renderEntryGroup(title, entries, activeName, options = {}) {
   const { compact = false, showMeta = true } = options;
 
   return `
-    <section class="shell-section p-5">
-      <div class="mb-4 text-[10px] font-bold uppercase tracking-[0.25em] text-primary-container">
+    <section class="shell-section flex flex-col p-5">
+      <div class="mb-4 shrink-0 text-[10px] font-bold uppercase tracking-[0.25em] text-primary-container">
         ${escapeHtml(title)}
       </div>
       ${
@@ -209,10 +209,6 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading) {
               type="search"
             />
           </label>
-          <div class="structure-graph__toolbar-meta">
-            ${escapeHtml(formatNumber(graph.tables?.length ?? 0))} TABLES //
-            ${escapeHtml(formatNumber(graph.relationshipCount ?? 0))} RELATIONSHIPS
-          </div>
         </div>
         <div class="structure-graph__toolbar-actions">
           <button
@@ -293,8 +289,8 @@ export function renderStructureView(state) {
 
   return {
     main: `
-      <section class="view-surface min-h-full bg-surface-container">
-        <div class="view-frame space-y-8">
+      <section class="view-surface flex h-full min-h-0 flex-col bg-surface-container">
+        <div class="view-frame flex h-full min-h-0 flex-col">
           ${renderPageHeader({
             title: "Structure",
             subtitle: "Schema graph, foreign-key paths, raw DDL, and object metadata",
@@ -303,7 +299,7 @@ export function renderStructureView(state) {
           ${
             state.structure.loading && !structure
               ? `
-                <div class="flex min-h-[280px] items-center justify-center border border-outline-variant/10 bg-surface-container-low">
+                <div class="flex min-h-0 flex-1 items-center justify-center border border-outline-variant/10 bg-surface-container-low">
                   <div class="text-center text-on-surface-variant/40">
                     <span class="material-symbols-outlined mb-3 text-4xl">progress_activity</span>
                     <p class="font-mono text-[10px] uppercase tracking-[0.22em]">LOADING_STRUCTURE</p>
@@ -312,7 +308,7 @@ export function renderStructureView(state) {
               `
               : state.structure.error
                 ? `
-                    <div class="border border-error/20 bg-error-container/10 px-6 py-5 text-sm text-on-surface">
+                    <div class="min-h-0 flex-1 border border-error/20 bg-error-container/10 px-6 py-5 text-sm text-on-surface">
                       <div class="font-headline text-xs font-bold uppercase tracking-[0.18em] text-error">
                         ${escapeHtml(state.structure.error.code)}
                       </div>
@@ -321,8 +317,9 @@ export function renderStructureView(state) {
                   `
                 : structure
                   ? `
-                      <section class="grid grid-cols-1 gap-6 xl:grid-cols-[18.5rem_minmax(0,1fr)] 2xl:grid-cols-[19.5rem_minmax(0,1fr)]">
-                        <div class="space-y-6">
+                      <section class="grid min-h-0 flex-1 grid-cols-1 gap-6 xl:grid-cols-[18.5rem_minmax(0,1fr)] 2xl:grid-cols-[19.5rem_minmax(0,1fr)]">
+                        <div class="custom-scrollbar min-h-0 overflow-y-auto pr-1">
+                          <div class="space-y-6">
                           ${renderEntryGroup(
                             "Tables",
                             structure.grouped.tables,
@@ -345,6 +342,7 @@ export function renderStructureView(state) {
                             structure.grouped.triggers,
                             state.structure.selectedName
                           )}
+                          </div>
                         </div>
                         ${renderGraphSurface(
                           structure,

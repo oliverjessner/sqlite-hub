@@ -6,6 +6,13 @@ const APP_NAME = "sqlite-hub";
 const APP_STATE_DB_FILENAME = "sqlite-hub-state.db";
 const LEGACY_STATE_FILENAME = "app-state.json";
 
+function resolvePackagedDataDirectories(packageRoot) {
+  return [
+    path.resolve(packageRoot, "server", "data"),
+    path.resolve(packageRoot, "data"),
+  ].filter((candidatePath, index, candidates) => candidates.indexOf(candidatePath) === index);
+}
+
 function resolveAppStateDirectory() {
   const homeDirectory = os.homedir();
 
@@ -28,7 +35,7 @@ function resolveAppStateDirectory() {
 }
 
 function resolvePackagedDataDirectory(packageRoot) {
-  return path.resolve(packageRoot, "data");
+  return resolvePackagedDataDirectories(packageRoot)[0];
 }
 
 function resolvePackagedAppStateDbPath(packageRoot) {
@@ -36,7 +43,11 @@ function resolvePackagedAppStateDbPath(packageRoot) {
 }
 
 function resolvePackagedLegacyStatePath(packageRoot) {
-  return path.join(resolvePackagedDataDirectory(packageRoot), LEGACY_STATE_FILENAME);
+  const candidates = resolvePackagedDataDirectories(packageRoot).map((directoryPath) =>
+    path.join(directoryPath, LEGACY_STATE_FILENAME)
+  );
+
+  return candidates.find((candidatePath) => fs.existsSync(candidatePath)) ?? candidates[0];
 }
 
 function resolveHomebrewCellarInfo(packageRoot) {
@@ -83,23 +94,34 @@ function collectHomebrewLegacyStateDbPaths(packageRoot) {
   return fs
     .readdirSync(cellarInfo.cellarRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && entry.name !== cellarInfo.currentVersion)
-    .map((entry) => {
-      const candidatePath = path.join(
-        cellarInfo.cellarRoot,
-        entry.name,
-        "libexec",
-        "lib",
-        "node_modules",
-        APP_NAME,
-        "data",
-        APP_STATE_DB_FILENAME
-      );
-
-      return {
+    .flatMap((entry) =>
+      [
+        path.join(
+          cellarInfo.cellarRoot,
+          entry.name,
+          "libexec",
+          "lib",
+          "node_modules",
+          APP_NAME,
+          "server",
+          "data",
+          APP_STATE_DB_FILENAME
+        ),
+        path.join(
+          cellarInfo.cellarRoot,
+          entry.name,
+          "libexec",
+          "lib",
+          "node_modules",
+          APP_NAME,
+          "data",
+          APP_STATE_DB_FILENAME
+        ),
+      ].map((candidatePath) => ({
         path: candidatePath,
         mtimeMs: safeStatMtimeMs(candidatePath),
-      };
-    })
+      }))
+    )
     .filter((candidate) => candidate.mtimeMs >= 0)
     .sort((left, right) => right.mtimeMs - left.mtimeMs)
     .map((candidate) => candidate.path);
@@ -107,7 +129,9 @@ function collectHomebrewLegacyStateDbPaths(packageRoot) {
 
 function collectLegacyDatabasePaths(packageRoot) {
   return [
-    resolvePackagedAppStateDbPath(packageRoot),
+    ...resolvePackagedDataDirectories(packageRoot).map((directoryPath) =>
+      path.join(directoryPath, APP_STATE_DB_FILENAME)
+    ),
     ...collectHomebrewLegacyStateDbPaths(packageRoot),
   ].filter((candidatePath, index, candidates) => candidates.indexOf(candidatePath) === index);
 }

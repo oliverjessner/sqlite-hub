@@ -4,6 +4,7 @@ import {
   formatDateTime,
   truncateMiddle,
 } from "../utils/format.js";
+import { renderConnectionLogo } from "./connectionLogo.js";
 
 function renderRecentConnections(recentConnections = []) {
   if (!recentConnections.length) {
@@ -26,7 +27,12 @@ function renderRecentConnections(recentConnections = []) {
               data-connection-id="${escapeHtml(connection.id)}"
               type="button"
             >
-              <span class="material-symbols-outlined text-sm text-primary-container">database</span>
+              ${renderConnectionLogo(connection, {
+                containerClass:
+                  "flex h-8 w-8 items-center justify-center overflow-hidden bg-surface-container-highest",
+                imageClassName: "h-full w-full object-cover",
+                iconClassName: "text-sm text-primary-container",
+              })}
               <span class="min-w-0">
                 <span class="block truncate font-mono text-xs">${escapeHtml(connection.label)}</span>
                 <span class="block truncate text-[10px] text-on-surface-variant/45">${escapeHtml(
@@ -53,16 +59,24 @@ function renderActiveConnection(activeConnection) {
   return `
     <div class="mx-auto max-w-2xl border border-outline-variant/15 bg-surface-container-low px-6 py-5 text-left">
       <div class="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p class="text-[10px] font-mono uppercase tracking-[0.24em] text-primary-container/70">
-            ACTIVE_DATABASE
-          </p>
-          <h2 class="mt-2 font-headline text-2xl font-black uppercase tracking-tight text-primary-container">
-            ${escapeHtml(activeConnection.label)}
-          </h2>
-          <p class="mt-2 font-mono text-[10px] text-on-surface-variant/55">${escapeHtml(
-            truncateMiddle(activeConnection.path, 72)
-          )}</p>
+        <div class="flex items-start gap-4">
+          ${renderConnectionLogo(activeConnection, {
+            containerClass:
+              "flex h-14 w-14 items-center justify-center overflow-hidden border border-outline-variant/15 bg-surface-container-highest",
+            imageClassName: "h-full w-full object-cover",
+            iconClassName: "text-2xl text-primary-container",
+          })}
+          <div>
+            <p class="text-[10px] font-mono uppercase tracking-[0.24em] text-primary-container/70">
+              ACTIVE_DATABASE
+            </p>
+            <h2 class="mt-2 font-headline text-2xl font-black uppercase tracking-tight text-primary-container">
+              ${escapeHtml(activeConnection.label)}
+            </h2>
+            <p class="mt-2 font-mono text-[10px] text-on-surface-variant/55">${escapeHtml(
+              truncateMiddle(activeConnection.path, 72)
+            )}</p>
+          </div>
         </div>
         <div class="text-right text-xs text-on-surface-variant/65">
           <div>${escapeHtml(formatBytes(activeConnection.sizeBytes))}</div>

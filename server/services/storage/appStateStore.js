@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const Database = require("better-sqlite3");
+const { ValidationError } = require("../../utils/errors");
 
 const DEFAULT_STATE = {
   recentConnections: [],
@@ -16,9 +17,24 @@ const DEFAULT_STATE = {
   },
 };
 
+const CONNECTION_LOGO_DIRECTORY = "db_logos";
+const MAX_CONNECTION_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
+const CONNECTION_LOGO_EXTENSION_BY_MIME_TYPE = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+const CONNECTION_LOGO_EXTENSION_BY_FILE_EXTENSION = {
+  ".jpeg": "jpg",
+  ".jpg": "jpg",
+  ".png": "png",
+  ".webp": "webp",
+};
+
 class AppStateStore {
   constructor(filePath, options = {}) {
     this.filePath = filePath;
+    this.logoDirectory = path.join(path.dirname(this.filePath), CONNECTION_LOGO_DIRECTORY);
     this.legacyFilePath = options.legacyFilePath ?? null;
     this.legacyDatabasePaths = Array.isArray(options.legacyDatabasePaths)
       ? options.legacyDatabasePaths
@@ -26,6 +42,7 @@ class AppStateStore {
     this.isFreshDatabase = !fs.existsSync(filePath);
 
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    fs.mkdirSync(this.logoDirectory, { recursive: true });
 
     this.db = new Database(this.filePath);
     this.configureDatabase();
@@ -64,7 +81,8 @@ class AppStateStore {
         lastOpenedAt TEXT NOT NULL,
         lastModifiedAt TEXT,
         sizeBytes INTEGER,
-        readOnly INTEGER NOT NULL DEFAULT 0
+        readOnly INTEGER NOT NULL DEFAULT 0,
+        logoPath TEXT
       );
 
       CREATE TABLE IF NOT EXISTS sql_history (
@@ -86,6 +104,17 @@ class AppStateStore {
       CREATE INDEX IF NOT EXISTS idx_sql_history_executed_at
       ON sql_history(executedAt DESC, id ASC);
     `);
+
+    const recentConnectionColumns = new Set(
+      this.db
+        .prepare("PRAGMA table_info(recent_connections)")
+        .all()
+        .map((column) => column.name)
+    );
+
+    if (!recentConnectionColumns.has("logoPath")) {
+      this.db.exec("ALTER TABLE recent_connections ADD COLUMN logoPath TEXT");
+    }
   }
 
   seedDefaultSettings() {
@@ -153,6 +182,14 @@ class AppStateStore {
           .all()
           .map((row) => row.name)
       );
+      const recentConnectionColumns = tables.has("recent_connections")
+        ? new Set(
+            legacyDb
+              .prepare("PRAGMA table_info(recent_connections)")
+              .all()
+              .map((column) => column.name)
+          )
+        : new Set();
 
       return {
         settings: tables.has("settings")
@@ -173,7 +210,8 @@ class AppStateStore {
                   lastOpenedAt,
                   lastModifiedAt,
                   sizeBytes,
-                  readOnly
+                  readOnly,
+                  ${recentConnectionColumns.has("logoPath") ? "logoPath" : "NULL AS logoPath"}
                 FROM recent_connections
                 ORDER BY lastOpenedAt DESC, id ASC
               `)
@@ -223,16 +261,18 @@ class AppStateStore {
         lastOpenedAt,
         lastModifiedAt,
         sizeBytes,
-        readOnly
+        readOnly,
+        logoPath
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         label = excluded.label,
         path = excluded.path,
         lastOpenedAt = excluded.lastOpenedAt,
         lastModifiedAt = excluded.lastModifiedAt,
         sizeBytes = excluded.sizeBytes,
-        readOnly = excluded.readOnly
+        readOnly = excluded.readOnly,
+        logoPath = excluded.logoPath
     `);
     const insertHistory = this.db.prepare(`
       INSERT INTO sql_history (
@@ -276,7 +316,8 @@ class AppStateStore {
           connection.lastOpenedAt ?? new Date().toISOString(),
           connection.lastModifiedAt ?? null,
           connection.sizeBytes ?? null,
-          connection.readOnly ? 1 : 0
+          connection.readOnly ? 1 : 0,
+          this.normalizeLogoPath(connection.logoPath)
         );
       }
 
@@ -373,7 +414,7 @@ class AppStateStore {
 
     const staleRows = this.db
       .prepare(`
-        SELECT id
+        SELECT id, logoPath
         FROM recent_connections
         ORDER BY lastOpenedAt DESC, id ASC
         LIMIT -1 OFFSET ?
@@ -393,6 +434,10 @@ class AppStateStore {
     if (activeConnectionId && staleRows.some((row) => row.id === activeConnectionId)) {
       this.setMetaValue("activeConnectionId", null);
     }
+
+    staleRows.forEach((row) => {
+      this.deleteConnectionLogo(row.logoPath);
+    });
   }
 
   trimSqlHistory() {
@@ -433,19 +478,19 @@ class AppStateStore {
           lastOpenedAt,
           lastModifiedAt,
           sizeBytes,
-          readOnly
+          readOnly,
+          logoPath
         FROM recent_connections
         ORDER BY lastOpenedAt DESC, id ASC
       `)
       .all()
-      .map((connection) => ({
-        ...connection,
-        readOnly: Boolean(connection.readOnly),
-      }));
+      .map((connection) => this.decorateConnection(connection));
   }
 
   upsertRecentConnection(connection, options = {}) {
     const makeActive = options.makeActive !== false;
+    const existing = this.getRecentConnections().find((entry) => entry.id === connection.id);
+    const nextLogoPath = this.normalizeLogoPath(connection.logoPath);
 
     this.db.transaction(() => {
       this.db
@@ -457,16 +502,18 @@ class AppStateStore {
             lastOpenedAt,
             lastModifiedAt,
             sizeBytes,
-            readOnly
+            readOnly,
+            logoPath
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             label = excluded.label,
             path = excluded.path,
             lastOpenedAt = excluded.lastOpenedAt,
             lastModifiedAt = excluded.lastModifiedAt,
             sizeBytes = excluded.sizeBytes,
-            readOnly = excluded.readOnly
+            readOnly = excluded.readOnly,
+            logoPath = excluded.logoPath
         `)
         .run(
           connection.id,
@@ -475,7 +522,8 @@ class AppStateStore {
           connection.lastOpenedAt,
           connection.lastModifiedAt ?? null,
           connection.sizeBytes ?? null,
-          connection.readOnly ? 1 : 0
+          connection.readOnly ? 1 : 0,
+          nextLogoPath
         );
 
       if (makeActive) {
@@ -485,10 +533,16 @@ class AppStateStore {
       this.trimRecentConnections();
     })();
 
+    if (this.normalizeLogoPath(existing?.logoPath) !== nextLogoPath) {
+      this.deleteConnectionLogo(existing?.logoPath);
+    }
+
     return this.getRecentConnections();
   }
 
   removeRecentConnection(id) {
+    const existing = this.getRecentConnections().find((connection) => connection.id === id);
+
     this.db.transaction(() => {
       this.db.prepare("DELETE FROM recent_connections WHERE id = ?").run(id);
 
@@ -496,6 +550,8 @@ class AppStateStore {
         this.setMetaValue("activeConnectionId", null);
       }
     })();
+
+    this.deleteConnectionLogo(existing?.logoPath);
 
     return this.getState();
   }
@@ -518,16 +574,18 @@ class AppStateStore {
           lastOpenedAt,
           lastModifiedAt,
           sizeBytes,
-          readOnly
+          readOnly,
+          logoPath
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           label = excluded.label,
           path = excluded.path,
           lastOpenedAt = excluded.lastOpenedAt,
           lastModifiedAt = excluded.lastModifiedAt,
           sizeBytes = excluded.sizeBytes,
-          readOnly = excluded.readOnly
+          readOnly = excluded.readOnly,
+          logoPath = excluded.logoPath
       `)
       .run(
         nextConnection.id,
@@ -536,10 +594,91 @@ class AppStateStore {
         nextConnection.lastOpenedAt ?? existing.lastOpenedAt,
         nextConnection.lastModifiedAt ?? null,
         nextConnection.sizeBytes ?? null,
-        nextConnection.readOnly ? 1 : 0
+        nextConnection.readOnly ? 1 : 0,
+        this.normalizeLogoPath(nextConnection.logoPath)
       );
 
+    if (this.normalizeLogoPath(nextConnection.logoPath) !== this.normalizeLogoPath(existing.logoPath)) {
+      this.deleteConnectionLogo(existing.logoPath);
+    }
+
     return this.getRecentConnections();
+  }
+
+  getConnectionLogoUrl(logoPath) {
+    const normalizedLogoPath = this.normalizeLogoPath(logoPath);
+
+    if (!normalizedLogoPath) {
+      return null;
+    }
+
+    return `/${CONNECTION_LOGO_DIRECTORY}/${encodeURIComponent(normalizedLogoPath)}`;
+  }
+
+  saveConnectionLogo(connectionId, logoUpload = {}) {
+    const fileName = String(logoUpload.fileName ?? "").trim();
+    const mimeType = String(logoUpload.mimeType ?? "").trim().toLowerCase();
+    const base64 = String(logoUpload.base64 ?? "").trim();
+    const extension =
+      CONNECTION_LOGO_EXTENSION_BY_MIME_TYPE[mimeType] ??
+      CONNECTION_LOGO_EXTENSION_BY_FILE_EXTENSION[path.extname(fileName).toLowerCase()] ??
+      null;
+
+    if (!extension) {
+      throw new ValidationError("Connection logos must be one of: .png, .jpg, .jpeg, .webp");
+    }
+
+    if (!base64) {
+      throw new ValidationError("Connection logo upload is empty.");
+    }
+
+    const buffer = Buffer.from(base64, "base64");
+
+    if (!buffer.length) {
+      throw new ValidationError("Connection logo upload is empty.");
+    }
+
+    if (buffer.length > MAX_CONNECTION_LOGO_SIZE_BYTES) {
+      throw new ValidationError("Connection logo must be 5 MB or smaller.");
+    }
+
+    const safeConnectionId = String(connectionId ?? "connection").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const storedFileName = `${safeConnectionId}-${Date.now()}.${extension}`;
+
+    fs.writeFileSync(path.join(this.logoDirectory, storedFileName), buffer);
+
+    return storedFileName;
+  }
+
+  deleteConnectionLogo(logoPath) {
+    const normalizedLogoPath = this.normalizeLogoPath(logoPath);
+
+    if (!normalizedLogoPath) {
+      return;
+    }
+
+    fs.rmSync(path.join(this.logoDirectory, normalizedLogoPath), { force: true });
+  }
+
+  decorateConnection(connection = {}) {
+    const logoPath = this.normalizeLogoPath(connection.logoPath);
+
+    return {
+      ...connection,
+      readOnly: Boolean(connection.readOnly),
+      logoPath,
+      logoUrl: this.getConnectionLogoUrl(logoPath),
+    };
+  }
+
+  normalizeLogoPath(logoPath) {
+    const trimmedLogoPath = String(logoPath ?? "").trim();
+
+    if (!trimmedLogoPath) {
+      return null;
+    }
+
+    return path.basename(trimmedLogoPath);
   }
 
   setActiveConnectionId(id) {

@@ -44,6 +44,7 @@ class ConnectionManager {
         filePath: recent.path,
         label: recent.label,
         id: recent.id,
+        logoPath: recent.logoPath ?? null,
         makeActive: true,
       });
     } catch (error) {
@@ -54,17 +55,26 @@ class ConnectionManager {
 
   buildConnectionRecord(filePath, options = {}) {
     const metadata = getFileMetadata(filePath);
+    const id =
+      options.id ??
+      `conn_${crypto.createHash("sha1").update(filePath).digest("hex").slice(0, 16)}`;
+    const existingConnection = this.appStateStore
+      .getRecentConnections()
+      .find((connection) => connection.id === id);
+    const logoPath = Object.prototype.hasOwnProperty.call(options, "logoPath")
+      ? options.logoPath
+      : (existingConnection?.logoPath ?? null);
 
     return {
-      id:
-        options.id ??
-        `conn_${crypto.createHash("sha1").update(filePath).digest("hex").slice(0, 16)}`,
+      id,
       label: options.label?.trim() || path.basename(filePath),
       path: filePath,
       lastOpenedAt: new Date().toISOString(),
       lastModifiedAt: metadata.lastModifiedAt,
       sizeBytes: metadata.sizeBytes,
       readOnly: options.readOnly ?? !isWritable(filePath),
+      logoPath,
+      logoUrl: this.appStateStore.getConnectionLogoUrl(logoPath),
     };
   }
 
@@ -94,7 +104,7 @@ class ConnectionManager {
     this.current = null;
   }
 
-  openConnection({ filePath, label, id, makeActive = true, readOnly = false }) {
+  openConnection({ filePath, label, id, makeActive = true, readOnly = false, logoPath }) {
     const resolvedPath = validateSqlitePath(filePath, { mustExist: true });
     const db = this.openRawDatabase(resolvedPath, {
       fileMustExist: true,
@@ -103,11 +113,17 @@ class ConnectionManager {
 
     this.closeCurrent();
 
-    const connection = this.buildConnectionRecord(resolvedPath, {
+    const connectionOptions = {
       id,
       label,
       readOnly,
-    });
+    };
+
+    if (logoPath !== undefined) {
+      connectionOptions.logoPath = logoPath;
+    }
+
+    const connection = this.buildConnectionRecord(resolvedPath, connectionOptions);
 
     this.current = {
       ...connection,
@@ -186,6 +202,7 @@ class ConnectionManager {
       id: recent.id,
       makeActive: true,
       readOnly: recent.readOnly,
+      logoPath: recent.logoPath ?? null,
     });
   }
 
@@ -199,7 +216,7 @@ class ConnectionManager {
     return state.recentConnections;
   }
 
-  updateRecentConnection(id, { filePath, label, readOnly = false }) {
+  updateRecentConnection(id, { filePath, label, readOnly = false, logoUpload = null, clearLogo = false }) {
     const recentConnections = this.appStateStore.getRecentConnections();
     const existing = recentConnections.find((connection) => connection.id === id);
 
@@ -218,40 +235,58 @@ class ConnectionManager {
 
     const normalizedLabel = label?.trim() || path.basename(resolvedPath);
     const normalizedReadOnly = Boolean(readOnly);
+    let nextLogoPath = clearLogo ? null : existing.logoPath ?? null;
+    let createdLogoPath = null;
 
-    if (this.current?.id === id) {
-      return this.openConnection({
-        filePath: resolvedPath,
-        label: normalizedLabel,
-        id,
-        makeActive: true,
-        readOnly: normalizedReadOnly,
-      });
+    if (logoUpload) {
+      createdLogoPath = this.appStateStore.saveConnectionLogo(id, logoUpload);
+      nextLogoPath = createdLogoPath;
     }
 
-    const db = this.openRawDatabase(resolvedPath, {
-      fileMustExist: true,
-      readOnly: normalizedReadOnly,
-    });
+    try {
+      if (this.current?.id === id) {
+        return this.openConnection({
+          filePath: resolvedPath,
+          label: normalizedLabel,
+          id,
+          makeActive: true,
+          readOnly: normalizedReadOnly,
+          logoPath: nextLogoPath,
+        });
+      }
 
-    db.close();
+      const db = this.openRawDatabase(resolvedPath, {
+        fileMustExist: true,
+        readOnly: normalizedReadOnly,
+      });
 
-    const metadata = getFileMetadata(resolvedPath);
-    const nextConnection = {
-      ...existing,
-      label: normalizedLabel,
-      path: resolvedPath,
-      lastModifiedAt: metadata.lastModifiedAt,
-      sizeBytes: metadata.sizeBytes,
-      readOnly: normalizedReadOnly,
-    };
+      db.close();
 
-    this.appStateStore.updateRecentConnection(id, () => nextConnection);
+      const metadata = getFileMetadata(resolvedPath);
+      const nextConnection = {
+        ...existing,
+        label: normalizedLabel,
+        path: resolvedPath,
+        lastModifiedAt: metadata.lastModifiedAt,
+        sizeBytes: metadata.sizeBytes,
+        readOnly: normalizedReadOnly,
+        logoPath: nextLogoPath,
+      };
 
-    return {
-      ...nextConnection,
-      isActive: false,
-    };
+      this.appStateStore.updateRecentConnection(id, () => nextConnection);
+
+      return {
+        ...nextConnection,
+        logoUrl: this.appStateStore.getConnectionLogoUrl(nextLogoPath),
+        isActive: false,
+      };
+    } catch (error) {
+      if (createdLogoPath) {
+        this.appStateStore.deleteConnectionLogo(createdLogoPath);
+      }
+
+      throw error;
+    }
   }
 
   getActiveConnection() {

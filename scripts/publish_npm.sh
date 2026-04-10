@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 DRY_RUN=0
@@ -15,7 +15,7 @@ GH_REMOTE="origin"
 usage() {
   cat <<'EOF'
 Usage:
-  ./publish_npm.sh [options]
+  ./scripts/publish_npm.sh [options]
 
 Options:
   --tag NAME          Publish to a custom npm dist-tag instead of `latest`.

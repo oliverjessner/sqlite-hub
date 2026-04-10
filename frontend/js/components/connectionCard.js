@@ -5,6 +5,7 @@ import {
   truncateMiddle,
 } from "../utils/format.js";
 import { renderStatusBadge } from "./badges.js";
+import { renderConnectionLogo } from "./connectionLogo.js";
 
 export function renderConnectionCard(connection, activeConnectionId) {
   const isActive = activeConnectionId
@@ -20,16 +21,14 @@ export function renderConnectionCard(connection, activeConnectionId) {
     >
       <div class="flex-1 p-6">
         <div class="mb-6 flex items-start justify-between">
-          <div
-            class="clipped-corner flex h-10 w-10 items-center justify-center transition-colors ${
+          ${renderConnectionLogo(connection, {
+            containerClass: `clipped-corner flex h-10 w-10 items-center justify-center overflow-hidden transition-colors ${
               isActive ? "bg-primary-container" : "bg-surface-container-highest"
-            }"
-            style="--clip-path: ${clipPath};"
-          >
-            <span class="material-symbols-outlined ${
-              isActive ? "text-on-primary" : "text-outline-variant"
-            }">database</span>
-          </div>
+            }`,
+            containerAttributes: `style="--clip-path: ${clipPath};"`,
+            imageClassName: "h-full w-full object-cover",
+            iconClassName: isActive ? "text-on-primary" : "text-outline-variant",
+          })}
           <div class="flex items-center gap-2">
             ${renderStatusBadge(isActive ? "ACTIVE" : "RECENT", isActive ? "primary" : "muted")}
             ${connection.readOnly ? renderStatusBadge("READ_ONLY", "alert") : ""}

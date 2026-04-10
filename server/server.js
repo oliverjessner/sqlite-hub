@@ -20,7 +20,10 @@ const { createSettingsRouter } = require("./routes/settings");
 const { createExportRouter } = require("./routes/export");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
+const FRONTEND_ROOT = path.join(PACKAGE_ROOT, "frontend");
+const FRONTEND_ENTRYPOINT = path.join(FRONTEND_ROOT, "index.html");
 const {
+  appStateDirectory: APP_STATE_DIRECTORY,
   appStateDbPath: APP_STATE_DB_PATH,
   legacyStatePath: LEGACY_STATE_PATH,
   legacyDatabasePaths: LEGACY_DATABASE_PATHS,
@@ -83,11 +86,11 @@ app.get("/favicon.ico", (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.sendFile(path.resolve(__dirname, "..", "index.html"));
+  res.sendFile(FRONTEND_ENTRYPOINT);
 });
 
 app.get("/index.html", (req, res) => {
-  res.sendFile(path.resolve(__dirname, "..", "index.html"));
+  res.sendFile(FRONTEND_ENTRYPOINT);
 });
 
 app.use(
@@ -102,9 +105,8 @@ app.use(
   "/vendor/elkjs",
   express.static(path.resolve(__dirname, "..", "node_modules", "elkjs"))
 );
-app.use("/js", express.static(path.resolve(__dirname, "..", "js")));
-app.use("/styles", express.static(path.resolve(__dirname, "..", "styles")));
-app.use("/assets", express.static(path.resolve(__dirname, "..", "assets")));
+app.use(express.static(FRONTEND_ROOT));
+app.use("/db_logos", express.static(path.join(APP_STATE_DIRECTORY, "db_logos")));
 app.use(errorMiddleware);
 
 function parsePortArgument(argv = process.argv.slice(2)) {

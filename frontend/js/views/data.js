@@ -168,6 +168,80 @@ function getCellWidthClass(columnName) {
   return "max-w-[12rem]";
 }
 
+function getFilteredTableRows(table, state) {
+  const allRows = table?.rows ?? [];
+  const availableColumns = table?.columns ?? [];
+  const searchQuery = String(state.dataBrowser.searchQuery ?? "").trim().toLowerCase();
+  const activeColumn = availableColumns.includes(state.dataBrowser.searchColumn)
+    ? state.dataBrowser.searchColumn
+    : (availableColumns[0] ?? "");
+
+  const indexedRows = allRows.map((row, index) => ({
+    row,
+    index,
+  }));
+
+  if (!searchQuery || !activeColumn) {
+    return {
+      activeColumn,
+      filteredRows: indexedRows,
+      searchQuery,
+    };
+  }
+
+  return {
+    activeColumn,
+    searchQuery,
+    filteredRows: indexedRows.filter(({ row }) =>
+      formatCellValue(row[activeColumn]).toLowerCase().includes(searchQuery)
+    ),
+  };
+}
+
+function renderTableSearchBar(table, state, activeColumn, filteredRowCount) {
+  const columns = table?.columns ?? [];
+
+  if (!table || !columns.length) {
+    return "";
+  }
+
+  return `
+    <div class="flex flex-wrap items-center gap-3 border-b border-outline-variant/10 bg-surface-container-low px-6 py-4">
+      <label class="flex min-w-[18rem] flex-1 items-center gap-3 border border-outline-variant/20 bg-surface-container-lowest px-4 py-3">
+        <span class="material-symbols-outlined text-base text-on-surface-variant/55">search</span>
+        <input
+          class="min-w-0 flex-1 bg-transparent text-sm text-on-surface outline-none placeholder:text-on-surface-variant/40"
+          data-bind="data-search-query"
+          placeholder="Filter current page..."
+          type="search"
+          value="${escapeHtml(state.dataBrowser.searchQuery ?? "")}"
+        />
+      </label>
+      <select
+        class="min-w-[14rem] border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 font-mono text-xs tracking-[0.04em] text-on-surface outline-none"
+        data-bind="data-search-column"
+      >
+        ${columns
+          .map(
+            (columnName) => `
+              <option value="${escapeHtml(columnName)}" ${
+                columnName === activeColumn ? "selected" : ""
+              }>
+                ${escapeHtml(columnName)}
+              </option>
+            `
+          )
+          .join("")}
+      </select>
+      <div class="text-[10px] font-mono tracking-[0.14em] text-on-surface-variant/55">
+        ${escapeHtml(formatNumber(filteredRowCount))} match${
+          filteredRowCount === 1 ? "" : "es"
+        } on this page
+      </div>
+    </div>
+  `;
+}
+
 function renderTableSurface(state) {
   const table = state.dataBrowser.table;
 
@@ -197,10 +271,11 @@ function renderTableSurface(state) {
     `;
   }
 
+  const { activeColumn, filteredRows, searchQuery } = getFilteredTableRows(table, state);
   const columns = (table.columns ?? []).map((columnName) => ({
     label: escapeHtml(columnName),
     headerClassName:
-      "border-b border-primary-container/20 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-primary-container",
+      "border-b border-primary-container/20 px-4 py-3 text-[10px] font-bold tracking-[0.08em] text-primary-container",
     cellClassName: "px-4 py-2 align-top text-[11px] text-on-surface",
     render: (row) => {
       const value = formatCellValue(row[columnName]);
@@ -219,25 +294,35 @@ function renderTableSurface(state) {
   const fromRow = totalRows === 0 ? 0 : (table.offset ?? 0) + 1;
   const toRow = totalRows === 0 ? 0 : Math.min((table.offset ?? 0) + (table.rows?.length ?? 0), totalRows);
   const pageSizes = [25, 50, 100];
+  const filteredRowCount = filteredRows.length;
+  const hasActiveSearch = Boolean(searchQuery);
 
   return `
     <div class="flex flex-1 min-h-0 flex-col bg-surface-container-lowest">
+      ${renderTableSearchBar(table, state, activeColumn, filteredRowCount)}
       <div class="custom-scrollbar flex-1 overflow-auto">
         ${renderDataGrid({
           columns,
-          rows: table.rows ?? [],
+          rows: filteredRows.map(({ row }) => row),
           tableClass: "min-w-full border-collapse text-left font-mono text-xs",
           theadClass: "sticky top-0 z-10 bg-surface-container-highest",
           tbodyClass: "divide-y divide-outline-variant/5",
-          getRowClass: (_, index) =>
-            `${
-              state.dataBrowser.selectedRowIndex === index
+          getRowClass: (_, filteredIndex) => {
+            const rowIndex = filteredRows[filteredIndex]?.index ?? filteredIndex;
+
+            return `${
+              state.dataBrowser.selectedRowIndex === rowIndex
                 ? "bg-surface-bright"
-                : index % 2 === 0
+                : filteredIndex % 2 === 0
                   ? "bg-surface-container-low"
                   : "bg-surface-container-lowest"
-            } cursor-pointer transition-colors hover:bg-surface-container-high`,
-          getRowAttrs: (_, index) => `data-action="select-data-row" data-row-index="${index}"`,
+            } cursor-pointer transition-colors hover:bg-surface-container-high`;
+          },
+          getRowAttrs: (_, filteredIndex) => {
+            const rowIndex = filteredRows[filteredIndex]?.index ?? filteredIndex;
+
+            return `data-action="select-data-row" data-row-index="${rowIndex}"`;
+          },
         })}
         ${
           !table.rows?.length
@@ -248,6 +333,14 @@ function renderTableSurface(state) {
                   </p>
                 </div>
               `
+            : !filteredRowCount
+              ? `
+                  <div class="flex min-h-[180px] items-center justify-center border-t border-outline-variant/10">
+                    <p class="font-mono text-[10px] tracking-[0.18em] text-on-surface-variant/40">
+                      ${hasActiveSearch ? "No matching rows on this page." : "No rows available."}
+                    </p>
+                  </div>
+                `
             : ""
         }
       </div>
@@ -255,7 +348,7 @@ function renderTableSurface(state) {
         <div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
           showing ${escapeHtml(formatNumber(fromRow))}-${escapeHtml(formatNumber(toRow))} of ${escapeHtml(
             formatNumber(totalRows)
-          )} rows
+          )} rows${hasActiveSearch ? ` // ${escapeHtml(formatNumber(filteredRowCount))} visible on this page` : ""}
         </div>
         <div class="flex flex-wrap items-center gap-4">
           <div class="flex items-center gap-2">

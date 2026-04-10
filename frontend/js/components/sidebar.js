@@ -1,4 +1,5 @@
 import { escapeHtml } from "../utils/format.js";
+import { renderConnectionLogo } from "./connectionLogo.js";
 
 const sidebarItems = [
   { label: "Connections", href: "#/connections", key: "connections", icon: "database" },
@@ -40,9 +41,13 @@ export function renderSidebar(state) {
     </nav>
     <div class="sidebar-footer">
       <div class="sidebar-footer-card">
-        <div class="sidebar-footer-mark">
-          <span class="material-symbols-outlined text-[15px]">memory</span>
-        </div>
+        ${renderConnectionLogo(activeConnection, {
+          containerClass:
+            "sidebar-footer-mark overflow-hidden bg-primary-container text-on-primary",
+          imageClassName: "h-full w-full object-cover",
+          iconClassName: "text-[15px]",
+          icon: "memory",
+        })}
         <div class="min-w-0">
           <p class="truncate text-[10px] font-bold text-on-surface">
             ${escapeHtml(activeConnection?.label ?? "NO_ACTIVE_DATABASE")}

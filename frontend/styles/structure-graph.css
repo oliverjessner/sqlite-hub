@@ -3,7 +3,8 @@
   border: 1px solid rgba(138, 123, 52, 0.26);
   display: flex;
   flex-direction: column;
-  min-height: 760px;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -100,14 +101,6 @@
   appearance: none;
 }
 
-.structure-graph__toolbar-meta {
-  color: rgba(231, 223, 189, 0.64);
-  font-family: var(--font-family-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
 .structure-graph__button {
   align-items: center;
   background: rgba(17, 17, 15, 0.94);
@@ -193,8 +186,10 @@
 .structure-graph__inspector {
   background: linear-gradient(to bottom, rgba(26, 25, 23, 0.98), rgba(11, 11, 10, 0.99));
   border-left: 1px solid rgba(138, 123, 52, 0.24);
+  height: 100%;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .structure-graph.is-inspector-hidden .structure-graph__inspector {

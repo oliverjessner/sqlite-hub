@@ -1,4 +1,5 @@
 import { escapeHtml, truncateMiddle } from "../utils/format.js";
+import { renderConnectionLogo } from "./connectionLogo.js";
 
 function renderField({ label, name, type = "text", placeholder = "", value = "" }) {
   return `
@@ -27,6 +28,32 @@ function renderCheckboxField({ label, name, checked = false, text }) {
         type="checkbox"
       />
       ${escapeHtml(text || label)}
+    </label>
+  `;
+}
+
+function renderFileField({
+  label,
+  name,
+  accept = "",
+  helpText = "",
+}) {
+  return `
+    <label class="block space-y-2">
+      <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+        ${escapeHtml(label)}
+      </span>
+      <input
+        accept="${escapeHtml(accept)}"
+        class="block w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface file:mr-4 file:border-0 file:bg-primary-container file:px-3 file:py-2 file:text-xs file:font-bold file:text-on-primary"
+        name="${escapeHtml(name)}"
+        type="file"
+      />
+      ${
+        helpText
+          ? `<p class="text-[11px] leading-5 text-on-surface-variant/60">${escapeHtml(helpText)}</p>`
+          : ""
+      }
     </label>
   `;
 }
@@ -102,6 +129,36 @@ function renderEditConnectionForm(modal) {
         placeholder: "Optional display name",
         value: connection.label ?? "",
       })}
+      <div class="space-y-3">
+        <span class="block text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          Database Icon
+        </span>
+        <div class="flex flex-wrap items-center gap-4 border border-outline-variant/10 bg-surface-container-lowest px-4 py-4">
+          ${renderConnectionLogo(connection, {
+            containerClass:
+              "flex h-16 w-16 items-center justify-center overflow-hidden border border-outline-variant/20 bg-surface-container-highest",
+            imageClassName: "h-full w-full object-cover",
+            iconClassName: "text-2xl text-primary-container",
+          })}
+          <div class="min-w-0 flex-1">
+            ${renderFileField({
+              label: "Upload image",
+              name: "logoFile",
+              accept: ".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp",
+              helpText: "Allowed formats: PNG, JPG, WEBP. The file is stored in db_logos.",
+            })}
+            ${
+              connection.logoUrl
+                ? renderCheckboxField({
+                    label: "Reset icon",
+                    name: "clearLogo",
+                    text: "Use the default icon again",
+                  })
+                : ""
+            }
+          </div>
+        </div>
+      </div>
       ${renderCheckboxField({
         label: "Open read-only",
         name: "readOnly",

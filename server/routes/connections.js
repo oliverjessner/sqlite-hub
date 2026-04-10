@@ -113,6 +113,8 @@ function createConnectionsRouter({ connectionManager, importService, backupServi
         filePath: req.body.path,
         label: req.body.label,
         readOnly: Boolean(req.body.readOnly),
+        logoUpload: req.body.logoUpload ?? null,
+        clearLogo: Boolean(req.body.clearLogo),
       });
 
       res.json(

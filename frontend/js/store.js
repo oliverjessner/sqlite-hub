@@ -48,6 +48,8 @@ const state = {
     deleting: false,
     page: 1,
     pageSize: 50,
+    searchQuery: "",
+    searchColumn: "",
     selectedRowIndex: null,
     exportLoading: false,
     error: null,
@@ -116,6 +118,11 @@ function normalizeDataPageSize(value, fallback = 50) {
 
 function canEditQueryResult(snapshot = state) {
   return Boolean(snapshot.editor.result?.editing?.enabled) && !snapshot.connections.active?.readOnly;
+}
+
+function resetDataBrowserSearch() {
+  state.dataBrowser.searchQuery = "";
+  state.dataBrowser.searchColumn = "";
 }
 
 function buildUpdatedEditorResultRow(existingRow, updatedSourceRow, editableColumns) {
@@ -188,6 +195,7 @@ function setMissingDatabaseState() {
   state.dataBrowser.selectedTable = null;
   state.dataBrowser.table = null;
   state.dataBrowser.page = 1;
+  resetDataBrowserSearch();
   state.dataBrowser.selectedRowIndex = null;
   state.dataBrowser.exportLoading = false;
   state.dataBrowser.error = error;
@@ -220,6 +228,9 @@ function syncRouteContext() {
   ) {
     if (route.name !== "data" || route.params?.tableName !== state.dataBrowser.selectedTable) {
       state.dataBrowser.page = 1;
+    }
+    if (route.params?.tableName !== state.dataBrowser.selectedTable) {
+      resetDataBrowserSearch();
     }
     state.dataBrowser.selectedRowIndex = null;
     state.dataBrowser.saveError = null;
@@ -346,6 +357,9 @@ async function loadDataTable(version) {
     state.dataBrowser.table = response.data ?? null;
     state.dataBrowser.pageSize = pageSize;
     state.dataBrowser.page = response.data?.page ?? page;
+    state.dataBrowser.searchColumn = response.data?.columns?.includes(state.dataBrowser.searchColumn)
+      ? state.dataBrowser.searchColumn
+      : (response.data?.columns?.[0] ?? "");
     state.dataBrowser.selectedRowIndex = null;
   } catch (error) {
     if (version !== routeLoadVersion) {
@@ -383,6 +397,7 @@ async function loadData(version, route) {
     if (requestedTableName && tables.some((table) => table.name === requestedTableName)) {
       if (requestedTableName !== state.dataBrowser.selectedTable) {
         state.dataBrowser.page = 1;
+        resetDataBrowserSearch();
       }
       state.dataBrowser.selectedTable = requestedTableName;
     } else if (
@@ -391,10 +406,12 @@ async function loadData(version, route) {
     ) {
       state.dataBrowser.selectedTable = tables[0]?.name ?? null;
       state.dataBrowser.page = 1;
+      resetDataBrowserSearch();
     }
 
     if (!state.dataBrowser.selectedTable) {
       state.dataBrowser.table = null;
+      resetDataBrowserSearch();
       state.dataBrowser.selectedRowIndex = null;
       return;
     }
@@ -510,6 +527,7 @@ function invalidateDatabaseCaches() {
   state.dataBrowser.selectedTable = null;
   state.dataBrowser.table = null;
   state.dataBrowser.page = 1;
+  resetDataBrowserSearch();
   state.dataBrowser.selectedRowIndex = null;
   state.dataBrowser.exportLoading = false;
   state.dataBrowser.error = null;
@@ -1005,6 +1023,20 @@ export function clearDataRowSelection() {
     return;
   }
 
+  state.dataBrowser.selectedRowIndex = null;
+  state.dataBrowser.saveError = null;
+  emitChange();
+}
+
+export function setDataSearchQuery(query) {
+  state.dataBrowser.searchQuery = String(query ?? "");
+  state.dataBrowser.selectedRowIndex = null;
+  state.dataBrowser.saveError = null;
+  emitChange();
+}
+
+export function setDataSearchColumn(columnName) {
+  state.dataBrowser.searchColumn = String(columnName ?? "");
   state.dataBrowser.selectedRowIndex = null;
   state.dataBrowser.saveError = null;
   emitChange();

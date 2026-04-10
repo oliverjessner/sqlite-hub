@@ -1,3 +1,10 @@
+# v0.4.0
+
+- search in data
+- shift + enter
+- logos for databases
+- clean up some chaotic code things :)
+
 # v0.3.2
 
 - delete rows

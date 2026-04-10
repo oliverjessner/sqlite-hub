@@ -37,6 +37,8 @@ import {
   selectStructureEntry,
   setDataPage,
   setDataPageSize,
+  setDataSearchColumn,
+  setDataSearchQuery,
   setCurrentQuery,
   setEditorTab,
   setRoute,
@@ -113,6 +115,35 @@ function syncQueryEditorScroll(textarea) {
   }
 
   highlightNode.style.transform = `translate(${-textarea.scrollLeft}px, ${-textarea.scrollTop}px)`;
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      const markerIndex = result.indexOf(",");
+      resolve(markerIndex >= 0 ? result.slice(markerIndex + 1) : result);
+    };
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("The selected logo could not be read."));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+async function buildConnectionLogoUpload(file) {
+  if (!(file instanceof File) || !file.size) {
+    return null;
+  }
+
+  return {
+    fileName: file.name,
+    mimeType: file.type,
+    base64: await readFileAsBase64(file),
+  };
 }
 
 function renderNotFoundView() {
@@ -224,7 +255,9 @@ function restoreFocusedInputState(snapshot) {
 function renderApp(state) {
   const focusedInput = captureFocusedInputState();
   const { main, panel } = resolveView(state);
-  const isLockedRoute = ["editor", "editorResults", "data"].includes(state.route.name);
+  const isLockedRoute = ["editor", "editorResults", "data", "structure"].includes(
+    state.route.name
+  );
 
   teardownStructureGraph();
   shellRefs.topNav.innerHTML = renderTopNav(state);
@@ -248,6 +281,11 @@ function renderApp(state) {
 const router = createRouter((route) => {
   setRoute(route);
 });
+
+async function executeEditorQueryAndNavigate() {
+  const success = await executeCurrentQuery();
+  router.navigate(success ? "/editor/results" : "/editor");
+}
 
 async function handleAction(actionNode) {
   const { action } = actionNode.dataset;
@@ -301,8 +339,7 @@ async function handleAction(actionNode) {
       await createActiveConnectionBackup();
       return;
     case "execute-query": {
-      const success = await executeCurrentQuery();
-      router.navigate(success ? "/editor/results" : "/editor");
+      await executeEditorQueryAndNavigate();
       return;
     }
     case "delete-data-row":
@@ -385,6 +422,27 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  const target = event.target;
+
+  if (
+    event.key === "Enter" &&
+    event.shiftKey &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.defaultPrevented &&
+    target instanceof HTMLTextAreaElement &&
+    target.dataset.bind === "current-query"
+  ) {
+    event.preventDefault();
+
+    if (!getState().editor.executing) {
+      void executeEditorQueryAndNavigate();
+    }
+
+    return;
+  }
+
   if (event.key !== "Escape" || event.defaultPrevented) {
     return;
   }
@@ -420,6 +478,11 @@ document.addEventListener("input", (event) => {
     syncQueryEditorHighlight(bindNode);
     syncQueryEditorScroll(bindNode);
     setCurrentQuery(bindNode.value);
+    return;
+  }
+
+  if (bindNode.dataset.bind === "data-search-query") {
+    setDataSearchQuery(bindNode.value);
   }
 });
 
@@ -447,6 +510,11 @@ document.addEventListener("change", (event) => {
   if (bindNode.dataset.bind === "history-entry" && bindNode.value) {
     loadQueryFromHistory(bindNode.value);
     bindNode.value = "";
+    return;
+  }
+
+  if (bindNode.dataset.bind === "data-search-column") {
+    setDataSearchColumn(bindNode.value);
   }
 });
 
@@ -512,6 +580,8 @@ document.addEventListener("submit", async (event) => {
     case "edit-connection": {
       const connectionId = String(formData.get("connectionId") ?? "");
       const isActiveConnection = getState().connections.active?.id === connectionId;
+      const logoFile = formData.get("logoFile");
+      const logoUpload = await buildConnectionLogoUpload(logoFile);
 
       if (isActiveConnection) {
         resetStructureGraphForDatabaseChange();
@@ -521,6 +591,8 @@ document.addEventListener("submit", async (event) => {
         path: String(formData.get("path") ?? ""),
         label: String(formData.get("label") ?? ""),
         readOnly: formData.get("readOnly") === "on",
+        clearLogo: formData.get("clearLogo") === "on" && !logoUpload,
+        logoUpload,
       });
 
       return;

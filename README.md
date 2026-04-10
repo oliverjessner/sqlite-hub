@@ -1,6 +1,6 @@
 # sqlite-hub ⚡️
 
-![](/assets/mockups/home.png)
+![](./frontend/assets/mockups/home.png)
 
 A focused local-first app for browsing, editing, and querying SQLite databases.
 
@@ -24,25 +24,25 @@ SQLite Hub keeps that workflow sharp:
 
 ### Structure view
 
-![](/assets/mockups/graph_visualize.png)
+![](./frontend/assets/mockups/graph_visualize.png)
 
 Inspect tables, columns, types, and schema details without losing pace. Visualized in a graph.
 
 ### Data browser
 
-![](/assets/mockups/data.png)
+![](./frontend/assets/mockups/data.png)
 
 Scan rows, sort fast, move through local data quickly, and export full tables as CSV.
 
 ### Row editing
 
-![](/assets/mockups/data_edit.png)
+![](./frontend/assets/mockups/data_edit.png)
 
 Open one record, edit it in place, commit, continue.
 
 ### SQL editor
 
-![](/assets/mockups/sql_editor.png)
+![](./frontend/assets/mockups/sql_editor.png)
 
 Write queries in a syntax-highlighted editor, inspect results in the same workflow, and export result sets as CSV.
 
