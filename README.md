@@ -24,7 +24,7 @@ SQLite Hub keeps that workflow sharp:
 
 ### Structure view
 
-![](./frontend/assets/mockups/graph_visualize.png)
+![](./frontend/assets/mockups/structure.png)
 
 Inspect tables, columns, types, and schema details without losing pace. Visualized in a graph.
 
@@ -36,7 +36,7 @@ Scan rows, sort fast, move through local data quickly, and export full tables as
 
 ### Row editing
 
-![](./frontend/assets/mockups/data_edit.png)
+![](./frontend/assets/mockups/data_row_editor.png)
 
 Open one record, edit it in place, commit, continue.
 
