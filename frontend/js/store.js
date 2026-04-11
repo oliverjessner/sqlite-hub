@@ -8,12 +8,17 @@ const DEFAULT_SETTINGS = {
   csvDelimiter: ",",
 };
 const DATA_PAGE_SIZES = [25, 50, 100];
+const QUERY_HISTORY_PAGE_SIZE = 30;
+const QUERY_HISTORY_RUN_LIMIT = 8;
 const MISSING_DATABASE_ERROR = {
   code: "ACTIVE_DATABASE_REQUIRED",
   message: "No active SQLite database selected.",
 };
 
 let routeLoadVersion = 0;
+let queryHistoryLoadVersion = 0;
+let queryHistoryDetailLoadVersion = 0;
+let queryHistorySearchTimer = null;
 
 const state = {
   ready: false,
@@ -48,6 +53,8 @@ const state = {
     deleting: false,
     page: 1,
     pageSize: 50,
+    sortColumn: null,
+    sortDirection: null,
     searchQuery: "",
     searchColumn: "",
     selectedRowIndex: null,
@@ -59,10 +66,25 @@ const state = {
     sqlText: "",
     history: [],
     historyLoading: false,
+    historyLoadingMore: false,
     historyError: null,
+    historyTab: "recent",
+    historySearchInput: "",
+    historySearch: "",
+    historyPageSize: QUERY_HISTORY_PAGE_SIZE,
+    historyTotal: 0,
+    historyHasMore: false,
+    historyActiveId: null,
+    historySelectedId: null,
+    historyDetail: null,
+    historyRuns: [],
+    historyDetailLoading: false,
+    historyDetailError: null,
     activeTab: "messages",
     executing: false,
     result: null,
+    resultSortColumn: null,
+    resultSortDirection: null,
     error: null,
     exportLoading: false,
     selectedRowIndex: null,
@@ -102,6 +124,26 @@ function normalizeError(error) {
   };
 }
 
+function setActiveQueryHistoryItem(historyId) {
+  const normalizedId = Number(historyId);
+
+  if (!Number.isInteger(normalizedId) || normalizedId < 1) {
+    return null;
+  }
+
+  state.editor.historyActiveId = normalizedId;
+  return normalizedId;
+}
+
+function clearQueryHistoryDetailState() {
+  queryHistoryDetailLoadVersion += 1;
+  state.editor.historySelectedId = null;
+  state.editor.historyDetail = null;
+  state.editor.historyRuns = [];
+  state.editor.historyDetailLoading = false;
+  state.editor.historyDetailError = null;
+}
+
 function requiresActiveDatabase(routeName) {
   return ["overview", "data", "editor", "editorResults", "structure"].includes(routeName);
 }
@@ -116,6 +158,18 @@ function normalizeDataPageSize(value, fallback = 50) {
   return fallback;
 }
 
+function normalizeSortDirection(value) {
+  return String(value ?? "").trim().toLowerCase() === "desc" ? "desc" : "asc";
+}
+
+function getNextSortDirection(currentColumn, currentDirection, nextColumn) {
+  if (currentColumn === nextColumn) {
+    return normalizeSortDirection(currentDirection) === "asc" ? "desc" : "asc";
+  }
+
+  return "asc";
+}
+
 function canEditQueryResult(snapshot = state) {
   return Boolean(snapshot.editor.result?.editing?.enabled) && !snapshot.connections.active?.readOnly;
 }
@@ -123,6 +177,73 @@ function canEditQueryResult(snapshot = state) {
 function resetDataBrowserSearch() {
   state.dataBrowser.searchQuery = "";
   state.dataBrowser.searchColumn = "";
+}
+
+function resetDataBrowserSort() {
+  state.dataBrowser.sortColumn = null;
+  state.dataBrowser.sortDirection = null;
+}
+
+function resetEditorResultSort() {
+  state.editor.resultSortColumn = null;
+  state.editor.resultSortDirection = null;
+}
+
+function getSortableEditorValue(value) {
+  if (value === null || value === undefined) {
+    return { rank: 0, value: "" };
+  }
+
+  if (typeof value === "number") {
+    return { rank: 1, value };
+  }
+
+  if (typeof value === "boolean") {
+    return { rank: 2, value: value ? 1 : 0 };
+  }
+
+  if (typeof value === "string") {
+    return { rank: 3, value };
+  }
+
+  if (value && typeof value === "object" && value.__type === "blob") {
+    return {
+      rank: 4,
+      value: `${value.sizeBytes ?? 0}:${value.hexPreview ?? ""}`,
+    };
+  }
+
+  return { rank: 5, value: JSON.stringify(value) };
+}
+
+function compareEditorValues(left, right) {
+  const leftValue = getSortableEditorValue(left);
+  const rightValue = getSortableEditorValue(right);
+
+  if (leftValue.rank !== rightValue.rank) {
+    return leftValue.rank - rightValue.rank;
+  }
+
+  if (typeof leftValue.value === "number" && typeof rightValue.value === "number") {
+    return leftValue.value - rightValue.value;
+  }
+
+  return String(leftValue.value).localeCompare(String(rightValue.value), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function sortEditorResultRows(rows, sortColumn, sortDirection) {
+  if (!sortColumn) {
+    return [...(rows ?? [])];
+  }
+
+  const directionMultiplier = normalizeSortDirection(sortDirection) === "desc" ? -1 : 1;
+
+  return [...(rows ?? [])].sort(
+    (left, right) => compareEditorValues(left?.[sortColumn], right?.[sortColumn]) * directionMultiplier
+  );
 }
 
 function buildUpdatedEditorResultRow(existingRow, updatedSourceRow, editableColumns) {
@@ -175,6 +296,64 @@ function buildFallbackDeleteRowPreview(row) {
   );
 }
 
+function normalizeQueryHistoryTab(value) {
+  return ["recent", "saved", "failed"].includes(value) ? value : "recent";
+}
+
+function findQueryHistoryItem(historyId, snapshot = state) {
+  return snapshot.editor.history.find((entry) => String(entry.id) === String(historyId)) ?? null;
+}
+
+function clearQueryHistorySearchTimer() {
+  if (!queryHistorySearchTimer) {
+    return;
+  }
+
+  window.clearTimeout(queryHistorySearchTimer);
+  queryHistorySearchTimer = null;
+}
+
+function resetQueryHistoryState({ preserveSearch = true } = {}) {
+  state.editor.history = [];
+  state.editor.historyLoading = false;
+  state.editor.historyLoadingMore = false;
+  state.editor.historyError = null;
+  state.editor.historyTotal = 0;
+  state.editor.historyHasMore = false;
+  state.editor.historyActiveId = null;
+  clearQueryHistoryDetailState();
+
+  if (!preserveSearch) {
+    clearQueryHistorySearchTimer();
+    state.editor.historySearchInput = "";
+    state.editor.historySearch = "";
+  }
+}
+
+function syncQueryHistoryItem(updatedItem) {
+  if (!updatedItem) {
+    return;
+  }
+
+  state.editor.history = state.editor.history.map((entry) =>
+    entry.id === updatedItem.id ? updatedItem : entry
+  );
+
+  if (state.editor.historyDetail?.id === updatedItem.id) {
+    state.editor.historyDetail = updatedItem;
+  }
+}
+
+function resolveQueryHistorySql(historyId) {
+  const historyIdAsString = String(historyId);
+
+  if (String(state.editor.historyDetail?.id ?? "") === historyIdAsString) {
+    return state.editor.historyDetail.rawSql;
+  }
+
+  return findQueryHistoryItem(historyId)?.rawSql ?? null;
+}
+
 function clearRouteSlices() {
   state.overview.error = null;
   state.dataBrowser.error = null;
@@ -195,6 +374,7 @@ function setMissingDatabaseState() {
   state.dataBrowser.selectedTable = null;
   state.dataBrowser.table = null;
   state.dataBrowser.page = 1;
+  resetDataBrowserSort();
   resetDataBrowserSearch();
   state.dataBrowser.selectedRowIndex = null;
   state.dataBrowser.exportLoading = false;
@@ -206,6 +386,8 @@ function setMissingDatabaseState() {
   state.structure.data = null;
   state.structure.detail = null;
   state.structure.error = error;
+
+  resetQueryHistoryState({ preserveSearch: false });
 }
 
 function syncRouteContext() {
@@ -213,6 +395,7 @@ function syncRouteContext() {
 
   if (route.name === "editorResults") {
     state.editor.activeTab = "results";
+    clearQueryHistoryDetailState();
   } else if (route.name === "editor" && state.editor.activeTab === "results") {
     state.editor.activeTab = "messages";
   }
@@ -284,19 +467,131 @@ async function refreshSettingsState() {
   }
 }
 
-async function refreshSqlHistoryState() {
-  state.editor.historyLoading = true;
-  state.editor.historyError = null;
+async function loadQueryHistoryDetail(historyId) {
+  const normalizedId = String(historyId ?? "").trim();
+  const numericId = Number(normalizedId);
+  const requestVersion = ++queryHistoryDetailLoadVersion;
+
+  if (!normalizedId) {
+    clearQueryHistoryDetailState();
+    emitChange();
+    return;
+  }
+
+  state.editor.historyDetailLoading = true;
+  state.editor.historyDetailError = null;
   emitChange();
 
   try {
-    const response = await api.getSqlHistory();
-    state.editor.history = response.data ?? [];
+    const [detailResponse, runsResponse] = await Promise.all([
+      api.getQueryHistoryItem(normalizedId),
+      api.getQueryHistoryRuns(normalizedId, { limit: QUERY_HISTORY_RUN_LIMIT }),
+    ]);
+
+    if (
+      requestVersion !== queryHistoryDetailLoadVersion ||
+      state.editor.historySelectedId !== numericId
+    ) {
+      return;
+    }
+
+    state.editor.historyDetail = detailResponse.data ?? null;
+    state.editor.historyRuns = runsResponse.data ?? [];
+    state.editor.historyDetailError = null;
+    if (detailResponse.data) {
+      syncQueryHistoryItem(detailResponse.data);
+    }
   } catch (error) {
+    if (
+      requestVersion !== queryHistoryDetailLoadVersion ||
+      state.editor.historySelectedId !== numericId
+    ) {
+      return;
+    }
+
+    state.editor.historyDetail = null;
+    state.editor.historyRuns = [];
+    state.editor.historyDetailError = normalizeError(error);
+  } finally {
+    if (requestVersion === queryHistoryDetailLoadVersion) {
+      state.editor.historyDetailLoading = false;
+      emitChange();
+    }
+  }
+}
+
+async function refreshQueryHistoryState({ append = false } = {}) {
+  if (!state.connections.active) {
+    resetQueryHistoryState({ preserveSearch: false });
+    emitChange();
+    return;
+  }
+
+  const requestVersion = ++queryHistoryLoadVersion;
+  const nextOffset = append ? state.editor.history.length : 0;
+
+  if (append) {
+    state.editor.historyLoadingMore = true;
+  } else {
+    state.editor.historyLoading = true;
+    state.editor.historyError = null;
+  }
+  emitChange();
+
+  try {
+    const response = await api.getQueryHistory({
+      tab: state.editor.historyTab,
+      limit: state.editor.historyPageSize,
+      offset: nextOffset,
+      search: state.editor.historySearch,
+    });
+
+    if (requestVersion !== queryHistoryLoadVersion) {
+      return;
+    }
+
+    const payload = response.data ?? {};
+    const items = payload.items ?? [];
+    state.editor.history = append ? [...state.editor.history, ...items] : items;
+    state.editor.historyTotal = payload.total ?? state.editor.history.length;
+    state.editor.historyHasMore = Boolean(payload.hasMore);
+    state.editor.historyError = null;
+
+    if (
+      state.editor.historyActiveId &&
+      !state.editor.history.some((entry) => entry.id === state.editor.historyActiveId)
+    ) {
+      state.editor.historyActiveId = null;
+    }
+
+    if (
+      state.editor.historySelectedId &&
+      !state.editor.history.some((entry) => entry.id === state.editor.historySelectedId)
+    ) {
+      clearQueryHistoryDetailState();
+    }
+
+    if (
+      state.editor.historySelectedId &&
+      !state.editor.historyDetailLoading &&
+      state.editor.historyDetail?.id !== state.editor.historySelectedId
+    ) {
+      await loadQueryHistoryDetail(state.editor.historySelectedId);
+    } else {
+      emitChange();
+    }
+  } catch (error) {
+    if (requestVersion !== queryHistoryLoadVersion) {
+      return;
+    }
+
     state.editor.historyError = normalizeError(error);
   } finally {
-    state.editor.historyLoading = false;
-    emitChange();
+    if (requestVersion === queryHistoryLoadVersion) {
+      state.editor.historyLoading = false;
+      state.editor.historyLoadingMore = false;
+      emitChange();
+    }
   }
 }
 
@@ -333,6 +628,8 @@ async function loadDataTable(version) {
   const tableName = state.dataBrowser.selectedTable;
   const pageSize = normalizeDataPageSize(state.dataBrowser.pageSize, 50);
   const page = Math.max(1, Number(state.dataBrowser.page) || 1);
+  const sortColumn = state.dataBrowser.sortColumn;
+  const sortDirection = normalizeSortDirection(state.dataBrowser.sortDirection);
 
   if (!tableName) {
     state.dataBrowser.table = null;
@@ -348,6 +645,8 @@ async function loadDataTable(version) {
     const response = await api.getDataTable(tableName, {
       limit: pageSize,
       offset: (page - 1) * pageSize,
+      sortColumn,
+      sortDirection,
     });
 
     if (version !== routeLoadVersion) {
@@ -357,6 +656,8 @@ async function loadDataTable(version) {
     state.dataBrowser.table = response.data ?? null;
     state.dataBrowser.pageSize = pageSize;
     state.dataBrowser.page = response.data?.page ?? page;
+    state.dataBrowser.sortColumn = response.data?.sort?.column ?? null;
+    state.dataBrowser.sortDirection = response.data?.sort?.direction ?? null;
     state.dataBrowser.searchColumn = response.data?.columns?.includes(state.dataBrowser.searchColumn)
       ? state.dataBrowser.searchColumn
       : (response.data?.columns?.[0] ?? "");
@@ -397,6 +698,7 @@ async function loadData(version, route) {
     if (requestedTableName && tables.some((table) => table.name === requestedTableName)) {
       if (requestedTableName !== state.dataBrowser.selectedTable) {
         state.dataBrowser.page = 1;
+        resetDataBrowserSort();
         resetDataBrowserSearch();
       }
       state.dataBrowser.selectedTable = requestedTableName;
@@ -406,6 +708,7 @@ async function loadData(version, route) {
     ) {
       state.dataBrowser.selectedTable = tables[0]?.name ?? null;
       state.dataBrowser.page = 1;
+      resetDataBrowserSort();
       resetDataBrowserSearch();
     }
 
@@ -561,7 +864,7 @@ async function loadRouteData(route) {
       return;
     case "editor":
     case "editorResults":
-      await refreshSqlHistoryState();
+      await refreshQueryHistoryState();
       return;
     case "structure":
       await loadStructure(version);
@@ -624,7 +927,7 @@ export async function initializeApp() {
   await Promise.all([
     refreshConnectionsState(),
     refreshSettingsState(),
-    refreshSqlHistoryState(),
+    refreshQueryHistoryState(),
   ]);
 
   state.ready = true;
@@ -882,6 +1185,17 @@ export async function createActiveConnectionBackup() {
   }
 }
 
+export async function openOverviewInFinder() {
+  try {
+    const response = await api.openOverviewInFinder();
+    pushToast(response.message || "Database file revealed in Finder.", "muted");
+    return true;
+  } catch (error) {
+    pushToast(normalizeError(error)?.message || "Finder could not be opened.", "alert");
+    return false;
+  }
+}
+
 export function setCurrentQuery(query) {
   const nextQuery = String(query ?? "");
   const previousLineCount = Math.max(1, String(state.editor.sqlText || "").split("\n").length);
@@ -896,12 +1210,22 @@ export function setCurrentQuery(query) {
 
 export function clearCurrentQuery() {
   state.editor.sqlText = "";
+  state.editor.result = null;
+  resetEditorResultSort();
   state.editor.error = null;
+  state.editor.selectedRowIndex = null;
+  state.editor.saving = false;
+  state.editor.deleting = false;
+  state.editor.saveError = null;
+  if (state.editor.activeTab === "results" || state.editor.activeTab === "performance") {
+    state.editor.activeTab = "messages";
+  }
   emitChange();
 }
 
 export function clearEditorResults() {
   state.editor.result = null;
+  resetEditorResultSort();
   state.editor.error = null;
   state.editor.selectedRowIndex = null;
   state.editor.saving = false;
@@ -928,10 +1252,11 @@ export async function executeCurrentQuery() {
   try {
     const response = await api.executeSql(state.editor.sqlText);
     state.editor.result = response.data;
+    resetEditorResultSort();
     state.editor.error = null;
     state.editor.activeTab = "results";
     invalidateDatabaseCaches();
-    await refreshSqlHistoryState();
+    await refreshQueryHistoryState();
     pushToast(
       response.message || `Executed ${response.data.statementCount} SQL statement(s).`,
       "success"
@@ -940,7 +1265,7 @@ export async function executeCurrentQuery() {
   } catch (error) {
     state.editor.error = normalizeError(error);
     state.editor.activeTab = "messages";
-    emitChange();
+    await refreshQueryHistoryState();
     return false;
   } finally {
     state.editor.executing = false;
@@ -948,14 +1273,14 @@ export async function executeCurrentQuery() {
   }
 }
 
-export async function clearSqlHistoryStateAndData() {
+export async function clearQueryHistoryStateAndData() {
   state.editor.historyLoading = true;
   emitChange();
 
   try {
-    const response = await api.clearSqlHistory();
-    state.editor.history = response.data ?? [];
-    pushToast(response.message || "SQL history cleared.", "muted");
+    const response = await api.clearQueryHistory();
+    resetQueryHistoryState({ preserveSearch: false });
+    pushToast(response.message || "Query history cleared.", "muted");
     return true;
   } catch (error) {
     state.editor.historyError = normalizeError(error);
@@ -967,15 +1292,156 @@ export async function clearSqlHistoryStateAndData() {
   }
 }
 
-export function loadQueryFromHistory(id) {
-  const historyEntry = state.editor.history.find((entry) => entry.id === id);
+export async function setQueryHistoryTab(tab) {
+  const normalizedTab = normalizeQueryHistoryTab(String(tab ?? "").trim().toLowerCase());
 
-  if (!historyEntry) {
+  if (state.editor.historyTab === normalizedTab) {
     return;
   }
 
-  state.editor.sqlText = historyEntry.sql;
+  state.editor.historyTab = normalizedTab;
+  state.editor.historyActiveId = null;
+  clearQueryHistoryDetailState();
   emitChange();
+  await refreshQueryHistoryState();
+}
+
+export function setQueryHistorySearchInput(query) {
+  state.editor.historySearchInput = String(query ?? "");
+  emitChange();
+
+  clearQueryHistorySearchTimer();
+  queryHistorySearchTimer = window.setTimeout(() => {
+    state.editor.historySearch = state.editor.historySearchInput.trim();
+    state.editor.historyActiveId = null;
+    clearQueryHistoryDetailState();
+    emitChange();
+    void refreshQueryHistoryState();
+  }, 180);
+}
+
+export async function loadMoreQueryHistory() {
+  if (
+    state.editor.historyLoading ||
+    state.editor.historyLoadingMore ||
+    !state.editor.historyHasMore
+  ) {
+    return;
+  }
+
+  await refreshQueryHistoryState({ append: true });
+}
+
+export async function selectQueryHistoryItem(historyId) {
+  const normalizedId = setActiveQueryHistoryItem(historyId);
+
+  if (normalizedId === null) {
+    return;
+  }
+
+  state.editor.historySelectedId = normalizedId;
+  state.editor.historyDetail = null;
+  state.editor.historyRuns = [];
+  state.editor.historyDetailError = null;
+  emitChange();
+  await loadQueryHistoryDetail(normalizedId);
+}
+
+export function clearQueryHistorySelection() {
+  if (state.editor.historySelectedId === null && !state.editor.historyDetail) {
+    return;
+  }
+
+  clearQueryHistoryDetailState();
+  emitChange();
+}
+
+export function openQueryHistoryInEditor(historyId, options = {}) {
+  const rawSql = resolveQueryHistorySql(historyId);
+
+  if (!rawSql) {
+    pushToast("The selected history query could not be loaded.", "alert");
+    return false;
+  }
+
+  setActiveQueryHistoryItem(historyId);
+  clearQueryHistoryDetailState();
+  state.editor.sqlText = options.append
+    ? [state.editor.sqlText.trim(), rawSql].filter(Boolean).join("\n\n")
+    : rawSql;
+  emitChange();
+  return true;
+}
+
+export async function runQueryHistoryItem(historyId) {
+  const loaded = openQueryHistoryInEditor(historyId);
+
+  if (!loaded) {
+    return false;
+  }
+
+  return executeCurrentQuery();
+}
+
+export async function toggleQueryHistorySavedState(historyId, nextValue) {
+  try {
+    const response = await api.toggleQueryHistorySaved(historyId, nextValue);
+    syncQueryHistoryItem(response.data);
+    pushToast(response.message || "Query save state updated.", "muted");
+    await refreshQueryHistoryState();
+    return true;
+  } catch (error) {
+    state.editor.historyDetailError = normalizeError(error);
+    emitChange();
+    return false;
+  }
+}
+
+export async function saveQueryHistoryTitle(historyId, title) {
+  try {
+    const response = await api.renameQueryHistoryItem(historyId, title);
+    syncQueryHistoryItem(response.data);
+    pushToast(response.message || "Query title updated.", "success");
+    await loadQueryHistoryDetail(historyId);
+    return true;
+  } catch (error) {
+    state.editor.historyDetailError = normalizeError(error);
+    emitChange();
+    return false;
+  }
+}
+
+export async function saveQueryHistoryNotes(historyId, notes) {
+  try {
+    const response = await api.updateQueryHistoryNotes(historyId, notes);
+    syncQueryHistoryItem(response.data);
+    pushToast(response.message || "Query notes updated.", "success");
+    await loadQueryHistoryDetail(historyId);
+    return true;
+  } catch (error) {
+    state.editor.historyDetailError = normalizeError(error);
+    emitChange();
+    return false;
+  }
+}
+
+export async function deleteQueryHistoryStateItem(historyId) {
+  try {
+    const response = await api.deleteQueryHistoryItem(historyId);
+    if (state.editor.historyActiveId === Number(historyId)) {
+      state.editor.historyActiveId = null;
+    }
+    if (state.editor.historySelectedId === Number(historyId)) {
+      clearQueryHistorySelection();
+    }
+    pushToast(response.message || "Query history item deleted.", "muted");
+    await refreshQueryHistoryState();
+    return true;
+  } catch (error) {
+    state.editor.historyDetailError = normalizeError(error);
+    emitChange();
+    return false;
+  }
 }
 
 export async function selectStructureEntry(name) {
@@ -1054,6 +1520,32 @@ export async function setDataPage(page) {
   }
 
   state.dataBrowser.page = numericPage;
+  state.dataBrowser.selectedRowIndex = null;
+  state.dataBrowser.saveError = null;
+  emitChange();
+
+  if (state.route.name === "data" && state.dataBrowser.selectedTable) {
+    await loadDataTable(++routeLoadVersion);
+  }
+}
+
+export async function sortDataTableByColumn(columnName) {
+  const normalizedColumn = String(columnName ?? "").trim();
+
+  if (
+    !normalizedColumn ||
+    !state.dataBrowser.table?.columns?.includes(normalizedColumn)
+  ) {
+    return;
+  }
+
+  state.dataBrowser.sortDirection = getNextSortDirection(
+    state.dataBrowser.sortColumn,
+    state.dataBrowser.sortDirection,
+    normalizedColumn
+  );
+  state.dataBrowser.sortColumn = normalizedColumn;
+  state.dataBrowser.page = 1;
   state.dataBrowser.selectedRowIndex = null;
   state.dataBrowser.saveError = null;
   emitChange();
@@ -1190,7 +1682,11 @@ export async function submitEditorRowUpdate(rowIndex, values) {
     );
     state.editor.result = {
       ...result,
-      rows: nextRows,
+      rows: sortEditorResultRows(
+        nextRows,
+        state.editor.resultSortColumn,
+        state.editor.resultSortDirection
+      ),
     };
     state.editor.selectedRowIndex = null;
     invalidateDatabaseCaches();
@@ -1304,7 +1800,10 @@ export async function exportCurrentDataTableCsv() {
   emitChange();
 
   try {
-    await api.downloadTableCsv(tableName);
+    await api.downloadTableCsv(tableName, {
+      sortColumn: state.dataBrowser.sortColumn,
+      sortDirection: state.dataBrowser.sortDirection,
+    });
     pushToast(`CSV export started for ${tableName}.`, "success");
     return true;
   } catch (error) {
@@ -1315,6 +1814,31 @@ export async function exportCurrentDataTableCsv() {
     state.dataBrowser.exportLoading = false;
     emitChange();
   }
+}
+
+export function sortEditorResultsByColumn(columnName) {
+  const normalizedColumn = String(columnName ?? "").trim();
+  const result = state.editor.result;
+
+  if (!normalizedColumn || !result?.columns?.includes(normalizedColumn)) {
+    return;
+  }
+
+  const nextDirection = getNextSortDirection(
+    state.editor.resultSortColumn,
+    state.editor.resultSortDirection,
+    normalizedColumn
+  );
+
+  state.editor.result = {
+    ...result,
+    rows: sortEditorResultRows(result.rows ?? [], normalizedColumn, nextDirection),
+  };
+  state.editor.resultSortColumn = normalizedColumn;
+  state.editor.resultSortDirection = nextDirection;
+  state.editor.selectedRowIndex = null;
+  state.editor.saveError = null;
+  emitChange();
 }
 
 export async function refreshCurrentRoute() {

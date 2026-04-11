@@ -2,6 +2,7 @@ const { quoteIdentifier } = require("../../utils/identifier");
 const { serializeRows } = require("../../utils/sqliteTypes");
 const { rowsToCsv } = require("../../utils/csv");
 const { getTableDetail } = require("./introspection");
+const { buildTableOrderClause, normalizeTableSort } = require("./tableSort");
 
 class ExportService {
   constructor({ appStateStore, connectionManager, sqlExecutor }) {
@@ -32,10 +33,11 @@ class ExportService {
     };
   }
 
-  exportTable(tableName) {
+  exportTable(tableName, options = {}) {
     const db = this.connectionManager.getActiveDatabase();
     const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
-    const orderClause = this.buildOrderClause(tableDetail);
+    const sort = normalizeTableSort(tableDetail, options);
+    const orderClause = buildTableOrderClause(tableDetail, sort);
     const statement = db.prepare(
       [
         `SELECT * FROM ${quoteIdentifier(tableName)}`,
@@ -57,20 +59,6 @@ class ExportService {
       columns,
       rowCount: rows.length,
     };
-  }
-
-  buildOrderClause(tableDetail) {
-    if (tableDetail.identityStrategy?.type === "rowid") {
-      return "rowid ASC";
-    }
-
-    if (tableDetail.identityStrategy?.type === "primaryKey") {
-      return tableDetail.identityStrategy.columns
-        .map((columnName) => `${quoteIdentifier(columnName)} ASC`)
-        .join(", ");
-    }
-
-    return "";
   }
 }
 

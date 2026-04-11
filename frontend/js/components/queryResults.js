@@ -1,9 +1,39 @@
 import { renderDataGrid } from "./dataGrid.js";
 import { escapeHtml, formatCellValue, formatNumber } from "../utils/format.js";
 
+function getSortIcon(columnName, sortColumn, sortDirection) {
+  if (columnName !== sortColumn) {
+    return "unfold_more";
+  }
+
+  return sortDirection === "desc" ? "south" : "north";
+}
+
+function renderSortableHeader(columnName, sortColumn, sortDirection) {
+  const isActive = columnName === sortColumn;
+
+  return `
+    <button
+      class="flex w-full items-center justify-between gap-2 text-left transition-colors ${
+        isActive ? "text-primary-container" : "text-on-surface-variant hover:text-primary-container"
+      }"
+      data-action="sort-editor-results-column"
+      data-column-name="${escapeHtml(columnName)}"
+      type="button"
+    >
+      <span class="truncate">${escapeHtml(columnName)}</span>
+      <span class="material-symbols-outlined text-sm leading-none">${getSortIcon(
+        columnName,
+        sortColumn,
+        sortDirection
+      )}</span>
+    </button>
+  `;
+}
+
 export function renderQueryResultsPane(
   result,
-  { exporting = false, selectedRowIndex = null, editable = false, editStatusMessage = "" } = {}
+  { selectedRowIndex = null, editable = false, sortColumn = null, sortDirection = null } = {}
 ) {
   if (!result) {
     return `
@@ -17,9 +47,9 @@ export function renderQueryResultsPane(
   }
 
   const columns = (result.columns ?? []).map((columnName) => ({
-    label: escapeHtml(columnName),
     headerClassName:
       "border-b-2 border-primary-container px-4 py-3 text-[10px] font-bold uppercase tracking-widest",
+    renderHeader: () => renderSortableHeader(columnName, sortColumn, sortDirection),
     cellClassName: "px-4 py-3 align-top text-on-surface",
     render: (row) => {
       const value = formatCellValue(row[columnName]);
@@ -32,50 +62,6 @@ export function renderQueryResultsPane(
 
   return `
     <div class="relative flex h-full min-h-0 flex-col overflow-hidden bg-surface-container">
-      <div class="flex items-center justify-between gap-4 bg-surface-container-high px-4 py-2">
-        <div class="flex items-center gap-4">
-          <div class="flex items-center gap-2 text-primary-container">
-            <span class="material-symbols-outlined text-sm">database</span>
-            <span class="text-[10px] font-bold uppercase tracking-widest">Query Results</span>
-          </div>
-          <div class="h-3 w-px bg-outline-variant/30"></div>
-          <div class="text-[10px] font-mono text-on-surface-variant/60">
-            ROWS_RETURNED: ${escapeHtml(formatNumber(result.rows?.length ?? 0))}
-          </div>
-          <div class="text-[10px] font-mono text-on-surface-variant/60">
-            AFFECTED: ${escapeHtml(formatNumber(result.affectedRowCount ?? 0))}
-          </div>
-          <div class="text-[10px] font-mono text-on-surface-variant/60">
-            EXEC: ${escapeHtml(String(result.timingMs ?? 0))}ms
-          </div>
-          ${
-            editStatusMessage
-              ? `
-                  <div class="h-3 w-px bg-outline-variant/30"></div>
-                  <div class="text-[10px] font-mono text-on-surface-variant/60">
-                    ${escapeHtml(editStatusMessage)}
-                  </div>
-                `
-              : ""
-          }
-        </div>
-        <div class="flex gap-4 text-[10px] font-mono uppercase">
-          <button
-            class="text-on-surface-variant transition-colors hover:text-primary-container"
-            data-action="export-query-csv"
-            type="button"
-          >
-            ${exporting ? "Exporting..." : "Export CSV"}
-          </button>
-          <button
-            class="text-on-surface-variant transition-colors hover:text-primary-container"
-            data-action="clear-results"
-            type="button"
-          >
-            Clear Results
-          </button>
-        </div>
-      </div>
       <div class="custom-scrollbar min-h-0 flex-1 overflow-auto bg-surface-container-lowest">
         ${
           result.columns?.length

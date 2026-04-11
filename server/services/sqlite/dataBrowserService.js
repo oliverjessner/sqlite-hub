@@ -6,6 +6,7 @@ const {
   serializeRows,
 } = require("../../utils/sqliteTypes");
 const { getRawStructureEntries, getTableDetail } = require("./introspection");
+const { buildTableOrderClause, normalizeTableSort } = require("./tableSort");
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
@@ -70,9 +71,10 @@ class DataBrowserService {
     const db = this.connectionManager.getActiveDatabase();
     const tableDetail = getTableDetail(db, tableName);
     const { limit, offset } = normalizePaginationOptions(options);
+    const sort = normalizeTableSort(tableDetail, options);
     const selectExpression =
       tableDetail.identityStrategy?.type === "rowid" ? "rowid AS __rowid__, *" : "*";
-    const orderClause = this.buildOrderClause(tableDetail);
+    const orderClause = buildTableOrderClause(tableDetail, sort);
     const statement = db.prepare(
       [
         `SELECT ${selectExpression} FROM ${quoteIdentifier(tableName)}`,
@@ -114,6 +116,7 @@ class DataBrowserService {
       rows,
       identityStrategy: tableDetail.identityStrategy,
       notSafelyUpdatable: tableDetail.notSafelyUpdatable,
+      sort,
     };
   }
 
@@ -238,21 +241,6 @@ class DataBrowserService {
       `Table ${tableDetail.name} cannot be updated because it has no stable row identity.`
     );
   }
-
-  buildOrderClause(tableDetail) {
-    if (tableDetail.identityStrategy?.type === "rowid") {
-      return "rowid ASC";
-    }
-
-    if (tableDetail.identityStrategy?.type === "primaryKey") {
-      return tableDetail.identityStrategy.columns
-        .map((columnName) => `${quoteIdentifier(columnName)} ASC`)
-        .join(", ");
-    }
-
-    return "";
-  }
-
   getRowByIdentity(db, tableDetail, where) {
     const selectExpression =
       tableDetail.identityStrategy?.type === "rowid" ? "rowid AS __rowid__, *" : "*";

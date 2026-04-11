@@ -26,6 +26,8 @@ function createDataRouter({ dataBrowserService }) {
       const data = dataBrowserService.getTableData(req.params.tableName, {
         limit: req.query.limit,
         offset: req.query.offset,
+        sortColumn: req.query.sortColumn,
+        sortDirection: req.query.sortDirection,
       });
 
       res.json(

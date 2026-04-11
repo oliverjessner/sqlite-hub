@@ -14,9 +14,9 @@ export function renderDataGrid({
         <tr class="${headerRowClass}">
           ${columns
             .map(
-              (column) => `
-                <th class="${column.headerClassName ?? ""}">
-                  ${column.label}
+            (column) => `
+                <th class="${column.headerClassName ?? ""}" ${column.headerAttrs ?? ""}>
+                  ${column.renderHeader ? column.renderHeader() : column.label}
                 </th>
               `
             )

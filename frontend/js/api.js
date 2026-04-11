@@ -123,6 +123,12 @@ export function getOverview() {
   return request("/api/db/overview");
 }
 
+export function openOverviewInFinder() {
+  return request("/api/db/overview/open-in-finder", {
+    method: "POST",
+  });
+}
+
 export function getDbStatus() {
   return request("/api/db/status");
 }
@@ -134,12 +140,88 @@ export function executeSql(sql) {
   });
 }
 
-export function getSqlHistory() {
-  return request("/api/sql/history");
+export function getQueryHistory(options = {}) {
+  const params = new URLSearchParams();
+
+  if (options.tab) {
+    params.set("tab", String(options.tab));
+  }
+
+  if (options.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+
+  if (options.offset !== undefined) {
+    params.set("offset", String(options.offset));
+  }
+
+  if (options.search) {
+    params.set("search", String(options.search));
+  }
+
+  if (options.queryType) {
+    params.set("queryType", String(options.queryType));
+  }
+
+  if (options.onlySaved) {
+    params.set("onlySaved", "true");
+  }
+
+  if (options.onlyFavorites) {
+    params.set("onlyFavorites", "true");
+  }
+
+  const query = params.toString();
+  return request(`/api/sql/history${query ? `?${query}` : ""}`);
 }
 
-export function clearSqlHistory() {
+export function clearQueryHistory() {
   return request("/api/sql/history", {
+    method: "DELETE",
+  });
+}
+
+export function getQueryHistoryItem(historyId) {
+  return request(`/api/sql/history/${encodeURIComponent(historyId)}`);
+}
+
+export function getQueryHistoryRuns(historyId, options = {}) {
+  const params = new URLSearchParams();
+
+  if (options.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+
+  const query = params.toString();
+
+  return request(
+    `/api/sql/history/${encodeURIComponent(historyId)}/runs${query ? `?${query}` : ""}`
+  );
+}
+
+export function toggleQueryHistorySaved(historyId, value) {
+  return request(`/api/sql/history/${encodeURIComponent(historyId)}/saved`, {
+    method: "PATCH",
+    body: { value },
+  });
+}
+
+export function renameQueryHistoryItem(historyId, title) {
+  return request(`/api/sql/history/${encodeURIComponent(historyId)}/title`, {
+    method: "PATCH",
+    body: { title },
+  });
+}
+
+export function updateQueryHistoryNotes(historyId, notes) {
+  return request(`/api/sql/history/${encodeURIComponent(historyId)}/notes`, {
+    method: "PATCH",
+    body: { notes },
+  });
+}
+
+export function deleteQueryHistoryItem(historyId) {
+  return request(`/api/sql/history/${encodeURIComponent(historyId)}`, {
     method: "DELETE",
   });
 }
@@ -165,6 +247,14 @@ export function getDataTable(tableName, options = {}) {
 
   if (options.offset !== undefined) {
     params.set("offset", String(options.offset));
+  }
+
+  if (options.sortColumn) {
+    params.set("sortColumn", String(options.sortColumn));
+  }
+
+  if (options.sortDirection) {
+    params.set("sortDirection", String(options.sortDirection));
   }
 
   const query = params.toString();
@@ -205,10 +295,14 @@ export function downloadQueryCsv(sql) {
   });
 }
 
-export function downloadTableCsv(tableName) {
+export function downloadTableCsv(tableName, options = {}) {
   return download("/api/export/table.csv", {
     method: "POST",
-    body: { tableName },
+    body: {
+      tableName,
+      sortColumn: options.sortColumn,
+      sortDirection: options.sortDirection,
+    },
     fallbackFilename: `${tableName || "table"}.csv`,
   });
 }

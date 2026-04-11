@@ -1,5 +1,7 @@
 import { renderBottomTabs } from "../components/bottomTabs.js";
 import { renderQueryEditor } from "../components/queryEditor.js";
+import { renderQueryHistoryDetail } from "../components/queryHistoryDetail.js";
+import { renderQueryHistoryPanel } from "../components/queryHistoryPanel.js";
 import { renderRowEditorPanel } from "../components/rowEditorPanel.js";
 import { renderQueryResultsPane } from "../components/queryResults.js";
 import { getCurrentConnection, getQueryMessages, getQueryPerformance } from "../store.js";
@@ -216,17 +218,17 @@ function renderResultsSurface(state, isResultsRoute) {
 
     content = state.connections.active
       ? renderQueryResultsPane(state.editor.result, {
-          exporting: state.editor.exportLoading,
           selectedRowIndex: state.editor.selectedRowIndex,
           editable: editingState.enabled,
-          editStatusMessage: editingState.message,
+          sortColumn: state.editor.resultSortColumn,
+          sortDirection: state.editor.resultSortDirection,
         })
       : renderMissingDatabase();
   }
 
   return `
     <div class="flex h-full min-h-0 flex-col border-t border-outline-variant/10 bg-surface-container-lowest">
-      ${renderBottomTabs(activeTab, counts)}
+      ${renderBottomTabs(state.editor.activeTab, counts)}
       <div class="min-h-0 flex-1">${content}</div>
     </div>
   `;
@@ -234,13 +236,13 @@ function renderResultsSurface(state, isResultsRoute) {
 
 export function renderEditorView(state, { isResultsRoute = false } = {}) {
   const connection = getCurrentConnection(state);
-  const editorSectionClass = isResultsRoute ? "h-1/4" : "min-h-[27.5%]";
-  const resultsSectionClass = isResultsRoute ? "h-3/4" : "flex-1";
+  const editorSectionClass = "min-h-[27.5%]";
+  const resultsSectionClass = "flex-1";
 
   return {
     main: `
-      <section class="view-surface flex h-full min-h-0 flex-col overflow-hidden">
-        <div class="flex h-full min-h-0 flex-1 flex-col">
+      <section class="view-surface flex h-full min-h-0 flex-col overflow-hidden xl:flex-row">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <section class="${editorSectionClass} flex min-h-0 flex-col ${
             isResultsRoute ? "border-b-4 border-background" : ""
           }">
@@ -248,17 +250,39 @@ export function renderEditorView(state, { isResultsRoute = false } = {}) {
               query: state.editor.sqlText,
               executing: state.editor.executing,
               exporting: state.editor.exportLoading,
-              history: state.editor.history,
               historyLoading: state.editor.historyLoading,
+              historyTotal: state.editor.historyTotal,
               title: connection?.label ?? "SQLite Query Workspace",
             })}
           </section>
-          <section class="${resultsSectionClass} flex min-h-0 flex-col overflow-hidden">
+          <section class="${resultsSectionClass} flex min-h-0 min-w-0 flex-col overflow-hidden">
             ${renderResultsSurface(state, isResultsRoute)}
           </section>
         </div>
+        ${renderQueryHistoryPanel({
+          items: state.editor.history,
+          loading: state.editor.historyLoading,
+          loadingMore: state.editor.historyLoadingMore,
+          error: state.editor.historyError,
+          activeTab: state.editor.historyTab,
+          search: state.editor.historySearchInput,
+          total: state.editor.historyTotal,
+          hasMore: state.editor.historyHasMore,
+          activeHistoryId: state.editor.historyActiveId,
+          selectedHistoryId: state.editor.historySelectedId,
+        })}
       </section>
     `,
-    panel: isResultsRoute ? renderEditorRowPanel(state) : "",
+    panel:
+      isResultsRoute && state.editor.selectedRowIndex !== null
+        ? renderEditorRowPanel(state)
+        : state.editor.historySelectedId
+          ? renderQueryHistoryDetail({
+              item: state.editor.historyDetail,
+              runs: state.editor.historyRuns,
+              loading: state.editor.historyDetailLoading,
+              error: state.editor.historyDetailError,
+            })
+          : "",
   };
 }

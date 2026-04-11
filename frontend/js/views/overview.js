@@ -126,6 +126,21 @@ function renderOperationalSurface(overview) {
           )
           .join("")}
       </div>
+      ${
+        overview.file?.path
+          ? `
+            <div class="border-t border-outline-variant/10 px-4 py-3">
+              <button
+                class="toolbar-button border border-outline-variant/20 bg-surface-container px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+                data-action="open-overview-in-finder"
+                type="button"
+              >
+                Open In Finder
+              </button>
+            </div>
+          `
+          : ""
+      }
     </section>
   `;
 }

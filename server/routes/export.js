@@ -24,7 +24,10 @@ function createExportRouter({ exportService }) {
   router.post(
     "/table.csv",
     route((req, res) => {
-      const result = exportService.exportTable(req.body?.tableName);
+      const result = exportService.exportTable(req.body?.tableName, {
+        sortColumn: req.body?.sortColumn,
+        sortDirection: req.body?.sortDirection,
+      });
       sendCsv(res, result);
     })
   );

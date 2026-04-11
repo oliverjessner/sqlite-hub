@@ -31,6 +31,18 @@ function createOverviewRouter({ overviewService }) {
     })
   );
 
+  router.post(
+    "/overview/open-in-finder",
+    route(async (req, res) => {
+      await overviewService.revealActiveDatabaseInFinder();
+      res.json(
+        successResponse({
+          message: "Database file revealed in Finder.",
+        })
+      );
+    })
+  );
+
   return router;
 }
 

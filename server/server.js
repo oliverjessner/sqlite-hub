@@ -75,7 +75,7 @@ app.use(
   })
 );
 app.use("/api/db", createOverviewRouter({ overviewService }));
-app.use("/api/sql", createSqlRouter({ appStateStore, sqlExecutor }));
+app.use("/api/sql", createSqlRouter({ appStateStore, connectionManager, sqlExecutor }));
 app.use("/api/structure", createStructureRouter({ structureService }));
 app.use("/api/data", createDataRouter({ dataBrowserService }));
 app.use("/api/settings", createSettingsRouter({ appStateStore }));

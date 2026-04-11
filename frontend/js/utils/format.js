@@ -5,6 +5,10 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   dateStyle: "medium",
   timeStyle: "short",
 });
+const COMPACT_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  dateStyle: "short",
+  timeStyle: "short",
+});
 
 export function escapeHtml(value = "") {
   return String(value)
@@ -50,6 +54,25 @@ export function formatDateTime(value) {
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value) : DATE_TIME_FORMATTER.format(date);
+}
+
+export function formatCompactDateTime(value) {
+  if (!value) {
+    return "N/A";
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : COMPACT_DATE_TIME_FORMATTER.format(date);
+}
+
+export function formatDurationMs(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    return "N/A";
+  }
+
+  return `${numericValue.toLocaleString("en-US")} ms`;
 }
 
 export function formatRelativeBoolean(value) {

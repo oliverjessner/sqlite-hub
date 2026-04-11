@@ -1,5 +1,4 @@
-const crypto = require("node:crypto");
-const { ValidationError } = require("../../utils/errors");
+const { ValidationError, mapSqliteError } = require("../../utils/errors");
 const { serializeRows } = require("../../utils/sqliteTypes");
 const { getTableDetail } = require("./introspection");
 
@@ -151,7 +150,7 @@ function splitSqlStatements(sql) {
     statements.push(current.trim());
   }
 
-  return statements.filter((statement) => statement.trim());
+  return statements.filter((statement) => statement.trim() && getFirstKeyword(statement));
 }
 
 function buildRowIdentity(tableDetail, row) {
@@ -337,62 +336,85 @@ class SqlExecutor {
     const results = [];
     let lastResultSet = null;
     let totalChanges = 0;
+    try {
+      statements.forEach((statement, index) => {
+        const prepared = db.prepare(statement);
+        const keyword = getFirstKeyword(statement);
 
-    statements.forEach((statement, index) => {
-      const prepared = db.prepare(statement);
-      const keyword = getFirstKeyword(statement);
+        if (options.requireReader && !prepared.reader) {
+          throw new ValidationError(
+            `Statement ${index + 1} is not a result-set statement and cannot be exported.`
+          );
+        }
 
-      if (options.requireReader && !prepared.reader) {
-        throw new ValidationError(
-          `Statement ${index + 1} is not a result-set statement and cannot be exported.`
-        );
-      }
+        if (prepared.reader) {
+          const rows = prepared.all();
+          const columnDefinitions = prepared.columns();
+          const serializedRows = serializeRows(rows);
+          const editableResult = resolveEditableResult(db, columnDefinitions, serializedRows);
+          const columns = columnDefinitions.map((column) => column.name);
+          const result = {
+            index,
+            sql: statement,
+            keyword,
+            kind: "resultSet",
+            rowCount: serializedRows.length,
+            columns,
+            rows: editableResult?.rows ?? serializedRows,
+            editing: editableResult
+              ? {
+                  enabled: editableResult.enabled,
+                  tableName: editableResult.tableName ?? null,
+                  reason: editableResult.reason ?? "",
+                  columns: editableResult.columns ?? [],
+                  identityStrategy: editableResult.identityStrategy ?? null,
+                }
+              : null,
+          };
+          results.push(result);
+          lastResultSet = result;
+          return;
+        }
 
-      if (prepared.reader) {
-        const rows = prepared.all();
-        const columnDefinitions = prepared.columns();
-        const serializedRows = serializeRows(rows);
-        const editableResult = resolveEditableResult(db, columnDefinitions, serializedRows);
-        const columns = columnDefinitions.map((column) => column.name);
-        const result = {
+        const info = prepared.run();
+        totalChanges += info.changes;
+        results.push({
           index,
           sql: statement,
           keyword,
-          kind: "resultSet",
-          rowCount: serializedRows.length,
-          columns,
-          rows: editableResult?.rows ?? serializedRows,
-          editing: editableResult
-            ? {
-                enabled: editableResult.enabled,
-                tableName: editableResult.tableName ?? null,
-                reason: editableResult.reason ?? "",
-                columns: editableResult.columns ?? [],
-                identityStrategy: editableResult.identityStrategy ?? null,
-              }
-            : null,
-        };
-        results.push(result);
-        lastResultSet = result;
-        return;
+          kind: "mutation",
+          changes: info.changes,
+          lastInsertRowid:
+            keyword === "INSERT" || keyword === "REPLACE"
+              ? typeof info.lastInsertRowid === "bigint"
+                ? Number(info.lastInsertRowid)
+                : info.lastInsertRowid
+              : null,
+        });
+      });
+    } catch (error) {
+      const normalizedError = mapSqliteError(error);
+
+      if (options.persistHistory !== false) {
+        try {
+          this.appStateStore.recordQueryExecution({
+            databaseKey: connection.id,
+            rawSql: sql,
+            status: "error",
+            durationMs: Date.now() - startedAt,
+            rowCount: lastResultSet?.rowCount ?? null,
+            affectedRows: totalChanges,
+            errorMessage: normalizedError.message,
+          });
+        } catch (recordingError) {
+          console.warn(
+            `Failed to record SQL query history error for ${connection.id}: ${recordingError.message}`
+          );
+        }
       }
 
-      const info = prepared.run();
-      totalChanges += info.changes;
-      results.push({
-        index,
-        sql: statement,
-        keyword,
-        kind: "mutation",
-        changes: info.changes,
-        lastInsertRowid:
-          keyword === "INSERT" || keyword === "REPLACE"
-            ? typeof info.lastInsertRowid === "bigint"
-              ? Number(info.lastInsertRowid)
-              : info.lastInsertRowid
-            : null,
-      });
-    });
+      throw normalizedError;
+    }
 
     const timingMs = Date.now() - startedAt;
     const payload = {
@@ -405,25 +427,23 @@ class SqlExecutor {
       affectedRowCount: totalChanges,
       resultKind: lastResultSet ? "resultSet" : results.at(-1)?.kind ?? "unknown",
     };
+    let historyId = null;
 
     if (options.persistHistory !== false) {
-      this.appStateStore.addSqlHistory({
-        id: crypto.randomUUID(),
-        connectionId: connection.id,
-        connectionLabel: connection.label,
-        sql,
-        statementCount: statements.length,
-        resultKind: payload.resultKind,
-        affectedRowCount: totalChanges,
-        rowCount: lastResultSet?.rowCount ?? 0,
-        timingMs,
-        executedAt: new Date().toISOString(),
+      historyId = this.appStateStore.recordQueryExecution({
+        databaseKey: connection.id,
+        rawSql: sql,
+        status: "success",
+        durationMs: timingMs,
+        rowCount: lastResultSet?.rowCount ?? null,
+        affectedRows: totalChanges,
       });
     }
 
     return {
       ...payload,
       timingMs,
+      historyId,
     };
   }
 }

@@ -1,7 +1,15 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const Database = require("better-sqlite3");
-const { ValidationError } = require("../../utils/errors");
+const { NotFoundError, ValidationError } = require("../../utils/errors");
+const {
+  buildAutoTitle,
+  buildSqlPreview,
+  detectQueryType,
+  detectTables,
+  isDestructiveQuery,
+  normalizeSql,
+} = require("./queryHistoryUtils");
 
 const DEFAULT_STATE = {
   recentConnections: [],
@@ -30,6 +38,7 @@ const CONNECTION_LOGO_EXTENSION_BY_FILE_EXTENSION = {
   ".png": "png",
   ".webp": "webp",
 };
+const QUERY_HISTORY_MIGRATION_KEY = "queryHistoryV1Migrated";
 
 class AppStateStore {
   constructor(filePath, options = {}) {
@@ -54,6 +63,8 @@ class AppStateStore {
     if (!importedLegacyDatabase && this.shouldImportLegacyState()) {
       this.tryImportLegacyState();
     }
+
+    this.migrateLegacySqlHistory();
   }
 
   configureDatabase() {
@@ -103,6 +114,62 @@ class AppStateStore {
 
       CREATE INDEX IF NOT EXISTS idx_sql_history_executed_at
       ON sql_history(executedAt DESC, id ASC);
+
+      CREATE TABLE IF NOT EXISTS query_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        database_key TEXT NOT NULL,
+        normalized_sql TEXT NOT NULL,
+        raw_sql TEXT NOT NULL,
+        title TEXT,
+        notes TEXT,
+        query_type TEXT NOT NULL DEFAULT 'other',
+        tables_detected TEXT NOT NULL DEFAULT '[]',
+        is_favorite INTEGER NOT NULL DEFAULT 0,
+        is_saved INTEGER NOT NULL DEFAULT 0,
+        is_destructive INTEGER NOT NULL DEFAULT 0,
+        use_count INTEGER NOT NULL DEFAULT 1,
+        first_executed_at TEXT NOT NULL,
+        last_used_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS query_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        history_id INTEGER NOT NULL,
+        executed_at TEXT NOT NULL,
+        duration_ms INTEGER,
+        row_count INTEGER,
+        status TEXT NOT NULL CHECK(status IN ('success', 'error')),
+        error_message TEXT,
+        affected_rows INTEGER,
+        FOREIGN KEY (history_id) REFERENCES query_history(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_query_history_database_key
+      ON query_history(database_key);
+
+      CREATE INDEX IF NOT EXISTS idx_query_history_last_used_at
+      ON query_history(last_used_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_query_history_is_saved
+      ON query_history(is_saved);
+
+      CREATE INDEX IF NOT EXISTS idx_query_history_is_favorite
+      ON query_history(is_favorite);
+
+      CREATE INDEX IF NOT EXISTS idx_query_history_query_type
+      ON query_history(query_type);
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_query_history_database_normalized_sql
+      ON query_history(database_key, normalized_sql);
+
+      CREATE INDEX IF NOT EXISTS idx_query_runs_history_id
+      ON query_runs(history_id);
+
+      CREATE INDEX IF NOT EXISTS idx_query_runs_executed_at
+      ON query_runs(executed_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_query_runs_status
+      ON query_runs(status);
     `);
 
     const recentConnectionColumns = new Set(
@@ -405,6 +472,612 @@ class AppStateStore {
         ON CONFLICT(key) DO UPDATE SET value = excluded.value
       `)
       .run(key, String(value));
+  }
+
+  normalizeQueryHistoryText(value) {
+    const text = String(value ?? "").trim();
+    return text ? text : null;
+  }
+
+  normalizeQueryHistoryInteger(value) {
+    if (value === null || value === undefined || value === "") {
+      return null;
+    }
+
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? Math.round(numericValue) : null;
+  }
+
+  parseTablesDetected(value) {
+    if (Array.isArray(value)) {
+      return Array.from(
+        new Set(
+          value
+            .map((entry) => String(entry ?? "").trim())
+            .filter(Boolean)
+        )
+      );
+    }
+
+    if (!value) {
+      return [];
+    }
+
+    try {
+      return this.parseTablesDetected(JSON.parse(value));
+    } catch {
+      return [];
+    }
+  }
+
+  decorateQueryRun(row = {}) {
+    return {
+      id: Number(row.id),
+      historyId: Number(row.history_id ?? row.historyId),
+      executedAt: row.executed_at ?? row.executedAt ?? null,
+      durationMs: this.normalizeQueryHistoryInteger(row.duration_ms ?? row.durationMs),
+      rowCount: this.normalizeQueryHistoryInteger(row.row_count ?? row.rowCount),
+      status: row.status ?? "success",
+      errorMessage: this.normalizeQueryHistoryText(row.error_message ?? row.errorMessage),
+      affectedRows: this.normalizeQueryHistoryInteger(row.affected_rows ?? row.affectedRows),
+    };
+  }
+
+  decorateQueryHistoryRow(row = {}) {
+    const tablesDetected = this.parseTablesDetected(row.tables_detected ?? row.tablesDetected);
+    const queryType = row.query_type ?? row.queryType ?? "other";
+    const title = this.normalizeQueryHistoryText(row.title);
+    const notes = this.normalizeQueryHistoryText(row.notes);
+    const lastRun =
+      row.last_run_id ?? row.lastRunId
+        ? this.decorateQueryRun({
+            id: row.last_run_id ?? row.lastRunId,
+            history_id: row.id,
+            executed_at: row.last_run_executed_at ?? row.lastRunExecutedAt,
+            duration_ms: row.last_run_duration_ms ?? row.lastRunDurationMs,
+            row_count: row.last_run_row_count ?? row.lastRunRowCount,
+            status: row.last_run_status ?? row.lastRunStatus,
+            error_message: row.last_run_error_message ?? row.lastRunErrorMessage,
+            affected_rows: row.last_run_affected_rows ?? row.lastRunAffectedRows,
+          })
+        : null;
+
+    return {
+      id: Number(row.id),
+      databaseKey: row.database_key ?? row.databaseKey,
+      normalizedSql: row.normalized_sql ?? row.normalizedSql,
+      rawSql: row.raw_sql ?? row.rawSql,
+      title,
+      notes,
+      queryType,
+      tablesDetected,
+      isFavorite: Boolean(row.is_favorite ?? row.isFavorite),
+      isSaved: Boolean(row.is_saved ?? row.isSaved),
+      isDestructive: Boolean(row.is_destructive ?? row.isDestructive),
+      useCount: Number(row.use_count ?? row.useCount ?? 0),
+      firstExecutedAt: row.first_executed_at ?? row.firstExecutedAt ?? null,
+      lastUsedAt: row.last_used_at ?? row.lastUsedAt ?? null,
+      displayTitle:
+        title ||
+        buildAutoTitle(row.raw_sql ?? row.rawSql, {
+          queryType,
+          tablesDetected,
+        }),
+      previewSql: buildSqlPreview(row.raw_sql ?? row.rawSql),
+      lastRun,
+    };
+  }
+
+  buildQueryHistoryFilters({
+    databaseKey,
+    search,
+    queryType,
+    onlySaved = false,
+    onlyFavorites = false,
+    latestStatus = null,
+  } = {}) {
+    const clauses = [];
+    const params = [];
+    const normalizedSearch = String(search ?? "").trim().toLowerCase();
+
+    if (databaseKey) {
+      clauses.push("q.database_key = ?");
+      params.push(databaseKey);
+    }
+
+    if (normalizedSearch) {
+      const searchPattern = `%${normalizedSearch}%`;
+      clauses.push(`
+        (
+          LOWER(COALESCE(q.title, '')) LIKE ?
+          OR LOWER(q.raw_sql) LIKE ?
+          OR LOWER(COALESCE(q.notes, '')) LIKE ?
+          OR LOWER(q.normalized_sql) LIKE ?
+          OR LOWER(q.tables_detected) LIKE ?
+        )
+      `);
+      params.push(
+        searchPattern,
+        searchPattern,
+        searchPattern,
+        searchPattern,
+        searchPattern
+      );
+    }
+
+    if (queryType) {
+      clauses.push("q.query_type = ?");
+      params.push(queryType);
+    }
+
+    if (onlySaved) {
+      clauses.push("q.is_saved = 1");
+    }
+
+    if (onlyFavorites) {
+      clauses.push("q.is_favorite = 1");
+    }
+
+    if (latestStatus) {
+      clauses.push("latest.status = ?");
+      params.push(latestStatus);
+    }
+
+    return {
+      whereSql: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
+      params,
+    };
+  }
+
+  getQueryHistoryOrderBy({ onlySaved = false, onlyFavorites = false, latestStatus = null } = {}) {
+    if (onlySaved || onlyFavorites) {
+      return "ORDER BY q.is_favorite DESC, q.last_used_at DESC, q.id DESC";
+    }
+
+    if (latestStatus === "error") {
+      return "ORDER BY latest.executed_at DESC, q.id DESC";
+    }
+
+    return "ORDER BY q.last_used_at DESC, q.id DESC";
+  }
+
+  buildQueryHistoryCollection({
+    databaseKey,
+    limit = 30,
+    offset = 0,
+    search = "",
+    queryType = null,
+    onlySaved = false,
+    onlyFavorites = false,
+    latestStatus = null,
+  } = {}) {
+    const normalizedLimit = Math.max(1, Math.min(100, Number(limit) || 30));
+    const normalizedOffset = Math.max(0, Number(offset) || 0);
+
+    if (!databaseKey) {
+      return {
+        items: [],
+        total: 0,
+        limit: normalizedLimit,
+        offset: normalizedOffset,
+        hasMore: false,
+      };
+    }
+
+    const baseFromSql = `
+      FROM query_history q
+      LEFT JOIN query_runs latest
+        ON latest.id = (
+          SELECT runs.id
+          FROM query_runs runs
+          WHERE runs.history_id = q.id
+          ORDER BY runs.executed_at DESC, runs.id DESC
+          LIMIT 1
+        )
+    `;
+    const { whereSql, params } = this.buildQueryHistoryFilters({
+      databaseKey,
+      search,
+      queryType,
+      onlySaved,
+      onlyFavorites,
+      latestStatus,
+    });
+    const orderBySql = this.getQueryHistoryOrderBy({
+      onlySaved,
+      onlyFavorites,
+      latestStatus,
+    });
+    const rows = this.db
+      .prepare(`
+        SELECT
+          q.id,
+          q.database_key,
+          q.normalized_sql,
+          q.raw_sql,
+          q.title,
+          q.notes,
+          q.query_type,
+          q.tables_detected,
+          q.is_favorite,
+          q.is_saved,
+          q.is_destructive,
+          q.use_count,
+          q.first_executed_at,
+          q.last_used_at,
+          latest.id AS last_run_id,
+          latest.executed_at AS last_run_executed_at,
+          latest.duration_ms AS last_run_duration_ms,
+          latest.row_count AS last_run_row_count,
+          latest.status AS last_run_status,
+          latest.error_message AS last_run_error_message,
+          latest.affected_rows AS last_run_affected_rows
+        ${baseFromSql}
+        ${whereSql}
+        ${orderBySql}
+        LIMIT ?
+        OFFSET ?
+      `)
+      .all(...params, normalizedLimit, normalizedOffset)
+      .map((row) => this.decorateQueryHistoryRow(row));
+    const countRow = this.db
+      .prepare(`
+        SELECT COUNT(*) AS count
+        ${baseFromSql}
+        ${whereSql}
+      `)
+      .get(...params);
+    const total = Number(countRow?.count ?? 0);
+
+    return {
+      items: rows,
+      total,
+      limit: normalizedLimit,
+      offset: normalizedOffset,
+      hasMore: normalizedOffset + rows.length < total,
+    };
+  }
+
+  migrateLegacySqlHistory() {
+    if (this.getMetaValue(QUERY_HISTORY_MIGRATION_KEY) === "1") {
+      return;
+    }
+
+    const hasLegacyTable = Boolean(
+      this.db
+        .prepare(
+          "SELECT 1 AS exists_flag FROM sqlite_master WHERE type = 'table' AND name = 'sql_history'"
+        )
+        .get()
+    );
+
+    if (!hasLegacyTable) {
+      this.setMetaValue(QUERY_HISTORY_MIGRATION_KEY, "1");
+      return;
+    }
+
+    const legacyCount = Number(
+      this.db.prepare("SELECT COUNT(*) AS count FROM sql_history").get()?.count ?? 0
+    );
+
+    if (!legacyCount) {
+      this.setMetaValue(QUERY_HISTORY_MIGRATION_KEY, "1");
+      return;
+    }
+
+    const currentHistoryCount = Number(
+      this.db.prepare("SELECT COUNT(*) AS count FROM query_history").get()?.count ?? 0
+    );
+    const currentRunCount = Number(
+      this.db.prepare("SELECT COUNT(*) AS count FROM query_runs").get()?.count ?? 0
+    );
+
+    if (currentHistoryCount > 0 || currentRunCount > 0) {
+      this.setMetaValue(QUERY_HISTORY_MIGRATION_KEY, "1");
+      return;
+    }
+
+    const legacyRows = this.db
+      .prepare(`
+        SELECT
+          connectionId,
+          connectionLabel,
+          sql,
+          timingMs,
+          rowCount,
+          affectedRowCount,
+          executedAt
+        FROM sql_history
+        ORDER BY executedAt ASC, id ASC
+      `)
+      .all();
+
+    this.db.transaction(() => {
+      legacyRows.forEach((entry) => {
+        const databaseKey =
+          this.normalizeQueryHistoryText(entry.connectionId) ??
+          this.normalizeQueryHistoryText(entry.connectionLabel) ??
+          "legacy:default";
+        const rawSql = String(entry.sql ?? "");
+
+        if (!normalizeSql(rawSql)) {
+          return;
+        }
+
+        this.recordQueryExecutionInTransaction({
+          databaseKey,
+          rawSql,
+          status: "success",
+          durationMs: entry.timingMs,
+          rowCount: entry.rowCount,
+          affectedRows: entry.affectedRowCount,
+          executedAt: entry.executedAt ?? new Date().toISOString(),
+        });
+      });
+    })();
+
+    this.setMetaValue(QUERY_HISTORY_MIGRATION_KEY, "1");
+  }
+
+  recordQueryExecution(entry = {}) {
+    return this.db.transaction(() => this.recordQueryExecutionInTransaction(entry))();
+  }
+
+  recordQueryExecutionInTransaction({
+    databaseKey,
+    rawSql,
+    status,
+    durationMs = null,
+    rowCount = null,
+    affectedRows = null,
+    errorMessage = null,
+    executedAt = null,
+  } = {}) {
+    const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
+    const normalizedRawSql = String(rawSql ?? "");
+    const normalizedSql = normalizeSql(normalizedRawSql);
+
+    if (!normalizedDatabaseKey) {
+      throw new ValidationError("Query history requires a database key.");
+    }
+
+    if (!normalizedSql) {
+      throw new ValidationError("Query history requires executable SQL.");
+    }
+
+    if (!["success", "error"].includes(status)) {
+      throw new ValidationError(`Unsupported query run status: ${status}`);
+    }
+
+    const queryType = detectQueryType(normalizedRawSql);
+    const tablesDetected = detectTables(normalizedRawSql);
+    const timestamp = this.normalizeQueryHistoryText(executedAt) ?? new Date().toISOString();
+    const destructive = isDestructiveQuery(normalizedRawSql) ? 1 : 0;
+    const serializedTables = JSON.stringify(tablesDetected);
+    const existing = this.db
+      .prepare(
+        `
+          SELECT id
+          FROM query_history
+          WHERE database_key = ? AND normalized_sql = ?
+        `
+      )
+      .get(normalizedDatabaseKey, normalizedSql);
+    let historyId = Number(existing?.id ?? 0);
+
+    if (historyId) {
+      this.db
+        .prepare(`
+          UPDATE query_history
+          SET
+            raw_sql = ?,
+            query_type = ?,
+            tables_detected = ?,
+            is_destructive = ?,
+            use_count = use_count + 1,
+            last_used_at = ?
+          WHERE id = ?
+        `)
+        .run(
+          normalizedRawSql,
+          queryType,
+          serializedTables,
+          destructive,
+          timestamp,
+          historyId
+        );
+    } else {
+      const insertResult = this.db
+        .prepare(`
+          INSERT INTO query_history (
+            database_key,
+            normalized_sql,
+            raw_sql,
+            query_type,
+            tables_detected,
+            is_destructive,
+            use_count,
+            first_executed_at,
+            last_used_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+        `)
+        .run(
+          normalizedDatabaseKey,
+          normalizedSql,
+          normalizedRawSql,
+          queryType,
+          serializedTables,
+          destructive,
+          timestamp,
+          timestamp
+        );
+      historyId = Number(insertResult.lastInsertRowid);
+    }
+
+    this.db
+      .prepare(`
+        INSERT INTO query_runs (
+          history_id,
+          executed_at,
+          duration_ms,
+          row_count,
+          status,
+          error_message,
+          affected_rows
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        historyId,
+        timestamp,
+        this.normalizeQueryHistoryInteger(durationMs),
+        this.normalizeQueryHistoryInteger(rowCount),
+        status,
+        this.normalizeQueryHistoryText(errorMessage),
+        this.normalizeQueryHistoryInteger(affectedRows)
+      );
+
+    return historyId;
+  }
+
+  getRecentQueries(options = {}) {
+    return this.buildQueryHistoryCollection(options);
+  }
+
+  getFailedQueries(options = {}) {
+    return this.buildQueryHistoryCollection({
+      ...options,
+      latestStatus: "error",
+    });
+  }
+
+  getQueryHistoryItemById(historyId) {
+    const row = this.db
+      .prepare(`
+        SELECT
+          q.id,
+          q.database_key,
+          q.normalized_sql,
+          q.raw_sql,
+          q.title,
+          q.notes,
+          q.query_type,
+          q.tables_detected,
+          q.is_favorite,
+          q.is_saved,
+          q.is_destructive,
+          q.use_count,
+          q.first_executed_at,
+          q.last_used_at,
+          latest.id AS last_run_id,
+          latest.executed_at AS last_run_executed_at,
+          latest.duration_ms AS last_run_duration_ms,
+          latest.row_count AS last_run_row_count,
+          latest.status AS last_run_status,
+          latest.error_message AS last_run_error_message,
+          latest.affected_rows AS last_run_affected_rows
+        FROM query_history q
+        LEFT JOIN query_runs latest
+          ON latest.id = (
+            SELECT runs.id
+            FROM query_runs runs
+            WHERE runs.history_id = q.id
+            ORDER BY runs.executed_at DESC, runs.id DESC
+            LIMIT 1
+          )
+        WHERE q.id = ?
+      `)
+      .get(Number(historyId));
+
+    if (!row) {
+      throw new NotFoundError(`Query history item not found: ${historyId}`);
+    }
+
+    return this.decorateQueryHistoryRow(row);
+  }
+
+  getQueryRunsByHistoryId(historyId, limit = 8) {
+    const normalizedLimit = Math.max(1, Math.min(50, Number(limit) || 8));
+
+    return this.db
+      .prepare(`
+        SELECT
+          id,
+          history_id,
+          executed_at,
+          duration_ms,
+          row_count,
+          status,
+          error_message,
+          affected_rows
+        FROM query_runs
+        WHERE history_id = ?
+        ORDER BY executed_at DESC, id DESC
+        LIMIT ?
+      `)
+      .all(Number(historyId), normalizedLimit)
+      .map((row) => this.decorateQueryRun(row));
+  }
+
+  updateQueryHistoryField(historyId, fieldName, value) {
+    const result = this.db
+      .prepare(`UPDATE query_history SET ${fieldName} = ? WHERE id = ?`)
+      .run(value, Number(historyId));
+
+    if (!result.changes) {
+      throw new NotFoundError(`Query history item not found: ${historyId}`);
+    }
+
+    return this.getQueryHistoryItemById(historyId);
+  }
+
+  toggleFavorite(historyId, nextValue) {
+    return this.updateQueryHistoryField(historyId, "is_favorite", nextValue ? 1 : 0);
+  }
+
+  toggleSaved(historyId, nextValue) {
+    return this.updateQueryHistoryField(historyId, "is_saved", nextValue ? 1 : 0);
+  }
+
+  renameQuery(historyId, title) {
+    return this.updateQueryHistoryField(
+      historyId,
+      "title",
+      this.normalizeQueryHistoryText(title)
+    );
+  }
+
+  updateQueryNotes(historyId, notes) {
+    return this.updateQueryHistoryField(
+      historyId,
+      "notes",
+      this.normalizeQueryHistoryText(notes)
+    );
+  }
+
+  deleteQueryHistoryItem(historyId) {
+    const result = this.db
+      .prepare("DELETE FROM query_history WHERE id = ?")
+      .run(Number(historyId));
+
+    if (!result.changes) {
+      throw new NotFoundError(`Query history item not found: ${historyId}`);
+    }
+
+    return true;
+  }
+
+  clearQueryHistoryForDatabase(databaseKey) {
+    const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
+
+    if (!normalizedDatabaseKey) {
+      return 0;
+    }
+
+    return this.db
+      .prepare("DELETE FROM query_history WHERE database_key = ?")
+      .run(normalizedDatabaseKey).changes;
   }
 
   trimRecentConnections() {

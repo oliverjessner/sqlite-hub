@@ -1,6 +1,8 @@
 # v0.5.0
 
 - sql query history
+- open in finder in overview
+- sort columns in data & sql_editor
 
 # v0.4.0
 

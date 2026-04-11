@@ -1,4 +1,11 @@
+const fs = require("fs");
+const path = require("path");
+const { execFile } = require("child_process");
+const { promisify } = require("util");
+const { AppError, DatabaseRequiredError } = require("../../utils/errors");
 const { listSchema } = require("./introspection");
+
+const execFileAsync = promisify(execFile);
 
 class OverviewService {
   constructor({ connectionManager }) {
@@ -101,6 +108,33 @@ class OverviewService {
       activeConnection: active,
       readOnly: active?.readOnly ?? false,
     };
+  }
+
+  async revealActiveDatabaseInFinder() {
+    const active = this.connectionManager.getActiveConnection();
+    const targetPath = active?.path;
+
+    if (!targetPath) {
+      throw new DatabaseRequiredError();
+    }
+
+    if (!fs.existsSync(targetPath)) {
+      throw new AppError("The active database file could not be found on disk.", 404, {
+        code: "DATABASE_FILE_NOT_FOUND",
+      });
+    }
+
+    if (process.platform === "darwin") {
+      await execFileAsync("open", ["-R", targetPath]);
+      return;
+    }
+
+    if (process.platform === "win32") {
+      await execFileAsync("explorer.exe", ["/select,", targetPath]);
+      return;
+    }
+
+    await execFileAsync("xdg-open", [path.dirname(targetPath)]);
   }
 }
 

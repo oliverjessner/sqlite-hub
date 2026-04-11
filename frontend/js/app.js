@@ -16,24 +16,29 @@ import {
   clearDataRowSelection,
   clearEditorRowSelection,
   clearEditorResults,
-  clearSqlHistoryStateAndData,
+  clearQueryHistorySelection,
   closeModal,
+  deleteQueryHistoryStateItem,
   dismissToast,
   executeCurrentQuery,
   exportCurrentDataTableCsv,
   exportCurrentQueryCsv,
   getState,
   initializeApp,
-  loadQueryFromHistory,
+  loadMoreQueryHistory,
   openModal,
+  openOverviewInFinder,
+  openQueryHistoryInEditor,
   openDeleteDataRowModal,
   openDeleteEditorRowModal,
   openEditConnectionModal,
   refreshCurrentRoute,
   removeConnection,
+  runQueryHistoryItem,
   selectDataRow,
   selectEditorRow,
   selectConnection,
+  selectQueryHistoryItem,
   selectStructureEntry,
   setDataPage,
   setDataPageSize,
@@ -41,7 +46,13 @@ import {
   setDataSearchQuery,
   setCurrentQuery,
   setEditorTab,
+  sortDataTableByColumn,
+  sortEditorResultsByColumn,
+  setQueryHistorySearchInput,
+  setQueryHistoryTab,
   setRoute,
+  saveQueryHistoryNotes,
+  saveQueryHistoryTitle,
   submitCreateConnection,
   submitDeleteRowConfirmation,
   submitDataRowUpdate,
@@ -50,6 +61,7 @@ import {
   submitImportSql,
   submitOpenConnection,
   subscribe,
+  toggleQueryHistorySavedState,
 } from "./store.js";
 import { renderConnectionsView } from "./views/connections.js";
 import { renderDataView } from "./views/data.js";
@@ -338,6 +350,9 @@ async function handleAction(actionNode) {
     case "create-backup":
       await createActiveConnectionBackup();
       return;
+    case "open-overview-in-finder":
+      await openOverviewInFinder();
+      return;
     case "execute-query": {
       await executeEditorQueryAndNavigate();
       return;
@@ -350,10 +365,56 @@ async function handleAction(actionNode) {
       return;
     case "clear-query":
       clearCurrentQuery();
+      if (getState().route.name === "editorResults") {
+        router.navigate("/editor");
+      }
       return;
     case "clear-results":
       clearEditorResults();
       router.navigate("/editor");
+      return;
+    case "select-query-history-item":
+      if (actionNode.dataset.historyId) {
+        await selectQueryHistoryItem(actionNode.dataset.historyId);
+      }
+      return;
+    case "clear-query-history-selection":
+      clearQueryHistorySelection();
+      return;
+    case "set-query-history-tab":
+      if (actionNode.dataset.tab) {
+        await setQueryHistoryTab(actionNode.dataset.tab);
+      }
+      return;
+    case "load-more-query-history":
+      await loadMoreQueryHistory();
+      return;
+    case "open-query-history":
+      if (actionNode.dataset.historyId && openQueryHistoryInEditor(actionNode.dataset.historyId)) {
+        router.navigate("/editor");
+      }
+      return;
+    case "run-query-history":
+      if (actionNode.dataset.historyId) {
+        const success = await runQueryHistoryItem(actionNode.dataset.historyId);
+        router.navigate(success ? "/editor/results" : "/editor");
+      }
+      return;
+    case "toggle-query-history-saved":
+      if (actionNode.dataset.historyId) {
+        await toggleQueryHistorySavedState(
+          actionNode.dataset.historyId,
+          actionNode.dataset.nextValue === "true"
+        );
+      }
+      return;
+    case "delete-query-history":
+      if (
+        actionNode.dataset.historyId &&
+        window.confirm("Delete this query history item and all recorded runs?")
+      ) {
+        await deleteQueryHistoryStateItem(actionNode.dataset.historyId);
+      }
       return;
     case "set-editor-tab": {
       const tab = actionNode.dataset.tab;
@@ -364,9 +425,6 @@ async function handleAction(actionNode) {
       router.navigate(tab === "results" ? "/editor/results" : "/editor");
       return;
     }
-    case "clear-sql-history":
-      await clearSqlHistoryStateAndData();
-      return;
     case "export-query-csv":
       await exportCurrentQueryCsv();
       return;
@@ -397,6 +455,16 @@ async function handleAction(actionNode) {
     case "set-data-page":
       if (actionNode.dataset.page) {
         await setDataPage(actionNode.dataset.page);
+      }
+      return;
+    case "sort-data-column":
+      if (actionNode.dataset.columnName) {
+        await sortDataTableByColumn(actionNode.dataset.columnName);
+      }
+      return;
+    case "sort-editor-results-column":
+      if (actionNode.dataset.columnName) {
+        sortEditorResultsByColumn(actionNode.dataset.columnName);
       }
       return;
     case "set-data-page-size":
@@ -483,6 +551,11 @@ document.addEventListener("input", (event) => {
 
   if (bindNode.dataset.bind === "data-search-query") {
     setDataSearchQuery(bindNode.value);
+    return;
+  }
+
+  if (bindNode.dataset.bind === "query-history-search") {
+    setQueryHistorySearchInput(bindNode.value);
   }
 });
 
@@ -504,12 +577,6 @@ document.addEventListener("change", (event) => {
   const bindNode = event.target.closest("[data-bind]");
 
   if (!bindNode) {
-    return;
-  }
-
-  if (bindNode.dataset.bind === "history-entry" && bindNode.value) {
-    loadQueryFromHistory(bindNode.value);
-    bindNode.value = "";
     return;
   }
 
@@ -634,6 +701,18 @@ document.addEventListener("submit", async (event) => {
       );
       return;
     }
+    case "save-query-history-title":
+      await saveQueryHistoryTitle(
+        String(formData.get("historyId") ?? ""),
+        String(formData.get("title") ?? "")
+      );
+      return;
+    case "save-query-history-notes":
+      await saveQueryHistoryNotes(
+        String(formData.get("historyId") ?? ""),
+        String(formData.get("notes") ?? "")
+      );
+      return;
     default:
   }
 });

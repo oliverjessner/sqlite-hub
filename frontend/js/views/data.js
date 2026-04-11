@@ -168,6 +168,36 @@ function getCellWidthClass(columnName) {
   return "max-w-[12rem]";
 }
 
+function getSortIcon(columnName, sortColumn, sortDirection) {
+  if (columnName !== sortColumn) {
+    return "unfold_more";
+  }
+
+  return sortDirection === "desc" ? "south" : "north";
+}
+
+function renderSortableHeader(columnName, sortColumn, sortDirection, action) {
+  const isActive = columnName === sortColumn;
+
+  return `
+    <button
+      class="flex w-full items-center justify-between gap-2 text-left transition-colors ${
+        isActive ? "text-primary-container" : "text-on-surface-variant hover:text-primary-container"
+      }"
+      data-action="${action}"
+      data-column-name="${escapeHtml(columnName)}"
+      type="button"
+    >
+      <span class="truncate">${escapeHtml(columnName)}</span>
+      <span class="material-symbols-outlined text-sm leading-none">${getSortIcon(
+        columnName,
+        sortColumn,
+        sortDirection
+      )}</span>
+    </button>
+  `;
+}
+
 function getFilteredTableRows(table, state) {
   const allRows = table?.rows ?? [];
   const availableColumns = table?.columns ?? [];
@@ -272,10 +302,13 @@ function renderTableSurface(state) {
   }
 
   const { activeColumn, filteredRows, searchQuery } = getFilteredTableRows(table, state);
+  const sortColumn = state.dataBrowser.sortColumn;
+  const sortDirection = state.dataBrowser.sortDirection;
   const columns = (table.columns ?? []).map((columnName) => ({
-    label: escapeHtml(columnName),
     headerClassName:
       "border-b border-primary-container/20 px-4 py-3 text-[10px] font-bold tracking-[0.08em] text-primary-container",
+    renderHeader: () =>
+      renderSortableHeader(columnName, sortColumn, sortDirection, "sort-data-column"),
     cellClassName: "px-4 py-2 align-top text-[11px] text-on-surface",
     render: (row) => {
       const value = formatCellValue(row[columnName]);

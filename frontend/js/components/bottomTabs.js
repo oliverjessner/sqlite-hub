@@ -3,8 +3,8 @@ import { escapeHtml } from "../utils/format.js";
 export function renderBottomTabs(activeTab, counts = {}) {
   const tabs = [
     { key: "results", label: "results", meta: counts.resultRows ?? 0 },
-    { key: "messages", label: "messages", meta: counts.messages ?? 0 },
     { key: "performance", label: "performance", meta: counts.statementCount ?? 0 },
+    { key: "messages", label: "messages", meta: counts.messages ?? 0 },
   ];
 
   return `

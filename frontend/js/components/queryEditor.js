@@ -9,23 +9,6 @@ function renderLineNumbers(query) {
     .join("");
 }
 
-function renderHistoryOptions(history) {
-  if (!history.length) {
-    return '<option value="">No recent statements</option>';
-  }
-
-  return [
-    '<option value="">Load recent statement...</option>',
-    ...history.map(
-      (entry) => `
-        <option value="${escapeHtml(entry.id)}">
-          ${escapeHtml(entry.sql.replace(/\s+/g, " ").slice(0, 96))}
-        </option>
-      `
-    ),
-  ].join("");
-}
-
 function renderHighlightedQuery(query) {
   if (query) {
     return highlightSql(query);
@@ -34,13 +17,41 @@ function renderHighlightedQuery(query) {
   return '<span class="text-on-surface-variant/35">SELECT name FROM sqlite_master WHERE type = \'table\';</span>';
 }
 
+function renderEditorSurface({ query }) {
+  return `
+    <div class="flex min-h-0 flex-1 overflow-hidden">
+      <div class="flex w-12 flex-col items-center bg-surface-container-lowest py-4 font-mono text-xs select-none text-outline-variant/30">
+        ${renderLineNumbers(query)}
+      </div>
+      <div class="relative flex-1 overflow-hidden bg-surface-container p-6 font-mono text-sm leading-relaxed">
+        <div class="pointer-events-none absolute right-0 top-0 p-4 opacity-5">
+          <span class="material-symbols-outlined text-[120px] font-thin">terminal</span>
+        </div>
+        <div class="query-editor-layer relative z-10 h-full min-h-[140px]">
+          <pre
+            aria-hidden="true"
+            class="query-editor-highlight"
+            data-query-editor-highlight
+          >${renderHighlightedQuery(query)}</pre>
+          <textarea
+            class="query-editor-input custom-scrollbar relative z-10 h-full min-h-[140px] w-full resize-none border-none focus:ring-0"
+            data-bind="current-query"
+            placeholder="SELECT name FROM sqlite_master WHERE type = 'table';"
+            spellcheck="false"
+          >${escapeHtml(query)}</textarea>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderQueryEditor({
   query,
   title,
   executing = false,
   exporting = false,
-  history = [],
   historyLoading = false,
+  historyTotal = 0,
 }) {
   const left = `
     <div class="flex items-center gap-2 bg-surface-container-lowest px-3 py-1">
@@ -51,24 +62,11 @@ export function renderQueryEditor({
     </div>
     <div class="hidden items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/40 md:flex">
       <span class="material-symbols-outlined text-xs">history</span>
-      ${historyLoading ? "Loading history..." : `${history.length} statements in history`}
+      ${historyLoading ? "Loading history..." : `${historyTotal} queries tracked`}
     </div>
   `;
 
   const right = `
-    <select
-      class="min-w-[220px] border border-outline-variant/20 bg-surface-container-lowest px-3 py-2 text-[10px] font-mono uppercase tracking-[0.14em] text-on-surface-variant outline-none"
-      data-bind="history-entry"
-    >
-      ${renderHistoryOptions(history)}
-    </select>
-    <button
-      class="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface hover:bg-surface-container-highest transition-colors"
-      data-action="clear-sql-history"
-      type="button"
-    >
-      Clear History
-    </button>
     <button
       class="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface hover:bg-surface-container-highest transition-colors"
       data-action="clear-query"
@@ -93,7 +91,7 @@ export function renderQueryEditor({
   `;
 
   return `
-    <div class="flex h-full flex-col">
+    <div class="flex h-full min-h-0 flex-col">
       <div class="bg-surface-container-low px-6 py-3">
         ${renderActionBar({
           left,
@@ -101,28 +99,8 @@ export function renderQueryEditor({
           className: "flex-wrap",
         })}
       </div>
-      <div class="flex flex-1 overflow-hidden">
-        <div class="flex w-12 flex-col items-center bg-surface-container-lowest py-4 font-mono text-xs select-none text-outline-variant/30">
-          ${renderLineNumbers(query)}
-        </div>
-        <div class="relative flex-1 overflow-hidden bg-surface-container p-6 font-mono text-sm leading-relaxed">
-          <div class="pointer-events-none absolute right-0 top-0 p-4 opacity-5">
-            <span class="material-symbols-outlined text-[120px] font-thin">terminal</span>
-          </div>
-          <div class="query-editor-layer relative z-10 h-full min-h-[140px]">
-            <pre
-              aria-hidden="true"
-              class="query-editor-highlight"
-              data-query-editor-highlight
-            >${renderHighlightedQuery(query)}</pre>
-            <textarea
-              class="query-editor-input custom-scrollbar relative z-10 h-full min-h-[140px] w-full resize-none border-none focus:ring-0"
-              data-bind="current-query"
-              placeholder="SELECT name FROM sqlite_master WHERE type = 'table';"
-              spellcheck="false"
-            >${escapeHtml(query)}</textarea>
-          </div>
-        </div>
+      <div class="flex min-h-0 flex-1 flex-col">
+        ${renderEditorSurface({ query })}
       </div>
     </div>
   `;

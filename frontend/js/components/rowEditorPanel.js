@@ -1,13 +1,84 @@
 import { escapeHtml } from "../utils/format.js";
 
+function getJsonPreview(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value, null, 2);
+  }
+
+  const text = String(value).trim();
+
+  if (!text || !["{", "["].includes(text[0])) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    return JSON.stringify(parsed, null, 2);
+  } catch (error) {
+    return null;
+  }
+}
+
+function renderJsonViewer(prettyJson, title = "JSON Viewer") {
+  return `
+    <div class="border border-outline-variant/10 bg-surface-container px-4 py-4">
+      <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/75">
+        ${escapeHtml(title)}
+      </div>
+      <pre class="custom-scrollbar mt-3 max-h-[18rem] overflow-auto whitespace-pre-wrap break-words border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 font-mono text-xs leading-6 text-on-surface">${escapeHtml(
+        prettyJson
+      )}</pre>
+    </div>
+  `;
+}
+
 function renderReadonlyField(label, value) {
+  const jsonPreview = getJsonPreview(value);
+
   return `
     <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
       <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
         ${escapeHtml(label)}
       </div>
-      <div class="mt-2 text-sm text-on-surface">${escapeHtml(value)}</div>
+      ${
+        jsonPreview
+          ? `<div class="mt-2">${renderJsonViewer(jsonPreview)}</div>`
+          : `<div class="mt-2 text-sm text-on-surface">${escapeHtml(value)}</div>`
+      }
     </div>
+  `;
+}
+
+function renderEditableField(field) {
+  const jsonPreview = getJsonPreview(field.value);
+
+  return `
+    <label class="block space-y-2">
+      <span class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
+        ${escapeHtml(field.label ?? field.name)}
+      </span>
+      ${
+        jsonPreview
+          ? renderJsonViewer(jsonPreview, "JSON Preview")
+          : ""
+      }
+      <textarea
+        class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container ${
+          jsonPreview ? "min-h-[14rem] font-mono leading-6" : "min-h-[56px]"
+        }"
+        name="field:${escapeHtml(field.name)}"
+        spellcheck="false"
+      >${escapeHtml(field.value ?? "")}</textarea>
+    </label>
   `;
 }
 
@@ -137,19 +208,7 @@ export function renderRowEditorPanel({
                       ? `
                           <div class="space-y-4">
                             ${editableFields
-                              .map(
-                                (field) => `
-                                  <label class="block space-y-2">
-                                    <span class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
-                                      ${escapeHtml(field.label ?? field.name)}
-                                    </span>
-                                    <textarea
-                                      class="min-h-[56px] w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
-                                      name="field:${escapeHtml(field.name)}"
-                                    >${escapeHtml(field.value ?? "")}</textarea>
-                                  </label>
-                                `
-                              )
+                              .map((field) => renderEditableField(field))
                               .join("")}
                           </div>
                         `
