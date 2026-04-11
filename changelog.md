@@ -3,6 +3,7 @@
 - sql query history
 - open in finder in overview
 - sort columns in data & sql_editor
+- json view in row editor
 
 # v0.4.0
 
