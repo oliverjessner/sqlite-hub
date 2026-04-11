@@ -1,3 +1,7 @@
+# v0.5.0
+
+- sql query history
+
 # v0.4.0
 
 - search in data
