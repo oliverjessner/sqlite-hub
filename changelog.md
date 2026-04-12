@@ -1,6 +1,6 @@
 # v0.6.0
 
-- table designer
+- table designer, create tables in sqlit_hub
 
 # v0.5.1
 

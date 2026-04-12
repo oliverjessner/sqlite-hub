@@ -7,6 +7,7 @@ const sidebarItems = [
   { label: "Data", href: "#/data", key: "data", icon: "table_rows" },
   { label: "SQL Editor", href: "#/editor", key: "editor", icon: "terminal" },
   { label: "Structure", href: "#/structure", key: "structure", icon: "account_tree" },
+  { label: "Table Designer", href: "#/table-designer", key: "tableDesigner", icon: "table_chart" },
   { label: "Settings", href: "#/settings", key: "settings", icon: "settings" },
 ];
 

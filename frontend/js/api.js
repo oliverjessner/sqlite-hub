@@ -234,6 +234,21 @@ export function getStructureDetail(tableName) {
   return request(`/api/structure/${encodeURIComponent(tableName)}`);
 }
 
+export function getTableDesignerOverview() {
+  return request("/api/table-designer");
+}
+
+export function getTableDesignerTable(tableName) {
+  return request(`/api/table-designer/${encodeURIComponent(tableName)}`);
+}
+
+export function saveTableDesignerDraft(payload) {
+  return request("/api/table-designer/save", {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export function getDataTables() {
   return request("/api/data");
 }

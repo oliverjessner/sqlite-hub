@@ -40,6 +40,7 @@ import {
   selectConnection,
   selectQueryHistoryItem,
   selectStructureEntry,
+  setTableDesignerSearchQuery,
   setDataPage,
   setDataPageSize,
   setDataSearchColumn,
@@ -53,6 +54,9 @@ import {
   setRoute,
   saveQueryHistoryNotes,
   saveQueryHistoryTitle,
+  saveCurrentTableDesignerDraft,
+  queueTableDesignerCsvImport,
+  showToast,
   submitCreateConnection,
   submitDeleteRowConfirmation,
   submitDataRowUpdate,
@@ -62,6 +66,10 @@ import {
   submitOpenConnection,
   subscribe,
   toggleQueryHistorySavedState,
+  updateCurrentTableDesignerColumnField,
+  updateCurrentTableDesignerField,
+  addCurrentTableDesignerColumn,
+  removeCurrentTableDesignerColumn,
 } from "./store.js";
 import { renderConnectionsView } from "./views/connections.js";
 import { renderDataView } from "./views/data.js";
@@ -70,6 +78,7 @@ import { renderLandingView } from "./views/landing.js";
 import { renderOverviewView } from "./views/overview.js";
 import { renderSettingsView } from "./views/settings.js";
 import { renderStructureView } from "./views/structure.js";
+import { renderTableDesignerView } from "./views/tableDesigner.js";
 import { highlightSql } from "./utils/format.js";
 
 const appRoot = document.querySelector("#app");
@@ -86,6 +95,8 @@ const shellRefs = {
   modal: document.querySelector("#modal-root"),
   toast: document.querySelector("#toast-root"),
 };
+let lastRenderedRoutePath = null;
+let pendingNewTableDesignerAutofocus = false;
 
 function resetStructureGraphForDatabaseChange() {
   resetPersistedStructureGraphState();
@@ -146,6 +157,21 @@ function readFileAsBase64(file) {
   });
 }
 
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      resolve(String(reader.result ?? ""));
+    };
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("The selected CSV file could not be read."));
+    };
+
+    reader.readAsText(file);
+  });
+}
+
 async function buildConnectionLogoUpload(file) {
   if (!(file instanceof File) || !file.size) {
     return null;
@@ -200,6 +226,8 @@ function resolveView(state) {
       return renderEditorView(state, { isResultsRoute: true });
     case "structure":
       return renderStructureView(state);
+    case "tableDesigner":
+      return renderTableDesignerView(state);
     case "settings":
       return renderSettingsView(state);
     default:
@@ -212,7 +240,11 @@ function captureFocusedInputState() {
 
   if (
     !activeElement ||
-    !(activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement)
+    !(
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement ||
+      activeElement instanceof HTMLSelectElement
+    )
   ) {
     return null;
   }
@@ -224,6 +256,8 @@ function captureFocusedInputState() {
 
   return {
     bind,
+    field: activeElement.dataset.field ?? null,
+    columnId: activeElement.dataset.columnId ?? null,
     selectionStart: activeElement.selectionStart,
     selectionEnd: activeElement.selectionEnd,
     selectionDirection: activeElement.selectionDirection,
@@ -232,24 +266,61 @@ function captureFocusedInputState() {
   };
 }
 
-function restoreFocusedInputState(snapshot) {
-  if (!snapshot) {
-    return;
+function buildFocusedInputSelectors(snapshot) {
+  if (!snapshot?.bind) {
+    return [];
   }
 
-  const selector = `[data-bind="${CSS.escape(snapshot.bind)}"]`;
-  const nextElement = document.querySelector(selector);
+  const selectors = [];
+  const bindSelector = `[data-bind="${CSS.escape(snapshot.bind)}"]`;
+
+  if (snapshot.columnId && snapshot.field) {
+    selectors.push(
+      `${bindSelector}[data-column-id="${CSS.escape(snapshot.columnId)}"][data-field="${CSS.escape(snapshot.field)}"]`
+    );
+  }
+
+  if (snapshot.field) {
+    selectors.push(`${bindSelector}[data-field="${CSS.escape(snapshot.field)}"]`);
+  }
+
+  if (snapshot.columnId) {
+    selectors.push(`${bindSelector}[data-column-id="${CSS.escape(snapshot.columnId)}"]`);
+  }
+
+  selectors.push(bindSelector);
+  return selectors;
+}
+
+function restoreFocusedInputState(snapshot) {
+  if (!snapshot) {
+    return false;
+  }
+
+  const nextElement = buildFocusedInputSelectors(snapshot)
+    .map((selector) => document.querySelector(selector))
+    .find(
+      (candidate) =>
+        candidate instanceof HTMLInputElement ||
+        candidate instanceof HTMLTextAreaElement ||
+        candidate instanceof HTMLSelectElement
+    );
 
   if (
     !nextElement ||
-    !(nextElement instanceof HTMLInputElement || nextElement instanceof HTMLTextAreaElement)
+    !(
+      nextElement instanceof HTMLInputElement ||
+      nextElement instanceof HTMLTextAreaElement ||
+      nextElement instanceof HTMLSelectElement
+    )
   ) {
-    return;
+    return false;
   }
 
   nextElement.focus({ preventScroll: true });
 
   if (
+    (nextElement instanceof HTMLInputElement || nextElement instanceof HTMLTextAreaElement) &&
     typeof snapshot.selectionStart === "number" &&
     typeof snapshot.selectionEnd === "number"
   ) {
@@ -262,14 +333,97 @@ function restoreFocusedInputState(snapshot) {
 
   nextElement.scrollTop = snapshot.scrollTop;
   nextElement.scrollLeft = snapshot.scrollLeft;
+  return true;
+}
+
+function focusNewTableDesignerNameField() {
+  const input = document.querySelector(
+    '[data-bind="table-designer-field"][data-field="tableName"]'
+  );
+
+  if (!(input instanceof HTMLInputElement)) {
+    return false;
+  }
+
+  input.focus({ preventScroll: true });
+  input.setSelectionRange(input.value.length, input.value.length);
+  return true;
+}
+
+function focusTableDesignerColumnNameField(columnId) {
+  if (!columnId) {
+    return false;
+  }
+
+  const input = document.querySelector(
+    `[data-bind="table-designer-column-field"][data-column-id="${CSS.escape(columnId)}"][data-field="name"]`
+  );
+
+  if (!(input instanceof HTMLInputElement)) {
+    return false;
+  }
+
+  input.focus({ preventScroll: true });
+  input.setSelectionRange(input.value.length, input.value.length);
+  return true;
+}
+
+async function handleTableDesignerCsvImport(fileInput) {
+  if (!(fileInput instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const file = fileInput.files?.[0];
+
+  if (!(file instanceof File)) {
+    return;
+  }
+
+  if (!file.size) {
+    showToast("The selected CSV file is empty.", "alert");
+    fileInput.value = "";
+    return;
+  }
+
+  try {
+    const csvText = await readFileAsText(file);
+    const imported = queueTableDesignerCsvImport(file.name, csvText);
+
+    if (!imported) {
+      return;
+    }
+
+    router.navigate("/table-designer/new");
+    showToast(
+      `Imported ${imported.columnCount} columns and ${imported.importedRowCount} row${
+        imported.importedRowCount === 1 ? "" : "s"
+      } from ${file.name}.`,
+      "success"
+    );
+  } catch (error) {
+    showToast(error?.message || "CSV import failed.", "alert");
+  } finally {
+    fileInput.value = "";
+  }
 }
 
 function renderApp(state) {
   const focusedInput = captureFocusedInputState();
+  const previousRoutePath = lastRenderedRoutePath;
   const { main, panel } = resolveView(state);
-  const isLockedRoute = ["editor", "editorResults", "data", "structure"].includes(
+  const isLockedRoute = ["editor", "editorResults", "data", "structure", "tableDesigner"].includes(
     state.route.name
   );
+  const isEnteringNewTableDesignerRoute =
+    state.route.name === "tableDesigner" &&
+    state.route.params?.isNew &&
+    previousRoutePath !== state.route.path;
+
+  if (isEnteringNewTableDesignerRoute) {
+    pendingNewTableDesignerAutofocus = true;
+  } else if (state.route.name !== "tableDesigner" || !state.route.params?.isNew) {
+    pendingNewTableDesignerAutofocus = false;
+  }
 
   teardownStructureGraph();
   shellRefs.topNav.innerHTML = renderTopNav(state);
@@ -281,7 +435,21 @@ function renderApp(state) {
   shellRefs.modal.innerHTML = renderModal(state);
   shellRefs.toast.innerHTML = renderToasts(state.toasts);
   shellRefs.shell.classList.toggle("panel-open", Boolean(panel));
-  restoreFocusedInputState(focusedInput);
+
+  if (
+    pendingNewTableDesignerAutofocus &&
+    state.route.name === "tableDesigner" &&
+    state.route.params?.isNew &&
+    state.tableDesigner.draft?.mode === "create"
+  ) {
+    if (focusNewTableDesignerNameField()) {
+      pendingNewTableDesignerAutofocus = false;
+    }
+  } else {
+    restoreFocusedInputState(focusedInput);
+  }
+
+  lastRenderedRoutePath = state.route.path;
 
   if (state.route.name === "structure") {
     mountStructureGraph(state).catch((error) => {
@@ -436,6 +604,53 @@ async function handleAction(actionNode) {
         await selectStructureEntry(actionNode.dataset.entryName);
       }
       return;
+    case "add-table-designer-column":
+      {
+        const columnId = addCurrentTableDesignerColumn();
+        if (columnId) {
+          window.requestAnimationFrame(() => {
+            focusTableDesignerColumnNameField(columnId);
+          });
+        }
+      }
+      return;
+    case "remove-table-designer-column":
+      if (actionNode.dataset.columnId) {
+        removeCurrentTableDesignerColumn(actionNode.dataset.columnId);
+      }
+      return;
+    case "save-table-designer": {
+      const savedTableName = await saveCurrentTableDesignerDraft();
+      if (savedTableName) {
+        router.navigate(`/table-designer/${encodeURIComponent(savedTableName)}`);
+      }
+      return;
+    }
+    case "copy-table-designer-sql": {
+      const sqlPreview = getState().tableDesigner.draft?.sqlPreview ?? "";
+      if (!sqlPreview.trim()) {
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(sqlPreview);
+        showToast("SQL preview copied.", "success");
+      } catch (error) {
+        showToast("Clipboard access failed.", "alert");
+      }
+      return;
+    }
+    case "import-table-designer-csv": {
+      const fileInput = document.querySelector('[data-bind="table-designer-import-file"]');
+
+      if (!(fileInput instanceof HTMLInputElement)) {
+        return;
+      }
+
+      fileInput.value = "";
+      fileInput.click();
+      return;
+    }
     case "select-data-row":
       if (actionNode.dataset.rowIndex) {
         selectDataRow(actionNode.dataset.rowIndex);
@@ -554,6 +769,29 @@ document.addEventListener("input", (event) => {
     return;
   }
 
+  if (bindNode.dataset.bind === "table-designer-search") {
+    setTableDesignerSearchQuery(bindNode.value);
+    return;
+  }
+
+  if (bindNode.dataset.bind === "table-designer-field") {
+    if (bindNode instanceof HTMLInputElement && bindNode.type === "checkbox") {
+      return;
+    }
+
+    updateCurrentTableDesignerField(bindNode.dataset.field, bindNode.value);
+    return;
+  }
+
+  if (bindNode.dataset.bind === "table-designer-column-field") {
+    updateCurrentTableDesignerColumnField(
+      bindNode.dataset.columnId,
+      bindNode.dataset.field,
+      bindNode.value
+    );
+    return;
+  }
+
   if (bindNode.dataset.bind === "query-history-search") {
     setQueryHistorySearchInput(bindNode.value);
   }
@@ -582,6 +820,39 @@ document.addEventListener("change", (event) => {
 
   if (bindNode.dataset.bind === "data-search-column") {
     setDataSearchColumn(bindNode.value);
+    return;
+  }
+
+  if (bindNode.dataset.bind === "table-designer-import-file") {
+    void handleTableDesignerCsvImport(bindNode);
+    return;
+  }
+
+  if (bindNode.dataset.bind === "table-designer-field") {
+    if (bindNode instanceof HTMLInputElement && bindNode.type === "checkbox") {
+      updateCurrentTableDesignerField(bindNode.dataset.field, bindNode.checked);
+      return;
+    }
+
+    updateCurrentTableDesignerField(bindNode.dataset.field, bindNode.value);
+    return;
+  }
+
+  if (bindNode.dataset.bind === "table-designer-column-field") {
+    updateCurrentTableDesignerColumnField(
+      bindNode.dataset.columnId,
+      bindNode.dataset.field,
+      bindNode.value
+    );
+    return;
+  }
+
+  if (bindNode.dataset.bind === "table-designer-column-flag") {
+    updateCurrentTableDesignerColumnField(
+      bindNode.dataset.columnId,
+      bindNode.dataset.field,
+      bindNode.checked
+    );
   }
 });
 

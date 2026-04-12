@@ -1,5 +1,14 @@
 import * as api from "./api.js";
 import { formatCellValue, inferStatusTone, truncateMiddle } from "./utils/format.js";
+import {
+  addTableDesignerColumn,
+  createTableDesignerDraftFromCsvImport,
+  createNewTableDesignerDraft,
+  hydrateTableDesignerDraft,
+  removeTableDesignerColumn,
+  updateTableDesignerColumnField,
+  updateTableDesignerDraftField,
+} from "./utils/tableDesigner.js";
 
 const listeners = new Set();
 const DEFAULT_SETTINGS = {
@@ -92,6 +101,19 @@ const state = {
     deleting: false,
     saveError: null,
   },
+  tableDesigner: {
+    tables: [],
+    selectedTableName: null,
+    draft: null,
+    pendingImportedDraft: null,
+    loading: false,
+    detailLoading: false,
+    saving: false,
+    searchQuery: "",
+    supportedTypes: [],
+    error: null,
+    saveError: null,
+  },
   structure: {
     data: null,
     selectedName: null,
@@ -145,7 +167,14 @@ function clearQueryHistoryDetailState() {
 }
 
 function requiresActiveDatabase(routeName) {
-  return ["overview", "data", "editor", "editorResults", "structure"].includes(routeName);
+  return [
+    "overview",
+    "data",
+    "editor",
+    "editorResults",
+    "structure",
+    "tableDesigner",
+  ].includes(routeName);
 }
 
 function normalizeDataPageSize(value, fallback = 50) {
@@ -270,6 +299,22 @@ function getCurrentStructureEntry(snapshot = state) {
   return entries.find((entry) => entry.name === snapshot.structure.selectedName) ?? null;
 }
 
+function getTableDesignerContext(snapshot = state) {
+  return {
+    catalogTables: snapshot.tableDesigner.tables ?? [],
+    supportedTypes: snapshot.tableDesigner.supportedTypes ?? [],
+    readOnly: Boolean(snapshot.connections.active?.readOnly),
+  };
+}
+
+function decorateTableDesignerDraft(draft, snapshot = state) {
+  if (!draft) {
+    return null;
+  }
+
+  return hydrateTableDesignerDraft(draft, getTableDesignerContext(snapshot));
+}
+
 function buildDeleteRowPreview(fields = []) {
   return fields
     .filter((field) => field && field.label)
@@ -358,6 +403,8 @@ function clearRouteSlices() {
   state.overview.error = null;
   state.dataBrowser.error = null;
   state.dataBrowser.saveError = null;
+  state.tableDesigner.error = null;
+  state.tableDesigner.saveError = null;
   state.structure.error = null;
 }
 
@@ -386,6 +433,18 @@ function setMissingDatabaseState() {
   state.structure.data = null;
   state.structure.detail = null;
   state.structure.error = error;
+
+  state.tableDesigner.loading = false;
+  state.tableDesigner.detailLoading = false;
+  state.tableDesigner.tables = [];
+  state.tableDesigner.selectedTableName = null;
+  state.tableDesigner.draft = null;
+  state.tableDesigner.pendingImportedDraft = null;
+  state.tableDesigner.saving = false;
+  state.tableDesigner.searchQuery = "";
+  state.tableDesigner.supportedTypes = [];
+  state.tableDesigner.error = error;
+  state.tableDesigner.saveError = null;
 
   resetQueryHistoryState({ preserveSearch: false });
 }
@@ -422,6 +481,10 @@ function syncRouteContext() {
   if (route.name !== "structure") {
     state.structure.detail = null;
     state.structure.selectedName = null;
+  }
+
+  if (route.name !== "tableDesigner") {
+    state.tableDesigner.saveError = null;
   }
 }
 
@@ -824,6 +887,103 @@ async function loadStructure(version) {
   }
 }
 
+async function loadTableDesignerDetail(version, tableName) {
+  if (!tableName) {
+    state.tableDesigner.draft = null;
+    return;
+  }
+
+  state.tableDesigner.detailLoading = true;
+  state.tableDesigner.saveError = null;
+  emitChange();
+
+  try {
+    const response = await api.getTableDesignerTable(tableName);
+
+    if (version !== routeLoadVersion) {
+      return;
+    }
+
+    state.tableDesigner.selectedTableName = tableName;
+    state.tableDesigner.draft = decorateTableDesignerDraft(response.data?.draft ?? null);
+  } catch (error) {
+    if (version !== routeLoadVersion) {
+      return;
+    }
+
+    state.tableDesigner.error = normalizeError(error);
+    state.tableDesigner.draft = null;
+  } finally {
+    if (version === routeLoadVersion) {
+      state.tableDesigner.detailLoading = false;
+      emitChange();
+    }
+  }
+}
+
+async function loadTableDesigner(version, route) {
+  state.tableDesigner.loading = true;
+  state.tableDesigner.error = null;
+  emitChange();
+
+  try {
+    const response = await api.getTableDesignerOverview();
+
+    if (version !== routeLoadVersion) {
+      return;
+    }
+
+    state.tableDesigner.tables = response.data?.tables ?? [];
+    state.tableDesigner.supportedTypes = response.data?.supportedTypes ?? [];
+
+    if (route.params?.isNew) {
+      const importedDraft = state.tableDesigner.pendingImportedDraft;
+      state.tableDesigner.selectedTableName = null;
+      state.tableDesigner.detailLoading = false;
+      state.tableDesigner.pendingImportedDraft = null;
+      state.tableDesigner.draft = decorateTableDesignerDraft(
+        importedDraft ?? createNewTableDesignerDraft()
+      );
+      return;
+    }
+
+    const requestedTableName = route.params?.tableName ?? null;
+    const tableName =
+      requestedTableName &&
+      state.tableDesigner.tables.some((table) => table.name === requestedTableName)
+        ? requestedTableName
+        : state.tableDesigner.selectedTableName &&
+            state.tableDesigner.tables.some(
+              (table) => table.name === state.tableDesigner.selectedTableName
+            )
+          ? state.tableDesigner.selectedTableName
+          : state.tableDesigner.tables[0]?.name ?? null;
+
+    if (!tableName) {
+      state.tableDesigner.selectedTableName = null;
+      state.tableDesigner.detailLoading = false;
+      state.tableDesigner.draft = null;
+      return;
+    }
+
+    await loadTableDesignerDetail(version, tableName);
+  } catch (error) {
+    if (version !== routeLoadVersion) {
+      return;
+    }
+
+    state.tableDesigner.tables = [];
+    state.tableDesigner.selectedTableName = null;
+    state.tableDesigner.draft = null;
+    state.tableDesigner.error = normalizeError(error);
+  } finally {
+    if (version === routeLoadVersion) {
+      state.tableDesigner.loading = false;
+      emitChange();
+    }
+  }
+}
+
 function invalidateDatabaseCaches() {
   state.overview.data = null;
   state.dataBrowser.tables = [];
@@ -835,6 +995,15 @@ function invalidateDatabaseCaches() {
   state.dataBrowser.exportLoading = false;
   state.dataBrowser.error = null;
   state.dataBrowser.saveError = null;
+  state.tableDesigner.tables = [];
+  state.tableDesigner.selectedTableName = null;
+  state.tableDesigner.draft = null;
+  state.tableDesigner.pendingImportedDraft = null;
+  state.tableDesigner.saving = false;
+  state.tableDesigner.searchQuery = "";
+  state.tableDesigner.supportedTypes = [];
+  state.tableDesigner.error = null;
+  state.tableDesigner.saveError = null;
   state.structure.data = null;
   state.structure.detail = null;
 }
@@ -868,6 +1037,9 @@ async function loadRouteData(route) {
       return;
     case "structure":
       await loadStructure(version);
+      return;
+    case "tableDesigner":
+      await loadTableDesigner(version, route);
       return;
     case "settings":
       await refreshSettingsState();
@@ -1450,6 +1622,125 @@ export async function selectStructureEntry(name) {
   await loadStructureDetail(++routeLoadVersion);
 }
 
+export function setTableDesignerSearchQuery(query) {
+  state.tableDesigner.searchQuery = String(query ?? "");
+  emitChange();
+}
+
+export function updateCurrentTableDesignerField(field, value) {
+  if (!state.tableDesigner.draft) {
+    return;
+  }
+
+  state.tableDesigner.draft = updateTableDesignerDraftField(
+    state.tableDesigner.draft,
+    field,
+    value,
+    getTableDesignerContext()
+  );
+  state.tableDesigner.saveError = null;
+  emitChange();
+}
+
+export function updateCurrentTableDesignerColumnField(columnId, field, value) {
+  if (!state.tableDesigner.draft) {
+    return;
+  }
+
+  state.tableDesigner.draft = updateTableDesignerColumnField(
+    state.tableDesigner.draft,
+    columnId,
+    field,
+    value,
+    getTableDesignerContext()
+  );
+  state.tableDesigner.saveError = null;
+  emitChange();
+}
+
+export function addCurrentTableDesignerColumn() {
+  if (!state.tableDesigner.draft) {
+    return null;
+  }
+
+  const previousColumnIds = new Set(state.tableDesigner.draft.columns.map((column) => column.id));
+  state.tableDesigner.draft = addTableDesignerColumn(
+    state.tableDesigner.draft,
+    getTableDesignerContext()
+  );
+  state.tableDesigner.saveError = null;
+  emitChange();
+
+  const nextColumn = state.tableDesigner.draft.columns.find(
+    (column) => !previousColumnIds.has(column.id)
+  );
+
+  return nextColumn?.id ?? null;
+}
+
+export function queueTableDesignerCsvImport(fileName, csvText) {
+  try {
+    const imported = createTableDesignerDraftFromCsvImport(
+      { fileName, csvText },
+      getTableDesignerContext()
+    );
+
+    state.tableDesigner.pendingImportedDraft = imported.draft;
+    state.tableDesigner.selectedTableName = null;
+    state.tableDesigner.saveError = null;
+    state.tableDesigner.error = null;
+    emitChange();
+    return imported;
+  } catch (error) {
+    pushToast(error?.message || "CSV import failed.", "alert");
+    return null;
+  }
+}
+
+export function removeCurrentTableDesignerColumn(columnId) {
+  if (!state.tableDesigner.draft) {
+    return;
+  }
+
+  state.tableDesigner.draft = removeTableDesignerColumn(
+    state.tableDesigner.draft,
+    columnId,
+    getTableDesignerContext()
+  );
+  state.tableDesigner.saveError = null;
+  emitChange();
+}
+
+export async function saveCurrentTableDesignerDraft() {
+  if (!state.tableDesigner.draft) {
+    return null;
+  }
+
+  state.tableDesigner.saving = true;
+  state.tableDesigner.saveError = null;
+  emitChange();
+
+  try {
+    const response = await api.saveTableDesignerDraft({
+      draft: state.tableDesigner.draft,
+    });
+
+    state.tableDesigner.tables = response.data?.tables ?? state.tableDesigner.tables;
+    state.tableDesigner.selectedTableName =
+      response.data?.savedTableName ?? state.tableDesigner.selectedTableName;
+    state.tableDesigner.draft = decorateTableDesignerDraft(response.data?.draft ?? null);
+    pushToast(response.message || "Table schema saved.", "success");
+    return response.data?.savedTableName ?? null;
+  } catch (error) {
+    state.tableDesigner.saveError = normalizeError(error);
+    emitChange();
+    return null;
+  } finally {
+    state.tableDesigner.saving = false;
+    emitChange();
+  }
+}
+
 export function selectDataRow(index) {
   const numericIndex = Number(index);
 
@@ -1843,6 +2134,10 @@ export function sortEditorResultsByColumn(columnName) {
 
 export async function refreshCurrentRoute() {
   await loadRouteData(state.route);
+}
+
+export function showToast(message, tone = "muted") {
+  pushToast(message, tone);
 }
 
 export function getCurrentConnection(snapshot = state) {
