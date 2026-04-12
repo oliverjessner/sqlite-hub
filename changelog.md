@@ -1,3 +1,11 @@
+# v0.6.0
+
+- table designer
+
+# v0.5.1
+
+- bug fix in sql editor
+
 # v0.5.0
 
 - sql query history

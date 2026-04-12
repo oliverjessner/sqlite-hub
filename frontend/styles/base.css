@@ -125,30 +125,37 @@ img {
 }
 
 .query-editor-layer {
+  display: grid;
   min-height: 140px;
+  overflow: hidden;
 }
 
 .query-editor-highlight,
 .query-editor-input {
+  display: block;
   font: inherit;
+  grid-area: 1 / 1;
   line-height: inherit;
   margin: 0;
+  min-height: 100%;
   padding: 0;
   tab-size: 2;
   white-space: pre-wrap;
-  word-break: break-word;
+  width: 100%;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .query-editor-highlight {
   color: var(--color-on-surface);
-  inset: 0;
   overflow: hidden;
   pointer-events: none;
-  position: absolute;
 }
 
 .query-editor-input {
+  -webkit-appearance: none;
   -webkit-text-fill-color: transparent;
+  appearance: none;
   background: transparent;
   caret-color: var(--color-on-surface);
   color: transparent;

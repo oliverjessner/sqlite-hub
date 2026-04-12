@@ -28,11 +28,11 @@ function renderEditorSurface({ query }) {
           <span class="material-symbols-outlined text-[120px] font-thin">terminal</span>
         </div>
         <div class="query-editor-layer relative z-10 h-full min-h-[140px]">
-          <pre
+          <div
             aria-hidden="true"
             class="query-editor-highlight"
             data-query-editor-highlight
-          >${renderHighlightedQuery(query)}</pre>
+          >${renderHighlightedQuery(query)}</div>
           <textarea
             class="query-editor-input custom-scrollbar relative z-10 h-full min-h-[140px] w-full resize-none border-none focus:ring-0"
             data-bind="current-query"
