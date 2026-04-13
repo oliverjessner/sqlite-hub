@@ -1,3 +1,9 @@
+# v0.7.0
+
+- hide query history, hide editor
+- better cli interface
+- plotting and graphs
+
 # v0.6.0
 
 - table designer, create tables in sqlit_hub

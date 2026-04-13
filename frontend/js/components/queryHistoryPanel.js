@@ -150,11 +150,22 @@ export function renderQueryHistoryPanel({
   return `
     <aside class="query-history-panel border-l border-outline-variant/10 bg-surface-container-lowest">
       <div class="border-b border-outline-variant/10 px-4 py-4">
-        <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-[18px] text-primary-container">history</span>
-          <span class="font-headline text-xs font-black uppercase tracking-[0.18em] text-primary-container">
-            Query History
-          </span>
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px] text-primary-container">history</span>
+            <span class="font-headline text-xs font-black uppercase tracking-[0.18em] text-primary-container">
+              Query History
+            </span>
+          </div>
+          <button
+            class="query-history-icon-button"
+            data-action="toggle-query-history-panel"
+            data-next-value="false"
+            title="Hide query history"
+            type="button"
+          >
+            <span class="material-symbols-outlined text-[18px]">close</span>
+          </button>
         </div>
         <div class="mt-4">${renderQueryHistoryTabs(activeTab, total)}</div>
         <label class="mt-4 block">

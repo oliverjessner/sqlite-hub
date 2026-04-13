@@ -52,6 +52,8 @@ export function renderQueryEditor({
   exporting = false,
   historyLoading = false,
   historyTotal = 0,
+  editorVisible = true,
+  historyVisible = true,
 }) {
   const left = `
     <div class="flex items-center gap-2 bg-surface-container-lowest px-3 py-1">
@@ -67,6 +69,24 @@ export function renderQueryEditor({
   `;
 
   const right = `
+    <button
+      class="flex items-center gap-2 border border-outline-variant/20 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+      data-action="toggle-editor-panel"
+      data-next-value="${editorVisible ? "false" : "true"}"
+      type="button"
+    >
+      <span class="material-symbols-outlined text-sm">${editorVisible ? "keyboard_arrow_down" : "terminal"}</span>
+      ${editorVisible ? "Hide Editor" : "Show Editor"}
+    </button>
+    <button
+      class="flex items-center gap-2 border border-outline-variant/20 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+      data-action="toggle-query-history-panel"
+      data-next-value="${historyVisible ? "false" : "true"}"
+      type="button"
+    >
+      <span class="material-symbols-outlined text-sm">${historyVisible ? "visibility_off" : "history"}</span>
+      ${historyVisible ? "Hide History" : "Show History"}
+    </button>
     <button
       class="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface hover:bg-surface-container-highest transition-colors"
       data-action="clear-query"
@@ -99,9 +119,15 @@ export function renderQueryEditor({
           className: "flex-wrap",
         })}
       </div>
-      <div class="flex min-h-0 flex-1 flex-col">
-        ${renderEditorSurface({ query })}
-      </div>
+      ${
+        editorVisible
+          ? `
+            <div class="flex min-h-0 flex-1 flex-col">
+              ${renderEditorSurface({ query })}
+            </div>
+          `
+          : ""
+      }
     </div>
   `;
 }

@@ -236,7 +236,7 @@ function renderResultsSurface(state, isResultsRoute) {
 
 export function renderEditorView(state, { isResultsRoute = false } = {}) {
   const connection = getCurrentConnection(state);
-  const editorSectionClass = "min-h-[27.5%]";
+  const editorSectionClass = state.editor.editorPanelVisible ? "min-h-[27.5%]" : "flex-none";
   const resultsSectionClass = "flex-1";
 
   return {
@@ -252,6 +252,8 @@ export function renderEditorView(state, { isResultsRoute = false } = {}) {
               exporting: state.editor.exportLoading,
               historyLoading: state.editor.historyLoading,
               historyTotal: state.editor.historyTotal,
+              editorVisible: state.editor.editorPanelVisible,
+              historyVisible: state.editor.historyPanelVisible,
               title: connection?.label ?? "SQLite Query Workspace",
             })}
           </section>
@@ -259,18 +261,22 @@ export function renderEditorView(state, { isResultsRoute = false } = {}) {
             ${renderResultsSurface(state, isResultsRoute)}
           </section>
         </div>
-        ${renderQueryHistoryPanel({
-          items: state.editor.history,
-          loading: state.editor.historyLoading,
-          loadingMore: state.editor.historyLoadingMore,
-          error: state.editor.historyError,
-          activeTab: state.editor.historyTab,
-          search: state.editor.historySearchInput,
-          total: state.editor.historyTotal,
-          hasMore: state.editor.historyHasMore,
-          activeHistoryId: state.editor.historyActiveId,
-          selectedHistoryId: state.editor.historySelectedId,
-        })}
+        ${
+          state.editor.historyPanelVisible
+            ? renderQueryHistoryPanel({
+                items: state.editor.history,
+                loading: state.editor.historyLoading,
+                loadingMore: state.editor.historyLoadingMore,
+                error: state.editor.historyError,
+                activeTab: state.editor.historyTab,
+                search: state.editor.historySearchInput,
+                total: state.editor.historyTotal,
+                hasMore: state.editor.historyHasMore,
+                activeHistoryId: state.editor.historyActiveId,
+                selectedHistoryId: state.editor.historySelectedId,
+              })
+            : ""
+        }
       </section>
     `,
     panel:

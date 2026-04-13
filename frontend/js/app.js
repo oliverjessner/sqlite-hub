@@ -46,7 +46,9 @@ import {
   setDataSearchColumn,
   setDataSearchQuery,
   setCurrentQuery,
+  setEditorPanelVisibility,
   setEditorTab,
+  setQueryHistoryPanelVisibility,
   sortDataTableByColumn,
   sortEditorResultsByColumn,
   setQueryHistorySearchInput,
@@ -553,6 +555,16 @@ async function handleAction(actionNode) {
       if (actionNode.dataset.tab) {
         await setQueryHistoryTab(actionNode.dataset.tab);
       }
+      return;
+    case "toggle-query-history-panel":
+      setQueryHistoryPanelVisibility(
+        actionNode.dataset.nextValue ? actionNode.dataset.nextValue === "true" : undefined
+      );
+      return;
+    case "toggle-editor-panel":
+      setEditorPanelVisibility(
+        actionNode.dataset.nextValue ? actionNode.dataset.nextValue === "true" : undefined
+      );
       return;
     case "load-more-query-history":
       await loadMoreQueryHistory();

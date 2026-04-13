@@ -73,7 +73,9 @@ const state = {
   },
   editor: {
     sqlText: "",
+    editorPanelVisible: true,
     history: [],
+    historyPanelVisible: true,
     historyLoading: false,
     historyLoadingMore: false,
     historyError: null,
@@ -1408,6 +1410,18 @@ export function clearEditorResults() {
   emitChange();
 }
 
+export function setEditorPanelVisibility(visible) {
+  const nextValue =
+    typeof visible === "boolean" ? visible : !Boolean(state.editor.editorPanelVisible);
+
+  if (state.editor.editorPanelVisible === nextValue) {
+    return;
+  }
+
+  state.editor.editorPanelVisible = nextValue;
+  emitChange();
+}
+
 export function setEditorTab(tab) {
   state.editor.activeTab = tab;
   emitChange();
@@ -1476,6 +1490,18 @@ export async function setQueryHistoryTab(tab) {
   clearQueryHistoryDetailState();
   emitChange();
   await refreshQueryHistoryState();
+}
+
+export function setQueryHistoryPanelVisibility(visible) {
+  const nextValue =
+    typeof visible === "boolean" ? visible : !Boolean(state.editor.historyPanelVisible);
+
+  if (state.editor.historyPanelVisible === nextValue) {
+    return;
+  }
+
+  state.editor.historyPanelVisible = nextValue;
+  emitChange();
 }
 
 export function setQueryHistorySearchInput(query) {
