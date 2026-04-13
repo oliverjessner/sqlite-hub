@@ -152,6 +152,36 @@ This searches the query history for the given database, finds the matching saved
 | `--database:name --sqleditor`         | List all saved queries for a database |
 | `--database:name --sqleditor:"query"` | Execute a saved query by name         |
 
+### sqleditor
+
+![](/frontend/assets/mockups/sql_editor_croped.png)
+
+in the screenshot you can see a stored query from the SQL_EDITOR, you can create such queries in with the graphical interface and excute them via the CLI if you want to. To excute it you would do:
+
+```bash
+sqlite-hub --database:Unit-00 --sqleditor:"Group by creation Year"
+```
+
+which returns
+
+```bash
+Executing: Group by creation Year
+SQL: SELECT STRFTIME('%Y', creation_time, 'unixepoch') AS creation_year, COUNT(*) AS channel_count FROM channels WHERE creation_time IS NOT NU...
+────────────────────────────────────────────────────────────
+
+Statement count: 1
+Timing: 1ms
+
+Statement 1 (resultSet):
+Rows: 3
+Columns: creation_year, channel_count
+
+Results:
+  [0] 2024 | 11
+  [1] 2025 | 47
+  [2] 2026 | 40
+```
+
 ## Changelog
 
 [Changelog](/changelog.md)
