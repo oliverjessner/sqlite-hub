@@ -14,6 +14,7 @@ Options:
   --help        Show this help text.
   --port:PORT   Start the server on a custom port.
   --version     Show the version number.
+  --database    List all imported databases.
 `);
 }
 
@@ -35,6 +36,10 @@ function parseCliArguments(argv) {
 
         if (argument === '--help' || argument === '-h') {
             return { help: true };
+        }
+
+        if (argument === '--database' || argument === '-d') {
+            return { database: true };
         }
 
         if (argument.startsWith('--port:')) {
@@ -97,10 +102,42 @@ function openInDefaultBrowser(url) {
 }
 
 async function main() {
-    const { help, port = DEFAULT_PORT } = parseCliArguments(process.argv.slice(2));
+    const { help, database, port = DEFAULT_PORT } = parseCliArguments(process.argv.slice(2));
 
     if (help) {
         printHelp();
+        return;
+    }
+
+    if (database) {
+        const { resolveAppStatePaths } = require('../server/utils/appPaths');
+        const { AppStateStore } = require('../server/services/storage/appStateStore');
+        const path = require('path');
+
+        const PACKAGE_ROOT = path.resolve(__dirname, '..');
+        const { appStateDbPath: APP_STATE_DB_PATH } = resolveAppStatePaths(PACKAGE_ROOT);
+
+        const appStateStore = new AppStateStore(APP_STATE_DB_PATH);
+        const connections = appStateStore.getRecentConnections();
+
+        if (connections.length === 0) {
+            console.log('No databases imported yet.');
+            return;
+        }
+
+        console.log(`\nImported databases (${connections.length}):`);
+        console.log('─'.repeat(60));
+
+        connections.forEach((conn, index) => {
+            const size = conn.sizeBytes ? `${(conn.sizeBytes / 1024).toFixed(1)} KB` : 'N/A';
+            const readOnly = conn.readOnly ? ' (read-only)' : '';
+            console.log(`${index + 1}. ${conn.label}${readOnly}`);
+            console.log(`   Path: ${conn.path}`);
+            console.log(`   Size: ${size}`);
+            console.log(`   Last opened: ${conn.lastOpenedAt}`);
+            console.log('');
+        });
+
         return;
     }
 
