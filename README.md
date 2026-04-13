@@ -156,7 +156,7 @@ This searches the query history for the given database, finds the matching saved
 
 ![](/frontend/assets/mockups/sql_editor_croped.png)
 
-in the screenshot you can see a stored query from the SQL_EDITOR, you can create such queries in with the graphical interface and excute them via the CLI if you want to. To excute it you would do:
+In the screenshot above, you can see a saved query from the SQL editor. You can create these queries using the graphical interface and execute them via the CLI if you want. To execute one, you would run:
 
 ```bash
 sqlite-hub --database:Unit-00 --sqleditor:"Group by creation Year"
