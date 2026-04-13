@@ -124,6 +124,7 @@ function renderWorkspaceHeader(state) {
                     data-to="/structure"
                     type="button"
                   >
+                  <span class="material-symbols-outlined">account_tree</span>
                     Open Structure
                   </button>
                 `

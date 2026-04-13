@@ -184,6 +184,15 @@ export function renderQueryHistoryDetail({
           </button>
           <button
             class="toolbar-button border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+            data-action="navigate"
+            data-to="/charts/${encodeURIComponent(item.id)}"
+            type="button"
+          >
+            <span class="material-symbols-outlined text-sm">bar_chart</span>
+            Open In Charts
+          </button>
+          <button
+            class="toolbar-button border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
             data-action="run-query-history"
             data-history-id="${escapeHtml(item.id)}"
             type="button"

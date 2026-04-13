@@ -25,14 +25,19 @@ function renderField({ label, name, type = "text", placeholder = "", value = "" 
 
 function renderCheckboxField({ label, name, checked = false, text }) {
   return `
-    <label class="flex items-center gap-3 border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface">
-      <input
-        class="rounded-none border-outline bg-surface-container-lowest text-primary-container focus:ring-primary-container"
-        ${checked ? "checked" : ""}
-        name="${escapeHtml(name)}"
-        type="checkbox"
-      />
-      ${escapeHtml(text || label)}
+    <label class="block space-y-2">
+      <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+        ${escapeHtml(label)}
+      </span>
+      <span class="flex min-h-[50px] items-center gap-3 border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface">
+        <input
+          class="rounded-none border-outline bg-surface-container-lowest text-primary-container focus:ring-primary-container"
+          ${checked ? "checked" : ""}
+          name="${escapeHtml(name)}"
+          type="checkbox"
+        />
+        <span>${escapeHtml(text || label)}</span>
+      </span>
     </label>
   `;
 }

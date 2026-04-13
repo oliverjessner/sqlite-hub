@@ -28,14 +28,6 @@ export function renderTableDesignerSidebar(state) {
         </div>
         <div class="table-designer-sidebar__header-actions">
           <button
-            class="table-designer-sidebar__new-button"
-            data-action="navigate"
-            data-to="/table-designer/new"
-            type="button"
-          >
-            + New Table
-          </button>
-          <button
             class="table-designer-sidebar__import-button"
             data-action="import-table-designer-csv"
             type="button"
@@ -47,7 +39,17 @@ export function renderTableDesignerSidebar(state) {
             class="table-designer-sidebar__file-input"
             data-bind="table-designer-import-file"
             type="file"
-          />
+          />  
+          <button
+            class="table-designer-sidebar__new-button clipped-corner"
+            data-action="navigate"
+            data-to="/table-designer/new"
+            style="--clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);"
+            type="button"
+          >
+            + New Table
+          </button>
+  
         </div>
       </div>
 

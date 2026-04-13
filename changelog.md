@@ -1,3 +1,11 @@
+# v0.8.0
+
+- DDL copy button
+- open in charts button in query details
+- clear makes editor active
+- UI fixes
+- Overview improvement
+
 # v0.7.0
 
 - hide query history, hide editor

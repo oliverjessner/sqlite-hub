@@ -135,6 +135,7 @@ const state = {
     tables: [],
     selectedTableName: null,
     draft: null,
+    sqlPreviewVisible: true,
     pendingImportedDraft: null,
     loading: false,
     detailLoading: false,
@@ -148,6 +149,7 @@ const state = {
     data: null,
     selectedName: null,
     detail: null,
+    tablesVisible: true,
     loading: false,
     detailLoading: false,
     error: null,
@@ -571,6 +573,7 @@ function setMissingDatabaseState() {
   state.structure.detailLoading = false;
   state.structure.data = null;
   state.structure.detail = null;
+  state.structure.tablesVisible = true;
   state.structure.error = error;
 
   state.tableDesigner.loading = false;
@@ -578,6 +581,7 @@ function setMissingDatabaseState() {
   state.tableDesigner.tables = [];
   state.tableDesigner.selectedTableName = null;
   state.tableDesigner.draft = null;
+  state.tableDesigner.sqlPreviewVisible = true;
   state.tableDesigner.pendingImportedDraft = null;
   state.tableDesigner.saving = false;
   state.tableDesigner.searchQuery = "";
@@ -1248,6 +1252,7 @@ function invalidateDatabaseCaches() {
   state.tableDesigner.tables = [];
   state.tableDesigner.selectedTableName = null;
   state.tableDesigner.draft = null;
+  state.tableDesigner.sqlPreviewVisible = true;
   state.tableDesigner.pendingImportedDraft = null;
   state.tableDesigner.saving = false;
   state.tableDesigner.searchQuery = "";
@@ -1257,6 +1262,7 @@ function invalidateDatabaseCaches() {
   resetChartsState();
   state.structure.data = null;
   state.structure.detail = null;
+  state.structure.tablesVisible = true;
 }
 
 async function loadRouteData(route) {
@@ -2125,8 +2131,25 @@ export async function selectStructureEntry(name) {
   await loadStructureDetail(++routeLoadVersion);
 }
 
+export function toggleStructureTablesPanel() {
+  state.structure.tablesVisible = state.structure.tablesVisible === false;
+  emitChange();
+}
+
 export function setTableDesignerSearchQuery(query) {
   state.tableDesigner.searchQuery = String(query ?? "");
+  emitChange();
+}
+
+export function setTableDesignerSqlPreviewVisibility(visible) {
+  const nextValue =
+    typeof visible === "boolean" ? visible : !Boolean(state.tableDesigner.sqlPreviewVisible);
+
+  if (state.tableDesigner.sqlPreviewVisible === nextValue) {
+    return;
+  }
+
+  state.tableDesigner.sqlPreviewVisible = nextValue;
   emitChange();
 }
 

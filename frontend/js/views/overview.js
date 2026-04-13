@@ -58,7 +58,7 @@ function renderTopTables(overview) {
   );
 
   return `
-    <section class="shell-section xl:col-span-2">
+    <section class="shell-section">
       <div class="flex items-center justify-between bg-surface-container-highest px-4 py-2">
         <span class="text-[10px] font-bold uppercase tracking-[0.25em]">Top Tables</span>
         <span class="material-symbols-outlined text-xs text-on-surface-variant">table_rows</span>
@@ -145,16 +145,153 @@ function renderOperationalSurface(overview) {
   `;
 }
 
+function pluralize(count, singular, plural = `${singular}s`) {
+  return Number(count) === 1 ? singular : plural;
+}
+
+function getSchemaMapNarrative(preview) {
+  const relationshipCount = Number(preview.relationshipCount ?? 0);
+  const fkClusters = Number(preview.fkClusters ?? 0);
+  const isolatedTables = Number(preview.isolatedTables ?? 0);
+  const connectedTables = Math.max(0, Number(preview.tableCount ?? 0) - isolatedTables);
+
+  if (relationshipCount === 0 || fkClusters === 0) {
+    return {
+      title: "Mostly standalone schema",
+      body:
+        "There are no meaningful foreign-key groups yet. The Structure view will read more like a list of isolated tables than a connected graph.",
+    };
+  }
+
+  if (isolatedTables === 0) {
+    return {
+      title: "Connected schema",
+      body: `Foreign keys tie the whole schema together in ${formatNumber(
+        fkClusters
+      )} ${pluralize(fkClusters, "cluster")}. Structure is useful here because dependencies and joins are visible at a glance.`,
+    };
+  }
+
+  return {
+    title: "One connected core, several islands",
+    body: `${formatNumber(connectedTables)} ${pluralize(
+      connectedTables,
+      "table"
+    )} are connected through foreign keys, while ${formatNumber(
+      isolatedTables
+    )} ${pluralize(
+      isolatedTables,
+      "table"
+    )} stand alone. Structure helps most when you want to inspect the connected core and ignore the isolated tables.`,
+  };
+}
+
+function renderSchemaMapPreview(overview) {
+  const preview = overview.schemaMap ?? {
+    tableCount: overview.counts?.tables ?? 0,
+    indexCount: overview.counts?.indexes ?? 0,
+    relationshipCount: 0,
+    fkClusters: 0,
+    isolatedTables: 0,
+  };
+  const narrative = getSchemaMapNarrative(preview);
+  const stats = [
+    { label: "FK Links", value: formatNumber(preview.relationshipCount) },
+    { label: "FK Clusters", value: formatNumber(preview.fkClusters) },
+    { label: "Isolated Tables", value: formatNumber(preview.isolatedTables) },
+  ];
+
+  return `
+    <section class="shell-section overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(45,250,255,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(252,227,0,0.12),transparent_42%),linear-gradient(135deg,#1b1b19,#101111)]">
+      <div class="flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-highest/60 px-4 py-2">
+        <span class="text-[10px] font-bold uppercase tracking-[0.25em]">Schema Map</span>
+        <span class="material-symbols-outlined text-xs text-on-surface-variant">account_tree</span>
+      </div>
+      <div class="space-y-5 p-4">
+        <div class="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <div class="font-headline text-xl font-black uppercase tracking-tight text-primary-container">
+              ${escapeHtml(narrative.title)}
+            </div>
+            <p class="mt-2 max-w-3xl text-sm leading-6 text-on-surface-variant/70">
+              ${escapeHtml(narrative.body)}
+            </p>
+          </div>
+          <div class="flex justify-start xl:justify-end">
+            <button
+              class="toolbar-button border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+              data-action="navigate"
+              data-to="/structure"
+              type="button"
+            >
+              <span class="material-symbols-outlined text-sm">account_tree</span>
+              Open Structure
+            </button>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          ${stats
+            .map(
+              (stat) => `
+                <div class="border border-outline-variant/10 bg-surface-container-lowest/70 px-3 py-3">
+                  <div class="text-[9px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
+                    ${escapeHtml(stat.label)}
+                  </div>
+                  <div class="mt-2 font-headline text-2xl font-black uppercase tracking-tight text-on-surface">
+                    ${escapeHtml(stat.value)}
+                  </div>
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+        <div class="border border-outline-variant/10 bg-surface-container-lowest/70 px-4 py-4">
+          <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/70">
+            Why It Helps
+          </div>
+          <div class="mt-3 grid gap-3 md:grid-cols-3">
+            <div class="border border-outline-variant/10 bg-surface-container px-3 py-3">
+              <div class="text-[9px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
+                FK Links
+              </div>
+              <div class="mt-2 text-sm leading-6 text-on-surface-variant/70">
+                Shows how many actual relationships exist between tables.
+              </div>
+            </div>
+            <div class="border border-outline-variant/10 bg-surface-container px-3 py-3">
+              <div class="text-[9px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
+                FK Clusters
+              </div>
+              <div class="mt-2 text-sm leading-6 text-on-surface-variant/70">
+                Tells you whether the schema is one connected area or split into separate groups.
+              </div>
+            </div>
+            <div class="border border-outline-variant/10 bg-surface-container px-3 py-3">
+              <div class="text-[9px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
+                Isolated Tables
+              </div>
+              <div class="mt-2 text-sm leading-6 text-on-surface-variant/70">
+                Highlights how many tables have no FK links and can usually be ignored during relationship analysis.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderIntegrityCard(overview, readOnly) {
   return `
-    <section class="relative overflow-hidden border border-outline-variant/10 bg-[radial-gradient(circle_at_top_right,rgba(252,227,0,0.14),transparent_30%),linear-gradient(135deg,#1c1b1b,#0e0e0e)]">
-      <div class="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(32,31,31,0.95),rgba(32,31,31,0.2))]"></div>
+    <section class="shell-section relative overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(252,227,0,0.14),transparent_30%),linear-gradient(135deg,#1c1b1b,#0e0e0e)]">
+      <div class="flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-highest/60 px-4 py-2">
+        <span class="text-[10px] font-bold uppercase tracking-[0.25em]">Integrity Status</span>
+        <span class="material-symbols-outlined text-xs text-on-surface-variant">security</span>
+      </div>
+      <div class="pointer-events-none absolute inset-x-0 bottom-0 top-10 bg-[linear-gradient(to_top,rgba(32,31,31,0.95),rgba(32,31,31,0.2))]"></div>
       <div class="relative flex min-h-[220px] flex-col justify-end p-6">
         <div class="mb-6 flex h-16 w-16 items-center justify-center border border-primary-container/20 bg-primary-container/10">
           <span class="material-symbols-outlined text-4xl text-primary-container">security</span>
-        </div>
-        <div class="text-[10px] font-black uppercase tracking-[0.25em] text-primary-container">
-          INTEGRITY_STATUS
         </div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
           ${renderStatusBadge(overview.sqlite?.integrityCheck ?? "unknown", "success")}
@@ -218,7 +355,10 @@ export function renderOverviewView(state) {
                   ? `
                       ${renderOverviewMetrics(overview)}
                       <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
-                        ${renderTopTables(overview)}
+                        <div class="space-y-6 xl:col-span-2">
+                          ${renderTopTables(overview)}
+                          ${renderSchemaMapPreview(overview)}
+                        </div>
                         <div class="space-y-6">
                           ${renderOperationalSurface(overview)}
                           ${renderIntegrityCard(overview, readOnly)}

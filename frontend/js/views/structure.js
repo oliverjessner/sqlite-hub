@@ -1,4 +1,4 @@
-import { clearInspector, renderInspector } from "../components/structureGraph.js";
+import { clearInspector, renderDdlSection, renderInspector } from "../components/structureGraph.js";
 import { escapeHtml, formatNumber } from "../utils/format.js";
 
 function renderEntryGroup(title, entries, activeName, options = {}) {
@@ -172,20 +172,17 @@ function renderObjectInspector(detail) {
           : ""
       }
 
-      <section class="structure-graph__section">
-        <div class="structure-graph__section-title">DDL</div>
-        <pre class="structure-graph__ddl custom-scrollbar">${escapeHtml(
-          detail.ddl || "No DDL available."
-        )}</pre>
-      </section>
+      ${renderDdlSection(detail.ddl)}
     </div>
   `;
 }
 
-function renderGraphSurface(structure, selectedName, detail, detailLoading) {
+function renderGraphSurface(structure, selectedName, detail, detailLoading, tablesVisible = true) {
   const graph = structure?.graph ?? { tables: [], relationshipCount: 0 };
   const selectedGraphTable =
     graph.tables?.find((table) => table.name === selectedName && table.type === "table") ?? null;
+  const toolbarButtonClass =
+    "toolbar-button structure-graph__button border border-outline-variant/20 bg-surface-container px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container";
   const inspectorMarkup = selectedGraphTable
     ? renderInspector(selectedGraphTable)
     : detailLoading
@@ -198,20 +195,20 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading) {
     <section class="structure-graph" data-structure-graph-root>
       <div class="structure-graph__toolbar">
         <div class="structure-graph__toolbar-main">
-          <label class="structure-graph__search" data-structure-graph-search>
-            <span class="material-symbols-outlined structure-graph__search-icon">search</span>
-            <input
-              class="structure-graph__search-input"
-              data-structure-graph-search-input
-              placeholder="Find table"
-              spellcheck="false"
-              type="search"
-            />
-          </label>
+          <button
+            class="${toolbarButtonClass}"
+            data-action="toggle-structure-tables"
+            type="button"
+          >
+            <span class="material-symbols-outlined text-sm">${
+              tablesVisible ? "visibility_off" : "visibility"
+            }</span>
+            ${tablesVisible ? "Hide Tables" : "Show Tables"}
+          </button>
         </div>
         <div class="structure-graph__toolbar-actions">
           <button
-            class="structure-graph__button"
+            class="${toolbarButtonClass}"
             data-structure-graph-action="fit"
             type="button"
           >
@@ -219,7 +216,7 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading) {
             Fit Graph
           </button>
           <button
-            class="structure-graph__button"
+            class="${toolbarButtonClass}"
             data-structure-graph-action="relayout"
             type="button"
           >
@@ -227,7 +224,7 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading) {
             Recalculate Layout
           </button>
           <button
-            class="structure-graph__button"
+            class="${toolbarButtonClass}"
             data-structure-graph-action="clear"
             type="button"
           >
@@ -235,7 +232,7 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading) {
             Clear Selection
           </button>
           <button
-            class="structure-graph__button is-disabled"
+            class="${toolbarButtonClass} is-disabled disabled:cursor-default disabled:opacity-30"
             data-structure-graph-action="open-data"
             disabled
             type="button"
@@ -244,7 +241,7 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading) {
             Open Data
           </button>
           <button
-            class="structure-graph__button"
+            class="${toolbarButtonClass}"
             data-structure-graph-action="toggle-inspector"
             type="button"
           >
@@ -310,57 +307,64 @@ export function renderStructureView(state) {
   const structure = state.structure.data;
   const detail =
     state.structure.detail?.name === state.structure.selectedName ? state.structure.detail : null;
+  const tablesVisible = state.structure.tablesVisible !== false;
 
   return {
     main: `
       <section class="view-surface structure-view">
-        <aside class="structure-view__sidebar">
-          <div class="structure-view__sidebar-header">
-            <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
-              Objects
-            </div>
-            <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-              total ${escapeHtml(
-                formatNumber(
-                  (structure?.grouped?.tables?.length ?? 0) +
-                    (structure?.grouped?.views?.length ?? 0) +
-                    (structure?.grouped?.indexes?.length ?? 0) +
-                    (structure?.grouped?.triggers?.length ?? 0)
-                )
-              )}
-            </div>
-          </div>
-          <div class="structure-view__sidebar-body custom-scrollbar">
-            ${
-              structure
-                ? `
-                    ${renderEntryGroup(
-                      "Tables",
-                      structure.grouped.tables,
-                      state.structure.selectedName,
-                      { compact: true, showMeta: false }
+        ${
+          tablesVisible
+            ? `
+              <aside class="structure-view__sidebar">
+                <div class="structure-view__sidebar-header">
+                  <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
+                    Objects
+                  </div>
+                  <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
+                    total ${escapeHtml(
+                      formatNumber(
+                        (structure?.grouped?.tables?.length ?? 0) +
+                          (structure?.grouped?.views?.length ?? 0) +
+                          (structure?.grouped?.indexes?.length ?? 0) +
+                          (structure?.grouped?.triggers?.length ?? 0)
+                      )
                     )}
-                    ${renderEntryGroup(
-                      "Views",
-                      structure.grouped.views,
-                      state.structure.selectedName
-                    )}
-                    ${renderEntryGroup(
-                      "Indexes",
-                      structure.grouped.indexes,
-                      state.structure.selectedName,
-                      { compact: true, showMeta: false }
-                    )}
-                    ${renderEntryGroup(
-                      "Triggers",
-                      structure.grouped.triggers,
-                      state.structure.selectedName
-                    )}
-                  `
-                : ""
-            }
-          </div>
-        </aside>
+                  </div>
+                </div>
+                <div class="structure-view__sidebar-body custom-scrollbar">
+                  ${
+                    structure
+                      ? `
+                          ${renderEntryGroup(
+                            "Tables",
+                            structure.grouped.tables,
+                            state.structure.selectedName,
+                            { compact: true, showMeta: false }
+                          )}
+                          ${renderEntryGroup(
+                            "Views",
+                            structure.grouped.views,
+                            state.structure.selectedName
+                          )}
+                          ${renderEntryGroup(
+                            "Indexes",
+                            structure.grouped.indexes,
+                            state.structure.selectedName,
+                            { compact: true, showMeta: false }
+                          )}
+                          ${renderEntryGroup(
+                            "Triggers",
+                            structure.grouped.triggers,
+                            state.structure.selectedName
+                          )}
+                        `
+                      : ""
+                  }
+                </div>
+              </aside>
+            `
+            : ""
+        }
 
         <section class="structure-view__detail">
           ${renderStructureWorkspaceHeader(structure, state.structure.selectedName)}
@@ -390,7 +394,8 @@ export function renderStructureView(state) {
                           structure,
                           state.structure.selectedName,
                           detail,
-                          state.structure.detailLoading
+                          state.structure.detailLoading,
+                          tablesVisible
                         )}
                       </div>
                     `

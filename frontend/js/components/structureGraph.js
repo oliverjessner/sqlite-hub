@@ -1,3 +1,4 @@
+import { showToast } from "../store.js";
 import { escapeHtml, formatNumber } from "../utils/format.js";
 
 let cytoscapeFactory = null;
@@ -98,6 +99,31 @@ function createColumnFlags(column, foreignKeyColumns) {
   return flags.join("");
 }
 
+export function renderDdlSection(ddl, emptyLabel = "No DDL available.") {
+  const ddlText = typeof ddl === "string" ? ddl : "";
+  const hasDdl = Boolean(ddlText.trim());
+
+  return `
+    <section class="structure-graph__section">
+      <div class="structure-graph__section-header">
+        <div class="structure-graph__section-title">DDL</div>
+        <button
+          class="toolbar-button structure-graph__copy-button border border-outline-variant/20 bg-surface-container px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container disabled:cursor-default disabled:opacity-30"
+          data-structure-graph-action="copy-ddl"
+          ${hasDdl ? "" : "disabled"}
+          type="button"
+        >
+          <span class="material-symbols-outlined text-sm">content_copy</span>
+          Copy
+        </button>
+      </div>
+      <pre class="structure-graph__ddl custom-scrollbar" data-structure-graph-ddl>${escapeHtml(
+        hasDdl ? ddlText : emptyLabel
+      )}</pre>
+    </section>
+  `;
+}
+
 export function clearInspector() {
   return `
     <div class="structure-graph__panel is-empty">
@@ -165,12 +191,7 @@ export function renderInspector(tableData) {
         </div>
       </section>
 
-      <section class="structure-graph__section">
-        <div class="structure-graph__section-title">DDL</div>
-        <pre class="structure-graph__ddl custom-scrollbar">${escapeHtml(
-          tableData.ddl || "No DDL available."
-        )}</pre>
-      </section>
+      ${renderDdlSection(tableData.ddl)}
     </div>
   `;
 }
@@ -398,60 +419,6 @@ export function highlightConnectedElements(cy, element) {
   element.addClass("hovered");
 }
 
-function getBestMatchingNode(cy, name) {
-  const normalizedQuery = String(name ?? "").trim().toLowerCase();
-
-  if (!normalizedQuery) {
-    return null;
-  }
-
-  const nodes = cy.nodes().toArray();
-  const exactMatch = nodes.find(
-    (node) => String(node.data("tableName")).toLowerCase() === normalizedQuery
-  );
-
-  if (exactMatch) {
-    return exactMatch;
-  }
-
-  const startsWithMatch = nodes.find((node) =>
-    String(node.data("tableName")).toLowerCase().startsWith(normalizedQuery)
-  );
-
-  if (startsWithMatch) {
-    return startsWithMatch;
-  }
-
-  return (
-    nodes.find((node) =>
-      String(node.data("tableName")).toLowerCase().includes(normalizedQuery)
-    ) ?? null
-  );
-}
-
-export function focusTableByName(cy, name) {
-  const node = getBestMatchingNode(cy, name);
-
-  if (!node) {
-    return null;
-  }
-
-  cy.animate(
-    {
-      fit: {
-        eles: node.closedNeighborhood(),
-        padding: 120,
-      },
-      duration: 240,
-    },
-    {
-      queue: false,
-    }
-  );
-
-  return node;
-}
-
 function destroyCurrentGraph() {
   if (!currentGraph) {
     return;
@@ -473,8 +440,6 @@ function destroyCurrentGraph() {
       zoom: currentGraph.cy.zoom(),
       inspectorHidden: currentGraph.inspectorHidden,
       selectedTableName: currentGraph.selectedTableName,
-      searchValue: currentGraph.searchInput?.value ?? "",
-      searchMiss: currentGraph.searchRoot?.classList.contains("is-miss") ?? false,
     };
   }
 
@@ -542,6 +507,25 @@ function updateOpenDataButton() {
   currentGraph.openDataButton.classList.toggle("is-disabled", !isEnabled);
 }
 
+async function copyInspectorDdl(button) {
+  const ddlNode = button
+    ?.closest(".structure-graph__section")
+    ?.querySelector("[data-structure-graph-ddl]");
+  const ddl = ddlNode?.textContent ?? "";
+
+  if (!ddl.trim()) {
+    showToast("No DDL available to copy.", "alert");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(ddl);
+    showToast("DDL copied.", "success");
+  } catch (error) {
+    showToast("Clipboard access failed.", "alert");
+  }
+}
+
 function syncInspectorLayout() {
   if (!currentGraph?.root) {
     return;
@@ -565,17 +549,12 @@ function updateInspectorToggleButton() {
   `;
 }
 
-function clearSelection({ preserveSearch = true } = {}) {
+function clearSelection() {
   if (!currentGraph) {
     return;
   }
 
   currentGraph.selectedTableName = null;
-  if (!preserveSearch && currentGraph.searchInput) {
-    currentGraph.searchInput.value = "";
-    currentGraph.searchRoot.classList.remove("is-miss");
-  }
-
   resetHighlights(currentGraph.cy);
   syncEntryHighlights();
   currentGraph.inspector.innerHTML = getDefaultInspectorMarkup();
@@ -677,61 +656,24 @@ function restorePersistedViewport(cy, persistedState) {
   return true;
 }
 
-export function setupToolbar(cy, schema) {
+export function setupToolbar(cy) {
   if (!currentGraph) {
     return () => {};
   }
 
   const { root } = currentGraph;
-  const searchRoot = root.querySelector("[data-structure-graph-search]");
-  const searchInput = root.querySelector("[data-structure-graph-search-input]");
   const openDataButton = root.querySelector('[data-structure-graph-action="open-data"]');
   const inspectorToggleButton = root.querySelector(
     '[data-structure-graph-action="toggle-inspector"]'
   );
-  let searchTimer = null;
 
-  currentGraph.searchRoot = searchRoot;
-  currentGraph.searchInput = searchInput;
   currentGraph.openDataButton = openDataButton;
   currentGraph.inspectorToggleButton = inspectorToggleButton;
   updateOpenDataButton();
   updateInspectorToggleButton();
   syncInspectorLayout();
 
-  const handleSearch = () => {
-    if (!searchInput || !searchRoot) {
-      return;
-    }
-
-    const value = searchInput.value.trim();
-
-    if (!value) {
-      searchRoot.classList.remove("is-miss");
-      restoreGraphState();
-      if (!currentGraph.selectedTableName) {
-        currentGraph.inspector.innerHTML = getDefaultInspectorMarkup();
-      }
-      return;
-    }
-
-    const matchedNode = focusTableByName(cy, value);
-
-    if (!matchedNode) {
-      searchRoot.classList.add("is-miss");
-      return;
-    }
-
-    searchRoot.classList.remove("is-miss");
-    applyTableSelection(matchedNode, { focus: true });
-  };
-
-  const onSearchInput = () => {
-    window.clearTimeout(searchTimer);
-    searchTimer = window.setTimeout(handleSearch, 140);
-  };
-
-  const onToolbarClick = (event) => {
+  const onToolbarClick = async (event) => {
     const button = event.target.closest("[data-structure-graph-action]");
 
     if (!button) {
@@ -755,7 +697,7 @@ export function setupToolbar(cy, schema) {
         });
         break;
       case "clear":
-        clearSelection({ preserveSearch: false });
+        clearSelection();
         break;
       case "open-data":
         if (currentGraph?.selectedTableName) {
@@ -767,16 +709,16 @@ export function setupToolbar(cy, schema) {
         updateInspectorToggleButton();
         syncInspectorLayout();
         break;
+      case "copy-ddl":
+        await copyInspectorDdl(button);
+        break;
       default:
     }
   };
 
-  searchInput?.addEventListener("input", onSearchInput);
   root.addEventListener("click", onToolbarClick);
 
   return () => {
-    window.clearTimeout(searchTimer);
-    searchInput?.removeEventListener("input", onSearchInput);
     root.removeEventListener("click", onToolbarClick);
   };
 }
@@ -837,8 +779,6 @@ export async function mountStructureGraph(snapshot) {
     cleanup: [],
     resizeObserver: null,
     resizeHandler: null,
-    searchRoot: null,
-    searchInput: null,
     openDataButton: null,
     inspectorToggleButton: null,
     inspectorHidden: cachedState?.inspectorHidden ?? false,
@@ -846,7 +786,7 @@ export async function mountStructureGraph(snapshot) {
     selectedTableName: null,
   };
 
-  currentGraph.cleanup.push(setupToolbar(cy, schema));
+  currentGraph.cleanup.push(setupToolbar(cy));
 
   cy.on("tap", "node", (event) => {
     applyTableSelection(event.target, { focus: false });
@@ -876,14 +816,6 @@ export async function mountStructureGraph(snapshot) {
       : null;
 
   currentGraph.initialSelectedTableName = selectedTableName;
-
-  if (currentGraph.searchInput && cachedState?.searchValue) {
-    currentGraph.searchInput.value = cachedState.searchValue;
-  }
-
-  if (currentGraph.searchRoot) {
-    currentGraph.searchRoot.classList.toggle("is-miss", Boolean(cachedState?.searchMiss));
-  }
 
   if (restorePersistedViewport(cy, cachedState)) {
     if (selectedTableName) {

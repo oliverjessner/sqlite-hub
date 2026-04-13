@@ -196,6 +196,9 @@ function renderQueryResultsSection(state) {
           data-action="toggle-charts-results-panel"
           type="button"
         >
+          <span class="material-symbols-outlined text-sm">
+            ${isVisible ? 'table_rows_narrow' : 'table_rows'}
+          </span>
           ${isVisible ? 'Hide Results' : 'Show Results'}
         </button>
       </div>
@@ -320,7 +323,7 @@ function renderChartCard(chart, state, analysis) {
             Edit
           </button>
           <button
-            class="toolbar-button query-chart-card__action"
+            class="toolbar-button query-chart-card__action query-chart-card__action--danger"
             data-action="open-delete-query-chart-modal"
             data-chart-id="${escapeHtml(chart.id)}"
             type="button"
@@ -400,11 +403,13 @@ function renderChartsDetail(state) {
               data-history-id="${escapeHtml(detail.item.id)}"
               type="button"
             >
+              <span class="material-symbols-outlined text-sm">terminal</span>
               Open In Editor
             </button>
             <button
-              class="toolbar-button charts-detail-shell__button charts-detail-shell__button--primary"
+              class="toolbar-button charts-detail-shell__button charts-detail-shell__button--primary clipped-corner"
               data-action="open-create-query-chart-modal"
+              style="--clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);"
               type="button"
               ${state.charts.resultError || !state.charts.result ? 'disabled' : ''}
             >

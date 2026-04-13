@@ -50,6 +50,8 @@ import {
   selectQueryHistoryItem,
   selectStructureEntry,
   setTableDesignerSearchQuery,
+  setTableDesignerSqlPreviewVisibility,
+  toggleStructureTablesPanel,
   setDataPage,
   setDataPageSize,
   setDataSearchColumn,
@@ -115,7 +117,21 @@ const shellRefs = {
   toast: document.querySelector("#toast-root"),
 };
 let lastRenderedRoutePath = null;
+let lastRenderedTopNavMarkup = "";
+let lastRenderedSidebarMarkup = "";
+let lastRenderedStatusBarMarkup = "";
+let lastRenderedMainMarkup = "";
+let lastRenderedPanelMarkup = "";
+let lastRenderedModalMarkup = "";
+let lastRenderedToastMarkup = "";
+let lastRenderedPanelOpen = false;
+let lastRenderedLockedRoute = false;
 let pendingNewTableDesignerAutofocus = false;
+let pendingQueryEditorFocus = false;
+
+function invalidateMainRenderCache() {
+  lastRenderedMainMarkup = null;
+}
 
 function resetStructureGraphForDatabaseChange() {
   resetPersistedStructureGraphState();
@@ -389,6 +405,18 @@ function focusTableDesignerColumnNameField(columnId) {
   return true;
 }
 
+function focusQueryEditorInput() {
+  const input = document.querySelector('[data-bind="current-query"]');
+
+  if (!(input instanceof HTMLTextAreaElement)) {
+    return false;
+  }
+
+  input.focus({ preventScroll: true });
+  input.setSelectionRange(input.value.length, input.value.length);
+  return true;
+}
+
 async function handleTableDesignerCsvImport(fileInput) {
   if (!(fileInput instanceof HTMLInputElement)) {
     return;
@@ -429,12 +457,39 @@ async function handleTableDesignerCsvImport(fileInput) {
 }
 
 function renderApp(state) {
-  const focusedInput = captureFocusedInputState();
   const previousRoutePath = lastRenderedRoutePath;
   const { main, panel } = resolveView(state);
+  const topNavMarkup = renderTopNav(state);
+  const sidebarMarkup = renderSidebar(state);
+  const statusBarMarkup = renderStatusBar(state);
+  const modalMarkup = renderModal(state);
+  const toastMarkup = renderToasts(state.toasts);
   const isLockedRoute = ["editor", "editorResults", "data", "charts", "structure", "tableDesigner"].includes(
     state.route.name
   );
+  const panelOpen = Boolean(panel);
+  const shellMarkupUnchanged =
+    state.route.path === lastRenderedRoutePath &&
+    topNavMarkup === lastRenderedTopNavMarkup &&
+    sidebarMarkup === lastRenderedSidebarMarkup &&
+    statusBarMarkup === lastRenderedStatusBarMarkup &&
+    main === lastRenderedMainMarkup &&
+    panel === lastRenderedPanelMarkup &&
+    modalMarkup === lastRenderedModalMarkup &&
+    panelOpen === lastRenderedPanelOpen &&
+    isLockedRoute === lastRenderedLockedRoute;
+
+  if (shellMarkupUnchanged && toastMarkup !== lastRenderedToastMarkup) {
+    shellRefs.toast.innerHTML = toastMarkup;
+    lastRenderedToastMarkup = toastMarkup;
+    return;
+  }
+
+  if (shellMarkupUnchanged && toastMarkup === lastRenderedToastMarkup) {
+    return;
+  }
+
+  const focusedInput = captureFocusedInputState();
   const isEnteringNewTableDesignerRoute =
     state.route.name === "tableDesigner" &&
     state.route.params?.isNew &&
@@ -448,17 +503,24 @@ function renderApp(state) {
 
   teardownStructureGraph();
   teardownQueryChartRenderer();
-  shellRefs.topNav.innerHTML = renderTopNav(state);
-  shellRefs.sidebar.innerHTML = renderSidebar(state);
-  shellRefs.statusBar.innerHTML = renderStatusBar(state);
+  shellRefs.topNav.innerHTML = topNavMarkup;
+  shellRefs.sidebar.innerHTML = sidebarMarkup;
+  shellRefs.statusBar.innerHTML = statusBarMarkup;
   shellRefs.view.innerHTML = main;
   shellRefs.view.classList.toggle("app-main-scroll--locked", isLockedRoute);
   shellRefs.panel.innerHTML = panel;
-  shellRefs.modal.innerHTML = renderModal(state);
-  shellRefs.toast.innerHTML = renderToasts(state.toasts);
-  shellRefs.shell.classList.toggle("panel-open", Boolean(panel));
+  shellRefs.modal.innerHTML = modalMarkup;
+  shellRefs.toast.innerHTML = toastMarkup;
+  shellRefs.shell.classList.toggle("panel-open", panelOpen);
 
   if (
+    pendingQueryEditorFocus &&
+    (state.route.name === "editor" || state.route.name === "editorResults")
+  ) {
+    if (focusQueryEditorInput()) {
+      pendingQueryEditorFocus = false;
+    }
+  } else if (
     pendingNewTableDesignerAutofocus &&
     state.route.name === "tableDesigner" &&
     state.route.params?.isNew &&
@@ -472,6 +534,15 @@ function renderApp(state) {
   }
 
   lastRenderedRoutePath = state.route.path;
+  lastRenderedTopNavMarkup = topNavMarkup;
+  lastRenderedSidebarMarkup = sidebarMarkup;
+  lastRenderedStatusBarMarkup = statusBarMarkup;
+  lastRenderedMainMarkup = main;
+  lastRenderedPanelMarkup = panel;
+  lastRenderedModalMarkup = modalMarkup;
+  lastRenderedToastMarkup = toastMarkup;
+  lastRenderedPanelOpen = panelOpen;
+  lastRenderedLockedRoute = isLockedRoute;
 
   if (state.route.name === "structure") {
     mountStructureGraph(state).catch((error) => {
@@ -567,6 +638,7 @@ async function handleAction(actionNode) {
       openDeleteEditorRowModal(actionNode.dataset.rowIndex);
       return;
     case "clear-query":
+      pendingQueryEditorFocus = true;
       clearCurrentQuery();
       if (getState().route.name === "editorResults") {
         router.navigate("/editor");
@@ -663,6 +735,9 @@ async function handleAction(actionNode) {
     case "toggle-data-tables":
       toggleDataTablesPanel();
       return;
+    case "toggle-structure-tables":
+      toggleStructureTablesPanel();
+      return;
     case "select-structure-entry":
       if (actionNode.dataset.entryName) {
         await selectStructureEntry(actionNode.dataset.entryName);
@@ -704,6 +779,11 @@ async function handleAction(actionNode) {
       }
       return;
     }
+    case "toggle-table-designer-sql-preview":
+      setTableDesignerSqlPreviewVisibility(
+        actionNode.dataset.nextValue ? actionNode.dataset.nextValue === "true" : undefined
+      );
+      return;
     case "import-table-designer-csv": {
       const fileInput = document.querySelector('[data-bind="table-designer-import-file"]');
 
@@ -822,6 +902,7 @@ document.addEventListener("input", (event) => {
   }
 
   if (bindNode.dataset.bind === "current-query") {
+    invalidateMainRenderCache();
     syncQueryEditorHighlight(bindNode);
     syncQueryEditorScroll(bindNode);
     setCurrentQuery(bindNode.value);

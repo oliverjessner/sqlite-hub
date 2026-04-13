@@ -12,6 +12,73 @@ class OverviewService {
     this.connectionManager = connectionManager;
   }
 
+  getSchemaMapPreview(schema) {
+    const tables = schema?.tables ?? [];
+    const indexes = schema?.indexes ?? [];
+    const tableNames = new Set(tables.map((table) => table.name));
+    const adjacency = new Map(tables.map((table) => [table.name, new Set()]));
+    let relationshipCount = 0;
+
+    tables.forEach((table) => {
+      (table.foreignKeys ?? []).forEach((foreignKey) => {
+        if (!tableNames.has(foreignKey.referencedTable)) {
+          return;
+        }
+
+        relationshipCount += foreignKey.mappings?.length ?? 0;
+        adjacency.get(table.name)?.add(foreignKey.referencedTable);
+        adjacency.get(foreignKey.referencedTable)?.add(table.name);
+      });
+    });
+
+    let fkClusters = 0;
+    let isolatedTables = 0;
+    const visited = new Set();
+
+    tables.forEach((table) => {
+      if (visited.has(table.name)) {
+        return;
+      }
+
+      const stack = [table.name];
+      let componentHasRelationships = false;
+
+      visited.add(table.name);
+
+      while (stack.length) {
+        const current = stack.pop();
+        const neighbors = adjacency.get(current) ?? new Set();
+
+        if (neighbors.size > 0) {
+          componentHasRelationships = true;
+        }
+
+        neighbors.forEach((neighbor) => {
+          if (visited.has(neighbor)) {
+            return;
+          }
+
+          visited.add(neighbor);
+          stack.push(neighbor);
+        });
+      }
+
+      if (componentHasRelationships) {
+        fkClusters += 1;
+      } else {
+        isolatedTables += 1;
+      }
+    });
+
+    return {
+      tableCount: tables.length,
+      indexCount: indexes.length,
+      relationshipCount,
+      fkClusters,
+      isolatedTables,
+    };
+  }
+
   safePragmaValue(db, pragmaName) {
     const row = db.prepare(`PRAGMA ${pragmaName}`).get();
     return row ? Object.values(row)[0] : null;
@@ -78,6 +145,7 @@ class OverviewService {
         indexes: schema.indexes.length,
         triggers: schema.triggers.length,
       },
+      schemaMap: this.getSchemaMapPreview(schema),
       topTablesByRowCount: [...schema.tables]
         .sort((left, right) => (right.rowCount ?? 0) - (left.rowCount ?? 0))
         .slice(0, 10)

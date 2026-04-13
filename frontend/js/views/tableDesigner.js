@@ -26,8 +26,13 @@ export function renderTableDesignerView(state) {
           <div class="table-designer-workspace__top">
             ${renderTableDesignerEditor(state)}
           </div>
-          <div class="table-designer-workspace__bottom">
-            ${renderTableDesignerSqlPreview(state.tableDesigner.draft)}
+          <div class="table-designer-workspace__bottom${
+            state.tableDesigner.sqlPreviewVisible ? "" : " is-collapsed"
+          }">
+            ${renderTableDesignerSqlPreview(
+              state.tableDesigner.draft,
+              state.tableDesigner.sqlPreviewVisible
+            )}
           </div>
         </div>
       </section>
