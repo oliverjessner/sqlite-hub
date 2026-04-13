@@ -55,6 +55,8 @@ export function renderQueryEditor({
   editorVisible = true,
   historyVisible = true,
 }) {
+  const secondaryButtonClass =
+    "toolbar-button border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface transition-colors hover:border-primary-container hover:text-primary-container";
   const left = `
     <div class="flex items-center gap-2 bg-surface-container-lowest px-3 py-1">
       <span class="material-symbols-outlined text-xs text-[#FCE300]">database</span>
@@ -70,7 +72,7 @@ export function renderQueryEditor({
 
   const right = `
     <button
-      class="flex items-center gap-2 border border-outline-variant/20 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+      class="${secondaryButtonClass}"
       data-action="toggle-editor-panel"
       data-next-value="${editorVisible ? "false" : "true"}"
       type="button"
@@ -79,7 +81,7 @@ export function renderQueryEditor({
       ${editorVisible ? "Hide Editor" : "Show Editor"}
     </button>
     <button
-      class="flex items-center gap-2 border border-outline-variant/20 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+      class="${secondaryButtonClass}"
       data-action="toggle-query-history-panel"
       data-next-value="${historyVisible ? "false" : "true"}"
       type="button"
@@ -88,22 +90,23 @@ export function renderQueryEditor({
       ${historyVisible ? "Hide History" : "Show History"}
     </button>
     <button
-      class="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface hover:bg-surface-container-highest transition-colors"
+      class="${secondaryButtonClass}"
       data-action="clear-query"
       type="button"
     >
       Clear
     </button>
     <button
-      class="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface hover:bg-surface-container-highest transition-colors"
+      class="${secondaryButtonClass}"
       data-action="export-query-csv"
       type="button"
     >
       ${exporting ? "Exporting..." : "Export CSV"}
     </button>
     <button
-      class="bg-primary-container px-6 py-1.5 text-xs font-black uppercase tracking-tighter text-on-primary shadow-[0_0_15px_-5px_rgba(252,227,0,0.4)] transition-all hover:brightness-110"
+      class="toolbar-button toolbar-button--primary bg-primary-container px-4 py-2 font-headline text-xs font-bold uppercase tracking-widest text-on-primary clipped-corner"
       data-action="execute-query"
+      style="--clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);"
       type="button"
     >
       ${executing ? "RUNNING..." : "EXECUTE"}

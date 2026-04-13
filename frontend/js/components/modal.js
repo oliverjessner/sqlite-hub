@@ -1,5 +1,10 @@
 import { escapeHtml, truncateMiddle } from "../utils/format.js";
 import { renderConnectionLogo } from "./connectionLogo.js";
+import {
+  analyzeQueryChartResult,
+  getQueryChartTypeLabel,
+  QUERY_CHART_TYPES,
+} from "../lib/queryCharts.js";
 
 function renderField({ label, name, type = "text", placeholder = "", value = "" }) {
   return `
@@ -54,6 +59,31 @@ function renderFileField({
           ? `<p class="text-[11px] leading-5 text-on-surface-variant/60">${escapeHtml(helpText)}</p>`
           : ""
       }
+    </label>
+  `;
+}
+
+function renderSelectField({ label, name, value = "", options = [], bind = "" }) {
+  return `
+    <label class="block space-y-2">
+      <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+        ${escapeHtml(label)}
+      </span>
+      <select
+        class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+        ${bind ? `data-bind="${escapeHtml(bind)}"` : ""}
+        ${name ? `name="${escapeHtml(name)}"` : ""}
+      >
+        ${options
+          .map(
+            (option) => `
+              <option value="${escapeHtml(option.value)}" ${String(option.value) === String(value) ? "selected" : ""}>
+                ${escapeHtml(option.label)}
+              </option>
+            `
+          )
+          .join("")}
+      </select>
     </label>
   `;
 }
@@ -380,6 +410,279 @@ function renderDeleteRowConfirmForm(modal) {
   `;
 }
 
+function renderChartColumnOptions(analysis, { allowEmpty = false, includeNumericHint = false } = {}) {
+  const options = allowEmpty ? [{ value: "", label: "None" }] : [];
+
+  return options.concat(
+    (analysis?.columns ?? []).map((column) => ({
+      value: column.name,
+      label: `${column.name} (${column.type}${includeNumericHint && column.type === "number" ? " numeric" : ""})`,
+    }))
+  );
+}
+
+function renderChartEditorForm(modal, state) {
+  const draft = modal.draft ?? {};
+  const analysis = state.charts.result ? analyzeQueryChartResult(state.charts.result) : null;
+  const chartTypeOptions = QUERY_CHART_TYPES.map((chartType) => ({
+    value: chartType,
+    label: getQueryChartTypeLabel(chartType),
+  }));
+  const columnOptions = renderChartColumnOptions(analysis);
+  const optionalColumnOptions = renderChartColumnOptions(analysis, { allowEmpty: true });
+  let chartSpecificFields = "";
+
+  if (draft.chartType === "bar") {
+    chartSpecificFields = `
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        ${renderSelectField({
+          label: "X Column",
+          value: draft.config?.x_column ?? "",
+          options: columnOptions,
+          bind: "query-chart-draft-config:x_column",
+        })}
+        ${renderSelectField({
+          label: "Y Column",
+          value: draft.config?.y_column ?? "",
+          options: columnOptions,
+          bind: "query-chart-draft-config:y_column",
+        })}
+      </div>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        ${renderSelectField({
+          label: "Sort Direction",
+          value: draft.config?.sort_direction ?? "asc",
+          options: [
+            { value: "asc", label: "Ascending" },
+            { value: "desc", label: "Descending" },
+          ],
+          bind: "query-chart-draft-config:sort_direction",
+        })}
+        ${renderCheckboxField({
+          label: "Show legend",
+          name: "",
+          checked: Boolean(draft.config?.show_legend),
+          text: "Show legend",
+        }).replace("<input", '<input data-bind="query-chart-draft-config:show_legend"')}
+        ${renderCheckboxField({
+          label: "Show labels",
+          name: "",
+          checked: Boolean(draft.config?.show_labels),
+          text: "Show labels",
+        }).replace("<input", '<input data-bind="query-chart-draft-config:show_labels"')}
+      </div>
+    `;
+  } else if (draft.chartType === "line") {
+    chartSpecificFields = `
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        ${renderSelectField({
+          label: "X Column",
+          value: draft.config?.x_column ?? "",
+          options: columnOptions,
+          bind: "query-chart-draft-config:x_column",
+        })}
+        ${renderSelectField({
+          label: "Y Column",
+          value: draft.config?.y_column ?? "",
+          options: columnOptions,
+          bind: "query-chart-draft-config:y_column",
+        })}
+      </div>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        ${renderSelectField({
+          label: "Sort Direction",
+          value: draft.config?.sort_direction ?? "asc",
+          options: [
+            { value: "asc", label: "Ascending" },
+            { value: "desc", label: "Descending" },
+          ],
+          bind: "query-chart-draft-config:sort_direction",
+        })}
+        ${renderCheckboxField({
+          label: "Smooth line",
+          name: "",
+          checked: Boolean(draft.config?.smooth),
+          text: "Smooth line",
+        }).replace("<input", '<input data-bind="query-chart-draft-config:smooth"')}
+        ${renderCheckboxField({
+          label: "Show legend",
+          name: "",
+          checked: Boolean(draft.config?.show_legend),
+          text: "Show legend",
+        }).replace("<input", '<input data-bind="query-chart-draft-config:show_legend"')}
+        ${renderCheckboxField({
+          label: "Show labels",
+          name: "",
+          checked: Boolean(draft.config?.show_labels),
+          text: "Show labels",
+        }).replace("<input", '<input data-bind="query-chart-draft-config:show_labels"')}
+      </div>
+    `;
+  } else if (draft.chartType === "pie") {
+    chartSpecificFields = `
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        ${renderSelectField({
+          label: "Label Column",
+          value: draft.config?.label_column ?? "",
+          options: columnOptions,
+          bind: "query-chart-draft-config:label_column",
+        })}
+        ${renderSelectField({
+          label: "Value Column",
+          value: draft.config?.value_column ?? "",
+          options: columnOptions,
+          bind: "query-chart-draft-config:value_column",
+        })}
+      </div>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        ${renderCheckboxField({
+          label: "Donut",
+          name: "",
+          checked: Boolean(draft.config?.donut),
+          text: "Render as donut",
+        }).replace("<input", '<input data-bind="query-chart-draft-config:donut"')}
+        ${renderCheckboxField({
+          label: "Show legend",
+          name: "",
+          checked: Boolean(draft.config?.show_legend),
+          text: "Show legend",
+        }).replace("<input", '<input data-bind="query-chart-draft-config:show_legend"')}
+        ${renderCheckboxField({
+          label: "Show labels",
+          name: "",
+          checked: Boolean(draft.config?.show_labels),
+          text: "Show labels",
+        }).replace("<input", '<input data-bind="query-chart-draft-config:show_labels"')}
+      </div>
+    `;
+  } else if (draft.chartType === "scatter") {
+    chartSpecificFields = `
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        ${renderSelectField({
+          label: "X Column",
+          value: draft.config?.x_column ?? "",
+          options: columnOptions,
+          bind: "query-chart-draft-config:x_column",
+        })}
+        ${renderSelectField({
+          label: "Y Column",
+          value: draft.config?.y_column ?? "",
+          options: columnOptions,
+          bind: "query-chart-draft-config:y_column",
+        })}
+      </div>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        ${renderSelectField({
+          label: "Size Column",
+          value: draft.config?.size_column ?? "",
+          options: optionalColumnOptions,
+          bind: "query-chart-draft-config:size_column",
+        })}
+        ${renderSelectField({
+          label: "Series Column",
+          value: draft.config?.series_column ?? "",
+          options: optionalColumnOptions,
+          bind: "query-chart-draft-config:series_column",
+        })}
+        ${renderCheckboxField({
+          label: "Show legend",
+          name: "",
+          checked: Boolean(draft.config?.show_legend),
+          text: "Show legend",
+        }).replace("<input", '<input data-bind="query-chart-draft-config:show_legend"')}
+      </div>
+    `;
+  }
+
+  return `
+    <form class="space-y-5" data-form="save-query-chart">
+      ${renderField({
+        label: "Chart Name",
+        name: "chartName",
+        value: draft.name ?? "",
+      }).replace("<input", '<input data-bind="query-chart-draft:name"')}
+      ${renderSelectField({
+        label: "Chart Type",
+        value: draft.chartType ?? "bar",
+        options: chartTypeOptions,
+        bind: "query-chart-draft:chartType",
+      })}
+      ${chartSpecificFields}
+      ${
+        analysis
+          ? `
+            <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-4">
+              <div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
+                Result Columns
+              </div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                ${analysis.columns
+                  .map(
+                    (column) => `
+                      <span class="border border-outline-variant/15 bg-surface-container px-2 py-1 text-[10px] font-mono uppercase tracking-[0.12em] text-on-surface-variant/70">
+                        ${escapeHtml(column.name)} • ${escapeHtml(column.type)}
+                      </span>
+                    `
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `
+          : ""
+      }
+      ${renderError(modal.error)}
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button
+          class="border border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant hover:bg-surface-container-highest"
+          data-action="close-modal"
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          class="bg-primary-container px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-on-primary"
+          type="submit"
+        >
+          ${modal.submitting ? "Saving..." : draft.mode === "edit" ? "Save Chart" : "Create Chart"}
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+function renderDeleteChartForm(modal) {
+  return `
+    <form class="space-y-5" data-form="delete-query-chart">
+      <div class="space-y-3">
+        <p class="text-sm leading-7 text-on-surface">
+          Delete chart <span class="font-bold text-primary-container">${escapeHtml(
+            modal.chartName ?? "Chart"
+          )}</span>?
+        </p>
+        <p class="text-sm leading-7 text-on-surface-variant/65">
+          The linked query-history entry stays intact. Only this chart definition is removed.
+        </p>
+      </div>
+      ${renderError(modal.error)}
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button
+          class="border border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant hover:bg-surface-container-highest"
+          data-action="close-modal"
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          class="border border-error/25 bg-error-container/10 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-error"
+          type="submit"
+        >
+          ${modal.submitting ? "Deleting..." : "Delete Chart"}
+        </button>
+      </div>
+    </form>
+  `;
+}
+
 export function renderModal(state) {
   const modal = state.modal;
 
@@ -413,6 +716,16 @@ export function renderModal(state) {
       title: "Delete Row",
       body: renderDeleteRowConfirmForm(modal),
     },
+    "chart-editor": {
+      eyebrow: "Charts // Configure query-based ECharts panel",
+      title: modal.draft?.mode === "edit" ? "Edit Chart" : "New Chart",
+      body: renderChartEditorForm(modal, state),
+    },
+    "delete-chart": {
+      eyebrow: "Charts // Confirm chart deletion",
+      title: "Delete Chart",
+      body: renderDeleteChartForm(modal),
+    },
   };
 
   const config = contentByKind[modal.kind];
@@ -423,7 +736,7 @@ export function renderModal(state) {
 
   return `
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-4 backdrop-blur-sm">
-      <div class="w-full max-w-xl border border-outline-variant/20 bg-surface-container shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+      <div class="w-full ${modal.kind === "chart-editor" ? "max-w-3xl" : "max-w-xl"} border border-outline-variant/20 bg-surface-container shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
         <div class="flex items-start justify-between gap-4 border-b border-outline-variant/10 bg-surface-container-low px-6 py-5">
           <div>
             <div class="text-[10px] font-mono uppercase tracking-[0.26em] text-primary-container/70">

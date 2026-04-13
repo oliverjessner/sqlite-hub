@@ -15,6 +15,7 @@ const { TableDesignerService } = require("./services/sqlite/tableDesignerService
 const { createConnectionsRouter } = require("./routes/connections");
 const { createOverviewRouter } = require("./routes/overview");
 const { createSqlRouter } = require("./routes/sql");
+const { createChartsRouter } = require("./routes/charts");
 const { createStructureRouter } = require("./routes/structure");
 const { createDataRouter } = require("./routes/data");
 const { createTableDesignerRouter } = require("./routes/tableDesigner");
@@ -79,6 +80,7 @@ app.use(
 );
 app.use("/api/db", createOverviewRouter({ overviewService }));
 app.use("/api/sql", createSqlRouter({ appStateStore, connectionManager, sqlExecutor }));
+app.use("/api/charts", createChartsRouter({ appStateStore, connectionManager, sqlExecutor }));
 app.use("/api/structure", createStructureRouter({ structureService }));
 app.use("/api/data", createDataRouter({ dataBrowserService }));
 app.use("/api/table-designer", createTableDesignerRouter({ tableDesignerService }));
@@ -108,6 +110,10 @@ app.use(
 app.use(
   "/vendor/elkjs",
   express.static(path.resolve(__dirname, "..", "node_modules", "elkjs"))
+);
+app.use(
+  "/vendor/echarts",
+  express.static(path.resolve(__dirname, "..", "node_modules", "echarts"))
 );
 app.use(express.static(FRONTEND_ROOT));
 app.use("/db_logos", express.static(path.join(APP_STATE_DIRECTORY, "db_logos")));

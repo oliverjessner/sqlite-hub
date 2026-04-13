@@ -1,4 +1,3 @@
-import { renderPageHeader } from "../components/pageHeader.js";
 import { clearInspector, renderInspector } from "../components/structureGraph.js";
 import { escapeHtml, formatNumber } from "../utils/format.js";
 
@@ -6,7 +5,7 @@ function renderEntryGroup(title, entries, activeName, options = {}) {
   const { compact = false, showMeta = true } = options;
 
   return `
-    <section class="shell-section flex flex-col p-5">
+    <section class="structure-sidebar__section">
       <div class="mb-4 shrink-0 text-[10px] font-bold uppercase tracking-[0.25em] text-primary-container">
         ${escapeHtml(title)}
       </div>
@@ -282,6 +281,31 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading) {
   `;
 }
 
+function renderStructureWorkspaceHeader(structure, selectedName) {
+  const tableCount = structure?.grouped?.tables?.length ?? 0;
+  const viewCount = structure?.grouped?.views?.length ?? 0;
+
+  return `
+    <header class="structure-view__header">
+      <div class="structure-headline-container">
+        <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
+          Schema Graph
+        </div>
+        <h1 class="mt-2 font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
+          Structure
+        </h1>
+        <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
+          ${
+            selectedName
+              ? `selected ${escapeHtml(selectedName)} // tables ${escapeHtml(formatNumber(tableCount))} // views ${escapeHtml(formatNumber(viewCount))}`
+              : `tables ${escapeHtml(formatNumber(tableCount))} // views ${escapeHtml(formatNumber(viewCount))}`
+          }
+        </div>
+      </div>
+    </header>
+  `;
+}
+
 export function renderStructureView(state) {
   const structure = state.structure.data;
   const detail =
@@ -289,17 +313,61 @@ export function renderStructureView(state) {
 
   return {
     main: `
-      <section class="view-surface flex h-full min-h-0 flex-col bg-surface-container">
-        <div class="view-frame flex h-full min-h-0 flex-col">
-          ${renderPageHeader({
-            title: "Structure",
-            subtitle: "Schema graph, foreign-key paths, raw DDL, and object metadata",
-          })}
+      <section class="view-surface structure-view">
+        <aside class="structure-view__sidebar">
+          <div class="structure-view__sidebar-header">
+            <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
+              Objects
+            </div>
+            <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
+              total ${escapeHtml(
+                formatNumber(
+                  (structure?.grouped?.tables?.length ?? 0) +
+                    (structure?.grouped?.views?.length ?? 0) +
+                    (structure?.grouped?.indexes?.length ?? 0) +
+                    (structure?.grouped?.triggers?.length ?? 0)
+                )
+              )}
+            </div>
+          </div>
+          <div class="structure-view__sidebar-body custom-scrollbar">
+            ${
+              structure
+                ? `
+                    ${renderEntryGroup(
+                      "Tables",
+                      structure.grouped.tables,
+                      state.structure.selectedName,
+                      { compact: true, showMeta: false }
+                    )}
+                    ${renderEntryGroup(
+                      "Views",
+                      structure.grouped.views,
+                      state.structure.selectedName
+                    )}
+                    ${renderEntryGroup(
+                      "Indexes",
+                      structure.grouped.indexes,
+                      state.structure.selectedName,
+                      { compact: true, showMeta: false }
+                    )}
+                    ${renderEntryGroup(
+                      "Triggers",
+                      structure.grouped.triggers,
+                      state.structure.selectedName
+                    )}
+                  `
+                : ""
+            }
+          </div>
+        </aside>
 
+        <section class="structure-view__detail">
+          ${renderStructureWorkspaceHeader(structure, state.structure.selectedName)}
           ${
             state.structure.loading && !structure
               ? `
-                <div class="flex min-h-0 flex-1 items-center justify-center border border-outline-variant/10 bg-surface-container-low">
+                <div class="flex min-h-0 flex-1 items-center justify-center border-t border-outline-variant/10 bg-surface-container-low">
                   <div class="text-center text-on-surface-variant/40">
                     <span class="material-symbols-outlined mb-3 text-4xl">progress_activity</span>
                     <p class="font-mono text-[10px] uppercase tracking-[0.22em]">LOADING_STRUCTURE</p>
@@ -308,7 +376,7 @@ export function renderStructureView(state) {
               `
               : state.structure.error
                 ? `
-                    <div class="min-h-0 flex-1 border border-error/20 bg-error-container/10 px-6 py-5 text-sm text-on-surface">
+                    <div class="min-h-0 flex-1 border-t border-error/20 bg-error-container/10 px-6 py-5 text-sm text-on-surface">
                       <div class="font-headline text-xs font-bold uppercase tracking-[0.18em] text-error">
                         ${escapeHtml(state.structure.error.code)}
                       </div>
@@ -317,44 +385,18 @@ export function renderStructureView(state) {
                   `
                 : structure
                   ? `
-                      <section class="grid min-h-0 flex-1 grid-cols-1 gap-6 xl:grid-cols-[18.5rem_minmax(0,1fr)] 2xl:grid-cols-[19.5rem_minmax(0,1fr)]">
-                        <div class="custom-scrollbar min-h-0 overflow-y-auto pr-1">
-                          <div class="space-y-6">
-                          ${renderEntryGroup(
-                            "Tables",
-                            structure.grouped.tables,
-                            state.structure.selectedName,
-                            { compact: true, showMeta: false }
-                          )}
-                          ${renderEntryGroup(
-                            "Views",
-                            structure.grouped.views,
-                            state.structure.selectedName
-                          )}
-                          ${renderEntryGroup(
-                            "Indexes",
-                            structure.grouped.indexes,
-                            state.structure.selectedName,
-                            { compact: true, showMeta: false }
-                          )}
-                          ${renderEntryGroup(
-                            "Triggers",
-                            structure.grouped.triggers,
-                            state.structure.selectedName
-                          )}
-                          </div>
-                        </div>
+                      <div class="structure-view__graph-shell">
                         ${renderGraphSurface(
                           structure,
                           state.structure.selectedName,
                           detail,
                           state.structure.detailLoading
                         )}
-                      </section>
+                      </div>
                     `
                   : ""
           }
-        </div>
+        </section>
       </section>
     `,
     panel: "",

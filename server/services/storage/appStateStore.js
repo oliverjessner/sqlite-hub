@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const Database = require("better-sqlite3");
-const { NotFoundError, ValidationError } = require("../../utils/errors");
+const { ConflictError, NotFoundError, ValidationError } = require("../../utils/errors");
 const {
   buildAutoTitle,
   buildSqlPreview,
@@ -10,6 +10,13 @@ const {
   isDestructiveQuery,
   normalizeSql,
 } = require("./queryHistoryUtils");
+const {
+  buildDefaultChartName,
+  normalizeChartConfig,
+  normalizeChartName,
+  normalizeChartType,
+  normalizeResultColumns,
+} = require("./queryHistoryChartUtils");
 
 const DEFAULT_STATE = {
   recentConnections: [],
@@ -144,6 +151,20 @@ class AppStateStore {
         FOREIGN KEY (history_id) REFERENCES query_history(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS query_history_chart (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        query_history_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        chart_type TEXT NOT NULL CHECK (chart_type IN ('bar', 'line', 'pie', 'scatter')),
+        config_json TEXT NOT NULL,
+        result_columns_json TEXT NOT NULL DEFAULT '[]',
+        table_visible INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (query_history_id) REFERENCES query_history(id) ON DELETE CASCADE,
+        UNIQUE(query_history_id, name)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_query_history_database_key
       ON query_history(database_key);
 
@@ -170,6 +191,15 @@ class AppStateStore {
 
       CREATE INDEX IF NOT EXISTS idx_query_runs_status
       ON query_runs(status);
+
+      CREATE INDEX IF NOT EXISTS idx_query_history_chart_query_history_id
+      ON query_history_chart(query_history_id);
+
+      CREATE INDEX IF NOT EXISTS idx_query_history_chart_query_history_updated_at
+      ON query_history_chart(query_history_id, updated_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_query_history_chart_chart_type
+      ON query_history_chart(chart_type);
     `);
 
     const recentConnectionColumns = new Set(
@@ -528,6 +558,10 @@ class AppStateStore {
     const queryType = row.query_type ?? row.queryType ?? "other";
     const title = this.normalizeQueryHistoryText(row.title);
     const notes = this.normalizeQueryHistoryText(row.notes);
+    const chartTypes = String(row.chart_types ?? row.chartTypes ?? "")
+      .split(",")
+      .map((entry) => String(entry ?? "").trim().toLowerCase())
+      .filter((entry, index, values) => entry && values.indexOf(entry) === index);
     const lastRun =
       row.last_run_id ?? row.lastRunId
         ? this.decorateQueryRun({
@@ -557,6 +591,8 @@ class AppStateStore {
       useCount: Number(row.use_count ?? row.useCount ?? 0),
       firstExecutedAt: row.first_executed_at ?? row.firstExecutedAt ?? null,
       lastUsedAt: row.last_used_at ?? row.lastUsedAt ?? null,
+      chartCount: Number(row.chart_count ?? row.chartCount ?? 0),
+      chartTypes,
       displayTitle:
         title ||
         buildAutoTitle(row.raw_sql ?? row.rawSql, {
@@ -565,6 +601,58 @@ class AppStateStore {
         }),
       previewSql: buildSqlPreview(row.raw_sql ?? row.rawSql),
       lastRun,
+    };
+  }
+
+  parseQueryHistoryChartConfig(value) {
+    if (!value) {
+      return {};
+    }
+
+    if (typeof value === "object" && !Array.isArray(value)) {
+      return value;
+    }
+
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  parseQueryHistoryChartResultColumns(value) {
+    if (Array.isArray(value)) {
+      return normalizeResultColumns(value);
+    }
+
+    if (!value) {
+      return [];
+    }
+
+    try {
+      return normalizeResultColumns(JSON.parse(value));
+    } catch {
+      return [];
+    }
+  }
+
+  decorateQueryHistoryChartRow(row = {}) {
+    return {
+      id: Number(row.id),
+      queryHistoryId: Number(row.query_history_id ?? row.queryHistoryId),
+      name: String(row.name ?? ""),
+      chartType: normalizeChartType(row.chart_type ?? row.chartType ?? "bar"),
+      config: normalizeChartConfig(
+        row.chart_type ?? row.chartType ?? "bar",
+        this.parseQueryHistoryChartConfig(row.config_json ?? row.configJson)
+      ),
+      resultColumns: this.parseQueryHistoryChartResultColumns(
+        row.result_columns_json ?? row.resultColumnsJson
+      ),
+      tableVisible: Boolean(row.table_visible ?? row.tableVisible),
+      createdAt: row.created_at ?? row.createdAt ?? null,
+      updatedAt: row.updated_at ?? row.updatedAt ?? null,
     };
   }
 
@@ -952,6 +1040,65 @@ class AppStateStore {
     });
   }
 
+  getChartQueryHistoryList(databaseKey) {
+    const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
+
+    if (!normalizedDatabaseKey) {
+      return [];
+    }
+
+    return this.db
+      .prepare(`
+        SELECT
+          q.id,
+          q.database_key,
+          q.normalized_sql,
+          q.raw_sql,
+          q.title,
+          q.notes,
+          q.query_type,
+          q.tables_detected,
+          q.is_favorite,
+          q.is_saved,
+          q.is_destructive,
+          q.use_count,
+          q.first_executed_at,
+          q.last_used_at,
+          charts.chart_count,
+          charts.chart_types,
+          latest.id AS last_run_id,
+          latest.executed_at AS last_run_executed_at,
+          latest.duration_ms AS last_run_duration_ms,
+          latest.row_count AS last_run_row_count,
+          latest.status AS last_run_status,
+          latest.error_message AS last_run_error_message,
+          latest.affected_rows AS last_run_affected_rows
+        FROM query_history q
+        LEFT JOIN (
+          SELECT
+            query_history_id,
+            COUNT(*) AS chart_count,
+            GROUP_CONCAT(DISTINCT chart_type) AS chart_types
+          FROM query_history_chart
+          GROUP BY query_history_id
+        ) charts
+          ON charts.query_history_id = q.id
+        LEFT JOIN query_runs latest
+          ON latest.id = (
+            SELECT runs.id
+            FROM query_runs runs
+            WHERE runs.history_id = q.id
+            ORDER BY runs.executed_at DESC, runs.id DESC
+            LIMIT 1
+          )
+        WHERE q.database_key = ?
+          AND COALESCE(latest.status, 'success') != 'error'
+        ORDER BY q.last_used_at DESC, q.id DESC
+      `)
+      .all(normalizedDatabaseKey)
+      .map((row) => this.decorateQueryHistoryRow(row));
+  }
+
   getQueryHistoryItemById(historyId) {
     const row = this.db
       .prepare(`
@@ -997,6 +1144,17 @@ class AppStateStore {
     return this.decorateQueryHistoryRow(row);
   }
 
+  getQueryHistoryItemForDatabase(historyId, databaseKey) {
+    const item = this.getQueryHistoryItemById(historyId);
+    const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
+
+    if (normalizedDatabaseKey && item.databaseKey !== normalizedDatabaseKey) {
+      throw new NotFoundError(`Query history item not found: ${historyId}`);
+    }
+
+    return item;
+  }
+
   getQueryRunsByHistoryId(historyId, limit = 8) {
     const normalizedLimit = Math.max(1, Math.min(50, Number(limit) || 8));
 
@@ -1020,6 +1178,95 @@ class AppStateStore {
       .map((row) => this.decorateQueryRun(row));
   }
 
+  getQueryHistoryChartsByHistoryId(historyId) {
+    return this.db
+      .prepare(`
+        SELECT
+          id,
+          query_history_id,
+          name,
+          chart_type,
+          config_json,
+          result_columns_json,
+          table_visible,
+          created_at,
+          updated_at
+        FROM query_history_chart
+        WHERE query_history_id = ?
+        ORDER BY created_at ASC, id ASC
+      `)
+      .all(Number(historyId))
+      .map((row) => this.decorateQueryHistoryChartRow(row));
+  }
+
+  getQueryHistoryChartById(chartId) {
+    const row = this.db
+      .prepare(`
+        SELECT
+          c.id,
+          c.query_history_id,
+          c.name,
+          c.chart_type,
+          c.config_json,
+          c.result_columns_json,
+          c.table_visible,
+          c.created_at,
+          c.updated_at
+        FROM query_history_chart c
+        WHERE c.id = ?
+      `)
+      .get(Number(chartId));
+
+    if (!row) {
+      throw new NotFoundError(`Query history chart not found: ${chartId}`);
+    }
+
+    return this.decorateQueryHistoryChartRow(row);
+  }
+
+  getQueryHistoryChartForDatabase(chartId, databaseKey) {
+    const row = this.db
+      .prepare(`
+        SELECT
+          c.id,
+          c.query_history_id,
+          c.name,
+          c.chart_type,
+          c.config_json,
+          c.result_columns_json,
+          c.table_visible,
+          c.created_at,
+          c.updated_at,
+          q.database_key
+        FROM query_history_chart c
+        INNER JOIN query_history q
+          ON q.id = c.query_history_id
+        WHERE c.id = ?
+      `)
+      .get(Number(chartId));
+
+    if (!row) {
+      throw new NotFoundError(`Query history chart not found: ${chartId}`);
+    }
+
+    const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
+
+    if (normalizedDatabaseKey && row.database_key !== normalizedDatabaseKey) {
+      throw new NotFoundError(`Query history chart not found: ${chartId}`);
+    }
+
+    return this.decorateQueryHistoryChartRow(row);
+  }
+
+  getQueryHistoryChartsDetail(historyId, databaseKey) {
+    const item = this.getQueryHistoryItemForDatabase(historyId, databaseKey);
+
+    return {
+      item,
+      charts: this.getQueryHistoryChartsByHistoryId(item.id),
+    };
+  }
+
   updateQueryHistoryField(historyId, fieldName, value) {
     const result = this.db
       .prepare(`UPDATE query_history SET ${fieldName} = ? WHERE id = ?`)
@@ -1030,6 +1277,158 @@ class AppStateStore {
     }
 
     return this.getQueryHistoryItemById(historyId);
+  }
+
+  resolveUniqueQueryHistoryChartName(queryHistoryId, candidateName, { excludeChartId = null } = {}) {
+    const baseName = normalizeChartName(candidateName) || "Chart";
+    let nextName = baseName;
+    let suffix = 2;
+
+    while (true) {
+      const row = this.db
+        .prepare(`
+          SELECT id
+          FROM query_history_chart
+          WHERE query_history_id = ?
+            AND name = ?
+            ${excludeChartId ? "AND id != ?" : ""}
+          LIMIT 1
+        `)
+        .get(
+          Number(queryHistoryId),
+          nextName,
+          ...(excludeChartId ? [Number(excludeChartId)] : [])
+        );
+
+      if (!row) {
+        return nextName;
+      }
+
+      nextName = `${baseName}_${suffix}`;
+      suffix += 1;
+    }
+  }
+
+  createQueryHistoryChart({
+    queryHistoryId,
+    name,
+    chartType,
+    config,
+    resultColumns = [],
+    tableVisible = true,
+    databaseKey = null,
+  } = {}) {
+    const item = this.getQueryHistoryItemForDatabase(queryHistoryId, databaseKey);
+    const normalizedChartType = normalizeChartType(chartType);
+    const normalizedConfig = normalizeChartConfig(normalizedChartType, config);
+    const normalizedResultColumns = normalizeResultColumns(resultColumns);
+    const requestedName =
+      normalizeChartName(name) || buildDefaultChartName(normalizedChartType, item.displayTitle);
+    const uniqueName = this.resolveUniqueQueryHistoryChartName(item.id, requestedName);
+    const timestamp = new Date().toISOString();
+    const insertResult = this.db
+      .prepare(`
+        INSERT INTO query_history_chart (
+          query_history_id,
+          name,
+          chart_type,
+          config_json,
+          result_columns_json,
+          table_visible,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        item.id,
+        uniqueName,
+        normalizedChartType,
+        JSON.stringify(normalizedConfig),
+        JSON.stringify(normalizedResultColumns),
+        tableVisible ? 1 : 0,
+        timestamp,
+        timestamp
+      );
+
+    return this.getQueryHistoryChartById(insertResult.lastInsertRowid);
+  }
+
+  updateQueryHistoryChart(
+    chartId,
+    { name, chartType, config, resultColumns, tableVisible, databaseKey = null } = {}
+  ) {
+    const existing = this.getQueryHistoryChartForDatabase(chartId, databaseKey);
+    const nextChartType = chartType ? normalizeChartType(chartType) : existing.chartType;
+    const nextName =
+      name === undefined ? existing.name : normalizeChartName(name);
+
+    if (!nextName) {
+      throw new ValidationError("Chart name is required.");
+    }
+
+    const conflicting = this.db
+      .prepare(`
+        SELECT id
+        FROM query_history_chart
+        WHERE query_history_id = ?
+          AND name = ?
+          AND id != ?
+        LIMIT 1
+      `)
+      .get(existing.queryHistoryId, nextName, existing.id);
+
+    if (conflicting) {
+      throw new ConflictError(`A chart named "${nextName}" already exists for this query.`);
+    }
+
+    const nextConfig = normalizeChartConfig(
+      nextChartType,
+      config === undefined ? existing.config : config
+    );
+    const nextResultColumns =
+      resultColumns === undefined ? existing.resultColumns : normalizeResultColumns(resultColumns);
+    const nextTableVisible =
+      tableVisible === undefined ? existing.tableVisible : Boolean(tableVisible);
+    const timestamp = new Date().toISOString();
+
+    this.db
+      .prepare(`
+        UPDATE query_history_chart
+        SET
+          name = ?,
+          chart_type = ?,
+          config_json = ?,
+          result_columns_json = ?,
+          table_visible = ?,
+          updated_at = ?
+        WHERE id = ?
+      `)
+      .run(
+        nextName,
+        nextChartType,
+        JSON.stringify(nextConfig),
+        JSON.stringify(nextResultColumns),
+        nextTableVisible ? 1 : 0,
+        timestamp,
+        existing.id
+      );
+
+    return this.getQueryHistoryChartById(existing.id);
+  }
+
+  deleteQueryHistoryChart(chartId, databaseKey = null) {
+    this.getQueryHistoryChartForDatabase(chartId, databaseKey);
+
+    const result = this.db
+      .prepare("DELETE FROM query_history_chart WHERE id = ?")
+      .run(Number(chartId));
+
+    if (!result.changes) {
+      throw new NotFoundError(`Query history chart not found: ${chartId}`);
+    }
+
+    return true;
   }
 
   toggleFavorite(historyId, nextValue) {

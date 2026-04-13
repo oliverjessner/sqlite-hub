@@ -5,6 +5,7 @@ const sidebarItems = [
   { label: "Connections", href: "#/connections", key: "connections", icon: "database" },
   { label: "Overview", href: "#/overview", key: "overview", icon: "dashboard" },
   { label: "Data", href: "#/data", key: "data", icon: "table_rows" },
+  { label: "Charts", href: "#/charts", key: "charts", icon: "bar_chart" },
   { label: "SQL Editor", href: "#/editor", key: "editor", icon: "terminal" },
   { label: "Structure", href: "#/structure", key: "structure", icon: "account_tree" },
   { label: "Table Designer", href: "#/table-designer", key: "tableDesigner", icon: "table_chart" },

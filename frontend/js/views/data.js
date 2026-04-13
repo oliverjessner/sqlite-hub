@@ -67,6 +67,7 @@ function renderTableList(state) {
 
 function renderWorkspaceHeader(state) {
     const table = state.dataBrowser.table;
+    const tablesVisible = state.dataBrowser.tablesVisible !== false;
 
     return `
     <header class="border-b border-outline-variant/10 bg-surface-container px-6 py-5">
@@ -91,15 +92,20 @@ function renderWorkspaceHeader(state) {
         <div class="flex items-center gap-3">
           ${
               table
-                  ? `
+                  ? `<button
+                    class="border border-outline-variant/20 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface hover:bg-surface-container-highest"
+                    data-action="toggle-data-tables"
+                    type="button"
+                  >
+                    ${tablesVisible ? '<span class="material-symbols-outlined text-sm">visibility_off</span> Hide Tables' : 'Show Tables'}
+                  </button>
                   <button
                     class="border border-outline-variant/20 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface hover:bg-surface-container-highest"
                     data-action="export-data-csv"
                     type="button"
                   >
                     ${state.dataBrowser.exportLoading ? 'Exporting...' : 'Export CSV'}
-                  </button>
-                `
+                  </button>`
                   : ''
           }
           <button
@@ -505,21 +511,29 @@ function renderDataRowEditorPanel(state) {
 }
 
 export function renderDataView(state) {
+    const tablesVisible = state.dataBrowser.tablesVisible !== false;
+
     return {
         main: `
       <section class="view-surface min-h-full bg-surface-container flex h-full min-h-0 flex-col overflow-hidden">
-        <div class="grid h-full min-h-0 grid-cols-1 md:grid-cols-[18rem_minmax(0,1fr)]">
-          <aside class="flex min-h-0 flex-col border-r border-outline-variant/10 bg-surface-low">
-            <div class="border-b border-outline-variant/10 px-6 py-5">
-              <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
-                Tables
-              </div>
-              <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-                total ${escapeHtml(formatNumber(state.dataBrowser.tables.length))}
-              </div>
-            </div>
-            ${renderTableList(state)}
-          </aside>
+        <div class="grid h-full min-h-0 grid-cols-1 ${tablesVisible ? 'md:grid-cols-[18rem_minmax(0,1fr)]' : ''}">
+          ${
+              tablesVisible
+                  ? `
+                    <aside class="flex min-h-0 flex-col border-r border-outline-variant/10 bg-surface-low">
+                      <div class="border-b border-outline-variant/10 px-6 py-5">
+                        <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
+                          Tables
+                        </div>
+                        <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
+                          total ${escapeHtml(formatNumber(state.dataBrowser.tables.length))}
+                        </div>
+                      </div>
+                      ${renderTableList(state)}
+                    </aside>
+                  `
+                  : ''
+          }
           <section class="flex min-h-0 flex-col overflow-hidden">
             ${renderWorkspaceHeader(state)}
             ${renderWorkspaceError(state)}

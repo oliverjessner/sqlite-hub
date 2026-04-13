@@ -185,6 +185,40 @@ export function getQueryHistoryItem(historyId) {
   return request(`/api/sql/history/${encodeURIComponent(historyId)}`);
 }
 
+export function getChartsQueryHistory() {
+  return request("/api/charts/query-history");
+}
+
+export function getChartsQueryHistoryDetail(historyId) {
+  return request(`/api/charts/query-history/${encodeURIComponent(historyId)}`);
+}
+
+export function executeChartsQueryHistory(historyId) {
+  return request(`/api/charts/query-history/${encodeURIComponent(historyId)}/execute`, {
+    method: "POST",
+  });
+}
+
+export function createQueryHistoryChart(payload) {
+  return request("/api/charts", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function updateQueryHistoryChart(chartId, payload) {
+  return request(`/api/charts/${encodeURIComponent(chartId)}`, {
+    method: "PATCH",
+    body: payload,
+  });
+}
+
+export function deleteQueryHistoryChart(chartId) {
+  return request(`/api/charts/${encodeURIComponent(chartId)}`, {
+    method: "DELETE",
+  });
+}
+
 export function getQueryHistoryRuns(historyId, options = {}) {
   const params = new URLSearchParams();
 

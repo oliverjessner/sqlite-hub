@@ -3,6 +3,7 @@
 - hide query history, hide editor
 - better cli interface
 - plotting and graphs
+- removing inconsistencies in the UI
 
 # v0.6.0
 

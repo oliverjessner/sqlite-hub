@@ -13,6 +13,14 @@ export function parseHash(hash = window.location.hash) {
       return { name: "connections", path: "/connections", params: {} };
     case "overview":
       return { name: "overview", path: "/overview", params: {} };
+    case "charts":
+      return {
+        name: "charts",
+        path: cleanPath,
+        params: {
+          historyId: segments[1] ? decodeURIComponent(segments[1]) : null,
+        },
+      };
     case "editor":
       if (segments[1] === "results") {
         return { name: "editorResults", path: "/editor/results", params: {} };

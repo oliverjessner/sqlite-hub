@@ -1,28 +1,29 @@
-import { escapeHtml, formatNumber } from "../utils/format.js";
+import { escapeHtml, formatNumber } from '../utils/format.js';
 
 function getFilteredTables(tables, searchQuery) {
-  const normalizedSearch = String(searchQuery ?? "").trim().toLowerCase();
+    const normalizedSearch = String(searchQuery ?? '')
+        .trim()
+        .toLowerCase();
 
-  if (!normalizedSearch) {
-    return tables;
-  }
+    if (!normalizedSearch) {
+        return tables;
+    }
 
-  return tables.filter((table) => table.name.toLowerCase().includes(normalizedSearch));
+    return tables.filter(table => table.name.toLowerCase().includes(normalizedSearch));
 }
 
 export function renderTableDesignerSidebar(state) {
-  const tables = state.tableDesigner.tables ?? [];
-  const filteredTables = getFilteredTables(tables, state.tableDesigner.searchQuery);
-  const isNewDraft = state.tableDesigner.draft?.mode === "create";
+    const tables = state.tableDesigner.tables ?? [];
+    const filteredTables = getFilteredTables(tables, state.tableDesigner.searchQuery);
+    const isNewDraft = state.tableDesigner.draft?.mode === 'create';
 
-  return `
+    return `
     <aside class="table-designer-sidebar">
       <div class="table-designer-sidebar__header">
         <div>
-          <div class="table-designer-sidebar__eyebrow">Schema Workspace</div>
-          <div class="table-designer-sidebar__title">Table Designer</div>
+          <div class="table-designer-sidebar__eyebrow">Table Designer</div>
           <div class="table-designer-sidebar__meta">
-            ${escapeHtml(formatNumber(tables.length))} table${tables.length === 1 ? "" : "s"}
+            ${escapeHtml(formatNumber(tables.length))} table${tables.length === 1 ? '' : 's'}
           </div>
         </div>
         <div class="table-designer-sidebar__header-actions">
@@ -58,23 +59,23 @@ export function renderTableDesignerSidebar(state) {
           placeholder="Search tables..."
           spellcheck="false"
           type="search"
-          value="${escapeHtml(state.tableDesigner.searchQuery ?? "")}"
+          value="${escapeHtml(state.tableDesigner.searchQuery ?? '')}"
         />
       </label>
 
       <div class="table-designer-sidebar__list custom-scrollbar">
         ${
-          state.tableDesigner.loading && !tables.length
-            ? `
+            state.tableDesigner.loading && !tables.length
+                ? `
                 <div class="table-designer-sidebar__empty">
                   <span class="material-symbols-outlined mb-2 text-3xl">progress_activity</span>
                   <div>Loading SQLite schema...</div>
                 </div>
               `
-            : isNewDraft
-              ? `
+                : isNewDraft
+                  ? `
                   <button
-                    class="table-designer-sidebar__item is-active"
+                    class="table-designer-sidebar__item is-active w-full border border-primary-container/30 bg-surface-container-high px-4 py-3 text-left transition-colors"
                     data-action="navigate"
                     data-to="/table-designer/new"
                     type="button"
@@ -83,42 +84,44 @@ export function renderTableDesignerSidebar(state) {
                     <div class="table-designer-sidebar__item-meta">unsaved schema</div>
                   </button>
                 `
-              : ""
+                  : ''
         }
         ${
-          !filteredTables.length && !state.tableDesigner.loading
-            ? `
+            !filteredTables.length && !state.tableDesigner.loading
+                ? `
                 <div class="table-designer-sidebar__empty">
                   ${
-                    tables.length
-                      ? "No tables match the current search."
-                      : "No tables found. Create the first table in this database."
+                      tables.length
+                          ? 'No tables match the current search.'
+                          : 'No tables found. Create the first table in this database.'
                   }
                 </div>
               `
-            : filteredTables
-                .map(
-                  (table) => `
+                : filteredTables
+                      .map(
+                          table => `
                     <button
-                      class="table-designer-sidebar__item ${
-                        !isNewDraft && table.name === state.tableDesigner.selectedTableName
-                          ? "is-active"
-                          : ""
+                      class="table-designer-sidebar__item w-full border px-4 py-3 text-left transition-colors ${
+                          !isNewDraft && table.name === state.tableDesigner.selectedTableName
+                              ? 'is-active border-primary-container/30 bg-surface-container-high'
+                              : 'border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-high'
                       }"
                       data-action="navigate"
                       data-to="/table-designer/${encodeURIComponent(table.name)}"
                       type="button"
                     >
-                      <div class="table-designer-sidebar__item-name">${escapeHtml(table.name)}</div>
-                      <div class="table-designer-sidebar__item-meta">
+                      <div class="table-designer-sidebar__item-name ${
+                          !isNewDraft && table.name === state.tableDesigner.selectedTableName ? 'is-active' : ''
+                      }">${escapeHtml(table.name)}</div>
+                      <div class="mt-1 truncate text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45">
                         ${escapeHtml(formatNumber(table.columnCount ?? 0))} column${
-                          Number(table.columnCount ?? 0) === 1 ? "" : "s"
+                            Number(table.columnCount ?? 0) === 1 ? '' : 's'
                         }
                       </div>
                     </button>
-                  `
-                )
-                .join("")
+                  `,
+                      )
+                      .join('')
         }
       </div>
     </aside>

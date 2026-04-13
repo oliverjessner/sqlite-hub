@@ -4,9 +4,14 @@ import { renderSidebar } from "./components/sidebar.js";
 import { renderStatusBar } from "./components/statusBar.js";
 import {
   mountStructureGraph,
-  resetPersistedStructureGraphState,
   teardownStructureGraph,
+  resetPersistedStructureGraphState,
 } from "./components/structureGraph.js";
+import {
+  exportQueryChartAsPng,
+  mountQueryChartRenderer,
+  teardownQueryChartRenderer,
+} from "./components/queryChartRenderer.js";
 import { renderToasts } from "./components/toast.js";
 import { renderTopNav } from "./components/topNav.js";
 import { createRouter } from "./router.js";
@@ -31,10 +36,14 @@ import {
   openQueryHistoryInEditor,
   openDeleteDataRowModal,
   openDeleteEditorRowModal,
+  openDeleteQueryChartModal,
   openEditConnectionModal,
+  openCreateQueryChartModal,
+  openEditQueryChartModal,
   refreshCurrentRoute,
   removeConnection,
   runQueryHistoryItem,
+  saveCurrentQueryChartDraft,
   selectDataRow,
   selectEditorRow,
   selectConnection,
@@ -45,9 +54,12 @@ import {
   setDataPageSize,
   setDataSearchColumn,
   setDataSearchQuery,
+  toggleDataTablesPanel,
   setCurrentQuery,
+  setChartsHeightPreset,
   setEditorPanelVisibility,
   setEditorTab,
+  submitDeleteChartConfirmation,
   setQueryHistoryPanelVisibility,
   sortDataTableByColumn,
   sortEditorResultsByColumn,
@@ -57,6 +69,8 @@ import {
   saveQueryHistoryNotes,
   saveQueryHistoryTitle,
   saveCurrentTableDesignerDraft,
+  toggleChartsResultsPanel,
+  toggleChartsSqlPanel,
   queueTableDesignerCsvImport,
   showToast,
   submitCreateConnection,
@@ -68,11 +82,14 @@ import {
   submitOpenConnection,
   subscribe,
   toggleQueryHistorySavedState,
+  updateCurrentQueryChartDraftConfigField,
+  updateCurrentQueryChartDraftField,
   updateCurrentTableDesignerColumnField,
   updateCurrentTableDesignerField,
   addCurrentTableDesignerColumn,
   removeCurrentTableDesignerColumn,
 } from "./store.js";
+import { renderChartsView } from "./views/charts.js";
 import { renderConnectionsView } from "./views/connections.js";
 import { renderDataView } from "./views/data.js";
 import { renderEditorView } from "./views/editor.js";
@@ -220,6 +237,8 @@ function resolveView(state) {
       return renderConnectionsView(state);
     case "overview":
       return renderOverviewView(state);
+    case "charts":
+      return renderChartsView(state);
     case "data":
       return renderDataView(state);
     case "editor":
@@ -413,7 +432,7 @@ function renderApp(state) {
   const focusedInput = captureFocusedInputState();
   const previousRoutePath = lastRenderedRoutePath;
   const { main, panel } = resolveView(state);
-  const isLockedRoute = ["editor", "editorResults", "data", "structure", "tableDesigner"].includes(
+  const isLockedRoute = ["editor", "editorResults", "data", "charts", "structure", "tableDesigner"].includes(
     state.route.name
   );
   const isEnteringNewTableDesignerRoute =
@@ -428,6 +447,7 @@ function renderApp(state) {
   }
 
   teardownStructureGraph();
+  teardownQueryChartRenderer();
   shellRefs.topNav.innerHTML = renderTopNav(state);
   shellRefs.sidebar.innerHTML = renderSidebar(state);
   shellRefs.statusBar.innerHTML = renderStatusBar(state);
@@ -458,6 +478,10 @@ function renderApp(state) {
       console.error("Failed to mount structure graph.", error);
     });
   }
+
+  if (state.route.name === "charts") {
+    mountQueryChartRenderer(state);
+  }
 }
 
 const router = createRouter((route) => {
@@ -481,6 +505,15 @@ async function handleAction(actionNode) {
       return;
     case "open-modal":
       openModal(actionNode.dataset.modal);
+      return;
+    case "open-create-query-chart-modal":
+      openCreateQueryChartModal();
+      return;
+    case "open-edit-query-chart-modal":
+      openEditQueryChartModal(actionNode.dataset.chartId);
+      return;
+    case "open-delete-query-chart-modal":
+      openDeleteQueryChartModal(actionNode.dataset.chartId);
       return;
     case "edit-connection":
       openEditConnectionModal(actionNode.dataset.connectionId);
@@ -588,6 +621,22 @@ async function handleAction(actionNode) {
         );
       }
       return;
+    case "toggle-charts-sql-panel":
+      toggleChartsSqlPanel();
+      return;
+    case "toggle-charts-results-panel":
+      toggleChartsResultsPanel();
+      return;
+    case "set-charts-height-preset":
+      if (actionNode.dataset.preset) {
+        setChartsHeightPreset(actionNode.dataset.preset);
+      }
+      return;
+    case "export-query-chart-png":
+      if (actionNode.dataset.chartId && !exportQueryChartAsPng(actionNode.dataset.chartId)) {
+        showToast("The selected chart is not ready for PNG export.", "alert");
+      }
+      return;
     case "delete-query-history":
       if (
         actionNode.dataset.historyId &&
@@ -610,6 +659,9 @@ async function handleAction(actionNode) {
       return;
     case "export-data-csv":
       await exportCurrentDataTableCsv();
+      return;
+    case "toggle-data-tables":
+      toggleDataTablesPanel();
       return;
     case "select-structure-entry":
       if (actionNode.dataset.entryName) {
@@ -806,6 +858,11 @@ document.addEventListener("input", (event) => {
 
   if (bindNode.dataset.bind === "query-history-search") {
     setQueryHistorySearchInput(bindNode.value);
+    return;
+  }
+
+  if (bindNode.dataset.bind === "query-chart-draft:name") {
+    updateCurrentQueryChartDraftField("name", bindNode.value);
   }
 });
 
@@ -865,6 +922,28 @@ document.addEventListener("change", (event) => {
       bindNode.dataset.field,
       bindNode.checked
     );
+    return;
+  }
+
+  if (bindNode.dataset.bind === "query-chart-draft:chartType") {
+    updateCurrentQueryChartDraftField("chartType", bindNode.value);
+    return;
+  }
+
+  if (bindNode.dataset.bind === "query-chart-draft:tableVisible") {
+    updateCurrentQueryChartDraftField("tableVisible", bindNode.checked);
+    return;
+  }
+
+  if (bindNode.dataset.bind?.startsWith("query-chart-draft-config:")) {
+    const field = bindNode.dataset.bind.slice("query-chart-draft-config:".length);
+    const value =
+      bindNode instanceof HTMLInputElement && bindNode.type === "checkbox"
+        ? bindNode.checked
+        : bindNode.value === ""
+          ? null
+          : bindNode.value;
+    updateCurrentQueryChartDraftConfigField(field, value);
   }
 });
 
@@ -949,6 +1028,12 @@ document.addEventListener("submit", async (event) => {
     }
     case "delete-row-confirm":
       await submitDeleteRowConfirmation();
+      return;
+    case "save-query-chart":
+      await saveCurrentQueryChartDraft();
+      return;
+    case "delete-query-chart":
+      await submitDeleteChartConfirmation();
       return;
     case "save-data-row": {
       const values = {};
