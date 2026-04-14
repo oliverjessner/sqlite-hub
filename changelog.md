@@ -1,3 +1,7 @@
+# v0.8.1
+
+- UX fixes
+
 # v0.8.0
 
 - DDL copy button
