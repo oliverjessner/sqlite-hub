@@ -74,6 +74,7 @@ function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
           : appStateStore.getRecentQueries({
               ...options,
               onlySaved: tab === "saved" ? true : options.onlySaved,
+              onlyUnsaved: tab === "unsaved",
             });
 
       res.json(

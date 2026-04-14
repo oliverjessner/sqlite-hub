@@ -109,6 +109,7 @@ function renderQueryHistoryTabs(activeTab, historyTotal) {
   const tabs = [
     { id: "recent", label: "Recent" },
     { id: "saved", label: "Saved" },
+    { id: "unsaved", label: "Unsaved" },
     { id: "failed", label: "Failed" },
   ];
 

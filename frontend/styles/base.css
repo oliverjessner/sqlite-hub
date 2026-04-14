@@ -195,6 +195,7 @@ img {
 
 .query-editor-layer {
     display: grid;
+    height: 100%;
     min-height: 140px;
     overflow: hidden;
 }
@@ -217,7 +218,7 @@ img {
 
 .query-editor-highlight {
     color: var(--color-on-surface);
-    overflow: hidden;
+    overflow: visible;
     pointer-events: none;
 }
 
@@ -229,6 +230,11 @@ img {
     caret-color: var(--color-on-surface);
     color: transparent;
     overflow: auto;
+}
+
+.query-editor-gutter-track {
+    min-height: 100%;
+    will-change: transform;
 }
 
 .query-editor-input::placeholder {

@@ -23,7 +23,6 @@ import {
   clearEditorResults,
   clearQueryHistorySelection,
   closeModal,
-  deleteQueryHistoryStateItem,
   dismissToast,
   executeCurrentQuery,
   exportCurrentDataTableCsv,
@@ -36,6 +35,7 @@ import {
   openQueryHistoryInEditor,
   openDeleteDataRowModal,
   openDeleteEditorRowModal,
+  openDeleteQueryHistoryModal,
   openDeleteQueryChartModal,
   openEditConnectionModal,
   openCreateQueryChartModal,
@@ -62,6 +62,7 @@ import {
   setEditorPanelVisibility,
   setEditorTab,
   submitDeleteChartConfirmation,
+  submitDeleteQueryHistoryConfirmation,
   setQueryHistoryPanelVisibility,
   sortDataTableByColumn,
   sortEditorResultsByColumn,
@@ -167,12 +168,19 @@ function syncQueryEditorScroll(textarea) {
 
   const layer = textarea.closest(".query-editor-layer");
   const highlightNode = layer?.querySelector("[data-query-editor-highlight]");
+  const gutterNode = textarea
+    .closest(".query-editor-shell")
+    ?.querySelector("[data-query-editor-gutter]");
 
   if (!(highlightNode instanceof HTMLElement)) {
     return;
   }
 
   highlightNode.style.transform = `translate(${-textarea.scrollLeft}px, ${-textarea.scrollTop}px)`;
+
+  if (gutterNode instanceof HTMLElement) {
+    gutterNode.style.transform = `translateY(${-textarea.scrollTop}px)`;
+  }
 }
 
 function readFileAsBase64(file) {
@@ -586,6 +594,9 @@ async function handleAction(actionNode) {
     case "open-delete-query-chart-modal":
       openDeleteQueryChartModal(actionNode.dataset.chartId);
       return;
+    case "open-delete-query-history-modal":
+      openDeleteQueryHistoryModal(actionNode.dataset.historyId);
+      return;
     case "edit-connection":
       openEditConnectionModal(actionNode.dataset.connectionId);
       return;
@@ -707,14 +718,6 @@ async function handleAction(actionNode) {
     case "export-query-chart-png":
       if (actionNode.dataset.chartId && !exportQueryChartAsPng(actionNode.dataset.chartId)) {
         showToast("The selected chart is not ready for PNG export.", "alert");
-      }
-      return;
-    case "delete-query-history":
-      if (
-        actionNode.dataset.historyId &&
-        window.confirm("Delete this query history item and all recorded runs?")
-      ) {
-        await deleteQueryHistoryStateItem(actionNode.dataset.historyId);
       }
       return;
     case "set-editor-tab": {
@@ -1115,6 +1118,9 @@ document.addEventListener("submit", async (event) => {
       return;
     case "delete-query-chart":
       await submitDeleteChartConfirmation();
+      return;
+    case "delete-query-history-confirm":
+      await submitDeleteQueryHistoryConfirmation();
       return;
     case "save-data-row": {
       const values = {};

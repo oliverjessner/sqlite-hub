@@ -1,19 +1,14 @@
-import { renderBottomTabs } from "../components/bottomTabs.js";
-import { renderQueryEditor } from "../components/queryEditor.js";
-import { renderQueryHistoryDetail } from "../components/queryHistoryDetail.js";
-import { renderQueryHistoryPanel } from "../components/queryHistoryPanel.js";
-import { renderRowEditorPanel } from "../components/rowEditorPanel.js";
-import { renderQueryResultsPane } from "../components/queryResults.js";
-import { getCurrentConnection, getQueryMessages, getQueryPerformance } from "../store.js";
-import {
-  escapeHtml,
-  formatCellValue,
-  formatNumber,
-  isBlobPreview,
-} from "../utils/format.js";
+import { renderBottomTabs } from '../components/bottomTabs.js';
+import { renderQueryEditor } from '../components/queryEditor.js';
+import { renderQueryHistoryDetail } from '../components/queryHistoryDetail.js';
+import { renderQueryHistoryPanel } from '../components/queryHistoryPanel.js';
+import { renderRowEditorPanel } from '../components/rowEditorPanel.js';
+import { renderQueryResultsPane } from '../components/queryResults.js';
+import { getCurrentConnection, getQueryMessages, getQueryPerformance } from '../store.js';
+import { escapeHtml, formatCellValue, formatNumber, isBlobPreview } from '../utils/format.js';
 
 function renderMissingDatabase() {
-  return `
+    return `
     <div class="flex flex-1 flex-col items-center justify-center bg-surface-container-lowest px-8 text-center">
       <span class="material-symbols-outlined mb-3 text-5xl text-on-surface-variant/25">database_off</span>
       <p class="font-headline text-xl font-black uppercase tracking-tight text-primary-container">
@@ -27,60 +22,60 @@ function renderMissingDatabase() {
 }
 
 function renderMessagesPane(state) {
-  const items = getQueryMessages(state);
+    const items = getQueryMessages(state);
 
-  return `
+    return `
     <div class="custom-scrollbar h-full overflow-auto bg-surface-container-lowest px-6 py-6">
       <div class="space-y-4">
         ${items
-          .map(
-            (item) => `
+            .map(
+                item => `
               <div class="border border-outline-variant/10 bg-surface-container-low px-4 py-4">
                 <div class="text-[10px] font-mono uppercase tracking-[0.2em] ${
-                  item.tone === "alert" ? "text-error" : "text-primary-container"
+                    item.tone === 'alert' ? 'text-error' : 'text-primary-container'
                 }">
                   ${escapeHtml(item.label)}
                 </div>
                 <div class="mt-2 text-sm text-on-surface">${escapeHtml(item.value)}</div>
               </div>
-            `
-          )
-          .join("")}
+            `,
+            )
+            .join('')}
       </div>
     </div>
   `;
 }
 
 function renderPerformancePane(state) {
-  const metrics = getQueryPerformance(state);
+    const metrics = getQueryPerformance(state);
 
-  return `
+    return `
     <div class="grid flex-1 grid-cols-1 gap-4 bg-surface-container-lowest p-6 md:grid-cols-4">
       <div class="metric-card">
         <span class="text-[10px] font-mono uppercase text-on-surface/40">Exec_Time</span>
         <span class="font-headline text-3xl font-bold text-on-surface">${escapeHtml(
-          String(metrics.timingMs ?? 0)
+            String(metrics.timingMs ?? 0),
         )}ms</span>
         <span class="text-[10px] text-primary-container">Measured backend execution time</span>
       </div>
       <div class="metric-card">
         <span class="text-[10px] font-mono uppercase text-on-surface/40">Statements</span>
         <span class="font-headline text-3xl font-bold text-on-surface">${escapeHtml(
-          formatNumber(metrics.statementCount)
+            formatNumber(metrics.statementCount),
         )}</span>
         <span class="text-[10px] text-on-surface/40">Split and executed by SQLite</span>
       </div>
       <div class="metric-card">
         <span class="text-[10px] font-mono uppercase text-on-surface/40">Rows_Returned</span>
         <span class="font-headline text-3xl font-bold text-on-surface">${escapeHtml(
-          formatNumber(metrics.rowCount)
+            formatNumber(metrics.rowCount),
         )}</span>
         <span class="text-[10px] text-on-surface/40">Visible result set size</span>
       </div>
       <div class="metric-card metric-card--accent">
         <span class="text-[10px] font-mono uppercase text-on-surface/40">Rows_Affected</span>
         <span class="font-headline text-3xl font-bold text-on-surface">${escapeHtml(
-          formatNumber(metrics.affectedRowCount)
+            formatNumber(metrics.affectedRowCount),
         )}</span>
         <span class="text-[10px] text-primary-container">INSERT / UPDATE / DELETE impact</span>
       </div>
@@ -89,144 +84,144 @@ function renderPerformancePane(state) {
 }
 
 function getResultEditingState(state) {
-  const editing = state.editor.result?.editing;
+    const editing = state.editor.result?.editing;
 
-  if (!editing) {
+    if (!editing) {
+        return {
+            enabled: false,
+            message: '',
+        };
+    }
+
+    if (state.connections.active?.readOnly) {
+        return {
+            enabled: false,
+            message: 'The active database is opened read-only, so query result editing is disabled.',
+        };
+    }
+
+    if (!editing.enabled) {
+        return {
+            enabled: false,
+            message: editing.reason || 'Only direct single-table SELECT results can be edited here.',
+        };
+    }
+
     return {
-      enabled: false,
-      message: "",
+        enabled: true,
+        message: `Click a row to edit it in ${editing.tableName}.`,
     };
-  }
-
-  if (state.connections.active?.readOnly) {
-    return {
-      enabled: false,
-      message: "The active database is opened read-only, so query result editing is disabled.",
-    };
-  }
-
-  if (!editing.enabled) {
-    return {
-      enabled: false,
-      message: editing.reason || "Only direct single-table SELECT results can be edited here.",
-    };
-  }
-
-  return {
-    enabled: true,
-    message: `Click a row to edit it in ${editing.tableName}.`,
-  };
 }
 
 function getUniqueResultColumns(columns = []) {
-  const uniqueColumns = [];
-  const seen = new Set();
+    const uniqueColumns = [];
+    const seen = new Set();
 
-  columns.forEach((column) => {
-    if (!column?.sourceColumn || seen.has(column.sourceColumn)) {
-      return;
-    }
+    columns.forEach(column => {
+        if (!column?.sourceColumn || seen.has(column.sourceColumn)) {
+            return;
+        }
 
-    seen.add(column.sourceColumn);
-    uniqueColumns.push(column);
-  });
+        seen.add(column.sourceColumn);
+        uniqueColumns.push(column);
+    });
 
-  return uniqueColumns;
+    return uniqueColumns;
 }
 
 function renderEditorRowPanel(state) {
-  const result = state.editor.result;
-  const rowIndex = state.editor.selectedRowIndex;
-  const row = typeof rowIndex === "number" ? result?.rows?.[rowIndex] ?? null : null;
+    const result = state.editor.result;
+    const rowIndex = state.editor.selectedRowIndex;
+    const row = typeof rowIndex === 'number' ? (result?.rows?.[rowIndex] ?? null) : null;
 
-  if (!result || !row || typeof rowIndex !== "number") {
-    return "";
-  }
-
-  const uniqueColumns = getUniqueResultColumns(result.editing?.columns ?? []);
-  const editableColumns = uniqueColumns.filter((column) => {
-    if (column.identity || column.generated || !column.visible) {
-      return false;
+    if (!result || !row || typeof rowIndex !== 'number') {
+        return '';
     }
 
-    const value = row[column.resultName];
-    if (isBlobPreview(value) || (value && typeof value === "object")) {
-      return false;
-    }
+    const uniqueColumns = getUniqueResultColumns(result.editing?.columns ?? []);
+    const editableColumns = uniqueColumns.filter(column => {
+        if (column.identity || column.generated || !column.visible) {
+            return false;
+        }
 
-    return true;
-  });
-  const readonlyColumns = uniqueColumns.filter((column) => {
-    if (!column.visible) {
-      return false;
-    }
+        const value = row[column.resultName];
+        if (isBlobPreview(value) || (value && typeof value === 'object')) {
+            return false;
+        }
 
-    if (column.identity || column.generated) {
-      return true;
-    }
+        return true;
+    });
+    const readonlyColumns = uniqueColumns.filter(column => {
+        if (!column.visible) {
+            return false;
+        }
 
-    const value = row[column.resultName];
-    return isBlobPreview(value) || (value && typeof value === "object");
-  });
-  const editingState = getResultEditingState(state);
+        if (column.identity || column.generated) {
+            return true;
+        }
 
-  return renderRowEditorPanel({
-    title: result.editing?.tableName ?? "Query Result",
-    sectionLabel: "Row Editor",
-    subtitle: `query row ${rowIndex + 1}`,
-    closeAction: "clear-editor-row-selection",
-    formName: "save-editor-row",
-    hiddenFields: [{ name: "rowIndex", value: String(rowIndex) }],
-    disabledMessage: editingState.enabled ? "" : editingState.message,
-    editableFields: editableColumns.map((column) => {
-      const value = row[column.resultName];
+        const value = row[column.resultName];
+        return isBlobPreview(value) || (value && typeof value === 'object');
+    });
+    const editingState = getResultEditingState(state);
 
-      return {
-        name: column.sourceColumn,
-        label: column.sourceColumn,
-        value: value === null || value === undefined ? "" : String(value),
-      };
-    }),
-    readonlyFields: readonlyColumns.map((column) => ({
-      name: column.sourceColumn,
-      label: column.sourceColumn,
-      value: formatCellValue(row[column.resultName]),
-    })),
-    saveError: state.editor.saveError,
-    saving: state.editor.saving,
-    deleting: state.editor.deleting,
-    deleteAction: "delete-editor-row",
-    deleteRowIndex: rowIndex,
-    deleteEnabled: editingState.enabled && Boolean(row.__identity),
-  });
+    return renderRowEditorPanel({
+        title: result.editing?.tableName ?? 'Query Result',
+        sectionLabel: 'Row Editor',
+        subtitle: `query row ${rowIndex + 1}`,
+        closeAction: 'clear-editor-row-selection',
+        formName: 'save-editor-row',
+        hiddenFields: [{ name: 'rowIndex', value: String(rowIndex) }],
+        disabledMessage: editingState.enabled ? '' : editingState.message,
+        editableFields: editableColumns.map(column => {
+            const value = row[column.resultName];
+
+            return {
+                name: column.sourceColumn,
+                label: column.sourceColumn,
+                value: value === null || value === undefined ? '' : String(value),
+            };
+        }),
+        readonlyFields: readonlyColumns.map(column => ({
+            name: column.sourceColumn,
+            label: column.sourceColumn,
+            value: formatCellValue(row[column.resultName]),
+        })),
+        saveError: state.editor.saveError,
+        saving: state.editor.saving,
+        deleting: state.editor.deleting,
+        deleteAction: 'delete-editor-row',
+        deleteRowIndex: rowIndex,
+        deleteEnabled: editingState.enabled && Boolean(row.__identity),
+    });
 }
 
 function renderResultsSurface(state, isResultsRoute) {
-  const activeTab = state.editor.activeTab;
-  const counts = {
-    resultRows: state.editor.result?.rows?.length ?? 0,
-    messages: getQueryMessages(state).length,
-    statementCount: state.editor.result?.statementCount ?? 0,
-  };
+    const activeTab = state.editor.activeTab;
+    const counts = {
+        resultRows: state.editor.result?.rows?.length ?? 0,
+        messages: getQueryMessages(state).length,
+        statementCount: state.editor.result?.statementCount ?? 0,
+    };
 
-  let content = renderMessagesPane(state);
+    let content = renderMessagesPane(state);
 
-  if (activeTab === "performance") {
-    content = renderPerformancePane(state);
-  } else if (activeTab === "results") {
-    const editingState = getResultEditingState(state);
+    if (activeTab === 'performance') {
+        content = renderPerformancePane(state);
+    } else if (activeTab === 'results') {
+        const editingState = getResultEditingState(state);
 
-    content = state.connections.active
-      ? renderQueryResultsPane(state.editor.result, {
-          selectedRowIndex: state.editor.selectedRowIndex,
-          editable: editingState.enabled,
-          sortColumn: state.editor.resultSortColumn,
-          sortDirection: state.editor.resultSortDirection,
-        })
-      : renderMissingDatabase();
-  }
+        content = state.connections.active
+            ? renderQueryResultsPane(state.editor.result, {
+                  selectedRowIndex: state.editor.selectedRowIndex,
+                  editable: editingState.enabled,
+                  sortColumn: state.editor.resultSortColumn,
+                  sortDirection: state.editor.resultSortDirection,
+              })
+            : renderMissingDatabase();
+    }
 
-  return `
+    return `
     <div class="flex h-full min-h-0 flex-col border-t border-outline-variant/10 bg-surface-container-lowest">
       ${renderBottomTabs(state.editor.activeTab, counts)}
       <div class="min-h-0 flex-1">${content}</div>
@@ -235,26 +230,26 @@ function renderResultsSurface(state, isResultsRoute) {
 }
 
 export function renderEditorView(state, { isResultsRoute = false } = {}) {
-  const connection = getCurrentConnection(state);
-  const editorSectionClass = state.editor.editorPanelVisible ? "min-h-[27.5%]" : "flex-none";
-  const resultsSectionClass = "flex-1";
+    const connection = getCurrentConnection(state);
+    const editorSectionClass = state.editor.editorPanelVisible ? 'min-h-[27.5%] max-h-[60%]' : 'flex-none';
+    const resultsSectionClass = 'flex-1';
 
-  return {
-    main: `
+    return {
+        main: `
       <section class="view-surface flex h-full min-h-0 flex-col overflow-hidden xl:flex-row">
         <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <section class="${editorSectionClass} flex min-h-0 flex-col ${
-            isResultsRoute ? "border-b-4 border-background" : ""
+              isResultsRoute ? 'border-b-4 border-background' : ''
           }">
             ${renderQueryEditor({
-              query: state.editor.sqlText,
-              executing: state.editor.executing,
-              exporting: state.editor.exportLoading,
-              historyLoading: state.editor.historyLoading,
-              historyTotal: state.editor.historyTotal,
-              editorVisible: state.editor.editorPanelVisible,
-              historyVisible: state.editor.historyPanelVisible,
-              title: connection?.label ?? "SQLite Query Workspace",
+                query: state.editor.sqlText,
+                executing: state.editor.executing,
+                exporting: state.editor.exportLoading,
+                historyLoading: state.editor.historyLoading,
+                historyTotal: state.editor.historyTotal,
+                editorVisible: state.editor.editorPanelVisible,
+                historyVisible: state.editor.historyPanelVisible,
+                title: connection?.label ?? 'SQLite Query Workspace',
             })}
           </section>
           <section class="${resultsSectionClass} flex min-h-0 min-w-0 flex-col overflow-hidden">
@@ -262,33 +257,33 @@ export function renderEditorView(state, { isResultsRoute = false } = {}) {
           </section>
         </div>
         ${
-          state.editor.historyPanelVisible
-            ? renderQueryHistoryPanel({
-                items: state.editor.history,
-                loading: state.editor.historyLoading,
-                loadingMore: state.editor.historyLoadingMore,
-                error: state.editor.historyError,
-                activeTab: state.editor.historyTab,
-                search: state.editor.historySearchInput,
-                total: state.editor.historyTotal,
-                hasMore: state.editor.historyHasMore,
-                activeHistoryId: state.editor.historyActiveId,
-                selectedHistoryId: state.editor.historySelectedId,
-              })
-            : ""
+            state.editor.historyPanelVisible
+                ? renderQueryHistoryPanel({
+                      items: state.editor.history,
+                      loading: state.editor.historyLoading,
+                      loadingMore: state.editor.historyLoadingMore,
+                      error: state.editor.historyError,
+                      activeTab: state.editor.historyTab,
+                      search: state.editor.historySearchInput,
+                      total: state.editor.historyTotal,
+                      hasMore: state.editor.historyHasMore,
+                      activeHistoryId: state.editor.historyActiveId,
+                      selectedHistoryId: state.editor.historySelectedId,
+                  })
+                : ''
         }
       </section>
     `,
-    panel:
-      isResultsRoute && state.editor.selectedRowIndex !== null
-        ? renderEditorRowPanel(state)
-        : state.editor.historySelectedId
-          ? renderQueryHistoryDetail({
-              item: state.editor.historyDetail,
-              runs: state.editor.historyRuns,
-              loading: state.editor.historyDetailLoading,
-              error: state.editor.historyDetailError,
-            })
-          : "",
-  };
+        panel:
+            isResultsRoute && state.editor.selectedRowIndex !== null
+                ? renderEditorRowPanel(state)
+                : state.editor.historySelectedId
+                  ? renderQueryHistoryDetail({
+                        item: state.editor.historyDetail,
+                        runs: state.editor.historyRuns,
+                        loading: state.editor.historyDetailLoading,
+                        error: state.editor.historyDetailError,
+                    })
+                  : '',
+    };
 }

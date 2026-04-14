@@ -661,6 +661,7 @@ class AppStateStore {
     search,
     queryType,
     onlySaved = false,
+    onlyUnsaved = false,
     onlyFavorites = false,
     latestStatus = null,
   } = {}) {
@@ -702,6 +703,10 @@ class AppStateStore {
       clauses.push("q.is_saved = 1");
     }
 
+    if (onlyUnsaved) {
+      clauses.push("q.is_saved = 0");
+    }
+
     if (onlyFavorites) {
       clauses.push("q.is_favorite = 1");
     }
@@ -736,6 +741,7 @@ class AppStateStore {
     search = "",
     queryType = null,
     onlySaved = false,
+    onlyUnsaved = false,
     onlyFavorites = false,
     latestStatus = null,
   } = {}) {
@@ -768,6 +774,7 @@ class AppStateStore {
       search,
       queryType,
       onlySaved,
+      onlyUnsaved,
       onlyFavorites,
       latestStatus,
     });
@@ -1142,6 +1149,54 @@ class AppStateStore {
     }
 
     return this.decorateQueryHistoryRow(row);
+  }
+
+  findQueryHistoryItemBySql(databaseKey, rawSql) {
+    const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
+    const normalizedSql = normalizeSql(rawSql);
+
+    if (!normalizedDatabaseKey || !normalizedSql) {
+      return null;
+    }
+
+    const row = this.db
+      .prepare(`
+        SELECT
+          q.id,
+          q.database_key,
+          q.normalized_sql,
+          q.raw_sql,
+          q.title,
+          q.notes,
+          q.query_type,
+          q.tables_detected,
+          q.is_favorite,
+          q.is_saved,
+          q.is_destructive,
+          q.use_count,
+          q.first_executed_at,
+          q.last_used_at,
+          latest.id AS last_run_id,
+          latest.executed_at AS last_run_executed_at,
+          latest.duration_ms AS last_run_duration_ms,
+          latest.row_count AS last_run_row_count,
+          latest.status AS last_run_status,
+          latest.error_message AS last_run_error_message,
+          latest.affected_rows AS last_run_affected_rows
+        FROM query_history q
+        LEFT JOIN query_runs latest
+          ON latest.id = (
+            SELECT runs.id
+            FROM query_runs runs
+            WHERE runs.history_id = q.id
+            ORDER BY runs.executed_at DESC, runs.id DESC
+            LIMIT 1
+          )
+        WHERE q.database_key = ? AND q.normalized_sql = ?
+      `)
+      .get(normalizedDatabaseKey, normalizedSql);
+
+    return row ? this.decorateQueryHistoryRow(row) : null;
   }
 
   getQueryHistoryItemForDatabase(historyId, databaseKey) {

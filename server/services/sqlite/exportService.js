@@ -3,6 +3,25 @@ const { serializeRows } = require("../../utils/sqliteTypes");
 const { rowsToCsv } = require("../../utils/csv");
 const { getTableDetail } = require("./introspection");
 const { buildTableOrderClause, normalizeTableSort } = require("./tableSort");
+const {
+  buildAutoTitle,
+  detectQueryType,
+  detectTables,
+} = require("../storage/queryHistoryUtils");
+
+function sanitizeFilenameBase(value, fallback = "query-results") {
+  const sanitized = String(value ?? "")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[. ]+$/g, "");
+
+  if (!sanitized) {
+    return fallback;
+  }
+
+  return sanitized.slice(0, 120);
+}
 
 class ExportService {
   constructor({ appStateStore, connectionManager, sqlExecutor }) {
@@ -16,13 +35,24 @@ class ExportService {
   }
 
   exportQuery(sql) {
+    const activeConnection = this.connectionManager.getActiveConnection();
+    const historyItem = activeConnection
+      ? this.appStateStore.findQueryHistoryItemBySql(activeConnection.id, sql)
+      : null;
+    const filenameBase = sanitizeFilenameBase(
+      historyItem?.displayTitle ||
+        buildAutoTitle(sql, {
+          queryType: detectQueryType(sql),
+          tablesDetected: detectTables(sql),
+        })
+    );
     const result = this.sqlExecutor.execute(sql, {
       persistHistory: false,
       requireReader: true,
     });
 
     return {
-      filename: "query-results.csv",
+      filename: `${filenameBase}.csv`,
       csv: rowsToCsv({
         columns: result.columns,
         rows: result.rows,

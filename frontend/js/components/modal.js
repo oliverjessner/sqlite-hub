@@ -25,7 +25,7 @@ function renderField({ label, name, type = "text", placeholder = "", value = "" 
 
 function renderCheckboxField({ label, name, checked = false, text }) {
   return `
-    <label class="block space-y-2">
+    <label class="flex flex-col gap-2">
       <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
         ${escapeHtml(label)}
       </span>
@@ -70,7 +70,7 @@ function renderFileField({
 function renderSelectField({ label, name, value = "", options = [], bind = "" }) {
   return `
     <label class="block space-y-2">
-      <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+      <span class="block text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
         ${escapeHtml(label)}
       </span>
       <select
@@ -687,6 +687,39 @@ function renderDeleteChartForm(modal) {
   `;
 }
 
+function renderDeleteQueryHistoryForm(modal) {
+  return `
+    <form class="space-y-5" data-form="delete-query-history-confirm">
+      <div class="space-y-3">
+        <p class="text-sm leading-7 text-on-surface">
+          Delete query <span class="font-bold text-primary-container">${escapeHtml(
+            modal.queryTitle ?? "SQL query"
+          )}</span>?
+        </p>
+        <p class="text-sm leading-7 text-on-surface-variant/65">
+          This removes the query-history entry and all recorded runs linked to it.
+        </p>
+      </div>
+      ${renderError(modal.error)}
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button
+          class="standard-button"
+          data-action="close-modal"
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          class="delete-button"
+          type="submit"
+        >
+          ${modal.submitting ? "Deleting..." : "Delete Query"}
+        </button>
+      </div>
+    </form>
+  `;
+}
+
 export function renderModal(state) {
   const modal = state.modal;
 
@@ -729,6 +762,11 @@ export function renderModal(state) {
       eyebrow: "Charts // Confirm chart deletion",
       title: "Delete Chart",
       body: renderDeleteChartForm(modal),
+    },
+    "delete-query-history": {
+      eyebrow: "History // Confirm query deletion",
+      title: "Delete Query",
+      body: renderDeleteQueryHistoryForm(modal),
     },
   };
 

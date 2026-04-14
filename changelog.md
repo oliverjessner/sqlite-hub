@@ -1,3 +1,9 @@
+# v0.8.8
+
+- modal window fix in delete query
+- csv export filename based on query name
+- unsaved query history tab
+
 # v0.8.7
 
 - UX fixes

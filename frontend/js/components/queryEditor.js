@@ -19,11 +19,16 @@ function renderHighlightedQuery(query) {
 
 function renderEditorSurface({ query }) {
   return `
-    <div class="flex min-h-0 flex-1 overflow-hidden">
-      <div class="flex w-12 flex-col items-center bg-surface-container-lowest py-4 font-mono text-xs select-none text-outline-variant/30">
-        ${renderLineNumbers(query)}
+    <div class="query-editor-shell flex min-h-0 flex-1 overflow-hidden">
+      <div class="flex w-12 min-h-0 overflow-hidden bg-surface-container-lowest py-4 font-mono text-xs select-none text-outline-variant/30">
+        <div
+          class="query-editor-gutter-track flex w-full flex-col items-center"
+          data-query-editor-gutter
+        >
+          ${renderLineNumbers(query)}
+        </div>
       </div>
-      <div class="relative flex-1 overflow-hidden bg-surface-container p-6 font-mono text-sm leading-relaxed">
+      <div class="relative min-h-0 flex-1 overflow-hidden bg-surface-container p-6 font-mono text-sm leading-relaxed">
         <div class="pointer-events-none absolute right-0 top-0 p-4 opacity-5">
           <span class="material-symbols-outlined text-[120px] font-thin">terminal</span>
         </div>

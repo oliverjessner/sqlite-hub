@@ -375,11 +375,25 @@ function buildFallbackDeleteRowPreview(row) {
 }
 
 function normalizeQueryHistoryTab(value) {
-  return ["recent", "saved", "failed"].includes(value) ? value : "recent";
+  return ["recent", "saved", "unsaved", "failed"].includes(value) ? value : "recent";
 }
 
 function findQueryHistoryItem(historyId, snapshot = state) {
   return snapshot.editor.history.find((entry) => String(entry.id) === String(historyId)) ?? null;
+}
+
+function resolveQueryHistoryItem(historyId, snapshot = state) {
+  const historyIdAsString = String(historyId);
+
+  if (String(snapshot.editor.historyDetail?.id ?? "") === historyIdAsString) {
+    return snapshot.editor.historyDetail;
+  }
+
+  if (String(snapshot.charts.detail?.item?.id ?? "") === historyIdAsString) {
+    return snapshot.charts.detail.item;
+  }
+
+  return findQueryHistoryItem(historyId, snapshot);
 }
 
 function clearQueryHistorySearchTimer() {
@@ -1616,6 +1630,24 @@ export function openDeleteQueryChartModal(chartId) {
   emitChange();
 }
 
+export function openDeleteQueryHistoryModal(historyId) {
+  const queryItem = resolveQueryHistoryItem(historyId);
+
+  if (!queryItem) {
+    pushToast("The selected query could not be loaded.", "alert");
+    return;
+  }
+
+  state.modal = {
+    kind: "delete-query-history",
+    historyId: queryItem.id,
+    queryTitle: queryItem.displayTitle,
+    error: null,
+    submitting: false,
+  };
+  emitChange();
+}
+
 export function closeModal() {
   closeModalInternal();
 }
@@ -2106,7 +2138,9 @@ export async function saveQueryHistoryNotes(historyId, notes) {
   }
 }
 
-export async function deleteQueryHistoryStateItem(historyId) {
+export async function deleteQueryHistoryStateItem(historyId, options = {}) {
+  const reportErrorToModal = Boolean(options.reportErrorToModal);
+
   try {
     const response = await api.deleteQueryHistoryItem(historyId);
     if (state.editor.historyActiveId === Number(historyId)) {
@@ -2119,8 +2153,12 @@ export async function deleteQueryHistoryStateItem(historyId) {
     await refreshQueryHistoryState();
     return true;
   } catch (error) {
-    state.editor.historyDetailError = normalizeError(error);
-    emitChange();
+    if (reportErrorToModal) {
+      withModalError(error);
+    } else {
+      state.editor.historyDetailError = normalizeError(error);
+      emitChange();
+    }
     return false;
   }
 }
@@ -2700,6 +2738,23 @@ export async function submitDeleteChartConfirmation() {
 
   startModalSubmission();
   return deleteQueryChart(state.modal.chartId);
+}
+
+export async function submitDeleteQueryHistoryConfirmation() {
+  if (state.modal?.kind !== "delete-query-history") {
+    return false;
+  }
+
+  startModalSubmission();
+  const deleted = await deleteQueryHistoryStateItem(state.modal.historyId, {
+    reportErrorToModal: true,
+  });
+
+  if (deleted) {
+    closeModalInternal();
+  }
+
+  return deleted;
 }
 
 export async function exportCurrentQueryCsv() {

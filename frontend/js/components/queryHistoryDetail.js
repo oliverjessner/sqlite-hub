@@ -210,7 +210,7 @@ export function renderQueryHistoryDetail({
           </button>
           <button
             class="delete-button"
-            data-action="delete-query-history"
+            data-action="open-delete-query-history-modal"
             data-history-id="${escapeHtml(item.id)}"
             type="button"
           >
