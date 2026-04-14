@@ -41,7 +41,8 @@
   justify-content: flex-end;
 }
 
-.structure-graph__button {
+.structure-graph__toolbar .standard-button,
+.structure-graph__section-header .standard-button {
   align-items: center;
   display: inline-flex;
   flex-shrink: 0;
@@ -49,22 +50,20 @@
   justify-content: center;
 }
 
-.structure-graph__button:hover {
+.structure-graph__toolbar .standard-button:hover {
   background: var(--color-surface-container-highest);
 }
 
-.structure-graph__button.is-active {
+.structure-graph__toolbar .standard-button.is-active {
   background: rgba(252, 227, 0, 0.12);
   border-color: rgba(252, 227, 0, 0.38);
   color: var(--color-primary-container);
 }
 
-.structure-graph__button.is-disabled,
-.structure-graph__button:disabled {
+.structure-graph__toolbar .standard-button:disabled,
+.structure-graph__section-header .standard-button:disabled {
   border-color: rgba(75, 71, 50, 0.18);
   color: rgba(231, 223, 189, 0.34);
-  cursor: default;
-  opacity: 0.3;
 }
 
 .structure-graph__workspace {
@@ -226,10 +225,6 @@
   display: flex;
   gap: 0.75rem;
   justify-content: space-between;
-}
-
-.structure-graph__copy-button {
-  flex-shrink: 0;
 }
 
 .structure-graph__column-list {

@@ -55,8 +55,7 @@ export function renderQueryEditor({
   editorVisible = true,
   historyVisible = true,
 }) {
-  const secondaryButtonClass =
-    "toolbar-button border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface transition-colors hover:border-primary-container hover:text-primary-container";
+  const secondaryButtonClass = "standard-button";
   const left = `
     <div class="flex items-center gap-2 bg-surface-container-lowest px-3 py-1">
       <span class="material-symbols-outlined text-xs text-[#FCE300]">database</span>
@@ -104,9 +103,8 @@ export function renderQueryEditor({
       ${exporting ? "Exporting..." : "Export CSV"}
     </button>
     <button
-      class="toolbar-button toolbar-button--primary bg-primary-container px-4 py-2 font-headline text-xs font-bold uppercase tracking-widest text-on-primary clipped-corner"
+      class="signature-button"
       data-action="execute-query"
-      style="--clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);"
       type="button"
     >
       ${executing ? "RUNNING..." : "EXECUTE"}

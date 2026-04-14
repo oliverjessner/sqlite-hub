@@ -14,7 +14,7 @@ function renderPreviewHeader(draft, isVisible) {
           draft && isVisible
             ? `
               <button
-                class="table-designer-preview__copy"
+                class="standard-button"
                 data-action="copy-table-designer-sql"
                 type="button"
               >
@@ -24,7 +24,7 @@ function renderPreviewHeader(draft, isVisible) {
             : ""
         }
         <button
-          class="table-designer-preview__copy"
+          class="standard-button"
           data-action="toggle-table-designer-sql-preview"
           data-next-value="${isVisible ? "false" : "true"}"
           type="button"

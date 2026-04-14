@@ -56,7 +56,7 @@ function renderSettingsContent(state) {
             Copyright Oliver Jessner
           </div>
           <a
-            class="inline-flex items-center gap-2 border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-xs font-bold uppercase tracking-[0.2em] text-primary-container transition-colors hover:bg-surface-container-highest"
+            class="standard-button"
             href="https://oliverjessner.at"
             rel="noreferrer"
             target="_blank"
@@ -77,7 +77,7 @@ function renderSettingsContent(state) {
             Open Source Code
           </div>
           <a
-            class="inline-flex items-center gap-2 border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-xs font-bold uppercase tracking-[0.2em] text-primary-container transition-colors hover:bg-surface-container-highest"
+            class="standard-button"
             href="https://github.com/oliverjessner/sqlite-hub"
             rel="noreferrer"
             target="_blank"

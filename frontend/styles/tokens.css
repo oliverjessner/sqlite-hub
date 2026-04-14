@@ -25,6 +25,8 @@
   --font-size-micro: 9px;
   --font-size-label: 11px;
   --font-size-icon: 18px;
+  --control-height: 36px;
+  --control-padding-inline: 12px;
   --spacing-1: 4px;
   --spacing-2: 8px;
   --spacing-3: 12px;

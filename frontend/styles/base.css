@@ -28,6 +28,68 @@ button {
     cursor: pointer;
 }
 
+.control-button {
+    align-items: center;
+    box-sizing: border-box;
+    display: inline-flex;
+    gap: var(--spacing-2);
+    height: var(--control-height);
+    line-height: 1;
+    min-height: var(--control-height);
+    padding: 0 var(--control-padding-inline);
+}
+
+.control-input,
+.control-select {
+    box-sizing: border-box;
+    height: var(--control-height);
+    min-height: var(--control-height);
+}
+
+.control-input {
+    padding: 0 var(--control-padding-inline);
+}
+
+input.control-input--ghost {
+    appearance: none;
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    border: 0 !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    -webkit-appearance: none;
+    padding: 0;
+}
+
+input.control-input--ghost:focus,
+input.control-input--ghost:not(:focus) {
+    background: transparent !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    outline: none;
+}
+
+.control-select {
+    padding: 0 var(--control-padding-inline);
+}
+
+.control-shell {
+    box-sizing: border-box;
+    min-height: var(--control-height);
+}
+
+.control-icon-button {
+    align-items: center;
+    box-sizing: border-box;
+    display: inline-flex;
+    height: var(--control-height);
+    justify-content: center;
+    min-height: var(--control-height);
+    width: var(--control-height);
+}
+
 a {
     color: inherit;
     text-decoration: none;

@@ -131,7 +131,7 @@ function renderOperationalSurface(overview) {
           ? `
             <div class="border-t border-outline-variant/10 px-4 py-3">
               <button
-                class="toolbar-button border border-outline-variant/20 bg-surface-container px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+                class="standard-button"
                 data-action="open-overview-in-finder"
                 type="button"
               >
@@ -219,7 +219,7 @@ function renderSchemaMapPreview(overview) {
           </div>
           <div class="flex justify-start xl:justify-end">
             <button
-              class="toolbar-button border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+              class="standard-button"
               data-action="navigate"
               data-to="/structure"
               type="button"
@@ -327,10 +327,9 @@ export function renderOverviewView(state) {
               : "System Registry: NO_ACTIVE_DATABASE",
             actions: `
               <button
-                class="toolbar-button toolbar-button--primary bg-primary-container px-4 py-2 font-headline text-xs font-bold uppercase tracking-widest text-on-primary clipped-corner"
+                class="signature-button"
                 data-action="navigate"
                 data-to="/editor"
-                style="--clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);"
                 type="button"
               >
                 <span class="material-symbols-outlined text-sm">terminal</span>

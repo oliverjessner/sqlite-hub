@@ -93,14 +93,14 @@ function renderWorkspaceHeader(state) {
           ${
               table
                   ? `<button
-                    class="border border-outline-variant/20 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface hover:bg-surface-container-highest"
+                    class="standard-button"
                     data-action="toggle-data-tables"
                     type="button"
                   >
                     ${tablesVisible ? '<span class="material-symbols-outlined text-sm">visibility_off</span> Hide Tables' : 'Show Tables'}
                   </button>
                   <button
-                    class="border border-outline-variant/20 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface hover:bg-surface-container-highest"
+                    class="standard-button"
                     data-action="export-data-csv"
                     type="button"
                   >
@@ -109,7 +109,7 @@ function renderWorkspaceHeader(state) {
                   : ''
           }
           <button
-            class="border border-outline-variant/20 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface hover:bg-surface-container-highest"
+            class="standard-button"
             data-action="refresh-view"
             type="button"
           >
@@ -119,7 +119,7 @@ function renderWorkspaceHeader(state) {
               table
                   ? `
                   <button
-                    class="border border-outline-variant/20 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface hover:bg-surface-container-highest"
+                    class="standard-button"
                     data-action="navigate"
                     data-to="/structure"
                     type="button"
@@ -240,10 +240,10 @@ function renderTableSearchBar(table, state, activeColumn, filteredRowCount) {
 
     return `
     <div class="flex flex-wrap items-center gap-3 border-b border-outline-variant/10 bg-surface-container-low px-6 py-4">
-      <label class="flex min-w-[18rem] flex-1 items-center gap-3 border border-outline-variant/20 bg-surface-container-lowest px-4 py-3">
+      <label class="control-shell flex min-w-[18rem] flex-1 items-center gap-3 border border-outline-variant/20 bg-surface-container-lowest px-3">
         <span class="material-symbols-outlined text-base text-on-surface-variant/55">search</span>
         <input
-          class="min-w-0 flex-1 bg-transparent text-sm text-on-surface outline-none placeholder:text-on-surface-variant/40"
+          class="control-input control-input--ghost min-w-0 flex-1 text-sm text-on-surface outline-none placeholder:text-on-surface-variant/40"
           data-bind="data-search-query"
           placeholder="Filter current page..."
           type="search"
@@ -251,7 +251,7 @@ function renderTableSearchBar(table, state, activeColumn, filteredRowCount) {
         />
       </label>
       <select
-        class="min-w-[14rem] border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 font-mono text-xs tracking-[0.04em] text-on-surface outline-none"
+        class="control-select min-w-[14rem] border border-outline-variant/20 bg-surface-container-lowest font-mono text-xs tracking-[0.04em] text-on-surface outline-none"
         data-bind="data-search-column"
       >
         ${columns
@@ -391,10 +391,8 @@ function renderTableSurface(state) {
                   .map(
                       pageSize => `
                     <button
-                      class="border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] transition-colors ${
-                          pageSize === (table.limit ?? state.dataBrowser.pageSize)
-                              ? 'border-primary-container/30 bg-surface-container-high text-primary-container'
-                              : 'border-outline-variant/20 text-on-surface hover:bg-surface-container-highest'
+                      class="standard-button ${
+                          pageSize === (table.limit ?? state.dataBrowser.pageSize) ? 'is-active' : ''
                       }"
                       data-action="set-data-page-size"
                       data-page-size="${pageSize}"
@@ -409,7 +407,7 @@ function renderTableSurface(state) {
           </div>
           <div class="flex items-center gap-2">
             <button
-              class="border border-outline-variant/20 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface transition-colors hover:bg-surface-container-highest disabled:cursor-default disabled:opacity-30"
+              class="standard-button"
               data-action="set-data-page"
               data-page="${page - 1}"
               type="button"
@@ -421,7 +419,7 @@ function renderTableSurface(state) {
               page ${escapeHtml(formatNumber(page))} / ${escapeHtml(formatNumber(pageCount))}
             </div>
             <button
-              class="border border-outline-variant/20 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface transition-colors hover:bg-surface-container-highest disabled:cursor-default disabled:opacity-30"
+              class="standard-button"
               data-action="set-data-page"
               data-page="${page + 1}"
               type="button"

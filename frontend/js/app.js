@@ -231,7 +231,7 @@ function renderNotFoundView() {
             404_SIGNAL
           </h1>
           <button
-            class="mt-8 bg-primary-container px-6 py-3 font-headline text-sm font-bold uppercase tracking-[0.2em] text-on-primary"
+            class="standard-button mt-8 px-6 font-headline text-sm"
             data-action="navigate"
             data-to="/"
             type="button"

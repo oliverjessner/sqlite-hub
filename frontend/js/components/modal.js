@@ -13,7 +13,7 @@ function renderField({ label, name, type = "text", placeholder = "", value = "" 
         ${escapeHtml(label)}
       </span>
       <input
-        class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+        class="control-input w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
         name="${escapeHtml(name)}"
         placeholder="${escapeHtml(placeholder)}"
         type="${escapeHtml(type)}"
@@ -29,9 +29,8 @@ function renderCheckboxField({ label, name, checked = false, text }) {
       <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
         ${escapeHtml(label)}
       </span>
-      <span class="flex min-h-[50px] items-center gap-3 border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface">
+      <span class="standard-checkbox">
         <input
-          class="rounded-none border-outline bg-surface-container-lowest text-primary-container focus:ring-primary-container"
           ${checked ? "checked" : ""}
           name="${escapeHtml(name)}"
           type="checkbox"
@@ -55,7 +54,7 @@ function renderFileField({
       </span>
       <input
         accept="${escapeHtml(accept)}"
-        class="block w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface file:mr-4 file:border-0 file:bg-primary-container file:px-3 file:py-2 file:text-xs file:font-bold file:text-on-primary"
+        class="control-input block w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface file:mr-4 file:border-0 file:bg-primary-container file:px-3 file:py-2 file:text-xs file:font-bold file:text-on-primary"
         name="${escapeHtml(name)}"
         type="file"
       />
@@ -75,7 +74,7 @@ function renderSelectField({ label, name, value = "", options = [], bind = "" })
         ${escapeHtml(label)}
       </span>
       <select
-        class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+        class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
         ${bind ? `data-bind="${escapeHtml(bind)}"` : ""}
         ${name ? `name="${escapeHtml(name)}"` : ""}
       >
@@ -129,14 +128,14 @@ function renderOpenConnectionForm(modal) {
       ${renderError(modal.error)}
       <div class="flex items-center justify-end gap-3 pt-2">
         <button
-          class="border border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant hover:bg-surface-container-highest"
+          class="standard-button"
           data-action="close-modal"
           type="button"
         >
           Cancel
         </button>
         <button
-          class="bg-primary-container px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-on-primary"
+          class="standard-button"
           type="submit"
         >
           ${modal.submitting ? "Opening..." : "Open Database"}
@@ -203,14 +202,14 @@ function renderEditConnectionForm(modal) {
       ${renderError(modal.error)}
       <div class="flex items-center justify-end gap-3 pt-2">
         <button
-          class="border border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant hover:bg-surface-container-highest"
+          class="standard-button"
           data-action="close-modal"
           type="button"
         >
           Cancel
         </button>
         <button
-          class="bg-primary-container px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-on-primary"
+          class="standard-button"
           type="submit"
         >
           ${modal.submitting ? "Saving..." : "Save Changes"}
@@ -236,14 +235,14 @@ function renderCreateDatabaseForm(modal) {
       ${renderError(modal.error)}
       <div class="flex items-center justify-end gap-3 pt-2">
         <button
-          class="border border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant hover:bg-surface-container-highest"
+          class="standard-button"
           data-action="close-modal"
           type="button"
         >
           Cancel
         </button>
         <button
-          class="bg-primary-container px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-on-primary"
+          class="standard-button"
           type="submit"
         >
           ${modal.submitting ? "Creating..." : "Create Database"}
@@ -270,7 +269,7 @@ function renderImportTargetOptions(state) {
         Import Target
       </span>
       <select
-        class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+        class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
         name="targetMode"
       >
         ${
@@ -291,7 +290,7 @@ function renderImportTargetOptions(state) {
               Recent Connection
             </span>
             <select
-              class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+              class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
               name="targetConnectionId"
             >
               ${recentOptions}
@@ -329,14 +328,14 @@ function renderImportSqlForm(modal, state) {
       ${renderError(modal.error)}
       <div class="flex items-center justify-end gap-3 pt-2">
         <button
-          class="border border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant hover:bg-surface-container-highest"
+          class="standard-button"
           data-action="close-modal"
           type="button"
         >
           Cancel
         </button>
         <button
-          class="bg-primary-container px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-on-primary"
+          class="standard-button"
           type="submit"
         >
           ${modal.submitting ? "Importing..." : "Import SQL Dump"}
@@ -398,14 +397,14 @@ function renderDeleteRowConfirmForm(modal) {
       ${renderError(modal.error)}
       <div class="flex items-center justify-end gap-3 pt-2">
         <button
-          class="border border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant hover:bg-surface-container-highest"
+          class="standard-button"
           data-action="close-modal"
           type="button"
         >
           Cancel
         </button>
         <button
-          class="border border-error/25 bg-error-container/10 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-error"
+          class="delete-button"
           type="submit"
         >
           ${modal.submitting ? "Deleting..." : "Delete Row"}
@@ -638,14 +637,14 @@ function renderChartEditorForm(modal, state) {
       ${renderError(modal.error)}
       <div class="flex items-center justify-end gap-3 pt-2">
         <button
-          class="border border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant hover:bg-surface-container-highest"
+          class="standard-button"
           data-action="close-modal"
           type="button"
         >
           Cancel
         </button>
         <button
-          class="bg-primary-container px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-on-primary"
+          class="standard-button"
           type="submit"
         >
           ${modal.submitting ? "Saving..." : draft.mode === "edit" ? "Save Chart" : "Create Chart"}
@@ -671,14 +670,14 @@ function renderDeleteChartForm(modal) {
       ${renderError(modal.error)}
       <div class="flex items-center justify-end gap-3 pt-2">
         <button
-          class="border border-outline-variant/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant hover:bg-surface-container-highest"
+          class="standard-button"
           data-action="close-modal"
           type="button"
         >
           Cancel
         </button>
         <button
-          class="border border-error/25 bg-error-container/10 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-error"
+          class="delete-button"
           type="submit"
         >
           ${modal.submitting ? "Deleting..." : "Delete Chart"}
@@ -752,7 +751,7 @@ export function renderModal(state) {
             </h2>
           </div>
           <button
-            class="flex h-10 w-10 items-center justify-center border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-highest hover:text-primary-container"
+            class="control-icon-button border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-highest hover:text-primary-container"
             data-action="close-modal"
             type="button"
           >

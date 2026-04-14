@@ -157,7 +157,7 @@ function renderQuerySqlSection(state, rawSql) {
     return `
     <section class="mt-5 border border-outline-variant/10 bg-surface-container-lowest">
       <button
-        class="flex w-full items-center justify-between gap-3 border-b border-outline-variant/10 px-4 py-3 text-left"
+        class="standard-button flex w-full justify-between border-b border-outline-variant/10 px-4 text-left"
         data-action="toggle-charts-sql-panel"
         type="button"
       >
@@ -192,7 +192,7 @@ function renderQueryResultsSection(state) {
           Results
         </span>
         <button
-          class="toolbar-button query-chart-card__action"
+          class="standard-button"
           data-action="toggle-charts-results-panel"
           type="button"
         >
@@ -247,7 +247,7 @@ function renderChartHeightPresetToggle(state) {
             .map(
                 preset => `
               <button
-                class="toolbar-button charts-height-toggle__button ${activePreset === preset.value ? 'is-active' : ''}"
+                class="standard-button charts-height-toggle__button ${activePreset === preset.value ? 'is-active' : ''}"
                 data-action="set-charts-height-preset"
                 data-preset="${preset.value}"
                 type="button"
@@ -315,7 +315,7 @@ function renderChartCard(chart, state, analysis) {
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <button
-            class="toolbar-button query-chart-card__action"
+            class="standard-button"
             data-action="open-edit-query-chart-modal"
             data-chart-id="${escapeHtml(chart.id)}"
             type="button"
@@ -323,7 +323,7 @@ function renderChartCard(chart, state, analysis) {
             Edit
           </button>
           <button
-            class="toolbar-button query-chart-card__action query-chart-card__action--danger"
+            class="delete-button"
             data-action="open-delete-query-chart-modal"
             data-chart-id="${escapeHtml(chart.id)}"
             type="button"
@@ -331,7 +331,7 @@ function renderChartCard(chart, state, analysis) {
             Delete
           </button>
           <button
-            class="toolbar-button query-chart-card__action"
+            class="standard-button"
             data-action="export-query-chart-png"
             data-chart-id="${escapeHtml(chart.id)}"
             type="button"
@@ -350,6 +350,7 @@ function renderChartCard(chart, state, analysis) {
 function renderChartsDetail(state) {
     const detail = state.charts.detail;
     const selectedHistoryId = state.charts.selectedHistoryId;
+    const historyVisible = state.editor.historyPanelVisible !== false;
 
     if (!selectedHistoryId) {
         return renderEmptyChartDetail();
@@ -387,34 +388,48 @@ function renderChartsDetail(state) {
     <div class="custom-scrollbar flex-1 overflow-auto">
       <div class="charts-detail-shell">
         <header class="charts-detail-shell__header">
-          <div class="min-w-0">
-            <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/70">
-              Charts
-            </div>
+          <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/70">
+            Charts
+          </div>
+          <div class="charts-detail-shell__title">
             <h1 class="mt-2 truncate font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
               ${escapeHtml(detail.item.displayTitle)}
             </h1>
           </div>
           <div class="charts-detail-shell__controls">
-            ${renderChartHeightPresetToggle(state)}
-            <button
-              class="toolbar-button charts-detail-shell__button"
-              data-action="open-query-history"
-              data-history-id="${escapeHtml(detail.item.id)}"
-              type="button"
-            >
-              <span class="material-symbols-outlined text-sm">terminal</span>
-              Open In Editor
-            </button>
-            <button
-              class="toolbar-button charts-detail-shell__button charts-detail-shell__button--primary clipped-corner"
-              data-action="open-create-query-chart-modal"
-              style="--clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);"
-              type="button"
-              ${state.charts.resultError || !state.charts.result ? 'disabled' : ''}
-            >
-              New Chart
-            </button>
+            <div class="charts-detail-shell__controls-group">
+              ${renderChartHeightPresetToggle(state)}
+              <button
+                class="standard-button"
+                data-action="toggle-query-history-panel"
+                data-next-value="${historyVisible ? 'false' : 'true'}"
+                type="button"
+              >
+                <span class="material-symbols-outlined text-sm">${
+                  historyVisible ? 'visibility_off' : 'history'
+                }</span>
+                ${historyVisible ? 'Hide Query History' : 'Show Query History'}
+              </button>
+            </div>
+            <div class="charts-detail-shell__controls-group charts-detail-shell__controls-group--end">
+              <button
+                class="standard-button"
+                data-action="open-query-history"
+                data-history-id="${escapeHtml(detail.item.id)}"
+                type="button"
+              >
+                <span class="material-symbols-outlined text-sm">terminal</span>
+                Open In Editor
+              </button>
+              <button
+                class="signature-button"
+                data-action="open-create-query-chart-modal"
+                type="button"
+                ${state.charts.resultError || !state.charts.result ? 'disabled' : ''}
+              >
+                New Chart
+              </button>
+            </div>
           </div>
         </header>
 
@@ -447,6 +462,8 @@ function renderChartsDetail(state) {
 }
 
 export function renderChartsView(state) {
+    const historyVisible = state.editor.historyPanelVisible !== false || !state.charts.selectedHistoryId;
+
     if (!state.connections.active && state.charts.error?.code === 'ACTIVE_DATABASE_REQUIRED') {
         return {
             main: `<section class="view-surface flex min-h-full">${renderMissingDatabase()}</section>`,
@@ -457,17 +474,23 @@ export function renderChartsView(state) {
     return {
         main: `
       <section class="charts-view">
-        <aside class="charts-view__sidebar">
-          <div class="charts-view__sidebar-header">
-            <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
-              Query History
-            </div>
-            <h2 class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-              Charts
-            </h2>
-          </div>
-          ${renderChartsList(state)}
-        </aside>
+        ${
+            historyVisible
+                ? `
+                  <aside class="charts-view__sidebar">
+                    <div class="charts-view__sidebar-header">
+                      <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
+                        Query History
+                      </div>
+                      <h2 class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
+                        Charts
+                      </h2>
+                    </div>
+                    ${renderChartsList(state)}
+                  </aside>
+                `
+                : ''
+        }
         <div class="charts-view__detail">${renderChartsDetail(state)}</div>
       </section>
     `,

@@ -108,7 +108,7 @@ export function renderDdlSection(ddl, emptyLabel = "No DDL available.") {
       <div class="structure-graph__section-header">
         <div class="structure-graph__section-title">DDL</div>
         <button
-          class="toolbar-button structure-graph__copy-button border border-outline-variant/20 bg-surface-container px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container disabled:cursor-default disabled:opacity-30"
+          class="standard-button"
           data-structure-graph-action="copy-ddl"
           ${hasDdl ? "" : "disabled"}
           type="button"

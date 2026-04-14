@@ -181,8 +181,7 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
   const graph = structure?.graph ?? { tables: [], relationshipCount: 0 };
   const selectedGraphTable =
     graph.tables?.find((table) => table.name === selectedName && table.type === "table") ?? null;
-  const toolbarButtonClass =
-    "toolbar-button structure-graph__button border border-outline-variant/20 bg-surface-container px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container";
+  const toolbarButtonClass = "standard-button";
   const inspectorMarkup = selectedGraphTable
     ? renderInspector(selectedGraphTable)
     : detailLoading
@@ -232,7 +231,7 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
             Clear Selection
           </button>
           <button
-            class="${toolbarButtonClass} is-disabled disabled:cursor-default disabled:opacity-30"
+            class="${toolbarButtonClass}"
             data-structure-graph-action="open-data"
             disabled
             type="button"

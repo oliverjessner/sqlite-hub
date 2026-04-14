@@ -155,14 +155,14 @@ export function renderQueryHistoryDetail({
           </label>
           <div class="mt-2 flex gap-2">
             <input
-              class="flex-1 border border-outline-variant/20 bg-surface-container px-3 py-2 text-sm text-on-surface outline-none placeholder:text-on-surface-variant/35 focus:border-primary-container"
+              class="control-input flex-1 border border-outline-variant/20 bg-surface-container text-sm text-on-surface outline-none placeholder:text-on-surface-variant/35 focus:border-primary-container"
               name="title"
               placeholder="${escapeHtml(item.displayTitle)}"
               type="text"
               value="${escapeHtml(item.title ?? "")}"
             />
             <button
-              class="border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+              class="standard-button"
               type="submit"
             >
               Save
@@ -175,7 +175,7 @@ export function renderQueryHistoryDetail({
 
         <div class="mt-5 flex flex-wrap gap-2">
           <button
-            class="toolbar-button border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+            class="standard-button"
             data-action="open-query-history"
             data-history-id="${escapeHtml(item.id)}"
             type="button"
@@ -183,7 +183,7 @@ export function renderQueryHistoryDetail({
             Open In Editor
           </button>
           <button
-            class="toolbar-button border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+            class="standard-button"
             data-action="navigate"
             data-to="/charts/${encodeURIComponent(item.id)}"
             type="button"
@@ -192,7 +192,7 @@ export function renderQueryHistoryDetail({
             Open In Charts
           </button>
           <button
-            class="toolbar-button border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+            class="standard-button"
             data-action="run-query-history"
             data-history-id="${escapeHtml(item.id)}"
             type="button"
@@ -200,7 +200,7 @@ export function renderQueryHistoryDetail({
             Run Now
           </button>
           <button
-            class="toolbar-button border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+            class="standard-button"
             data-action="toggle-query-history-saved"
             data-history-id="${escapeHtml(item.id)}"
             data-next-value="${item.isSaved ? "false" : "true"}"
@@ -209,7 +209,7 @@ export function renderQueryHistoryDetail({
             ${item.isSaved ? "Unsave" : "Save"}
           </button>
           <button
-            class="toolbar-button border border-error/25 bg-error-container/20 px-4 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-error transition-colors hover:border-error hover:bg-error-container/30"
+            class="delete-button"
             data-action="delete-query-history"
             data-history-id="${escapeHtml(item.id)}"
             type="button"
@@ -237,7 +237,7 @@ export function renderQueryHistoryDetail({
           )}</textarea>
           <div class="mt-2 flex justify-end">
             <button
-              class="border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container hover:text-primary-container"
+              class="standard-button"
               type="submit"
             >
               Save Notes

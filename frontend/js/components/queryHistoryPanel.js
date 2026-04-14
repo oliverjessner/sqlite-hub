@@ -171,7 +171,7 @@ export function renderQueryHistoryPanel({
         <label class="mt-4 block">
           <span class="sr-only">Search query history</span>
           <input
-            class="w-full border border-outline-variant/20 bg-surface-container px-3 py-2 text-sm text-on-surface outline-none placeholder:text-on-surface-variant/35 focus:border-primary-container"
+            class="control-input w-full border border-outline-variant/20 bg-surface-container text-sm text-on-surface outline-none placeholder:text-on-surface-variant/35 focus:border-primary-container"
             data-bind="query-history-search"
             placeholder="Search SQL, titles, notes..."
             type="search"
@@ -223,7 +223,7 @@ export function renderQueryHistoryPanel({
             ? `
               <div class="mt-4 flex justify-center">
                 <button
-                  class="border border-outline-variant/20 bg-surface-container px-4 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant transition-colors hover:border-primary-container hover:text-primary-container"
+                  class="standard-button"
                   data-action="load-more-query-history"
                   type="button"
                 >

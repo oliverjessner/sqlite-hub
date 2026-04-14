@@ -86,7 +86,7 @@ function renderColumnRow(column, draft, catalogTables) {
           )
           .join("")}
       </select>
-      <label class="table-designer-check">
+      <label class="standard-checkbox table-designer-check table-designer-checkbox-override">
         <input
           data-bind="table-designer-column-flag"
           data-column-id="${escapeHtml(column.id)}"
@@ -96,7 +96,7 @@ function renderColumnRow(column, draft, catalogTables) {
         />
         <span>Not null</span>
       </label>
-      <label class="table-designer-check">
+      <label class="standard-checkbox table-designer-check table-designer-checkbox-override">
         <input
           data-bind="table-designer-column-flag"
           data-column-id="${escapeHtml(column.id)}"
@@ -106,7 +106,7 @@ function renderColumnRow(column, draft, catalogTables) {
         />
         <span>Unique</span>
       </label>
-      <label class="table-designer-check">
+      <label class="standard-checkbox table-designer-check table-designer-checkbox-override">
         <input
           data-bind="table-designer-column-flag"
           data-column-id="${escapeHtml(column.id)}"
@@ -164,12 +164,13 @@ function renderColumnRow(column, draft, catalogTables) {
           .join("")}
       </select>
       <button
-        class="table-designer-delete"
+        class="delete-button"
         data-action="remove-table-designer-column"
         data-column-id="${escapeHtml(column.id)}"
         type="button"
       >
         <span class="material-symbols-outlined text-base">delete</span>
+        <span>Remove</span>
       </button>
     </div>
   `;
@@ -204,7 +205,7 @@ function renderFillToggle(draft) {
   const hasImportedRows = (draft.importedCsvRows?.length ?? 0) > 0;
 
   return `
-    <label class="table-designer-fill-toggle ${hasImportedRows ? "" : "is-disabled"}">
+    <label class="standard-checkbox table-designer-fill-toggle table-designer-checkbox-override ${hasImportedRows ? "" : "is-disabled"}">
       <input
         data-bind="table-designer-field"
         data-field="fillImportedRows"
@@ -301,14 +302,14 @@ export function renderTableDesignerEditor(state) {
         <div class="table-designer-main__actions">
           ${renderFillToggle(draft)}
           <button
-            class="table-designer-main__secondary"
+            class="standard-button"
             data-action="refresh-view"
             type="button"
           >
             Reload Schema
           </button>
           <button
-            class="table-designer-main__primary ${draft.canSave ? "" : "is-disabled"}"
+            class="standard-button"
             data-action="save-table-designer"
             ${draft.canSave ? "" : "disabled"}
             type="button"
@@ -342,7 +343,7 @@ export function renderTableDesignerEditor(state) {
             <div class="table-designer-main__section-title">Columns</div>
           </div>
           <button
-            class="table-designer-main__secondary"
+            class="standard-button"
             data-action="add-table-designer-column"
             type="button"
           >

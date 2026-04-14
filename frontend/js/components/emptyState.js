@@ -22,7 +22,7 @@ function renderRecentConnections(recentConnections = []) {
         .map(
           (connection) => `
             <button
-              class="flex items-center gap-2 border border-outline-variant/15 bg-surface-container-low px-4 py-3 text-left text-on-surface transition-colors hover:border-primary-container/30 hover:bg-surface-container-high"
+              class="control-button flex items-center gap-2 border border-outline-variant/15 bg-surface-container-low px-4 text-left text-on-surface transition-colors hover:border-primary-container/30 hover:bg-surface-container-high"
               data-action="select-connection"
               data-connection-id="${escapeHtml(connection.id)}"
               type="button"
@@ -135,7 +135,7 @@ export function renderEmptyState({ activeConnection, recentConnections = [] }) {
             ? `
               <div class="mx-auto mt-8 grid w-full max-w-3xl grid-cols-1 gap-4 px-6 md:grid-cols-3">
                 <button
-                  class="border border-outline-variant/20 bg-surface-container-low px-5 py-4 font-headline text-sm font-bold uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container/30 hover:text-primary-container"
+                  class="standard-button"
                   data-action="navigate"
                   data-to="/overview"
                   type="button"
@@ -143,7 +143,7 @@ export function renderEmptyState({ activeConnection, recentConnections = [] }) {
                   Overview
                 </button>
                 <button
-                  class="border border-outline-variant/20 bg-surface-container-low px-5 py-4 font-headline text-sm font-bold uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container/30 hover:text-primary-container"
+                  class="standard-button"
                   data-action="navigate"
                   data-to="/structure"
                   type="button"
@@ -151,7 +151,7 @@ export function renderEmptyState({ activeConnection, recentConnections = [] }) {
                   Structure
                 </button>
                 <button
-                  class="border border-outline-variant/20 bg-surface-container-low px-5 py-4 font-headline text-sm font-bold uppercase tracking-[0.16em] text-on-surface transition-colors hover:border-primary-container/30 hover:text-primary-container"
+                  class="standard-button"
                   data-action="navigate"
                   data-to="/editor"
                   type="button"

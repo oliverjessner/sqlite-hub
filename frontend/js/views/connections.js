@@ -8,32 +8,25 @@ function renderConnectionsActionButton({
   action = "open-modal",
   modal,
   tone = "secondary",
-  className = "",
   disabled = false,
 }) {
-  const clipPath = "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)";
   const toneClassName =
     tone === "primary"
-      ? "clipped-corner border border-primary-container bg-primary-container text-on-primary shadow-[0_0_18px_-10px_rgba(252,227,0,0.65)] hover:bg-primary-fixed"
-      : "clipped-corner border border-outline-variant/20 bg-surface-container-highest text-primary-container shadow-[inset_2px_0_0_0_rgba(252,227,0,0.95)] hover:bg-surface-bright";
-  const iconClassName =
-    tone === "primary"
-      ? "text-base text-on-primary"
-      : "text-base text-primary-container/90";
-  const clipStyle = `style="--clip-path: ${clipPath};"`;
+      ? "signature-button"
+      : "standard-button";
+  const iconClassName = "";
   const modalAttribute = modal ? `data-modal="${modal}"` : "";
 
   return `
     <button
-      class="flex h-11 items-center justify-between gap-6 px-5 font-headline text-xs font-bold uppercase tracking-[0.18em] transition-colors disabled:cursor-default disabled:opacity-40 ${toneClassName} ${className}"
+      class="${toneClassName}"
       data-action="${escapeHtml(action)}"
       ${modalAttribute}
-      ${clipStyle}
       type="button"
       ${disabled ? "disabled" : ""}
     >
       <span>${label}</span>
-      <span class="material-symbols-outlined ${iconClassName}">${icon}</span>
+      <span class="material-symbols-outlined${iconClassName ? ` ${iconClassName}` : ""}">${icon}</span>
     </button>
   `;
 }
@@ -77,13 +70,11 @@ function renderConnectionsBody(state) {
             icon: "folder_open",
             modal: "open-connection",
             tone: "primary",
-            className: "min-w-[17rem] px-8 py-6 text-sm",
           })}
           ${renderConnectionsActionButton({
             label: "Create Database",
             icon: "note_add",
             modal: "create-connection",
-            className: "min-w-[17rem] px-8 py-6 text-sm",
           })}
         </div>
       </div>
@@ -108,13 +99,11 @@ export function renderConnectionsView(state) {
       icon: "folder_open",
       modal: "open-connection",
       tone: "primary",
-      className: "min-w-[13rem]",
     })}
     ${renderConnectionsActionButton({
       label: "Create Database",
       icon: "note_add",
       modal: "create-connection",
-      className: "min-w-[13rem]",
     })}
     ${
       state.connections.active
@@ -122,7 +111,6 @@ export function renderConnectionsView(state) {
             label: state.connections.backupLoading ? "Creating Backup..." : "Create Backup",
             icon: "inventory_2",
             action: "create-backup",
-            className: "min-w-[13rem]",
             disabled: state.connections.backupLoading,
           })
         : ""

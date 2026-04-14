@@ -1,6 +1,8 @@
-# v0.8.1
+# v0.8.7
 
 - UX fixes
+- fixing a lot of the vibe slop
+- trying to build reuseable components
 
 # v0.8.0
 

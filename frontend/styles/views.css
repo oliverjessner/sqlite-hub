@@ -210,11 +210,13 @@
 }
 
 .charts-detail-shell__header {
-    align-items: end;
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: var(--spacing-4);
-    justify-content: space-between;
+}
+
+.charts-detail-shell__title {
+    min-width: 0;
 }
 
 .charts-detail-shell__controls {
@@ -222,43 +224,19 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--spacing-3);
+    justify-content: space-between;
 }
 
-.charts-detail-shell__button {
-    background: var(--color-surface-container);
-    border: 1px solid rgba(75, 71, 50, 0.2);
-    box-sizing: border-box;
-    color: var(--color-on-surface);
-    height: 42px;
-    font-family: var(--font-family-mono);
-    font-size: 0.625rem;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: 0.16em;
-    padding: 0 1rem;
+.charts-detail-shell__controls-group {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-3);
 }
 
-.charts-detail-shell__button:hover {
-    background: var(--color-surface-highest);
-    border-color: rgba(252, 227, 0, 0.24);
-    color: var(--color-primary-container);
-}
-
-.charts-detail-shell__button--primary {
-    background: var(--color-primary-container);
-    border-color: transparent;
-    color: var(--color-on-primary);
-}
-
-.charts-detail-shell__button--primary:hover {
-    background: var(--color-primary-fixed);
-    border-color: transparent;
-    color: var(--color-on-primary);
-}
-
-.charts-detail-shell__button[disabled] {
-    cursor: not-allowed;
-    opacity: 0.5;
+.charts-detail-shell__controls-group--end {
+    justify-content: flex-end;
+    margin-left: auto;
 }
 
 .charts-height-toggle {
@@ -266,7 +244,7 @@
     border: 1px solid rgba(75, 71, 50, 0.18);
     display: inline-flex;
     gap: 0;
-    height: 42px;
+    height: var(--control-height);
     overflow: hidden;
 }
 
@@ -280,7 +258,7 @@
     font-family: var(--font-family-mono);
     font-size: 0.625rem;
     font-weight: 700;
-    height: 42px;
+    height: var(--control-height);
     justify-content: center;
     line-height: 1;
     letter-spacing: 0.16em;
@@ -338,41 +316,6 @@
 .query-chart-surface-state {
     height: var(--query-chart-height);
     min-height: var(--query-chart-height);
-}
-
-.query-chart-card__action {
-    align-items: center;
-    background: var(--color-surface-container);
-    border: 1px solid rgba(75, 71, 50, 0.18);
-    box-sizing: border-box;
-    color: var(--color-on-surface);
-    display: inline-flex;
-    font-family: var(--font-family-mono);
-    font-size: 0.625rem;
-    font-weight: 700;
-    height: 42px;
-    justify-content: center;
-    line-height: 1;
-    letter-spacing: 0.14em;
-    padding: 0 1rem;
-}
-
-.query-chart-card__action:hover {
-    background: var(--color-surface-highest);
-    border-color: rgba(252, 227, 0, 0.24);
-    color: var(--color-primary-container);
-}
-
-.query-chart-card__action--danger {
-    background: rgba(147, 0, 10, 0.2);
-    border-color: rgba(255, 180, 171, 0.25);
-    color: var(--color-error);
-}
-
-.query-chart-card__action--danger:hover {
-    background: rgba(147, 0, 10, 0.3);
-    border-color: var(--color-error);
-    color: var(--color-error);
 }
 
 .query-chart-card__results {

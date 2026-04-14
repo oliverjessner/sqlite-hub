@@ -85,6 +85,85 @@
         },
       };
     </script>
+    <style type="text/tailwindcss">
+      @layer components {
+        .signature-button {
+          @apply inline-flex items-center justify-center gap-2 h-[var(--control-height)] min-h-[var(--control-height)] border border-primary-container bg-primary-container px-[var(--control-padding-inline)] font-headline text-xs font-bold uppercase tracking-[0.16em] text-on-primary transition-all;
+          box-shadow: 0 0 18px -10px rgba(252, 227, 0, 0.7);
+          clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+        }
+
+        .signature-button:hover {
+          @apply -translate-y-px bg-primary-fixed text-on-primary;
+          border-color: rgba(252, 227, 0, 0.55);
+          box-shadow: 0 0 24px -8px rgba(252, 227, 0, 0.92);
+          filter: brightness(1.03);
+        }
+
+        .signature-button:disabled,
+        .signature-button[aria-disabled="true"] {
+          @apply cursor-not-allowed opacity-45;
+          box-shadow: none;
+          filter: none;
+          transform: none;
+        }
+
+        .signature-button .material-symbols-outlined {
+          @apply text-base;
+        }
+
+        .standard-button {
+          @apply inline-flex items-center justify-center gap-2 h-[var(--control-height)] min-h-[var(--control-height)] border border-outline-variant/20 bg-surface-container px-[var(--control-padding-inline)] font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface transition-colors;
+        }
+
+        .standard-button:hover {
+          @apply bg-surface-container-highest text-primary-container;
+          border-color: rgba(252, 227, 0, 0.24);
+        }
+
+        .standard-button.is-active {
+          @apply bg-surface-container-high text-primary-container;
+          border-color: rgba(252, 227, 0, 0.3);
+        }
+
+        .standard-button:disabled,
+        .standard-button[aria-disabled="true"] {
+          @apply cursor-not-allowed opacity-40;
+        }
+
+        .standard-button .material-symbols-outlined {
+          @apply text-base;
+        }
+
+        .standard-checkbox {
+          @apply inline-flex items-center gap-3 min-h-[var(--control-height)] border border-outline-variant/10 bg-surface-container-lowest px-[var(--control-padding-inline)] text-sm text-on-surface;
+        }
+
+        .standard-checkbox input[type="checkbox"] {
+          @apply m-0 rounded-none border-outline bg-surface-container-lowest text-primary-container focus:ring-primary-container;
+          accent-color: var(--color-primary-container);
+        }
+
+        .standard-checkbox.is-disabled,
+        .standard-checkbox:has(input:disabled) {
+          @apply opacity-45;
+        }
+
+        .delete-button {
+          @apply inline-flex items-center justify-center gap-2 h-[var(--control-height)] min-h-[var(--control-height)] border border-error/25 bg-error-container/10 px-[var(--control-padding-inline)] font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-error transition-all;
+        }
+
+        .delete-button:hover {
+          @apply -translate-y-px border-error bg-error-container/20 text-error;
+        }
+
+        .delete-button:disabled,
+        .delete-button[aria-disabled="true"] {
+          @apply cursor-not-allowed opacity-45;
+          transform: none;
+        }
+      }
+    </style>
     <link href="styles/tokens.css" rel="stylesheet" />
     <link href="styles/base.css" rel="stylesheet" />
     <link href="styles/layout.css" rel="stylesheet" />
