@@ -945,20 +945,24 @@ async function refreshSettingsState() {
     }
 }
 
-async function loadQueryHistoryDetail(historyId) {
+async function loadQueryHistoryDetail(historyId, options = {}) {
     const normalizedId = String(historyId ?? '').trim();
     const numericId = Number(normalizedId);
     const requestVersion = ++queryHistoryDetailLoadVersion;
 
     if (!normalizedId) {
         clearQueryHistoryDetailState();
-        emitChange();
+        if (options.notify !== false) {
+            emitChange();
+        }
         return;
     }
 
     state.editor.historyDetailLoading = true;
     state.editor.historyDetailError = null;
-    emitChange();
+    if (options.notify !== false) {
+        emitChange();
+    }
 
     try {
         const [detailResponse, runsResponse] = await Promise.all([
@@ -987,7 +991,9 @@ async function loadQueryHistoryDetail(historyId) {
     } finally {
         if (requestVersion === queryHistoryDetailLoadVersion) {
             state.editor.historyDetailLoading = false;
-            emitChange();
+            if (options.notify !== false) {
+                emitChange();
+            }
         }
     }
 }
@@ -2522,7 +2528,7 @@ export async function loadMoreQueryHistory() {
     await refreshQueryHistoryState({ append: true });
 }
 
-export async function selectQueryHistoryItem(historyId) {
+export async function selectQueryHistoryItem(historyId, options = {}) {
     const normalizedId = setActiveQueryHistoryItem(historyId);
 
     if (normalizedId === null) {
@@ -2533,17 +2539,25 @@ export async function selectQueryHistoryItem(historyId) {
     state.editor.historyDetail = null;
     state.editor.historyRuns = [];
     state.editor.historyDetailError = null;
-    emitChange();
-    await loadQueryHistoryDetail(normalizedId);
+    state.editor.historyDetailLoading = true;
+
+    if (options.notify !== false) {
+        emitChange();
+    }
+
+    await loadQueryHistoryDetail(normalizedId, options);
 }
 
-export function clearQueryHistorySelection() {
+export function clearQueryHistorySelection(options = {}) {
     if (state.editor.historySelectedId === null && !state.editor.historyDetail) {
         return;
     }
 
     clearQueryHistoryDetailState();
-    emitChange();
+
+    if (options.notify !== false) {
+        emitChange();
+    }
 }
 
 export function openQueryHistoryInEditor(historyId, options = {}) {

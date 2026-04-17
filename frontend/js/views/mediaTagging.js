@@ -523,7 +523,8 @@ function renderTagsSection(state) {
                       type="button"
                       ${tags.length ? '' : 'disabled'}
                     >
-                      Copy Tags
+                      <span class="material-symbols-outlined text-sm">content_copy</span>
+                      Copy Tags to clipboard
                     </button>
                   </div>
                 </div>

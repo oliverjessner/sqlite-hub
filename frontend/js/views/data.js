@@ -444,6 +444,13 @@ export function renderDataRowEditorPanel(state) {
         return '';
     }
 
+    const foreignKeyColumnNames = new Set(
+        (table.foreignKeys ?? []).flatMap(foreignKey =>
+            (foreignKey.mappings ?? []).map(mapping => String(mapping.from ?? '').trim()).filter(Boolean),
+        ),
+    );
+    const getColumnBadges = column => (foreignKeyColumnNames.has(column.name) ? ['FK'] : []);
+
     const identityColumns = table.identityStrategy?.type === 'primaryKey' ? (table.identityStrategy.columns ?? []) : [];
     const editableColumns = (table.columnMeta ?? []).filter(column => {
         if (!column.visible || column.generated) {
@@ -494,12 +501,16 @@ export function renderDataRowEditorPanel(state) {
             return {
                 name: column.name,
                 label: column.name,
+                badges: getColumnBadges(column),
                 value: value === null || value === undefined ? '' : String(value),
             };
         }),
         readonlyFields: readonlyColumns.map(column => ({
             name: column.name,
-            label: column.name,
+            label: {
+                label: column.name,
+                badges: getColumnBadges(column),
+            },
             value: formatCellValue(row[column.name]),
         })),
         saveError: state.dataBrowser.saveError,

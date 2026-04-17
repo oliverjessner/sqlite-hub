@@ -113,6 +113,7 @@ class DataBrowserService {
       pageCount: Math.max(1, Math.ceil((tableDetail.rowCount ?? rows.length) / limit)),
       columns,
       columnMeta: tableDetail.columns,
+      foreignKeys: tableDetail.foreignKeys,
       rows,
       identityStrategy: tableDetail.identityStrategy,
       notSafelyUpdatable: tableDetail.notSafelyUpdatable,

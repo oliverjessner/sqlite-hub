@@ -319,11 +319,11 @@ function buildDefaultMediaQueries(tableDetail, config = {}) {
   const tableSql = `${selectionPrefix} FROM ${quoteIdentifier(tableDetail.name)}`;
   const taggedColumnSql = quoteIdentifier(config.taggedColumn);
   const orderByClause = buildOrderByClause(tableDetail, MEDIA_ROWID_ALIAS);
-  const orderSegment = orderByClause ? ` ${orderByClause}` : "";
+  const orderSegment = orderByClause ? `\n${orderByClause}` : "";
 
   return {
-    untaggedQuery: `${tableSql} WHERE COALESCE(${taggedColumnSql}, 0) = 0${orderSegment}`,
-    taggedQuery: `${tableSql} WHERE COALESCE(${taggedColumnSql}, 0) = 1${orderSegment}`,
+    untaggedQuery: `${tableSql}\nWHERE COALESCE(${taggedColumnSql}, 0) = 0${orderSegment}`,
+    taggedQuery: `${tableSql}\nWHERE COALESCE(${taggedColumnSql}, 0) = 1${orderSegment}`,
   };
 }
 

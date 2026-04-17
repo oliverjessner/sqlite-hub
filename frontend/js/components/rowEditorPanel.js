@@ -42,12 +42,23 @@ function renderJsonViewer(prettyJson, title = "JSON Viewer") {
 }
 
 function renderReadonlyField(label, value) {
+  const badges = Array.isArray(label?.badges) ? label.badges : [];
+  const displayLabel = typeof label === "object" ? label.label : label;
   const jsonPreview = getJsonPreview(value);
 
   return `
     <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
-      <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
-        ${escapeHtml(label)}
+      <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
+        <span>${escapeHtml(displayLabel)}</span>
+        ${badges
+          .map(
+            (badge) => `
+              <span class="border border-outline-variant/20 bg-surface-container px-2 py-1 text-[9px] text-primary-container">
+                ${escapeHtml(badge)}
+              </span>
+            `
+          )
+          .join("")}
       </div>
       ${
         jsonPreview
@@ -59,12 +70,22 @@ function renderReadonlyField(label, value) {
 }
 
 function renderEditableField(field) {
+  const badges = Array.isArray(field.badges) ? field.badges : [];
   const jsonPreview = getJsonPreview(field.value);
 
   return `
     <label class="block space-y-2">
-      <span class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
-        ${escapeHtml(field.label ?? field.name)}
+      <span class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
+        <span>${escapeHtml(field.label ?? field.name)}</span>
+        ${badges
+          .map(
+            (badge) => `
+              <span class="border border-outline-variant/20 bg-surface-container px-2 py-1 text-[9px] text-primary-container">
+                ${escapeHtml(badge)}
+              </span>
+            `
+          )
+          .join("")}
       </span>
       ${
         jsonPreview

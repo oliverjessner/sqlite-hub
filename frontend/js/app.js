@@ -348,6 +348,29 @@ function syncQueryHistoryUi(historyId) {
     return true;
 }
 
+function syncQueryHistorySelectionUi(selectedHistoryId = null) {
+    const historyButtons = shellRefs.view.querySelectorAll(
+        '[data-action="select-query-history-item"][data-history-id]',
+    );
+
+    for (const button of historyButtons) {
+        if (!(button instanceof HTMLElement) || !button.classList.contains('query-history-icon-button')) {
+            continue;
+        }
+
+        button.classList.toggle('is-active', button.dataset.historyId === String(selectedHistoryId));
+    }
+
+    if (selectedHistoryId === null) {
+        shellRefs.panel.innerHTML = '';
+        shellRefs.shell.classList.remove('panel-open');
+        lastRenderedPanelMarkup = '';
+        lastRenderedPanelOpen = false;
+    }
+
+    return true;
+}
+
 function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -887,11 +910,16 @@ async function handleAction(actionNode) {
             return;
         case 'select-query-history-item':
             if (actionNode.dataset.historyId) {
-                await selectQueryHistoryItem(actionNode.dataset.historyId);
+                const pendingSelection = selectQueryHistoryItem(actionNode.dataset.historyId, { notify: false });
+                syncQueryHistorySelectionUi(actionNode.dataset.historyId);
+                syncQueryHistoryUi(actionNode.dataset.historyId);
+                await pendingSelection;
+                syncQueryHistoryUi(actionNode.dataset.historyId);
             }
             return;
         case 'clear-query-history-selection':
-            clearQueryHistorySelection();
+            clearQueryHistorySelection({ notify: false });
+            syncQueryHistorySelectionUi(null);
             return;
         case 'set-query-history-tab':
             if (actionNode.dataset.tab) {
