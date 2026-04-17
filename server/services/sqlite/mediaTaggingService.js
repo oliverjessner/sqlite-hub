@@ -35,7 +35,7 @@ const TAG_TABLE_PATTERN = /(tag|label|category|keyword)/i;
 const TAG_LABEL_PATTERN = /^(name|label|title|tag|keyword)$/i;
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg"]);
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".webm", ".avi", ".mkv"]);
-const AUDIO_EXTENSIONS = new Set([".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac"]);
+const AUDIO_EXTENSIONS = new Set([".mp3", ".wav", ".ogg", ".oga", ".m4a", ".aac", ".flac"]);
 const PARENT_TAG_FLAG_COLUMN = "isParentTag";
 const PARENT_TAG_ID_COLUMN = "parentTagId";
 
@@ -1305,6 +1305,13 @@ class MediaTaggingService {
     }
 
     const normalizedValues = this.normalizeInsertValues(insertColumns, payload.values ?? {});
+    const tagLabelColumns = new Set(getTagLabelColumns(tagTableDetail));
+
+    for (const columnName of tagLabelColumns) {
+      if (typeof normalizedValues[columnName] === "string") {
+        normalizedValues[columnName] = normalizedValues[columnName].trim().toLowerCase();
+      }
+    }
 
     if (parentTagFeature) {
       const parentFlagColumnName = parentTagFeature.flagColumn.name;

@@ -125,7 +125,7 @@ function renderWorkspaceHeader(state) {
                   <button
                     class="standard-button"
                     data-action="navigate"
-                    data-to="/structure"
+                    data-to="/structure/${encodeURIComponent(table.name)}"
                     type="button"
                   >
                   <span class="material-symbols-outlined">account_tree</span>
@@ -345,13 +345,9 @@ function renderTableSurface(state) {
             getRowClass: (_, filteredIndex) => {
                 const rowIndex = filteredRows[filteredIndex]?.index ?? filteredIndex;
 
-                return `${
-                    state.dataBrowser.selectedRowIndex === rowIndex
-                        ? 'bg-surface-bright'
-                        : filteredIndex % 2 === 0
-                          ? 'bg-surface-container-low'
-                          : 'bg-surface-container-lowest'
-                } cursor-pointer transition-colors hover:bg-surface-container-high`;
+                return `data-browser-row ${
+                    filteredIndex % 2 === 0 ? 'data-browser-row--even' : 'data-browser-row--odd'
+                } ${state.dataBrowser.selectedRowIndex === rowIndex ? 'is-selected' : ''} cursor-pointer transition-colors`;
             },
             getRowAttrs: (_, filteredIndex) => {
                 const rowIndex = filteredRows[filteredIndex]?.index ?? filteredIndex;
@@ -438,7 +434,7 @@ function renderTableSurface(state) {
   `;
 }
 
-function renderDataRowEditorPanel(state) {
+export function renderDataRowEditorPanel(state) {
     const table = state.dataBrowser.table;
     const rowIndex = state.dataBrowser.selectedRowIndex;
     const row = getSelectedRow(state);

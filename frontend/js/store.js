@@ -886,7 +886,10 @@ function syncRouteContext() {
         state.dataBrowser.saveError = null;
     }
 
-    if (route.name !== 'structure') {
+    if (route.name === 'structure' && route.params?.tableName) {
+        state.structure.selectedName = route.params.tableName;
+        state.structure.detail = null;
+    } else if (route.name !== 'structure') {
         state.structure.detail = null;
         state.structure.selectedName = null;
     }
@@ -2380,6 +2383,7 @@ export function clearCurrentQuery() {
     state.editor.result = null;
     resetEditorResultSort();
     state.editor.error = null;
+    clearQueryHistoryDetailState();
     state.editor.selectedRowIndex = null;
     state.editor.saving = false;
     state.editor.deleting = false;
@@ -2586,12 +2590,12 @@ export async function saveQueryHistoryTitle(historyId, title) {
         const response = await api.renameQueryHistoryItem(historyId, title);
         syncQueryHistoryItem(response.data);
         pushToast(response.message || 'Query title updated.', 'success');
-        await loadQueryHistoryDetail(historyId);
-        return true;
+        state.editor.historyDetailError = null;
+        return response.data ?? null;
     } catch (error) {
         state.editor.historyDetailError = normalizeError(error);
         emitChange();
-        return false;
+        return null;
     }
 }
 
@@ -2600,12 +2604,12 @@ export async function saveQueryHistoryNotes(historyId, notes) {
         const response = await api.updateQueryHistoryNotes(historyId, notes);
         syncQueryHistoryItem(response.data);
         pushToast(response.message || 'Query notes updated.', 'success');
-        await loadQueryHistoryDetail(historyId);
-        return true;
+        state.editor.historyDetailError = null;
+        return response.data ?? null;
     } catch (error) {
         state.editor.historyDetailError = normalizeError(error);
         emitChange();
-        return false;
+        return null;
     }
 }
 
@@ -3130,7 +3134,7 @@ export function dismissMediaTaggingIssue(issueKey) {
     emitChange();
 }
 
-export function selectDataRow(index) {
+export function selectDataRow(index, options = {}) {
     const numericIndex = Number(index);
 
     if (!Number.isInteger(numericIndex) || numericIndex < 0) {
@@ -3140,7 +3144,10 @@ export function selectDataRow(index) {
     state.dataBrowser.selectedRowIndex = numericIndex;
     state.dataBrowser.selectedRow = null;
     state.dataBrowser.saveError = null;
-    emitChange();
+
+    if (options.notify !== false) {
+        emitChange();
+    }
 }
 
 export function openDataRowByIdentity(tableName, identity) {
@@ -3181,14 +3188,17 @@ export function clearEditorRowSelection() {
     emitChange();
 }
 
-export function clearDataRowSelection() {
+export function clearDataRowSelection(options = {}) {
     if (state.dataBrowser.selectedRowIndex === null && !state.dataBrowser.selectedRow) {
         return;
     }
 
     clearDataBrowserRowSelectionState();
     state.dataBrowser.saveError = null;
-    emitChange();
+
+    if (options.notify !== false) {
+        emitChange();
+    }
 }
 
 export function setDataSearchQuery(query) {

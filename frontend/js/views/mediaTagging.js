@@ -318,6 +318,8 @@ function renderPreviewMedia(currentItem, { detailsVisible = true, mediaTableName
     }
 
     const pathValue = String(currentItem.path ?? '');
+    const fileName = pathValue.split(/[\\/]/).filter(Boolean).pop() || 'Audio file';
+    const isAudioPreview = Boolean(currentItem.previewUrl && currentItem.previewKind === 'audio');
     let assetMarkup = `
     <div class="media-tagging-preview__placeholder">
       <span class="material-symbols-outlined text-5xl">perm_media</span>
@@ -340,33 +342,35 @@ function renderPreviewMedia(currentItem, { detailsVisible = true, mediaTableName
     `;
     } else if (currentItem.previewUrl && currentItem.previewKind === 'audio') {
         assetMarkup = `
-      <div class="media-tagging-preview__placeholder">
-        <span class="material-symbols-outlined text-5xl">audio_file</span>
+      <div class="media-tagging-audio-preview">
+        <div class="media-tagging-audio-preview__icon">
+          <span class="material-symbols-outlined">audio_file</span>
+        </div>
+        <div class="media-tagging-audio-preview__content">
+          <div class="media-tagging-audio-preview__eyebrow">Audio Preview</div>
+          <div class="media-tagging-audio-preview__title" title="${escapeHtml(fileName)}">
+            ${escapeHtml(truncateMiddle(fileName, 56))}
+          </div>
+          <audio
+            class="media-tagging-audio-preview__player"
+            controls
+            preload="metadata"
+            src="${escapeHtml(currentItem.previewUrl)}"
+          ></audio>
+        </div>
       </div>
-      <audio class="mt-4 w-full" controls preload="metadata" src="${escapeHtml(currentItem.previewUrl)}"></audio>
     `;
     }
 
     const metadata = getWorkflowMetadataEntries(currentItem);
-    const toggleLabel = detailsVisible ? 'Shrink Media Viewer' : 'Show Media Viewer';
+    const toggleLabel = detailsVisible
+        ? '<span class="material-symbols-outlined">visibility_off</span> Shrink Media Viewer'
+        : 'Show Media Viewer';
 
     return `
     <div class="media-tagging-preview ${detailsVisible ? '' : 'media-tagging-preview--meta-hidden'}">
-      <div class="media-tagging-preview__media">
+      <div class="media-tagging-preview__media${isAudioPreview ? ' media-tagging-preview__media--audio' : ''}">
         <div class="media-tagging-preview__media-toolbar">
-          ${
-              mediaTableName && currentItem.identity
-                  ? `
-                  <button
-                    class="standard-button media-tagging-preview__toggle"
-                    data-action="open-media-tagging-current-in-data"
-                    type="button"
-                  >
-                    Open In Data
-                  </button>
-                `
-                  : ''
-          }
           <button
             class="standard-button media-tagging-preview__toggle"
             data-action="toggle-media-tagging-current-media"
@@ -376,18 +380,27 @@ function renderPreviewMedia(currentItem, { detailsVisible = true, mediaTableName
             aria-expanded="${detailsVisible ? 'true' : 'false'}"
             type="button"
           >
-            ${escapeHtml(toggleLabel)}
+            ${toggleLabel}
           </button>
         </div>
         ${assetMarkup}
       </div>
       <div class="media-tagging-preview__meta">
-        <div class="media-tagging-preview__eyebrow">Current Media</div>
-        <div class="media-tagging-preview__path" title="${escapeHtml(pathValue)}">
-          ${escapeHtml(truncateMiddle(pathValue || 'No path available', 96))}
-        </div>
-        <div class="mt-3 text-[11px] font-mono uppercase tracking-[0.14em] text-on-surface-variant/45">
-          ${currentItem.existsOnDisk === false ? 'FILE_MISSING_ON_DISK' : 'FILE_READY'}
+        <div class="media-tagging-preview__meta-header">
+          <div class="media-tagging-preview__eyebrow">Current Media</div>
+          ${
+              mediaTableName && currentItem.identity
+                  ? `
+                  <button
+                    class="standard-button media-tagging-preview__meta-action"
+                    data-action="open-media-tagging-current-in-data"
+                    type="button"
+                  >
+                    Open In Data
+                  </button>
+                `
+                  : ''
+          }
         </div>
         ${
             metadata.length

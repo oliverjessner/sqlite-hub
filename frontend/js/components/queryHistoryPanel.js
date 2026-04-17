@@ -20,7 +20,7 @@ function getQueryTypeTone(queryType, isDestructive) {
   return "muted";
 }
 
-function renderHistoryItem(item, activeHistoryId, selectedHistoryId) {
+export function renderQueryHistoryListItem(item, activeHistoryId, selectedHistoryId) {
   const isActive = Number(activeHistoryId) === Number(item.id);
   const isSelected = Number(selectedHistoryId) === Number(item.id);
   const visibleTables = (item.tablesDetected ?? []).slice(0, 3);
@@ -205,9 +205,9 @@ export function renderQueryHistoryPanel({
             `
             : ""
         }
-        <div class="space-y-3">
+          <div class="space-y-3">
           ${items
-            .map((item) => renderHistoryItem(item, activeHistoryId, selectedHistoryId))
+            .map((item) => renderQueryHistoryListItem(item, activeHistoryId, selectedHistoryId))
             .join("")}
         </div>
         ${

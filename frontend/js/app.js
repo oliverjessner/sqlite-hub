@@ -1,5 +1,7 @@
 import { renderAppShell } from './components/appShell.js';
 import { renderModal } from './components/modal.js';
+import { renderQueryHistoryDetail } from './components/queryHistoryDetail.js';
+import { renderQueryHistoryListItem } from './components/queryHistoryPanel.js';
 import { renderSidebar } from './components/sidebar.js';
 import { renderStatusBar } from './components/statusBar.js';
 import {
@@ -110,7 +112,7 @@ import {
 } from './store.js';
 import { renderChartsView } from './views/charts.js';
 import { renderConnectionsView } from './views/connections.js';
-import { renderDataView } from './views/data.js';
+import { renderDataRowEditorPanel, renderDataView } from './views/data.js';
 import { renderEditorView } from './views/editor.js';
 import { renderLandingView } from './views/landing.js';
 import { renderMediaTaggingView } from './views/mediaTagging.js';
@@ -247,11 +249,12 @@ function syncMediaTaggingCurrentMediaUi(button, detailsVisible) {
     const nextVisible = Boolean(detailsVisible);
     const expandedLabel = button.dataset.expandedLabel || 'Shrink Media Viewer';
     const collapsedLabel = button.dataset.collapsedLabel || 'Show Media Viewer';
+    const expandedMarkup = `<span class="material-symbols-outlined">visibility_off</span> ${expandedLabel}`;
 
     preview.classList.toggle('media-tagging-preview--meta-hidden', !nextVisible);
     button.dataset.nextValue = nextVisible ? 'false' : 'true';
     button.setAttribute('aria-expanded', nextVisible ? 'true' : 'false');
-    button.textContent = nextVisible ? expandedLabel : collapsedLabel;
+    button.innerHTML = nextVisible ? expandedMarkup : collapsedLabel;
     return true;
 }
 
@@ -276,6 +279,70 @@ function syncMediaTaggingTagSearchUi(input) {
 
         const searchText = String(tagOption.dataset.tagSearchText ?? '').trim().toLowerCase();
         tagOption.hidden = Boolean(normalizedQuery) && !searchText.includes(normalizedQuery);
+    }
+
+    return true;
+}
+
+function syncDataRowSelectionUi(selectedRowIndex = null) {
+    if (getState().route.name !== 'data') {
+        return false;
+    }
+
+    const rowNodes = shellRefs.view.querySelectorAll('[data-action="select-data-row"][data-row-index]');
+
+    for (const rowNode of rowNodes) {
+        if (!(rowNode instanceof HTMLElement)) {
+            continue;
+        }
+
+        rowNode.classList.toggle('is-selected', rowNode.dataset.rowIndex === String(selectedRowIndex));
+    }
+
+    const panelMarkup = renderDataRowEditorPanel(getState());
+    const panelOpen = Boolean(panelMarkup);
+
+    shellRefs.panel.innerHTML = panelMarkup;
+    shellRefs.shell.classList.toggle('panel-open', panelOpen);
+    lastRenderedPanelMarkup = panelMarkup;
+    lastRenderedPanelOpen = panelOpen;
+    return true;
+}
+
+function syncQueryHistoryUi(historyId) {
+    const state = getState();
+    const numericId = Number(historyId);
+
+    if (!Number.isInteger(numericId) || numericId < 1) {
+        return false;
+    }
+
+    const historyItem = state.editor.history.find(entry => Number(entry.id) === numericId) ?? state.editor.historyDetail ?? null;
+    const listItemNode = shellRefs.view.querySelector(
+        `[data-action="select-query-history-item"][data-history-id="${String(numericId)}"]`,
+    )?.closest('.query-history-item');
+
+    if (historyItem && listItemNode instanceof HTMLElement) {
+        listItemNode.outerHTML = renderQueryHistoryListItem(
+            historyItem,
+            state.editor.historyActiveId,
+            state.editor.historySelectedId,
+        );
+    }
+
+    if (state.editor.historySelectedId === numericId) {
+        const panelMarkup = renderQueryHistoryDetail({
+            item: state.editor.historyDetail,
+            runs: state.editor.historyRuns,
+            loading: state.editor.historyDetailLoading,
+            error: state.editor.historyDetailError,
+        });
+        const panelOpen = Boolean(panelMarkup);
+
+        shellRefs.panel.innerHTML = panelMarkup;
+        shellRefs.shell.classList.toggle('panel-open', panelOpen);
+        lastRenderedPanelMarkup = panelMarkup;
+        lastRenderedPanelOpen = panelOpen;
     }
 
     return true;
@@ -583,16 +650,24 @@ function renderApp(state) {
         'mediaTaggingQueue',
     ].includes(state.route.name);
     const panelOpen = Boolean(panel);
+    const topNavChanged = topNavMarkup !== lastRenderedTopNavMarkup;
+    const sidebarChanged = sidebarMarkup !== lastRenderedSidebarMarkup;
+    const statusBarChanged = statusBarMarkup !== lastRenderedStatusBarMarkup;
+    const mainChanged = main !== lastRenderedMainMarkup;
+    const panelChanged = panel !== lastRenderedPanelMarkup;
+    const modalChanged = modalMarkup !== lastRenderedModalMarkup;
+    const panelOpenChanged = panelOpen !== lastRenderedPanelOpen;
+    const lockedRouteChanged = isLockedRoute !== lastRenderedLockedRoute;
     const shellMarkupUnchanged =
         state.route.path === lastRenderedRoutePath &&
-        topNavMarkup === lastRenderedTopNavMarkup &&
-        sidebarMarkup === lastRenderedSidebarMarkup &&
-        statusBarMarkup === lastRenderedStatusBarMarkup &&
-        main === lastRenderedMainMarkup &&
-        panel === lastRenderedPanelMarkup &&
-        modalMarkup === lastRenderedModalMarkup &&
-        panelOpen === lastRenderedPanelOpen &&
-        isLockedRoute === lastRenderedLockedRoute;
+        !topNavChanged &&
+        !sidebarChanged &&
+        !statusBarChanged &&
+        !mainChanged &&
+        !panelChanged &&
+        !modalChanged &&
+        !panelOpenChanged &&
+        !lockedRouteChanged;
 
     if (shellMarkupUnchanged && toastMarkup !== lastRenderedToastMarkup) {
         shellRefs.toast.innerHTML = toastMarkup;
@@ -614,17 +689,46 @@ function renderApp(state) {
         pendingNewTableDesignerAutofocus = false;
     }
 
-    teardownStructureGraph();
-    teardownQueryChartRenderer();
-    shellRefs.topNav.innerHTML = topNavMarkup;
-    shellRefs.sidebar.innerHTML = sidebarMarkup;
-    shellRefs.statusBar.innerHTML = statusBarMarkup;
-    shellRefs.view.innerHTML = main;
-    shellRefs.view.classList.toggle('app-main-scroll--locked', isLockedRoute);
-    shellRefs.panel.innerHTML = panel;
-    shellRefs.modal.innerHTML = modalMarkup;
-    shellRefs.toast.innerHTML = toastMarkup;
-    shellRefs.shell.classList.toggle('panel-open', panelOpen);
+    if (mainChanged) {
+        teardownStructureGraph();
+        teardownQueryChartRenderer();
+    }
+
+    if (topNavChanged) {
+        shellRefs.topNav.innerHTML = topNavMarkup;
+    }
+
+    if (sidebarChanged) {
+        shellRefs.sidebar.innerHTML = sidebarMarkup;
+    }
+
+    if (statusBarChanged) {
+        shellRefs.statusBar.innerHTML = statusBarMarkup;
+    }
+
+    if (mainChanged) {
+        shellRefs.view.innerHTML = main;
+    }
+
+    if (mainChanged || lockedRouteChanged) {
+        shellRefs.view.classList.toggle('app-main-scroll--locked', isLockedRoute);
+    }
+
+    if (panelChanged) {
+        shellRefs.panel.innerHTML = panel;
+    }
+
+    if (modalChanged) {
+        shellRefs.modal.innerHTML = modalMarkup;
+    }
+
+    if (toastMarkup !== lastRenderedToastMarkup) {
+        shellRefs.toast.innerHTML = toastMarkup;
+    }
+
+    if (panelChanged || panelOpenChanged) {
+        shellRefs.shell.classList.toggle('panel-open', panelOpen);
+    }
 
     if (pendingQueryEditorFocus && (state.route.name === 'editor' || state.route.name === 'editorResults')) {
         if (focusQueryEditorInput()) {
@@ -954,7 +1058,8 @@ async function handleAction(actionNode) {
         }
         case 'select-data-row':
             if (actionNode.dataset.rowIndex) {
-                selectDataRow(actionNode.dataset.rowIndex);
+                selectDataRow(actionNode.dataset.rowIndex, { notify: false });
+                syncDataRowSelectionUi(actionNode.dataset.rowIndex);
             }
             return;
         case 'select-editor-row':
@@ -963,7 +1068,8 @@ async function handleAction(actionNode) {
             }
             return;
         case 'clear-data-row-selection':
-            clearDataRowSelection();
+            clearDataRowSelection({ notify: false });
+            syncDataRowSelectionUi(null);
             return;
         case 'clear-editor-row-selection':
             clearEditorRowSelection();
@@ -1380,12 +1486,24 @@ document.addEventListener('submit', async event => {
             await submitEditorRowUpdate(String(formData.get('rowIndex') ?? ''), values);
             return;
         }
-        case 'save-query-history-title':
-            await saveQueryHistoryTitle(String(formData.get('historyId') ?? ''), String(formData.get('title') ?? ''));
+        case 'save-query-history-title': {
+            const historyId = String(formData.get('historyId') ?? '');
+            const updatedItem = await saveQueryHistoryTitle(historyId, String(formData.get('title') ?? ''));
+
+            if (updatedItem) {
+                syncQueryHistoryUi(historyId);
+            }
             return;
-        case 'save-query-history-notes':
-            await saveQueryHistoryNotes(String(formData.get('historyId') ?? ''), String(formData.get('notes') ?? ''));
+        }
+        case 'save-query-history-notes': {
+            const historyId = String(formData.get('historyId') ?? '');
+            const updatedItem = await saveQueryHistoryNotes(historyId, String(formData.get('notes') ?? ''));
+
+            if (updatedItem) {
+                syncQueryHistoryUi(historyId);
+            }
             return;
+        }
         default:
     }
 });

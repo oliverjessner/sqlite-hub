@@ -36,7 +36,13 @@ export function parseHash(hash = window.location.hash) {
                 },
             };
         case 'structure':
-            return { name: 'structure', path: '/structure', params: {} };
+            return {
+                name: 'structure',
+                path: cleanPath,
+                params: {
+                    tableName: segments[1] ? decodeURIComponent(segments[1]) : null,
+                },
+            };
         case 'table-designer':
             return {
                 name: 'tableDesigner',
