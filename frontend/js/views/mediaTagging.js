@@ -569,6 +569,7 @@ function renderTaggingSection(state) {
               )}
             </select>
           </label>
+          <div></div>
           <label class="media-tagging-field">
             <span class="media-tagging-field__label">Path Column</span>
             <select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" data-bind="media-tagging-field" data-field="pathColumn">

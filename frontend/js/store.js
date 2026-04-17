@@ -2529,9 +2529,9 @@ export async function loadMoreQueryHistory() {
 }
 
 export async function selectQueryHistoryItem(historyId, options = {}) {
-    const normalizedId = setActiveQueryHistoryItem(historyId);
+    const normalizedId = Number(historyId);
 
-    if (normalizedId === null) {
+    if (!Number.isInteger(normalizedId) || normalizedId < 1) {
         return;
     }
 
