@@ -73,6 +73,10 @@ input.control-input--ghost:not(:focus) {
 
 .control-select {
     padding: 0 var(--control-padding-inline);
+    -webkit-appearance: menulist;
+    -moz-appearance: menulist;
+    appearance: auto;
+    background-image: none;
 }
 
 .control-shell {

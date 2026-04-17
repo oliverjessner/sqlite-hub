@@ -283,6 +283,66 @@ export function saveTableDesignerDraft(payload) {
   });
 }
 
+export function getMediaTaggingState() {
+  return request("/api/media-tagging");
+}
+
+export function previewMediaTaggingConfig(payload) {
+  return request("/api/media-tagging/preview", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function saveMediaTaggingConfig(payload) {
+  return request("/api/media-tagging/config", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function createMediaTaggingTagTable(payload) {
+  return request("/api/media-tagging/tag-table/create", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function createMediaTaggingMappingTable(payload) {
+  return request("/api/media-tagging/mapping-table/create", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function createMediaTag(payload) {
+  return request("/api/media-tagging/tags", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function deleteMediaTag(payload) {
+  return request("/api/media-tagging/tags/delete", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function applyMediaTagging(payload) {
+  return request("/api/media-tagging/apply", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function skipMediaTagging(payload) {
+  return request("/api/media-tagging/skip", {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export function getDataTables() {
   return request("/api/data");
 }
@@ -309,6 +369,13 @@ export function getDataTable(tableName, options = {}) {
   const query = params.toString();
 
   return request(`/api/data/${encodeURIComponent(tableName)}${query ? `?${query}` : ""}`);
+}
+
+export function getDataTableRow(tableName, payload) {
+  return request(`/api/data/${encodeURIComponent(tableName)}/row`, {
+    method: "POST",
+    body: payload,
+  });
 }
 
 export function updateDataTableRow(tableName, payload) {

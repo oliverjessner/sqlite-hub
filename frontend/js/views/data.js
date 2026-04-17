@@ -3,6 +3,10 @@ import { renderRowEditorPanel } from '../components/rowEditorPanel.js';
 import { escapeHtml, formatCellValue, formatNumber, isBlobPreview, truncateMiddle } from '../utils/format.js';
 
 function getSelectedRow(state) {
+    if (state.dataBrowser.selectedRow) {
+        return state.dataBrowser.selectedRow;
+    }
+
     const rowIndex = state.dataBrowser.selectedRowIndex;
 
     if (typeof rowIndex !== 'number') {
@@ -438,8 +442,9 @@ function renderDataRowEditorPanel(state) {
     const table = state.dataBrowser.table;
     const rowIndex = state.dataBrowser.selectedRowIndex;
     const row = getSelectedRow(state);
+    const isIndexedRow = typeof rowIndex === 'number';
 
-    if (!table || !row || typeof rowIndex !== 'number') {
+    if (!table || !row) {
         return '';
     }
 
@@ -476,10 +481,12 @@ function renderDataRowEditorPanel(state) {
     return renderRowEditorPanel({
         title: table.name,
         sectionLabel: 'Row Editor',
-        subtitle: `row ${rowIndex + 1}`,
+        subtitle: isIndexedRow ? `row ${rowIndex + 1}` : 'targeted row',
         closeAction: 'clear-data-row-selection',
         formName: 'save-data-row',
-        hiddenFields: [{ name: 'rowIndex', value: String(rowIndex) }],
+        hiddenFields: isIndexedRow
+            ? [{ name: 'rowIndex', value: String(rowIndex) }]
+            : [{ name: 'rowIdentity', value: JSON.stringify(row.__identity ?? null) }],
         disabledMessage: state.connections.active?.readOnly
             ? 'The active database is opened read-only, so row editing is disabled.'
             : table.notSafelyUpdatable
@@ -503,7 +510,7 @@ function renderDataRowEditorPanel(state) {
         saving: state.dataBrowser.saving,
         deleting: state.dataBrowser.deleting,
         deleteAction: 'delete-data-row',
-        deleteRowIndex: rowIndex,
+        deleteRowIndex: isIndexedRow ? rowIndex : null,
         deleteEnabled: Boolean(row.__identity),
         reloadAction: 'reload-data-route',
     });

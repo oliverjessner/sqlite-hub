@@ -1,3 +1,8 @@
+# v0.9.0
+
+- tagging view
+- filtered out the create, update, delete queries from the chart section
+
 # v0.8.8
 
 - modal window fix in delete query

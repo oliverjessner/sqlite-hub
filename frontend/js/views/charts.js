@@ -50,10 +50,10 @@ function renderChartsList(state) {
         <div>
           <span class="material-symbols-outlined mb-3 text-4xl text-on-surface-variant/25">query_stats</span>
           <p class="font-headline text-lg font-black uppercase tracking-tight text-on-surface">
-            No Query History
+            No Chartable Queries
           </p>
           <p class="mt-2 max-w-xs text-sm leading-6 text-on-surface-variant/60">
-            Run saved queries in the SQL Editor first. They will appear here automatically.
+            Run SELECT queries in the SQL Editor first. They will appear here automatically.
           </p>
         </div>
       </div>

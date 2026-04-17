@@ -135,7 +135,7 @@ export function renderRowEditorPanel({
           <button
             class="delete-button"
             data-action="${escapeHtml(deleteAction)}"
-            data-row-index="${escapeHtml(String(deleteRowIndex ?? ""))}"
+            ${deleteRowIndex === null ? "" : `data-row-index="${escapeHtml(String(deleteRowIndex))}"`}
             type="button"
             ${saving || deleting ? "disabled" : ""}
           >

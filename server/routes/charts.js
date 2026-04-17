@@ -57,7 +57,10 @@ function createChartsRouter({ appStateStore, connectionManager, sqlExecutor }) {
     "/query-history/:historyId/execute",
     route((req, res) => {
       const databaseKey = requireActiveDatabaseKey(connectionManager);
-      const item = appStateStore.getQueryHistoryItemForDatabase(req.params.historyId, databaseKey);
+      const item = appStateStore.getChartQueryHistoryItemForDatabase(
+        req.params.historyId,
+        databaseKey
+      );
       const result = sqlExecutor.execute(item.rawSql, {
         persistHistory: false,
         requireReader: true,

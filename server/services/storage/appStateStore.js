@@ -46,6 +46,63 @@ const CONNECTION_LOGO_EXTENSION_BY_FILE_EXTENSION = {
   ".webp": "webp",
 };
 const QUERY_HISTORY_MIGRATION_KEY = "queryHistoryV1Migrated";
+const MEDIA_TAGGING_CONFIG_FIELDS = [
+  {
+    column: "tag_table",
+    property: "tagTable",
+    definition: "tag_table TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    column: "media_table",
+    property: "mediaTable",
+    definition: "media_table TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    column: "path_column",
+    property: "pathColumn",
+    definition: "path_column TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    column: "tagged_column",
+    property: "taggedColumn",
+    definition: "tagged_column TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    column: "untagged_query",
+    property: "untaggedQuery",
+    definition: "untagged_query TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    column: "tagged_query",
+    property: "taggedQuery",
+    definition: "tagged_query TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    column: "mapping_table",
+    property: "mappingTable",
+    definition: "mapping_table TEXT NOT NULL DEFAULT ''",
+  },
+];
+
+function normalizeMediaTaggingConfigValue(value) {
+  return String(value ?? "").trim();
+}
+
+function normalizeMediaTaggingConfigRecord(config = {}) {
+  return {
+    tagTable: normalizeMediaTaggingConfigValue(config.tagTable),
+    mediaTable: normalizeMediaTaggingConfigValue(config.mediaTable),
+    pathColumn: normalizeMediaTaggingConfigValue(config.pathColumn),
+    taggedColumn: normalizeMediaTaggingConfigValue(config.taggedColumn),
+    untaggedQuery: String(config.untaggedQuery ?? "").trim(),
+    taggedQuery: String(config.taggedQuery ?? "").trim(),
+    mappingTable: normalizeMediaTaggingConfigValue(config.mappingTable),
+  };
+}
+
+function isChartCompatibleQueryType(queryType) {
+  return String(queryType ?? "").trim().toLowerCase() === "select";
+}
 
 class AppStateStore {
   constructor(filePath, options = {}) {
@@ -200,6 +257,18 @@ class AppStateStore {
 
       CREATE INDEX IF NOT EXISTS idx_query_history_chart_chart_type
       ON query_history_chart(chart_type);
+
+      CREATE TABLE IF NOT EXISTS media_tagging_config (
+        database_key TEXT PRIMARY KEY,
+        tag_table TEXT NOT NULL DEFAULT '',
+        media_table TEXT NOT NULL DEFAULT '',
+        path_column TEXT NOT NULL DEFAULT '',
+        tagged_column TEXT NOT NULL DEFAULT '',
+        untagged_query TEXT NOT NULL DEFAULT '',
+        tagged_query TEXT NOT NULL DEFAULT '',
+        mapping_table TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL
+      );
     `);
 
     const recentConnectionColumns = new Set(
@@ -212,6 +281,8 @@ class AppStateStore {
     if (!recentConnectionColumns.has("logoPath")) {
       this.db.exec("ALTER TABLE recent_connections ADD COLUMN logoPath TEXT");
     }
+
+    this.ensureMediaTaggingConfigSchema();
   }
 
   seedDefaultSettings() {
@@ -481,6 +552,85 @@ class AppStateStore {
     }
   }
 
+  ensureMediaTaggingConfigSchema() {
+    const columns = this.db
+      .prepare("PRAGMA table_info(media_tagging_config)")
+      .all()
+      .map((column) => column.name);
+    const columnSet = new Set(columns);
+
+    this.mediaTaggingConfigHasLegacyJsonColumn = columnSet.has("config_json");
+
+    for (const field of MEDIA_TAGGING_CONFIG_FIELDS) {
+      if (!columnSet.has(field.column)) {
+        this.db.exec(`ALTER TABLE media_tagging_config ADD COLUMN ${field.definition}`);
+      }
+    }
+
+    if (this.mediaTaggingConfigHasLegacyJsonColumn) {
+      this.backfillMediaTaggingConfigColumnsFromLegacyJson();
+    }
+  }
+
+  backfillMediaTaggingConfigColumnsFromLegacyJson() {
+    const rows = this.db
+      .prepare(
+        `
+          SELECT database_key, config_json
+          FROM media_tagging_config
+          WHERE config_json IS NOT NULL
+        `
+      )
+      .all();
+
+    if (!rows.length) {
+      return;
+    }
+
+    const updateStatement = this.db.prepare(`
+      UPDATE media_tagging_config
+      SET
+        tag_table = COALESCE(NULLIF(tag_table, ''), ?),
+        media_table = COALESCE(NULLIF(media_table, ''), ?),
+        path_column = COALESCE(NULLIF(path_column, ''), ?),
+        tagged_column = COALESCE(NULLIF(tagged_column, ''), ?),
+        untagged_query = COALESCE(NULLIF(untagged_query, ''), ?),
+        tagged_query = COALESCE(NULLIF(tagged_query, ''), ?),
+        mapping_table = COALESCE(NULLIF(mapping_table, ''), ?)
+      WHERE database_key = ?
+    `);
+
+    this.db.transaction(() => {
+      for (const row of rows) {
+        const parsedConfig = this.parseStoredValue(row.config_json);
+        const normalizedConfig = normalizeMediaTaggingConfigRecord(
+          parsedConfig && typeof parsedConfig === "object" && !Array.isArray(parsedConfig)
+            ? parsedConfig
+            : {}
+        );
+
+        updateStatement.run(
+          normalizedConfig.tagTable,
+          normalizedConfig.mediaTable,
+          normalizedConfig.pathColumn,
+          normalizedConfig.taggedColumn,
+          normalizedConfig.untaggedQuery,
+          normalizedConfig.taggedQuery,
+          normalizedConfig.mappingTable,
+          row.database_key
+        );
+      }
+    })();
+  }
+
+  buildMediaTaggingConfigRecord(row = {}) {
+    return normalizeMediaTaggingConfigRecord(
+      Object.fromEntries(
+        MEDIA_TAGGING_CONFIG_FIELDS.map((field) => [field.property, row[field.column] ?? null])
+      )
+    );
+  }
+
   getMetaValue(key) {
     const row = this.db
       .prepare("SELECT value FROM app_meta WHERE key = ?")
@@ -601,6 +751,9 @@ class AppStateStore {
         }),
       previewSql: buildSqlPreview(row.raw_sql ?? row.rawSql),
       lastRun,
+      chartsEligible:
+        isChartCompatibleQueryType(queryType) &&
+        (!lastRun || String(lastRun.status ?? "").trim().toLowerCase() !== "error"),
     };
   }
 
@@ -1099,6 +1252,7 @@ class AppStateStore {
             LIMIT 1
           )
         WHERE q.database_key = ?
+          AND q.query_type = 'select'
           AND COALESCE(latest.status, 'success') != 'error'
         ORDER BY q.last_used_at DESC, q.id DESC
       `)
@@ -1210,6 +1364,16 @@ class AppStateStore {
     return item;
   }
 
+  getChartQueryHistoryItemForDatabase(historyId, databaseKey) {
+    const item = this.getQueryHistoryItemForDatabase(historyId, databaseKey);
+
+    if (!isChartCompatibleQueryType(item.queryType)) {
+      throw new ValidationError("Only SELECT queries can be opened in Charts.");
+    }
+
+    return item;
+  }
+
   getQueryRunsByHistoryId(historyId, limit = 8) {
     const normalizedLimit = Math.max(1, Math.min(50, Number(limit) || 8));
 
@@ -1314,7 +1478,7 @@ class AppStateStore {
   }
 
   getQueryHistoryChartsDetail(historyId, databaseKey) {
-    const item = this.getQueryHistoryItemForDatabase(historyId, databaseKey);
+    const item = this.getChartQueryHistoryItemForDatabase(historyId, databaseKey);
 
     return {
       item,
@@ -1373,7 +1537,7 @@ class AppStateStore {
     tableVisible = true,
     databaseKey = null,
   } = {}) {
-    const item = this.getQueryHistoryItemForDatabase(queryHistoryId, databaseKey);
+    const item = this.getChartQueryHistoryItemForDatabase(queryHistoryId, databaseKey);
     const normalizedChartType = normalizeChartType(chartType);
     const normalizedConfig = normalizeChartConfig(normalizedChartType, config);
     const normalizedResultColumns = normalizeResultColumns(resultColumns);
@@ -1914,6 +2078,106 @@ class AppStateStore {
     })();
 
     return this.getSettings();
+  }
+
+  getMediaTaggingConfig(databaseKey) {
+    const normalizedDatabaseKey = String(databaseKey ?? "").trim();
+
+    if (!normalizedDatabaseKey) {
+      return null;
+    }
+
+    const row = this.db
+      .prepare(
+        `
+          SELECT
+            tag_table,
+            media_table,
+            path_column,
+            tagged_column,
+            untagged_query,
+            tagged_query,
+            mapping_table,
+            updated_at
+          FROM media_tagging_config
+          WHERE database_key = ?
+        `
+      )
+      .get(normalizedDatabaseKey);
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      config: structuredClone(this.buildMediaTaggingConfigRecord(row)),
+      updatedAt: row.updated_at ?? null,
+    };
+  }
+
+  setMediaTaggingConfig(databaseKey, config) {
+    const normalizedDatabaseKey = String(databaseKey ?? "").trim();
+
+    if (!normalizedDatabaseKey) {
+      throw new ValidationError("Media tagging configuration requires a database key.");
+    }
+
+    const updatedAt = new Date().toISOString();
+    const normalizedConfig = normalizeMediaTaggingConfigRecord(config);
+    const values = [
+      normalizedDatabaseKey,
+      normalizedConfig.tagTable,
+      normalizedConfig.mediaTable,
+      normalizedConfig.pathColumn,
+      normalizedConfig.taggedColumn,
+      normalizedConfig.untaggedQuery,
+      normalizedConfig.taggedQuery,
+      normalizedConfig.mappingTable,
+    ];
+    const explicitColumns = [
+      "database_key",
+      ...MEDIA_TAGGING_CONFIG_FIELDS.map((field) => field.column),
+    ];
+    const assignments = MEDIA_TAGGING_CONFIG_FIELDS.map(
+      (field) => `${field.column} = excluded.${field.column}`
+    );
+
+    if (this.mediaTaggingConfigHasLegacyJsonColumn) {
+      explicitColumns.push("config_json");
+      assignments.push("config_json = excluded.config_json");
+      values.push(JSON.stringify(normalizedConfig));
+    }
+
+    explicitColumns.push("updated_at");
+    assignments.push("updated_at = excluded.updated_at");
+    values.push(updatedAt);
+
+    this.db
+      .prepare(
+        `
+          INSERT INTO media_tagging_config (${explicitColumns.join(", ")})
+          VALUES (${explicitColumns.map(() => "?").join(", ")})
+          ON CONFLICT(database_key) DO UPDATE SET
+            ${assignments.join(",\n            ")}
+        `
+      )
+      .run(...values);
+
+    return this.getMediaTaggingConfig(normalizedDatabaseKey);
+  }
+
+  clearMediaTaggingConfig(databaseKey) {
+    const normalizedDatabaseKey = String(databaseKey ?? "").trim();
+
+    if (!normalizedDatabaseKey) {
+      return false;
+    }
+
+    const result = this.db
+      .prepare("DELETE FROM media_tagging_config WHERE database_key = ?")
+      .run(normalizedDatabaseKey);
+
+    return result.changes > 0;
   }
 }
 

@@ -120,6 +120,30 @@ class DataBrowserService {
     };
   }
 
+  getTableRow(tableName, payload = {}) {
+    const db = this.connectionManager.getActiveDatabase();
+    const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
+    const identity = payload.identity ?? null;
+
+    if (tableDetail.notSafelyUpdatable) {
+      throw new ValidationError(
+        `Table ${tableName} has no stable row identity, so a specific row cannot be targeted.`
+      );
+    }
+
+    const where = this.buildWhereClause(tableDetail, identity);
+    const row = this.getRowByIdentity(db, tableDetail, where);
+
+    if (!row) {
+      throw new NotFoundError(`Row not found in table: ${tableName}`);
+    }
+
+    return {
+      tableName,
+      row,
+    };
+  }
+
   updateTableRow(tableName, payload = {}) {
     this.connectionManager.assertWritable();
 

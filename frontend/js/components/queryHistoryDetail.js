@@ -19,6 +19,10 @@ function renderDetailMetaItem(label, value) {
   `;
 }
 
+function canOpenQueryHistoryInCharts(item) {
+  return Boolean(item?.chartsEligible);
+}
+
 function renderRunItem(run) {
   return `
     <div class="border border-outline-variant/10 bg-surface-container px-3 py-3">
@@ -182,15 +186,21 @@ export function renderQueryHistoryDetail({
           >
             Open In Editor
           </button>
-          <button
-            class="standard-button"
-            data-action="navigate"
-            data-to="/charts/${encodeURIComponent(item.id)}"
-            type="button"
-          >
-            <span class="material-symbols-outlined text-sm">bar_chart</span>
-            Open In Charts
-          </button>
+          ${
+            canOpenQueryHistoryInCharts(item)
+              ? `
+                <button
+                  class="standard-button"
+                  data-action="navigate"
+                  data-to="/charts/${encodeURIComponent(item.id)}"
+                  type="button"
+                >
+                  <span class="material-symbols-outlined text-sm">bar_chart</span>
+                  Open In Charts
+                </button>
+              `
+              : ""
+          }
           <button
             class="standard-button"
             data-action="run-query-history"

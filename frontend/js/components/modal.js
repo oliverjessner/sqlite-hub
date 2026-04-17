@@ -5,6 +5,14 @@ import {
   getQueryChartTypeLabel,
   QUERY_CHART_TYPES,
 } from "../lib/queryCharts.js";
+import {
+  hasDefaultMediaTaggingTagTable,
+  hasDefaultMediaTaggingMappingTable,
+  MEDIA_TAGGING_DEFAULT_MAPPING_TABLE,
+  MEDIA_TAGGING_DEFAULT_MAPPING_TABLE_SQL,
+  MEDIA_TAGGING_DEFAULT_TAG_TABLE,
+  MEDIA_TAGGING_DEFAULT_TAG_TABLE_SQL,
+} from "../lib/mediaTaggingDefaults.js";
 
 function renderField({ label, name, type = "text", placeholder = "", value = "" }) {
   return `
@@ -720,6 +728,144 @@ function renderDeleteQueryHistoryForm(modal) {
   `;
 }
 
+function renderCreateMediaTaggingMappingTableForm(modal, state) {
+  const mappingExists = hasDefaultMediaTaggingMappingTable(state.mediaTagging.schemaTables ?? []);
+  const readOnly = Boolean(state.mediaTagging.connection?.readOnly);
+
+  return `
+    <form class="space-y-5" data-form="create-media-tagging-mapping-table">
+      <div class="space-y-3">
+        <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          Mapping Table
+        </div>
+        <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 font-mono text-sm text-on-surface">
+          ${escapeHtml(MEDIA_TAGGING_DEFAULT_MAPPING_TABLE)}
+        </div>
+      </div>
+      <div class="space-y-3">
+        <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          Status
+        </div>
+        <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface">
+          ${
+            mappingExists
+              ? `${escapeHtml(MEDIA_TAGGING_DEFAULT_MAPPING_TABLE)} already exists in the active database.`
+              : `${escapeHtml(MEDIA_TAGGING_DEFAULT_MAPPING_TABLE)} does not exist yet.`
+          }
+          ${
+            readOnly && !mappingExists
+              ? `<div class="mt-2 text-on-surface-variant/60">The active connection is read-only, so the table cannot be created here.</div>`
+              : ""
+          }
+        </div>
+      </div>
+      <div class="space-y-3">
+        <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          SQL
+        </div>
+        <textarea
+          class="custom-scrollbar min-h-[22rem] w-full resize-none overflow-auto border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 font-mono text-[12px] leading-6 text-on-surface outline-none"
+          readonly
+          spellcheck="false"
+          wrap="off"
+        >${escapeHtml(MEDIA_TAGGING_DEFAULT_MAPPING_TABLE_SQL)}</textarea>
+      </div>
+      ${renderError(modal.error)}
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button
+          class="standard-button"
+          data-action="close-modal"
+          type="button"
+        >
+          Close
+        </button>
+        ${
+          !mappingExists
+            ? `
+                <button
+                  class="standard-button"
+                  type="submit"
+                  ${readOnly ? "disabled" : ""}
+                >
+                  ${modal.submitting ? "Creating..." : "Create Table"}
+                </button>
+              `
+            : ""
+        }
+      </div>
+    </form>
+  `;
+}
+
+function renderCreateMediaTaggingTagTableForm(modal, state) {
+  const tagTableExists = hasDefaultMediaTaggingTagTable(state.mediaTagging.schemaTables ?? []);
+  const readOnly = Boolean(state.mediaTagging.connection?.readOnly);
+
+  return `
+    <form class="space-y-5" data-form="create-media-tagging-tag-table">
+      <div class="space-y-3">
+        <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          Tag Table
+        </div>
+        <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 font-mono text-sm text-on-surface">
+          ${escapeHtml(MEDIA_TAGGING_DEFAULT_TAG_TABLE)}
+        </div>
+      </div>
+      <div class="space-y-3">
+        <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          Status
+        </div>
+        <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface">
+          ${
+            tagTableExists
+              ? `${escapeHtml(MEDIA_TAGGING_DEFAULT_TAG_TABLE)} already exists in the active database.`
+              : `${escapeHtml(MEDIA_TAGGING_DEFAULT_TAG_TABLE)} does not exist yet.`
+          }
+          ${
+            readOnly && !tagTableExists
+              ? `<div class="mt-2 text-on-surface-variant/60">The active connection is read-only, so the table cannot be created here.</div>`
+              : ""
+          }
+        </div>
+      </div>
+      <div class="space-y-3">
+        <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          SQL
+        </div>
+        <textarea
+          class="custom-scrollbar min-h-[22rem] w-full resize-none overflow-auto border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 font-mono text-[12px] leading-6 text-on-surface outline-none"
+          readonly
+          spellcheck="false"
+          wrap="off"
+        >${escapeHtml(MEDIA_TAGGING_DEFAULT_TAG_TABLE_SQL)}</textarea>
+      </div>
+      ${renderError(modal.error)}
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button
+          class="standard-button"
+          data-action="close-modal"
+          type="button"
+        >
+          Close
+        </button>
+        ${
+          !tagTableExists
+            ? `
+                <button
+                  class="standard-button"
+                  type="submit"
+                  ${readOnly ? "disabled" : ""}
+                >
+                  ${modal.submitting ? "Creating..." : "Create Table"}
+                </button>
+              `
+            : ""
+        }
+      </div>
+    </form>
+  `;
+}
+
 export function renderModal(state) {
   const modal = state.modal;
 
@@ -767,6 +913,16 @@ export function renderModal(state) {
       eyebrow: "History // Confirm query deletion",
       title: "Delete Query",
       body: renderDeleteQueryHistoryForm(modal),
+    },
+    "create-media-tagging-tag-table": {
+      eyebrow: "Media Tagging // Create default tag table",
+      title: "Create Tag Table",
+      body: renderCreateMediaTaggingTagTableForm(modal, state),
+    },
+    "create-media-tagging-mapping-table": {
+      eyebrow: "Media Tagging // Create default join table",
+      title: "Create Mapping Table",
+      body: renderCreateMediaTaggingMappingTableForm(modal, state),
     },
   };
 

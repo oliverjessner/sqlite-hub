@@ -5,10 +5,19 @@ const sidebarItems = [
     { label: 'Connections', href: '#/connections', key: 'connections', icon: 'database' },
     { label: 'Overview', href: '#/overview', key: 'overview', icon: 'dashboard' },
     { label: 'Data', href: '#/data', key: 'data', icon: 'table_rows' },
-    { label: 'SQL Editor', href: '#/editor', key: 'editor', icon: 'terminal' },
     { label: 'Structure', href: '#/structure', key: 'structure', icon: 'account_tree' },
+    { label: 'SQL Editor', href: '#/editor', key: 'editor', icon: 'terminal' },
     { label: 'Charts', href: '#/charts', key: 'charts', icon: 'bar_chart' },
     { label: 'Table Designer', href: '#/table-designer', key: 'tableDesigner', icon: 'table_chart' },
+    {
+        label: 'Media Tagging',
+        key: 'mediaTagging',
+        icon: 'sell',
+        children: [
+            { label: 'Setup', href: '#/media-tagging', key: 'mediaTaggingSetup' },
+            { label: 'Tagging Queue', href: '#/media-tagging/queue', key: 'mediaTaggingQueue' },
+        ],
+    },
     { label: 'Settings', href: '#/settings', key: 'settings', icon: 'settings' },
 ];
 
@@ -21,24 +30,59 @@ function getActiveSidebarKey(routeName) {
         return 'editor';
     }
 
+    if (routeName === 'mediaTaggingSetup' || routeName === 'mediaTaggingQueue') {
+        return 'mediaTagging';
+    }
+
     return routeName;
 }
 
 export function renderSidebar(state) {
     const activeKey = getActiveSidebarKey(state.route.name);
     const activeConnection = state.connections.active;
+    const expandedKey = activeKey === 'mediaTagging' ? 'mediaTagging' : null;
 
     return `
     <nav class="sidebar-links">
       ${sidebarItems
-          .map(
-              item => `
+          .map(item => {
+              if (item.children) {
+                  const isExpanded = expandedKey === item.key;
+                  const isActive = activeKey === item.key;
+                  return `
+            <div class="sidebar-group">
+              <a class="sidebar-link ${isActive ? 'is-active' : ''}" href="${item.children[0].href}" data-group="${item.key}">
+                <span class="material-symbols-outlined">${item.icon}</span>
+                <span>${item.label}</span>
+                <span class="material-symbols-outlined ml-auto text-[14px] ${isExpanded ? 'rotate-180' : ''}">expand_more</span>
+              </a>
+              ${
+                  isExpanded
+                      ? `
+              <div class="sidebar-sublinks">
+                ${item.children
+                    .map(
+                        child => `
+                <a class="sidebar-sublink ${state.route.name === child.key ? 'is-active' : ''}" href="${child.href}">
+                  ${child.label}
+                </a>
+                `,
+                    )
+                    .join('')}
+              </div>
+              `
+                      : ''
+              }
+            </div>
+          `;
+              }
+              return `
             <a class="sidebar-link ${item.key === activeKey ? 'is-active' : ''}" href="${item.href}">
               <span class="material-symbols-outlined">${item.icon}</span>
               <span>${item.label}</span>
             </a>
-          `,
-          )
+          `;
+          })
           .join('')}
     </nav>
     <div class="sidebar-footer">

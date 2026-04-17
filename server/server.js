@@ -12,6 +12,7 @@ const { ExportService } = require("./services/sqlite/exportService");
 const { StructureService } = require("./services/sqlite/structureService");
 const { DataBrowserService } = require("./services/sqlite/dataBrowserService");
 const { TableDesignerService } = require("./services/sqlite/tableDesignerService");
+const { MediaTaggingService } = require("./services/sqlite/mediaTaggingService");
 const { createConnectionsRouter } = require("./routes/connections");
 const { createOverviewRouter } = require("./routes/overview");
 const { createSqlRouter } = require("./routes/sql");
@@ -19,6 +20,7 @@ const { createChartsRouter } = require("./routes/charts");
 const { createStructureRouter } = require("./routes/structure");
 const { createDataRouter } = require("./routes/data");
 const { createTableDesignerRouter } = require("./routes/tableDesigner");
+const { createMediaTaggingRouter } = require("./routes/mediaTagging");
 const { createSettingsRouter } = require("./routes/settings");
 const { createExportRouter } = require("./routes/export");
 
@@ -50,6 +52,7 @@ const exportService = new ExportService({
 const structureService = new StructureService({ connectionManager, appStateStore });
 const dataBrowserService = new DataBrowserService({ connectionManager });
 const tableDesignerService = new TableDesignerService({ connectionManager });
+const mediaTaggingService = new MediaTaggingService({ connectionManager, appStateStore });
 
 connectionManager.initialize();
 
@@ -84,6 +87,7 @@ app.use("/api/charts", createChartsRouter({ appStateStore, connectionManager, sq
 app.use("/api/structure", createStructureRouter({ structureService }));
 app.use("/api/data", createDataRouter({ dataBrowserService }));
 app.use("/api/table-designer", createTableDesignerRouter({ tableDesignerService }));
+app.use("/api/media-tagging", createMediaTaggingRouter({ mediaTaggingService }));
 app.use("/api/settings", createSettingsRouter({ appStateStore }));
 app.use("/api/export", createExportRouter({ exportService }));
 

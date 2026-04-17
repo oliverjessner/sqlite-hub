@@ -39,6 +39,20 @@ function createDataRouter({ dataBrowserService }) {
     })
   );
 
+  router.post(
+    "/:tableName/row",
+    route((req, res) => {
+      const data = dataBrowserService.getTableRow(req.params.tableName, req.body ?? {});
+
+      res.json(
+        successResponse({
+          data,
+          readOnly: false,
+        })
+      );
+    })
+  );
+
   router.patch(
     "/:tableName/rows",
     route((req, res) => {
