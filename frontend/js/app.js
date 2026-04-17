@@ -841,6 +841,26 @@ async function handleAction(actionNode) {
         case 'create-backup':
             await createActiveConnectionBackup();
             return;
+        case 'copy-media-tags': {
+            const tags = getState().mediaTagging.tags ?? [];
+            const formattedTags = tags
+                .map(tag => `${String(tag.label ?? '').trim()}${tag.isParentTag ? ' (parent)' : ''}`)
+                .filter(Boolean)
+                .join(', ');
+
+            if (!formattedTags) {
+                showToast('No tags available to copy.', 'alert');
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(formattedTags);
+                showToast('Tags copied.', 'success');
+            } catch (error) {
+                showToast('Tags could not be copied.', 'alert');
+            }
+            return;
+        }
         case 'open-overview-in-finder':
             await openOverviewInFinder();
             return;
@@ -1233,6 +1253,11 @@ document.addEventListener('input', event => {
             return;
         }
 
+        if (bindNode instanceof HTMLTextAreaElement && bindNode.dataset.sqlHighlight === 'true') {
+            syncQueryEditorHighlight(bindNode);
+            syncQueryEditorScroll(bindNode);
+        }
+
         updateCurrentMediaTaggingField(bindNode.dataset.field, bindNode.value);
         return;
     }
@@ -1261,7 +1286,11 @@ document.addEventListener(
     event => {
         const target = event.target;
 
-        if (!(target instanceof HTMLTextAreaElement) || target.dataset.bind !== 'current-query') {
+        if (!(target instanceof HTMLTextAreaElement)) {
+            return;
+        }
+
+        if (target.dataset.bind !== 'current-query' && target.dataset.sqlHighlight !== 'true') {
             return;
         }
 

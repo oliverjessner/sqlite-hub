@@ -1,4 +1,4 @@
-import { escapeHtml, truncateMiddle } from "../utils/format.js";
+import { escapeHtml, highlightSql, truncateMiddle } from "../utils/format.js";
 import { renderConnectionLogo } from "./connectionLogo.js";
 import {
   analyzeQueryChartResult,
@@ -46,6 +46,27 @@ function renderCheckboxField({ label, name, checked = false, text }) {
         <span>${escapeHtml(text || label)}</span>
       </span>
     </label>
+  `;
+}
+
+function renderSqlPreviewField(value, minHeightClass = "sql-highlight-shell--tall") {
+  return `
+    <div class="sql-highlight-shell ${minHeightClass}">
+      <div class="query-editor-layer sql-highlight-layer">
+        <div
+          aria-hidden="true"
+          class="query-editor-highlight sql-highlight-content"
+          data-query-editor-highlight
+        >${value ? highlightSql(value) : ""}</div>
+        <textarea
+          class="query-editor-input sql-highlight-input custom-scrollbar"
+          data-sql-highlight="true"
+          readonly
+          spellcheck="false"
+          wrap="off"
+        >${escapeHtml(value)}</textarea>
+      </div>
+    </div>
   `;
 }
 
@@ -763,12 +784,7 @@ function renderCreateMediaTaggingMappingTableForm(modal, state) {
         <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
           SQL
         </div>
-        <textarea
-          class="custom-scrollbar min-h-[22rem] w-full resize-none overflow-auto border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 font-mono text-[12px] leading-6 text-on-surface outline-none"
-          readonly
-          spellcheck="false"
-          wrap="off"
-        >${escapeHtml(MEDIA_TAGGING_DEFAULT_MAPPING_TABLE_SQL)}</textarea>
+        ${renderSqlPreviewField(MEDIA_TAGGING_DEFAULT_MAPPING_TABLE_SQL)}
       </div>
       ${renderError(modal.error)}
       <div class="flex items-center justify-end gap-3 pt-2">
@@ -832,12 +848,7 @@ function renderCreateMediaTaggingTagTableForm(modal, state) {
         <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
           SQL
         </div>
-        <textarea
-          class="custom-scrollbar min-h-[22rem] w-full resize-none overflow-auto border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 font-mono text-[12px] leading-6 text-on-surface outline-none"
-          readonly
-          spellcheck="false"
-          wrap="off"
-        >${escapeHtml(MEDIA_TAGGING_DEFAULT_TAG_TABLE_SQL)}</textarea>
+        ${renderSqlPreviewField(MEDIA_TAGGING_DEFAULT_TAG_TABLE_SQL)}
       </div>
       ${renderError(modal.error)}
       <div class="flex items-center justify-end gap-3 pt-2">

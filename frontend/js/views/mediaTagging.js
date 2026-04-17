@@ -1,4 +1,4 @@
-import { escapeHtml, formatCellValue, formatNumber, truncateMiddle } from '../utils/format.js';
+import { escapeHtml, formatCellValue, formatNumber, highlightSql, truncateMiddle } from '../utils/format.js';
 import {
     hasDefaultMediaTaggingTagTable,
     hasDefaultMediaTaggingMappingTable,
@@ -92,6 +92,30 @@ function renderIssueList(state) {
       ${issuesMarkup}
     </section>
   `;
+}
+
+function renderSqlTextarea({ label, value = '', dataBind, dataField }) {
+    return `
+      <label class="media-tagging-field">
+        <span class="media-tagging-field__label">${escapeHtml(label)}</span>
+        <div class="sql-highlight-shell sql-highlight-shell--media">
+          <div class="query-editor-layer sql-highlight-layer">
+            <div
+              aria-hidden="true"
+              class="query-editor-highlight sql-highlight-content"
+              data-query-editor-highlight
+            >${value ? highlightSql(value) : ''}</div>
+            <textarea
+              class="query-editor-input sql-highlight-input custom-scrollbar"
+              data-bind="${escapeHtml(dataBind)}"
+              data-field="${escapeHtml(dataField)}"
+              data-sql-highlight="true"
+              spellcheck="false"
+            >${escapeHtml(value)}</textarea>
+          </div>
+        </div>
+      </label>
+    `;
 }
 
 function renderOptionList(options = [], selectedValue, placeholder) {
@@ -492,6 +516,16 @@ function renderTagsSection(state) {
                         removingTagKey: state.mediaTagging.removingTagKey,
                     })}
                   </div>
+                  <div class="mt-3">
+                    <button
+                      class="standard-button"
+                      data-action="copy-media-tags"
+                      type="button"
+                      ${tags.length ? '' : 'disabled'}
+                    >
+                      Copy Tags
+                    </button>
+                  </div>
                 </div>
               `
                 : `
@@ -567,22 +601,18 @@ function renderTaggingSection(state) {
         </div>
 
         <div class="media-tagging-query-grid">
-          <label class="media-tagging-field">
-            <span class="media-tagging-field__label">Untagged Query</span>
-            <textarea
-              class="media-tagging-textarea custom-scrollbar"
-              data-bind="media-tagging-field"
-              data-field="untaggedQuery"
-            >${escapeHtml(draft.untaggedQuery)}</textarea>
-          </label>
-          <label class="media-tagging-field">
-            <span class="media-tagging-field__label">Tagged Query</span>
-            <textarea
-              class="media-tagging-textarea custom-scrollbar"
-              data-bind="media-tagging-field"
-              data-field="taggedQuery"
-            >${escapeHtml(draft.taggedQuery)}</textarea>
-          </label>
+          ${renderSqlTextarea({
+              label: 'Untagged Query',
+              value: draft.untaggedQuery,
+              dataBind: 'media-tagging-field',
+              dataField: 'untaggedQuery',
+          })}
+          ${renderSqlTextarea({
+              label: 'Tagged Query',
+              value: draft.taggedQuery,
+              dataBind: 'media-tagging-field',
+              dataField: 'taggedQuery',
+          })}
         </div>
 
         <div class="flex flex-wrap items-center gap-3">

@@ -535,6 +535,41 @@
     resize: vertical;
 }
 
+.sql-highlight-shell {
+    background: var(--color-surface-container-lowest);
+    border: 1px solid rgba(75, 71, 50, 0.18);
+    min-height: 13rem;
+    overflow: hidden;
+}
+
+.sql-highlight-shell--media {
+    min-height: 13rem;
+}
+
+.sql-highlight-shell--tall {
+    min-height: 22rem;
+}
+
+.sql-highlight-layer {
+    min-height: inherit;
+}
+
+.sql-highlight-content,
+.sql-highlight-input {
+    font-family: var(--font-family-mono);
+    font-size: 0.8rem;
+    line-height: 1.6;
+    padding: 0.85rem 0.95rem;
+}
+
+.sql-highlight-content {
+    color: var(--color-on-surface);
+}
+
+.sql-highlight-input {
+    resize: none;
+}
+
 .media-tagging-status {
     align-items: end;
     display: flex;
