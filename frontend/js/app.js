@@ -148,6 +148,7 @@ let lastRenderedPanelOpen = false;
 let lastRenderedLockedRoute = false;
 let pendingNewTableDesignerAutofocus = false;
 let pendingQueryEditorFocus = false;
+let pendingMediaTaggingTagSearchFocus = false;
 
 function invalidateMainRenderCache() {
     lastRenderedMainMarkup = null;
@@ -615,6 +616,29 @@ function focusQueryEditorInput() {
     return true;
 }
 
+function focusMediaTaggingTagSearchInput() {
+    const input = document.querySelector('[data-bind="media-tagging-tag-search"]');
+
+    if (!(input instanceof HTMLInputElement)) {
+        return false;
+    }
+
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(input.value.length, input.value.length);
+    return true;
+}
+
+async function applyMediaTaggingAndFocusSearch() {
+    pendingMediaTaggingTagSearchFocus = true;
+    const result = await applyCurrentMediaTaggingSelection();
+
+    if (!result) {
+        pendingMediaTaggingTagSearchFocus = false;
+    }
+
+    return result;
+}
+
 async function handleTableDesignerCsvImport(fileInput) {
     if (!(fileInput instanceof HTMLInputElement)) {
         return;
@@ -756,6 +780,10 @@ function renderApp(state) {
     if (pendingQueryEditorFocus && (state.route.name === 'editor' || state.route.name === 'editorResults')) {
         if (focusQueryEditorInput()) {
             pendingQueryEditorFocus = false;
+        }
+    } else if (pendingMediaTaggingTagSearchFocus && state.route.name === 'mediaTaggingQueue') {
+        if (focusMediaTaggingTagSearchInput()) {
+            pendingMediaTaggingTagSearchFocus = false;
         }
     } else if (
         pendingNewTableDesignerAutofocus &&
@@ -1071,7 +1099,7 @@ async function handleAction(actionNode) {
             await resetSkippedMediaTaggingItems();
             return;
         case 'apply-media-tagging':
-            await applyCurrentMediaTaggingSelection();
+            await applyMediaTaggingAndFocusSearch();
             return;
         case 'toggle-media-tagging-current-media':
             if (actionNode instanceof HTMLButtonElement) {
@@ -1149,6 +1177,19 @@ async function handleAction(actionNode) {
     }
 }
 
+function isMediaTaggingMenuActive(routeName) {
+    return routeName === 'mediaTaggingSetup' || routeName === 'mediaTaggingQueue';
+}
+
+function canApplyMediaTaggingShortcut(state) {
+    return (
+        isMediaTaggingMenuActive(state.route.name) &&
+        Boolean(state.mediaTagging.workflow?.currentItem) &&
+        !state.mediaTagging.applying &&
+        (state.mediaTagging.selectedTagKeys?.length ?? 0) > 0
+    );
+}
+
 document.addEventListener('click', event => {
     const actionNode = event.target.closest('[data-action]');
 
@@ -1161,6 +1202,7 @@ document.addEventListener('click', event => {
 
 document.addEventListener('keydown', event => {
     const target = event.target;
+    const state = getState();
 
     // Handle Enter key in tag form fields to trigger create tag
     if (
@@ -1178,6 +1220,20 @@ document.addEventListener('keydown', event => {
         if (createButton && !(createButton instanceof HTMLButtonElement && createButton.disabled)) {
             createButton?.click();
         }
+        return;
+    }
+
+    if (
+        (event.key === 'Enter' || event.code === 'Enter' || event.code === 'NumpadEnter') &&
+        event.shiftKey &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.defaultPrevented &&
+        canApplyMediaTaggingShortcut(state)
+    ) {
+        event.preventDefault();
+        void applyMediaTaggingAndFocusSearch();
         return;
     }
 
@@ -1203,8 +1259,6 @@ document.addEventListener('keydown', event => {
     if (event.key !== 'Escape' || event.defaultPrevented) {
         return;
     }
-
-    const state = getState();
 
     if (state.modal) {
         event.preventDefault();
