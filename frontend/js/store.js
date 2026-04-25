@@ -194,6 +194,7 @@ const state = {
         dismissedIssueKeys: [],
         selectedTagKeys: [],
         workflowMediaDetailsVisible: true,
+        workflowMediaRotationDegrees: 0,
         skippedMediaKeys: [],
         tagFormValues: {},
     },
@@ -346,6 +347,35 @@ function requiresActiveDatabase(routeName) {
         'mediaTaggingSetup',
         'mediaTaggingQueue',
     ].includes(routeName);
+}
+
+function isMediaTaggingRouteName(routeName) {
+    return routeName === 'mediaTaggingSetup' || routeName === 'mediaTaggingQueue';
+}
+
+function getConnectionIdentity(connection) {
+    return connection?.id ?? connection?.path ?? null;
+}
+
+function hasLoadedMediaTaggingForActiveConnection() {
+    const activeConnectionId = getConnectionIdentity(state.connections.active);
+
+    return (
+        Boolean(activeConnectionId) &&
+        getConnectionIdentity(state.mediaTagging.connection) === activeConnectionId &&
+        !state.mediaTagging.loading &&
+        (state.mediaTagging.draft !== null || state.mediaTagging.suggestedConfig !== null)
+    );
+}
+
+function normalizeMediaTaggingRotationDegrees(value) {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+        return 0;
+    }
+
+    return ((Math.round(numericValue / 90) * 90) % 360 + 360) % 360;
 }
 
 function normalizeDataPageSize(value, fallback = 50) {
@@ -844,6 +874,7 @@ function setMissingDatabaseState() {
     state.mediaTagging.issues = [];
     state.mediaTagging.dismissedIssueKeys = [];
     state.mediaTagging.selectedTagKeys = [];
+    state.mediaTagging.workflowMediaRotationDegrees = 0;
     state.mediaTagging.skippedMediaKeys = [];
     state.mediaTagging.tagFormValues = {};
     state.mediaTagging.error = error;
@@ -1579,6 +1610,9 @@ function applyMediaTaggingResponse(data, options = {}) {
     };
     state.mediaTagging.tags = data?.tags ?? [];
     state.mediaTagging.workflow = data?.workflow ?? null;
+    if (previousCurrentKey !== nextCurrentKey) {
+        state.mediaTagging.workflowMediaRotationDegrees = 0;
+    }
     state.mediaTagging.issues = data?.issues ?? [];
     state.mediaTagging.error = null;
     syncDismissedMediaTaggingIssues();
@@ -1650,6 +1684,7 @@ async function loadMediaTagging(version) {
         state.mediaTagging.issues = [];
         state.mediaTagging.dismissedIssueKeys = [];
         state.mediaTagging.selectedTagKeys = [];
+        state.mediaTagging.workflowMediaRotationDegrees = 0;
         state.mediaTagging.skippedMediaKeys = [];
         state.mediaTagging.tagFormValues = {};
         state.mediaTagging.removingTagKey = null;
@@ -1759,6 +1794,7 @@ function invalidateDatabaseCaches() {
     state.mediaTagging.issues = [];
     state.mediaTagging.dismissedIssueKeys = [];
     state.mediaTagging.selectedTagKeys = [];
+    state.mediaTagging.workflowMediaRotationDegrees = 0;
     state.mediaTagging.skippedMediaKeys = [];
     state.mediaTagging.tagFormValues = {};
 }
@@ -1769,6 +1805,10 @@ async function loadRouteData(route) {
     if (requiresActiveDatabase(route.name) && !state.connections.active) {
         setMissingDatabaseState();
         emitChange();
+        return;
+    }
+
+    if (isMediaTaggingRouteName(route.name) && hasLoadedMediaTaggingForActiveConnection()) {
         return;
     }
 
@@ -2872,6 +2912,20 @@ export function setMediaTaggingWorkflowMediaDetailsVisible(value, options = {}) 
     }
 
     state.mediaTagging.workflowMediaDetailsVisible = nextValue;
+
+    if (options.notify !== false) {
+        emitChange();
+    }
+}
+
+export function setMediaTaggingWorkflowMediaRotationDegrees(value, options = {}) {
+    const nextValue = normalizeMediaTaggingRotationDegrees(value);
+
+    if (state.mediaTagging.workflowMediaRotationDegrees === nextValue) {
+        return;
+    }
+
+    state.mediaTagging.workflowMediaRotationDegrees = nextValue;
 
     if (options.notify !== false) {
         emitChange();

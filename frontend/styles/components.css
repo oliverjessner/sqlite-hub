@@ -287,6 +287,12 @@
     color: var(--color-error);
 }
 
+.status-badge--warning {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.28);
+    color: #f59e0b;
+}
+
 .status-badge--success {
     background: rgba(0, 220, 225, 0.1);
     color: var(--color-tertiary-dim);

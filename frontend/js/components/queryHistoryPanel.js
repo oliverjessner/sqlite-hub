@@ -4,12 +4,8 @@ import {
 } from "../utils/format.js";
 import { renderStatusBadge } from "./badges.js";
 
-function getQueryTypeTone(queryType, isDestructive) {
-  if (isDestructive) {
-    return "alert";
-  }
-
-  if (queryType === "select") {
+function getQueryTypeTone(queryType) {
+  if (queryType === "select" || queryType === "update") {
     return "success";
   }
 
@@ -39,9 +35,9 @@ export function renderQueryHistoryListItem(item, activeHistoryId, selectedHistor
           <span class="truncate font-headline text-sm font-bold uppercase tracking-tight text-on-surface">
             ${escapeHtml(item.displayTitle)}
           </span>
-          ${renderStatusBadge(item.queryType, getQueryTypeTone(item.queryType, item.isDestructive))}
+          ${renderStatusBadge(item.queryType, getQueryTypeTone(item.queryType))}
           ${item.isSaved ? renderStatusBadge("saved", "primary") : ""}
-          ${item.isDestructive ? renderStatusBadge("destructive", "alert") : ""}
+          ${item.isDestructive ? renderStatusBadge("destructive", "warning") : ""}
         </div>
         <p class="query-history-sql-preview mt-2 text-left font-mono text-xs leading-5 text-on-surface-variant/75">
           ${escapeHtml(item.previewSql)}

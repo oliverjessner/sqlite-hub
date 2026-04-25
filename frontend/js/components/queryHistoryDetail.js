@@ -23,6 +23,18 @@ function canOpenQueryHistoryInCharts(item) {
   return Boolean(item?.chartsEligible);
 }
 
+function getQueryTypeTone(queryType) {
+  if (queryType === "select" || queryType === "update") {
+    return "success";
+  }
+
+  if (queryType === "pragma") {
+    return "primary";
+  }
+
+  return "muted";
+}
+
 function renderRunItem(run) {
   return `
     <div class="border border-outline-variant/10 bg-surface-container px-3 py-3">
@@ -135,9 +147,9 @@ export function renderQueryHistoryDetail({
           </button>
         </div>
         <div class="mt-4 flex flex-wrap gap-2">
-          ${renderStatusBadge(item.queryType, item.isDestructive ? "alert" : "primary")}
+          ${renderStatusBadge(item.queryType, getQueryTypeTone(item.queryType))}
           ${item.isSaved ? renderStatusBadge("saved", "primary") : ""}
-          ${item.isDestructive ? renderStatusBadge("destructive", "alert") : ""}
+          ${item.isDestructive ? renderStatusBadge("destructive", "warning") : ""}
           ${item.lastRun ? renderStatusBadge(item.lastRun.status, item.lastRun.status === "error" ? "alert" : "success") : ""}
         </div>
       </div>

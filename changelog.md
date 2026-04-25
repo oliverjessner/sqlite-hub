@@ -1,3 +1,8 @@
+# v0.9.1
+
+- Improvements in tagging queue
+- rotate right, rotate left
+
 # v0.9.0
 
 - tagging view

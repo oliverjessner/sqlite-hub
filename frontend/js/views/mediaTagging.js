@@ -326,7 +326,10 @@ function renderCreatedTagList(tags = [], { canRemove = false, removingTagKey = n
   `;
 }
 
-function renderPreviewMedia(currentItem, { detailsVisible = true, mediaTableName = '' } = {}) {
+function renderPreviewMedia(
+    currentItem,
+    { detailsVisible = true, mediaTableName = '', rotationDegrees = 0, status = null } = {},
+) {
     if (!currentItem) {
         return `
       <div class="media-tagging-preview__empty">
@@ -344,6 +347,15 @@ function renderPreviewMedia(currentItem, { detailsVisible = true, mediaTableName
     const pathValue = String(currentItem.path ?? '');
     const fileName = pathValue.split(/[\\/]/).filter(Boolean).pop() || 'Audio file';
     const isAudioPreview = Boolean(currentItem.previewUrl && currentItem.previewKind === 'audio');
+    const isRotatablePreview = Boolean(
+        currentItem.previewUrl && (currentItem.previewKind === 'image' || currentItem.previewKind === 'video'),
+    );
+    const numericRotation = Number(rotationDegrees);
+    const normalizedRotation = Number.isFinite(numericRotation)
+        ? ((Math.round(numericRotation / 90) * 90) % 360 + 360) % 360
+        : 0;
+    const rotationStyle = `--media-tagging-preview-rotation: ${normalizedRotation}deg;`;
+    const rotationClass = normalizedRotation === 90 || normalizedRotation === 270 ? ' is-rotated-quarter' : '';
     let assetMarkup = `
     <div class="media-tagging-preview__placeholder">
       <span class="material-symbols-outlined text-5xl">perm_media</span>
@@ -353,16 +365,27 @@ function renderPreviewMedia(currentItem, { detailsVisible = true, mediaTableName
     if (currentItem.previewUrl && currentItem.previewKind === 'image') {
         assetMarkup = `
       <img
-        class="media-tagging-preview__asset"
+        class="media-tagging-preview__asset${rotationClass}"
+        data-media-tagging-rotation-target="true"
+        data-rotation-degrees="${escapeHtml(String(normalizedRotation))}"
+        style="${escapeHtml(rotationStyle)}"
         src="${escapeHtml(currentItem.previewUrl)}"
         alt="${escapeHtml(pathValue || 'Current media item')}"
       />
     `;
     } else if (currentItem.previewUrl && currentItem.previewKind === 'video') {
         assetMarkup = `
-      <video class="media-tagging-preview__asset" controls preload="metadata" src="${escapeHtml(
+      <video
+        class="media-tagging-preview__asset${rotationClass}"
+        data-media-tagging-rotation-target="true"
+        data-rotation-degrees="${escapeHtml(String(normalizedRotation))}"
+        style="${escapeHtml(rotationStyle)}"
+        controls
+        preload="metadata"
+        src="${escapeHtml(
           currentItem.previewUrl,
-      )}"></video>
+      )}"
+      ></video>
     `;
     } else if (currentItem.previewUrl && currentItem.previewKind === 'audio') {
         assetMarkup = `
@@ -395,36 +418,100 @@ function renderPreviewMedia(currentItem, { detailsVisible = true, mediaTableName
     <div class="media-tagging-preview ${detailsVisible ? '' : 'media-tagging-preview--meta-hidden'}">
       <div class="media-tagging-preview__media${isAudioPreview ? ' media-tagging-preview__media--audio' : ''}">
         <div class="media-tagging-preview__media-toolbar">
-          <button
-            class="standard-button media-tagging-preview__toggle"
-            data-action="toggle-media-tagging-current-media"
-            data-next-value="${detailsVisible ? 'false' : 'true'}"
-            data-expanded-label="Shrink Media Viewer"
-            data-collapsed-label="Show Media Viewer"
-            aria-expanded="${detailsVisible ? 'true' : 'false'}"
-            type="button"
-          >
-            ${toggleLabel}
-          </button>
+          <div class="media-tagging-status media-tagging-status--compact media-tagging-status--preview">
+            <div class="media-tagging-status__value">${escapeHtml(status?.ratioLabel ?? '0 / 0')}</div>
+            <div class="media-tagging-status__label">
+              tagged / total
+            </div>
+          </div>
+          <div class="media-tagging-preview__toolbar-actions">
+            ${
+                isRotatablePreview
+                    ? `
+            <div class="media-tagging-preview__rotation-controls" aria-label="Rotate media preview">
+              <button
+                class="standard-button media-tagging-preview__icon-button"
+                data-action="rotate-media-tagging-current-media"
+                data-rotation-command="left"
+                type="button"
+                aria-label="Rotate left 90 degrees"
+                title="Rotate left 90 degrees"
+              >
+                <span class="material-symbols-outlined">rotate_left</span>
+              </button>
+              <button
+                class="standard-button media-tagging-preview__icon-button"
+                data-action="rotate-media-tagging-current-media"
+                data-rotation-command="right"
+                type="button"
+                aria-label="Rotate right 90 degrees"
+                title="Rotate right 90 degrees"
+              >
+                <span class="material-symbols-outlined">rotate_right</span>
+              </button>
+              <button
+                class="standard-button media-tagging-preview__icon-button"
+                data-action="rotate-media-tagging-current-media"
+                data-rotation-command="reset"
+                type="button"
+                aria-label="Reset rotation"
+                title="Reset rotation"
+                ${normalizedRotation === 0 ? 'disabled' : ''}
+              >
+                <span class="material-symbols-outlined">restart_alt</span>
+              </button>
+            </div>
+            `
+                    : ''
+            }
+            <button
+              class="standard-button media-tagging-preview__toggle"
+              data-action="toggle-media-tagging-current-media"
+              data-next-value="${detailsVisible ? 'false' : 'true'}"
+              data-expanded-label="Shrink Media Viewer"
+              data-collapsed-label="Show Media Viewer"
+              aria-expanded="${detailsVisible ? 'true' : 'false'}"
+              type="button"
+            >
+              ${toggleLabel}
+            </button>
+          </div>
         </div>
-        ${assetMarkup}
+        <div class="media-tagging-preview__asset-shell">
+          ${assetMarkup}
+        </div>
       </div>
       <div class="media-tagging-preview__meta">
         <div class="media-tagging-preview__meta-header">
           <div class="media-tagging-preview__eyebrow">Current Media</div>
-          ${
-              mediaTableName && currentItem.identity
-                  ? `
-                  <button
-                    class="standard-button media-tagging-preview__meta-action"
-                    data-action="open-media-tagging-current-in-data"
-                    type="button"
-                  >
-                    Open In Data
-                  </button>
-                `
-                  : ''
-          }
+          <div class="media-tagging-preview__meta-actions">
+            ${
+                mediaTableName
+                    ? `
+                    <button
+                      class="standard-button media-tagging-preview__meta-action"
+                      data-action="open-media-tagging-current-in-structure"
+                      type="button"
+                    >
+                      Open Structure
+                    </button>
+                  `
+                    : ''
+            }
+            ${
+                mediaTableName && currentItem.identity
+                    ? `
+                    <button
+                      class="standard-button media-tagging-preview__meta-action"
+                      data-action="open-media-tagging-current-in-data"
+                      type="button"
+                    >
+                      Open In Data
+                    </button>
+                  `
+                    : ''
+            }
+          </div>
         </div>
         ${
             metadata.length
@@ -548,7 +635,7 @@ function renderTaggingSection(state) {
     const booleanCandidates = state.mediaTagging.booleanCandidates ?? [];
 
     return `
-    <section class="media-tagging-card shell-section">
+    <section class="media-tagging-card media-tagging-card--tagging shell-section">
       <div class="media-tagging-card__header">
         <div>
           <div class="media-tagging-card__eyebrow">2. Tagging</div>
@@ -739,7 +826,12 @@ function renderWorkflowSection(state) {
               `
                 : ''
         }
-        ${renderPreviewMedia(workflow?.currentItem ?? null, { detailsVisible, mediaTableName })}
+        ${renderPreviewMedia(workflow?.currentItem ?? null, {
+            detailsVisible,
+            mediaTableName,
+            rotationDegrees: state.mediaTagging.workflowMediaRotationDegrees,
+            status,
+        })}
         <div class="media-tagging-workflow-sidebar">
           <div class="media-tagging-tag-panel">
             <div class="media-tagging-tag-panel__header">
@@ -748,12 +840,6 @@ function renderWorkflowSection(state) {
                   <div class="media-tagging-field__label">Available Tags</div>
                   <div class="mt-2 text-xs uppercase tracking-[0.12em] text-on-surface-variant/45">
                     ${escapeHtml(formatNumber(selectableTags.length))} selectable tag(s)
-                  </div>
-                </div>
-                <div class="media-tagging-status media-tagging-status--compact">
-                  <div class="media-tagging-status__value">${escapeHtml(status.ratioLabel)}</div>
-                  <div class="media-tagging-status__label">
-                    tagged / total
                   </div>
                 </div>
               </div>
@@ -769,24 +855,29 @@ function renderWorkflowSection(state) {
             </div>
             ${renderTagList(selectableTags, selectedTagKeys)}
             <div class="media-tagging-tag-panel__footer">
-              <div class="flex flex-wrap items-center self-end gap-3">
-                <button
-                  class="standard-button"
-                  data-action="skip-media-tagging-item"
-                  type="button"
-                  ${workflow?.currentItem && canWrite && !state.mediaTagging.previewLoading && !state.mediaTagging.applying ? '' : 'disabled'}
-                >
-                  ${state.mediaTagging.applying ? 'Saving...' : 'Skip'}
-                </button>
-                <button
-                  class="signature-button"
-                  data-action="apply-media-tagging"
-                  data-can-apply="${workflow?.currentItem && canWrite && !state.mediaTagging.applying ? 'true' : 'false'}"
-                  type="button"
-                  ${workflow?.currentItem && canWrite && !state.mediaTagging.applying && selectedTagCount > 0 ? '' : 'disabled'}
-                >
-                  ${state.mediaTagging.applying ? 'Saving...' : `${selectedTagCount} tagged & next`}
-                </button>
+              <div class="media-tagging-tag-panel__footer-main">
+                <div class="media-tagging-tag-panel__remaining">
+                  ${escapeHtml(formatNumber(workflow?.status?.remainingCount ?? 0))} remaining 
+                </div>
+                <div class="media-tagging-tag-panel__actions">
+                  <button
+                    class="standard-button"
+                    data-action="skip-media-tagging-item"
+                    type="button"
+                    ${workflow?.currentItem && canWrite && !state.mediaTagging.previewLoading && !state.mediaTagging.applying ? '' : 'disabled'}
+                  >
+                    ${state.mediaTagging.applying ? 'Saving...' : 'Skip'}
+                  </button>
+                  <button
+                    class="signature-button"
+                    data-action="apply-media-tagging"
+                    data-can-apply="${workflow?.currentItem && canWrite && !state.mediaTagging.applying ? 'true' : 'false'}"
+                    type="button"
+                    ${workflow?.currentItem && canWrite && !state.mediaTagging.applying && selectedTagCount > 0 ? '' : 'disabled'}
+                  >
+                    ${state.mediaTagging.applying ? 'Saving...' : `${selectedTagCount} tagged & next`}
+                  </button>
+                </div>
               </div>
               ${
                   workflow?.allRemainingSkipped
@@ -801,9 +892,6 @@ function renderWorkflowSection(state) {
                     `
                       : ''
               }
-              <div class="text-[11px] font-mono uppercase tracking-[0.14em] text-on-surface-variant/45">
-                ${escapeHtml(formatNumber(workflow?.status?.remainingCount ?? 0))} remaining 
-              </div>
             </div>
           </div>
         </div>
@@ -820,24 +908,6 @@ export function renderMediaTaggingView(state, { subView = 'setup' } = {}) {
         main: `
       <section class="view-surface media-tagging-view">
         <div class="media-tagging-shell">
-          <header class="media-tagging-header">
-            <div class="media-tagging-header__copy">
-              <div class="text-[10px] font-bold uppercase tracking-[0.22em] text-primary-container">
-                Media Tagging
-              </div>
-              <h1 class="mt-3 font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
-                ${showSetup ? 'Setup' : 'Tagging Queue'}
-              </h1>
-              <p class="mt-3 max-w-3xl text-sm leading-7 text-on-surface-variant/65">
-                ${
-                    showSetup
-                        ? 'Configure tags, media queries, and mapping once per database.'
-                        : 'Review the next untagged media item, select tags, skip it, or mark it as tagged.'
-                }
-              </p>
-            </div>
-          </header>
-
           ${renderIssueList(state)}
 
           ${

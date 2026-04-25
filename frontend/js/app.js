@@ -87,6 +87,7 @@ import {
     toggleChartsResultsPanel,
     toggleChartsSqlPanel,
     setMediaTaggingWorkflowMediaDetailsVisible,
+    setMediaTaggingWorkflowMediaRotationDegrees,
     queueTableDesignerCsvImport,
     showToast,
     submitCreateConnection,
@@ -137,6 +138,7 @@ const shellRefs = {
     toast: document.querySelector('#toast-root'),
 };
 let lastRenderedRoutePath = null;
+let lastRenderedRouteName = null;
 let lastRenderedTopNavMarkup = '';
 let lastRenderedSidebarMarkup = '';
 let lastRenderedStatusBarMarkup = '';
@@ -152,6 +154,10 @@ let pendingMediaTaggingTagSearchFocus = false;
 
 function invalidateMainRenderCache() {
     lastRenderedMainMarkup = null;
+}
+
+function isMediaTaggingRouteName(routeName) {
+    return routeName === 'mediaTaggingSetup' || routeName === 'mediaTaggingQueue';
 }
 
 function resetStructureGraphForDatabaseChange() {
@@ -256,6 +262,45 @@ function syncMediaTaggingCurrentMediaUi(button, detailsVisible) {
     button.dataset.nextValue = nextVisible ? 'false' : 'true';
     button.setAttribute('aria-expanded', nextVisible ? 'true' : 'false');
     button.innerHTML = nextVisible ? expandedMarkup : collapsedLabel;
+    return true;
+}
+
+function normalizeMediaTaggingRotationDegrees(value) {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+        return 0;
+    }
+
+    return ((Math.round(numericValue / 90) * 90) % 360 + 360) % 360;
+}
+
+function syncMediaTaggingMediaRotationUi(node, rotationDegrees) {
+    if (!(node instanceof HTMLElement)) {
+        return false;
+    }
+
+    const preview = node.closest('.media-tagging-preview');
+    const target = preview?.querySelector('[data-media-tagging-rotation-target]');
+
+    if (!(preview instanceof HTMLElement) || !(target instanceof HTMLElement)) {
+        return false;
+    }
+
+    const normalizedRotation = normalizeMediaTaggingRotationDegrees(rotationDegrees);
+
+    target.style.setProperty('--media-tagging-preview-rotation', `${normalizedRotation}deg`);
+    target.dataset.rotationDegrees = String(normalizedRotation);
+    target.classList.toggle('is-rotated-quarter', normalizedRotation === 90 || normalizedRotation === 270);
+
+    const resetButton = preview.querySelector(
+        '[data-action="rotate-media-tagging-current-media"][data-rotation-command="reset"]',
+    );
+
+    if (resetButton instanceof HTMLButtonElement) {
+        resetButton.disabled = normalizedRotation === 0;
+    }
+
     return true;
 }
 
@@ -628,6 +673,29 @@ function focusMediaTaggingTagSearchInput() {
     return true;
 }
 
+function syncSidebarActiveRoute(routeName) {
+    if (!isMediaTaggingRouteName(routeName)) {
+        return false;
+    }
+
+    const mediaTaggingLink = shellRefs.sidebar.querySelector('a.sidebar-link[data-group="mediaTagging"]');
+    const setupLink = shellRefs.sidebar.querySelector('a.sidebar-sublink[href="#/media-tagging"]');
+    const queueLink = shellRefs.sidebar.querySelector('a.sidebar-sublink[href="#/media-tagging/queue"]');
+
+    if (
+        !(mediaTaggingLink instanceof HTMLAnchorElement) ||
+        !(setupLink instanceof HTMLAnchorElement) ||
+        !(queueLink instanceof HTMLAnchorElement)
+    ) {
+        return false;
+    }
+
+    mediaTaggingLink.classList.add('is-active');
+    setupLink.classList.toggle('is-active', routeName === 'mediaTaggingSetup');
+    queueLink.classList.toggle('is-active', routeName === 'mediaTaggingQueue');
+    return true;
+}
+
 async function applyMediaTaggingAndFocusSearch() {
     pendingMediaTaggingTagSearchFocus = true;
     const result = await applyCurrentMediaTaggingSelection();
@@ -680,6 +748,7 @@ async function handleTableDesignerCsvImport(fileInput) {
 
 function renderApp(state) {
     const previousRoutePath = lastRenderedRoutePath;
+    const previousRouteName = lastRenderedRouteName;
     const { main, panel } = resolveView(state);
     const topNavMarkup = renderTopNav(state);
     const sidebarMarkup = renderSidebar(state);
@@ -746,7 +815,14 @@ function renderApp(state) {
     }
 
     if (sidebarChanged) {
-        shellRefs.sidebar.innerHTML = sidebarMarkup;
+        const sidebarSynced =
+            isMediaTaggingRouteName(previousRouteName) &&
+            isMediaTaggingRouteName(state.route.name) &&
+            syncSidebarActiveRoute(state.route.name);
+
+        if (!sidebarSynced) {
+            shellRefs.sidebar.innerHTML = sidebarMarkup;
+        }
     }
 
     if (statusBarChanged) {
@@ -799,6 +875,7 @@ function renderApp(state) {
     }
 
     lastRenderedRoutePath = state.route.path;
+    lastRenderedRouteName = state.route.name;
     lastRenderedTopNavMarkup = topNavMarkup;
     lastRenderedSidebarMarkup = sidebarMarkup;
     lastRenderedStatusBarMarkup = statusBarMarkup;
@@ -1108,6 +1185,20 @@ async function handleAction(actionNode) {
                 setMediaTaggingWorkflowMediaDetailsVisible(nextValue, { notify: false });
             }
             return;
+        case 'rotate-media-tagging-current-media': {
+            const currentRotation = getState().mediaTagging.workflowMediaRotationDegrees ?? 0;
+            const command = actionNode.dataset.rotationCommand;
+            const nextRotation =
+                command === 'left'
+                    ? currentRotation - 90
+                    : command === 'right'
+                      ? currentRotation + 90
+                      : 0;
+
+            syncMediaTaggingMediaRotationUi(actionNode, nextRotation);
+            setMediaTaggingWorkflowMediaRotationDegrees(nextRotation, { notify: false });
+            return;
+        }
         case 'open-media-tagging-current-in-data': {
             const currentState = getState();
             const mediaTableName = currentState.mediaTagging.draft?.mediaTable ?? '';
@@ -1119,6 +1210,17 @@ async function handleAction(actionNode) {
             }
 
             router.navigate(`/data/${encodeURIComponent(mediaTableName)}`);
+            return;
+        }
+        case 'open-media-tagging-current-in-structure': {
+            const mediaTableName = String(getState().mediaTagging.draft?.mediaTable ?? '').trim();
+
+            if (!mediaTableName) {
+                showToast('The current media table could not be opened in Structure.', 'alert');
+                return;
+            }
+
+            router.navigate(`/structure/${encodeURIComponent(mediaTableName)}`);
             return;
         }
         case 'import-table-designer-csv': {
