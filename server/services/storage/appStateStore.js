@@ -100,8 +100,11 @@ function normalizeMediaTaggingConfigRecord(config = {}) {
   };
 }
 
-function isChartCompatibleQueryType(queryType) {
-  return String(queryType ?? "").trim().toLowerCase() === "select";
+function isChartCompatibleQuery(queryType, rawSql = "") {
+  return (
+    String(queryType ?? "").trim().toLowerCase() === "select" ||
+    detectQueryType(rawSql) === "select"
+  );
 }
 
 class AppStateStore {
@@ -752,7 +755,7 @@ class AppStateStore {
       previewSql: buildSqlPreview(row.raw_sql ?? row.rawSql),
       lastRun,
       chartsEligible:
-        isChartCompatibleQueryType(queryType) &&
+        isChartCompatibleQuery(queryType, row.raw_sql ?? row.rawSql) &&
         (!lastRun || String(lastRun.status ?? "").trim().toLowerCase() !== "error"),
     };
   }
@@ -1252,12 +1255,12 @@ class AppStateStore {
             LIMIT 1
           )
         WHERE q.database_key = ?
-          AND q.query_type = 'select'
           AND COALESCE(latest.status, 'success') != 'error'
         ORDER BY q.last_used_at DESC, q.id DESC
       `)
       .all(normalizedDatabaseKey)
-      .map((row) => this.decorateQueryHistoryRow(row));
+      .map((row) => this.decorateQueryHistoryRow(row))
+      .filter((item) => item.chartsEligible);
   }
 
   getQueryHistoryItemById(historyId) {
@@ -1367,7 +1370,7 @@ class AppStateStore {
   getChartQueryHistoryItemForDatabase(historyId, databaseKey) {
     const item = this.getQueryHistoryItemForDatabase(historyId, databaseKey);
 
-    if (!isChartCompatibleQueryType(item.queryType)) {
+    if (!isChartCompatibleQuery(item.queryType, item.rawSql)) {
       throw new ValidationError("Only SELECT queries can be opened in Charts.");
     }
 
