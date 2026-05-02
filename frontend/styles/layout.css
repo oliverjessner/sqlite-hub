@@ -57,7 +57,7 @@
 
 .app-right-panel {
   background: var(--color-surface-low);
-  border-left: 1px solid rgba(75, 71, 50, 0.2);
+  border-left: 1px solid rgb(var(--rgb-outline) / 0.2);
   box-shadow: var(--shadow-panel);
   display: flex;
   flex-direction: column;

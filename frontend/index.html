@@ -22,7 +22,7 @@
           extend: {
             colors: {
               "on-secondary-fixed": "#1c1b1b",
-              background: "#131313",
+              background: "rgb(var(--rgb-background) / <alpha-value>)",
               "inverse-primary": "#6a5f00",
               "primary-fixed": "#fde403",
               tertiary: "#fbfffe",
@@ -34,39 +34,39 @@
               "on-tertiary-fixed-variant": "#004f51",
               "secondary-fixed-dim": "#c8c6c5",
               "tertiary-fixed-dim": "#00dce1",
-              "on-background": "#e5e2e1",
+              "on-background": "rgb(var(--rgb-on-surface) / <alpha-value>)",
               "surface-tint": "#dec800",
               "primary-fixed-dim": "#dec800",
-              "on-surface": "#e5e2e1",
-              "surface-container-low": "#1c1b1b",
+              "on-surface": "rgb(var(--rgb-on-surface) / <alpha-value>)",
+              "surface-container-low": "rgb(var(--rgb-surface-low) / <alpha-value>)",
               "on-tertiary": "#003738",
-              "surface-container": "#201f1f",
-              "on-surface-variant": "#cdc7ab",
+              "surface-container": "rgb(var(--rgb-surface-container) / <alpha-value>)",
+              "on-surface-variant": "rgb(var(--rgb-on-surface-variant) / <alpha-value>)",
               "on-primary-container": "#706400",
               "on-error": "#690005",
-              "surface-container-high": "#2a2a2a",
-              "surface-container-highest": "#353534",
-              error: "#ffb4ab",
+              "surface-container-high": "rgb(var(--rgb-surface-high) / <alpha-value>)",
+              "surface-container-highest": "rgb(var(--rgb-surface-highest) / <alpha-value>)",
+              error: "rgb(var(--rgb-error) / <alpha-value>)",
               primary: "#fffeff",
-              "outline-variant": "#4b4732",
+              "outline-variant": "rgb(var(--rgb-outline) / <alpha-value>)",
               "on-error-container": "#ffdad6",
               "on-secondary-fixed-variant": "#474746",
-              "surface-container-lowest": "#0e0e0e",
+              "surface-container-lowest": "rgb(var(--rgb-surface-lowest) / <alpha-value>)",
               "inverse-surface": "#e5e2e1",
-              surface: "#131313",
+              surface: "rgb(var(--rgb-surface) / <alpha-value>)",
               "tertiary-container": "#04faff",
               "on-tertiary-fixed": "#002021",
               "tertiary-fixed": "#2dfaff",
               "surface-variant": "#353534",
               "on-primary": "#373100",
-              "primary-container": "#fce300",
+              "primary-container": "rgb(var(--rgb-primary) / <alpha-value>)",
               "inverse-on-surface": "#313030",
               secondary: "#c8c6c5",
               "on-secondary-container": "#b7b5b4",
               "on-primary-fixed": "#201c00",
               "secondary-container": "#474746",
-              "surface-dim": "#131313",
-              "surface-bright": "#3a3939",
+              "surface-dim": "rgb(var(--rgb-surface) / <alpha-value>)",
+              "surface-bright": "rgb(var(--rgb-surface-bright) / <alpha-value>)",
               "secondary-fixed": "#e5e2e1",
             },
             fontFamily: {
@@ -89,14 +89,14 @@
       @layer components {
         .signature-button {
           @apply inline-flex items-center justify-center gap-2 h-[var(--control-height)] min-h-[var(--control-height)] border border-primary-container bg-primary-container px-[var(--control-padding-inline)] font-headline text-xs font-bold uppercase tracking-[0.16em] text-on-primary transition-all;
-          box-shadow: 0 0 18px -10px rgba(252, 227, 0, 0.7);
+          box-shadow: 0 0 18px -10px rgb(var(--rgb-primary) / 0.7);
           clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
         }
 
         .signature-button:hover {
           @apply -translate-y-px bg-primary-fixed text-on-primary;
-          border-color: rgba(252, 227, 0, 0.55);
-          box-shadow: 0 0 24px -8px rgba(252, 227, 0, 0.92);
+          border-color: rgb(var(--rgb-primary) / 0.55);
+          box-shadow: 0 0 24px -8px rgb(var(--rgb-primary) / 0.92);
           filter: brightness(1.03);
         }
 
@@ -118,12 +118,12 @@
 
         .standard-button:hover {
           @apply bg-surface-container-highest text-primary-container;
-          border-color: rgba(252, 227, 0, 0.24);
+          border-color: var(--primary-alpha-24);
         }
 
         .standard-button.is-active {
           @apply bg-surface-container-high text-primary-container;
-          border-color: rgba(252, 227, 0, 0.3);
+          border-color: var(--primary-alpha-30);
         }
 
         .standard-button:disabled,
@@ -166,6 +166,7 @@
     </style>
     <link href="styles/tokens.css" rel="stylesheet" />
     <link href="styles/base.css" rel="stylesheet" />
+    <link href="styles/utilities.css" rel="stylesheet" />
     <link href="styles/layout.css" rel="stylesheet" />
     <link href="styles/components.css" rel="stylesheet" />
     <link href="styles/views.css" rel="stylesheet" />

@@ -481,13 +481,22 @@ function renderChartEditorForm(modal, state) {
           bind: "query-chart-draft-config:y_column",
         })}
       </div>
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        ${renderSelectField({
+          label: "Sort By",
+          value: draft.config?.sort_by ?? "x",
+          options: [
+            { value: "x", label: "X column" },
+            { value: "y", label: "Y value" },
+          ],
+          bind: "query-chart-draft-config:sort_by",
+        })}
         ${renderSelectField({
           label: "Sort Direction",
           value: draft.config?.sort_direction ?? "asc",
           options: [
-            { value: "asc", label: "Ascending" },
-            { value: "desc", label: "Descending" },
+            { value: "asc", label: "Ascending / smallest first" },
+            { value: "desc", label: "Descending / largest first" },
           ],
           bind: "query-chart-draft-config:sort_direction",
         })}

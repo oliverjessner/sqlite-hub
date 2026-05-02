@@ -406,6 +406,7 @@ export function buildSuggestedChartConfig(chartType, analysis) {
         y_column: firstNumeric?.name ?? "",
         show_legend: true,
         show_labels: false,
+        sort_by: "x",
         sort_direction: "asc",
       };
   }
@@ -522,6 +523,17 @@ export function sortQueryChartRows(rows, columnName, direction = "asc") {
   return [...(rows ?? [])].sort(
     (left, right) => compareValues(left?.[columnName], right?.[columnName]) * multiplier
   );
+}
+
+export function sortQueryChartRowsByNumericColumn(rows, columnName, direction = "asc") {
+  const multiplier = direction === "desc" ? -1 : 1;
+
+  return [...(rows ?? [])].sort((left, right) => {
+    const leftValue = coerceNumericChartValue(left?.[columnName]);
+    const rightValue = coerceNumericChartValue(right?.[columnName]);
+
+    return compareValues(leftValue, rightValue) * multiplier;
+  });
 }
 
 export function formatQueryChartAxisValue(value) {

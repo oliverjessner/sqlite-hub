@@ -55,14 +55,14 @@
 }
 
 .structure-graph__toolbar .standard-button.is-active {
-  background: rgba(252, 227, 0, 0.12);
-  border-color: rgba(252, 227, 0, 0.38);
+  background: var(--primary-alpha-12);
+  border-color: rgb(var(--rgb-primary) / 0.38);
   color: var(--color-primary-container);
 }
 
 .structure-graph__toolbar .standard-button:disabled,
 .structure-graph__section-header .standard-button:disabled {
-  border-color: rgba(75, 71, 50, 0.18);
+  border-color: var(--border-medium);
   color: rgba(231, 223, 189, 0.34);
 }
 
@@ -81,7 +81,7 @@
   background:
     linear-gradient(rgba(138, 123, 52, 0.09) 1px, transparent 1px),
     linear-gradient(90deg, rgba(138, 123, 52, 0.08) 1px, transparent 1px),
-    radial-gradient(circle at top left, rgba(252, 227, 0, 0.14), transparent 30%),
+    radial-gradient(circle at top left, rgb(var(--rgb-primary) / 0.14), transparent 30%),
     radial-gradient(circle at bottom right, rgba(45, 250, 255, 0.1), transparent 24%),
     linear-gradient(to bottom, rgba(27, 27, 24, 0.99), rgba(9, 10, 11, 0.99));
   background-size: 28px 28px, 28px 28px, auto, auto, auto;
@@ -109,7 +109,7 @@
 }
 
 .structure-graph__empty-icon {
-  color: rgba(252, 227, 0, 0.42);
+  color: rgb(var(--rgb-primary) / 0.42);
   font-size: 2.25rem;
 }
 
@@ -275,8 +275,8 @@
 }
 
 .structure-graph__flag.is-key {
-  background: rgba(252, 227, 0, 0.18);
-  border-color: rgba(252, 227, 0, 0.34);
+  background: var(--primary-alpha-18);
+  border-color: rgb(var(--rgb-primary) / 0.34);
   color: #fff6ae;
 }
 
@@ -298,7 +298,7 @@
 
 .structure-graph__list-item {
   align-items: center;
-  color: rgba(229, 226, 225, 0.82);
+  color: rgb(var(--rgb-on-surface) / 0.82);
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
@@ -324,8 +324,8 @@
 }
 
 .structure-entry--graph-active {
-  border-color: rgba(252, 227, 0, 0.44);
-  box-shadow: inset 0 0 0 1px rgba(252, 227, 0, 0.18);
+  border-color: rgb(var(--rgb-primary) / 0.44);
+  box-shadow: inset 0 0 0 1px var(--primary-alpha-18);
 }
 
 .structure-entry--graph-related {
@@ -340,7 +340,7 @@
 
   .structure-graph__inspector {
     border-left: 0;
-    border-top: 1px solid rgba(75, 71, 50, 0.18);
+    border-top: 1px solid var(--border-medium);
     max-height: 28rem;
   }
 }

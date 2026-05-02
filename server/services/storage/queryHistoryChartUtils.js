@@ -56,6 +56,10 @@ function normalizeSortDirection(value, fallback = "asc") {
   return String(value ?? "").trim().toLowerCase() === "desc" ? "desc" : fallback;
 }
 
+function normalizeBarSortBy(value, fallback = "x") {
+  return String(value ?? "").trim().toLowerCase() === "y" ? "y" : fallback;
+}
+
 function normalizeChartConfig(chartType, config = {}) {
   const source =
     config && typeof config === "object" && !Array.isArray(config) ? config : {};
@@ -67,6 +71,7 @@ function normalizeChartConfig(chartType, config = {}) {
         y_column: normalizeRequiredColumn(source.y_column, "Bar chart y column"),
         show_legend: normalizeBooleanFlag(source.show_legend, true),
         show_labels: normalizeBooleanFlag(source.show_labels, false),
+        sort_by: normalizeBarSortBy(source.sort_by, "x"),
         sort_direction: normalizeSortDirection(source.sort_direction, "asc"),
       };
     case "line":

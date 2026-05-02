@@ -5,6 +5,7 @@ import {
   formatQueryChartAxisValue,
   getAnalysisColumn,
   sortQueryChartRows,
+  sortQueryChartRowsByNumericColumn,
 } from "./queryCharts.js";
 
 const CHART_PALETTE = ["#FCE300", "#2DFAFF", "#FFB4AB", "#CDC7AB", "#7DD3FC", "#86EFAC"];
@@ -55,7 +56,10 @@ function buildLineLabelConfig(enabled) {
 }
 
 export function buildBarChartOption(chart, rows) {
-  const sortedRows = sortQueryChartRows(rows, chart.config.x_column, chart.config.sort_direction);
+  const sortedRows =
+    chart.config.sort_by === "y"
+      ? sortQueryChartRowsByNumericColumn(rows, chart.config.y_column, chart.config.sort_direction)
+      : sortQueryChartRows(rows, chart.config.x_column, chart.config.sort_direction);
 
   return {
     ...buildCommonOption(),

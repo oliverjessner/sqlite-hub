@@ -1,0 +1,21 @@
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+.text-subtle {
+    color: var(--text-subtle);
+}
+
+.border-subtle {
+    border-color: var(--border-subtle);
+}
+
+.border-medium {
+    border-color: var(--border-medium);
+}
