@@ -111,7 +111,7 @@ import {
     applyCurrentMediaTaggingSelection,
     removeCurrentTableDesignerColumn,
 } from './store.js';
-import { renderChartsView } from './views/charts.js';
+import { renderChartsDetail, renderChartsView } from './views/charts.js';
 import { renderConnectionsView } from './views/connections.js';
 import { renderDataRowEditorPanel, renderDataView } from './views/data.js';
 import { renderEditorView } from './views/editor.js';
@@ -146,6 +146,7 @@ let lastRenderedMainMarkup = '';
 let lastRenderedPanelMarkup = '';
 let lastRenderedModalMarkup = '';
 let lastRenderedToastMarkup = '';
+let lastRenderedChartsHistorySignature = '';
 let lastRenderedPanelOpen = false;
 let lastRenderedLockedRoute = false;
 let pendingNewTableDesignerAutofocus = false;
@@ -414,6 +415,90 @@ function syncQueryHistorySelectionUi(selectedHistoryId = null) {
         lastRenderedPanelOpen = false;
     }
 
+    return true;
+}
+
+function buildChartsHistorySignature(state) {
+    if (state.route.name !== 'charts') {
+        return '';
+    }
+
+    const historyVisible = state.editor.historyPanelVisible !== false || !state.charts.selectedHistoryId;
+
+    if (!historyVisible) {
+        return 'charts-history:hidden';
+    }
+
+    const queries = state.charts.queries ?? [];
+
+    if (!queries.length) {
+        if (state.charts.loading) {
+            return 'charts-history:loading-empty';
+        }
+
+        if (state.charts.error) {
+            return `charts-history:error:${state.charts.error.code}:${state.charts.error.message}`;
+        }
+
+        return 'charts-history:empty';
+    }
+
+    return JSON.stringify(
+        queries.map(item => [
+            item.id,
+            item.displayTitle,
+            item.previewSql,
+            Array.isArray(item.chartTypes) ? item.chartTypes.join(',') : '',
+        ]),
+    );
+}
+
+function syncChartsHistorySelectionUi(state) {
+    const selectedHistoryId = String(state.charts.selectedHistoryId ?? '');
+    const historyButtons = shellRefs.view.querySelectorAll(
+        '.charts-view__sidebar [data-action="navigate"][data-history-id]',
+    );
+
+    for (const button of historyButtons) {
+        if (!(button instanceof HTMLElement)) {
+            continue;
+        }
+
+        const isSelected = button.dataset.historyId === selectedHistoryId;
+        const titleNode = button.querySelector('[data-charts-history-title]');
+
+        button.classList.toggle('border-primary-container/30', isSelected);
+        button.classList.toggle('bg-surface-container-high', isSelected);
+        button.classList.toggle('border-outline-variant/10', !isSelected);
+        button.classList.toggle('bg-surface-container-lowest', !isSelected);
+        button.classList.toggle('hover:bg-surface-container-high', !isSelected);
+
+        if (titleNode instanceof HTMLElement) {
+            titleNode.classList.toggle('text-primary-container', isSelected);
+            titleNode.classList.toggle('text-on-surface', !isSelected);
+        }
+    }
+
+    return true;
+}
+
+function patchChartsDetailUi(state) {
+    const chartsView = shellRefs.view.querySelector('.charts-view');
+    const detailNode = chartsView?.querySelector('.charts-view__detail');
+
+    if (!(chartsView instanceof HTMLElement) || !(detailNode instanceof HTMLElement)) {
+        return false;
+    }
+
+    const historyVisible = state.editor.historyPanelVisible !== false || !state.charts.selectedHistoryId;
+    const sidebarNode = chartsView.querySelector('.charts-view__sidebar');
+
+    if (Boolean(sidebarNode) !== historyVisible) {
+        return false;
+    }
+
+    detailNode.innerHTML = renderChartsDetail(state);
+    syncChartsHistorySelectionUi(state);
     return true;
 }
 
@@ -755,6 +840,7 @@ function renderApp(state) {
     const statusBarMarkup = renderStatusBar(state);
     const modalMarkup = renderModal(state);
     const toastMarkup = renderToasts(state.toasts);
+    const chartsHistorySignature = buildChartsHistorySignature(state);
     const isLockedRoute = [
         'editor',
         'editorResults',
@@ -772,6 +858,7 @@ function renderApp(state) {
     const mainChanged = main !== lastRenderedMainMarkup;
     const panelChanged = panel !== lastRenderedPanelMarkup;
     const modalChanged = modalMarkup !== lastRenderedModalMarkup;
+    const chartsHistoryChanged = chartsHistorySignature !== lastRenderedChartsHistorySignature;
     const panelOpenChanged = panelOpen !== lastRenderedPanelOpen;
     const lockedRouteChanged = isLockedRoute !== lastRenderedLockedRoute;
     const shellMarkupUnchanged =
@@ -805,9 +892,20 @@ function renderApp(state) {
         pendingNewTableDesignerAutofocus = false;
     }
 
-    if (mainChanged) {
-        teardownStructureGraph();
+    const canPatchChartsMain =
+        mainChanged && previousRouteName === 'charts' && state.route.name === 'charts' && !chartsHistoryChanged;
+    let mainPatched = false;
+
+    if (canPatchChartsMain) {
         teardownQueryChartRenderer();
+        mainPatched = patchChartsDetailUi(state);
+    }
+
+    if (mainChanged) {
+        if (!mainPatched) {
+            teardownStructureGraph();
+            teardownQueryChartRenderer();
+        }
     }
 
     if (topNavChanged) {
@@ -829,7 +927,7 @@ function renderApp(state) {
         shellRefs.statusBar.innerHTML = statusBarMarkup;
     }
 
-    if (mainChanged) {
+    if (mainChanged && !mainPatched) {
         shellRefs.view.innerHTML = main;
     }
 
@@ -883,6 +981,7 @@ function renderApp(state) {
     lastRenderedPanelMarkup = panel;
     lastRenderedModalMarkup = modalMarkup;
     lastRenderedToastMarkup = toastMarkup;
+    lastRenderedChartsHistorySignature = chartsHistorySignature;
     lastRenderedPanelOpen = panelOpen;
     lastRenderedLockedRoute = isLockedRoute;
 

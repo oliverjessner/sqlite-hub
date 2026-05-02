@@ -73,13 +73,14 @@ function renderChartsList(state) {
                         : 'border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-high'
                 }"
                 data-action="navigate"
+                data-history-id="${escapeHtml(item.id)}"
                 data-to="/charts/${encodeURIComponent(item.id)}"
                 type="button"
               >
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0 flex-1 truncate font-mono text-xs ${
                       selectedHistoryId === item.id ? 'text-primary-container' : 'text-on-surface'
-                  }">
+                  }" data-charts-history-title>
                     ${escapeHtml(item.displayTitle)}
                   </div>
                   <div class="flex shrink-0 flex-wrap justify-end gap-1">
@@ -347,7 +348,7 @@ function renderChartCard(chart, state, analysis) {
   `;
 }
 
-function renderChartsDetail(state) {
+export function renderChartsDetail(state) {
     const detail = state.charts.detail;
     const selectedHistoryId = state.charts.selectedHistoryId;
     const historyVisible = state.editor.historyPanelVisible !== false;

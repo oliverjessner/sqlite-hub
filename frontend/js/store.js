@@ -124,6 +124,7 @@ const state = {
         saveError: null,
     },
     charts: {
+        loaded: false,
         queries: [],
         loading: false,
         error: null,
@@ -666,6 +667,7 @@ function resetQueryHistoryState({ preserveSearch = true } = {}) {
 function resetChartsState() {
     chartsLoadVersion += 1;
     chartsDetailLoadVersion += 1;
+    state.charts.loaded = false;
     state.charts.queries = [];
     state.charts.loading = false;
     state.charts.error = null;
@@ -1169,7 +1171,56 @@ async function loadChartsDetail(historyId) {
     }
 }
 
-async function loadCharts(version, route) {
+function getRequestedChartsHistoryId(route) {
+    const requestedHistoryId = Number(route.params?.historyId ?? null);
+
+    return Number.isInteger(requestedHistoryId) && requestedHistoryId > 0 ? requestedHistoryId : null;
+}
+
+function resolveLoadableChartsHistoryId(route) {
+    const requestedHistoryId = getRequestedChartsHistoryId(route);
+
+    if (!requestedHistoryId) {
+        return null;
+    }
+
+    return state.charts.queries.some(item => item.id === requestedHistoryId) ? requestedHistoryId : null;
+}
+
+function hasSettledChartsDetail(historyId) {
+    if (state.charts.detailLoading || state.charts.resultLoading) {
+        return false;
+    }
+
+    if (historyId === null) {
+        return (
+            state.charts.selectedHistoryId === null &&
+            !state.charts.detail &&
+            !state.charts.result &&
+            !state.charts.detailError &&
+            !state.charts.resultError
+        );
+    }
+
+    return (
+        state.charts.selectedHistoryId === historyId &&
+        (state.charts.detail?.item?.id === historyId || Boolean(state.charts.detailError)) &&
+        (Boolean(state.charts.result) || Boolean(state.charts.resultError))
+    );
+}
+
+async function loadCharts(version, route, options = {}) {
+    if (!options.force && state.charts.loaded) {
+        const historyId = resolveLoadableChartsHistoryId(route);
+
+        if (hasSettledChartsDetail(historyId)) {
+            return;
+        }
+
+        await loadChartsDetail(historyId);
+        return;
+    }
+
     state.charts.loading = true;
     state.charts.error = null;
     emitChange();
@@ -1182,6 +1233,7 @@ async function loadCharts(version, route) {
         }
 
         state.charts.queries = response.data ?? [];
+        state.charts.loaded = true;
         state.charts.error = null;
     } catch (error) {
         if (version !== routeLoadVersion) {
@@ -1189,6 +1241,7 @@ async function loadCharts(version, route) {
         }
 
         state.charts.queries = [];
+        state.charts.loaded = false;
         state.charts.error = normalizeError(error);
     } finally {
         if (version === routeLoadVersion) {
@@ -1201,11 +1254,7 @@ async function loadCharts(version, route) {
         return;
     }
 
-    const requestedHistoryId = Number(route.params?.historyId ?? null);
-    const canLoadRequestedHistory =
-        Number.isInteger(requestedHistoryId) && state.charts.queries.some(item => item.id === requestedHistoryId);
-
-    await loadChartsDetail(canLoadRequestedHistory ? requestedHistoryId : null);
+    await loadChartsDetail(resolveLoadableChartsHistoryId(route));
 }
 
 async function loadOverview(version) {
@@ -1799,7 +1848,7 @@ function invalidateDatabaseCaches() {
     state.mediaTagging.tagFormValues = {};
 }
 
-async function loadRouteData(route) {
+async function loadRouteData(route, options = {}) {
     clearRouteSlices();
 
     if (requiresActiveDatabase(route.name) && !state.connections.active) {
@@ -1808,7 +1857,7 @@ async function loadRouteData(route) {
         return;
     }
 
-    if (isMediaTaggingRouteName(route.name) && hasLoadedMediaTaggingForActiveConnection()) {
+    if (!options.force && isMediaTaggingRouteName(route.name) && hasLoadedMediaTaggingForActiveConnection()) {
         return;
     }
 
@@ -1827,7 +1876,7 @@ async function loadRouteData(route) {
             await loadData(version, route);
             return;
         case 'charts':
-            await loadCharts(version, route);
+            await loadCharts(version, route, options);
             return;
         case 'editor':
         case 'editorResults':
@@ -3735,7 +3784,7 @@ export function sortEditorResultsByColumn(columnName) {
 }
 
 export async function refreshCurrentRoute() {
-    await loadRouteData(state.route);
+    await loadRouteData(state.route, { force: true });
 }
 
 export function showToast(message, tone = 'muted') {

@@ -1,3 +1,7 @@
+# v0.9.2
+
+- improving rerendering
+
 # v0.9.1
 
 - Improvements in tagging queue
