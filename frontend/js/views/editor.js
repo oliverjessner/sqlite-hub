@@ -265,6 +265,7 @@ export function renderEditorView(state, { isResultsRoute = false } = {}) {
                       error: state.editor.historyError,
                       activeTab: state.editor.historyTab,
                       search: state.editor.historySearchInput,
+                      committedSearch: state.editor.historySearch,
                       total: state.editor.historyTotal,
                       hasMore: state.editor.historyHasMore,
                       activeHistoryId: state.editor.historyActiveId,

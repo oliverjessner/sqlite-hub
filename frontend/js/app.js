@@ -418,6 +418,69 @@ function syncQueryHistorySelectionUi(selectedHistoryId = null) {
     return true;
 }
 
+function isEditorRouteName(routeName) {
+    return routeName === 'editor' || routeName === 'editorResults';
+}
+
+function captureQueryHistoryScrollState() {
+    if (!isEditorRouteName(lastRenderedRouteName)) {
+        return null;
+    }
+
+    const scrollNode = shellRefs.view.querySelector('[data-query-history-scroll]');
+
+    if (!(scrollNode instanceof HTMLElement)) {
+        return null;
+    }
+
+    return {
+        committedSearch: scrollNode.dataset.queryHistoryCommittedSearch ?? '',
+        historyTab: scrollNode.dataset.queryHistoryTab ?? '',
+        routeName: lastRenderedRouteName,
+        renderedItemCount: scrollNode.querySelectorAll('.query-history-item').length,
+        renderedLoadingMore: scrollNode.dataset.queryHistoryLoadingMore === 'true',
+        searchInput: scrollNode.dataset.queryHistorySearch ?? '',
+        scrollLeft: scrollNode.scrollLeft,
+        scrollTop: scrollNode.scrollTop,
+    };
+}
+
+function shouldRestoreQueryHistoryScroll(snapshot, state) {
+    if (!snapshot || !isEditorRouteName(state.route.name) || snapshot.routeName !== state.route.name) {
+        return false;
+    }
+
+    if (!state.editor.historyPanelVisible) {
+        return false;
+    }
+
+    if (
+        snapshot.historyTab !== state.editor.historyTab ||
+        snapshot.searchInput !== state.editor.historySearchInput ||
+        snapshot.committedSearch !== state.editor.historySearch
+    ) {
+        return false;
+    }
+
+    return (
+        state.editor.historyLoadingMore ||
+        snapshot.renderedLoadingMore ||
+        state.editor.history.length > snapshot.renderedItemCount
+    );
+}
+
+function restoreQueryHistoryScrollState(snapshot) {
+    const scrollNode = shellRefs.view.querySelector('[data-query-history-scroll]');
+
+    if (!(scrollNode instanceof HTMLElement)) {
+        return false;
+    }
+
+    scrollNode.scrollLeft = snapshot.scrollLeft;
+    scrollNode.scrollTop = snapshot.scrollTop;
+    return true;
+}
+
 function buildChartsHistorySignature(state) {
     if (state.route.name !== 'charts') {
         return '';
@@ -883,6 +946,7 @@ function renderApp(state) {
     }
 
     const focusedInput = captureFocusedInputState();
+    const queryHistoryScrollState = captureQueryHistoryScrollState();
     const isEnteringNewTableDesignerRoute =
         state.route.name === 'tableDesigner' && state.route.params?.isNew && previousRoutePath !== state.route.path;
 
@@ -949,6 +1013,10 @@ function renderApp(state) {
 
     if (panelChanged || panelOpenChanged) {
         shellRefs.shell.classList.toggle('panel-open', panelOpen);
+    }
+
+    if (shouldRestoreQueryHistoryScroll(queryHistoryScrollState, state)) {
+        restoreQueryHistoryScrollState(queryHistoryScrollState);
     }
 
     if (pendingQueryEditorFocus && (state.route.name === 'editor' || state.route.name === 'editorResults')) {

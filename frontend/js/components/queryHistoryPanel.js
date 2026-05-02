@@ -139,6 +139,7 @@ export function renderQueryHistoryPanel({
   error = null,
   activeTab = "recent",
   search = "",
+  committedSearch = "",
   total = 0,
   hasMore = false,
   activeHistoryId = null,
@@ -176,7 +177,14 @@ export function renderQueryHistoryPanel({
           />
         </label>
       </div>
-      <div class="custom-scrollbar min-h-0 flex-1 overflow-auto px-3 py-3">
+      <div
+        class="custom-scrollbar min-h-0 flex-1 overflow-auto px-3 py-3"
+        data-query-history-committed-search="${escapeHtml(committedSearch)}"
+        data-query-history-loading-more="${loadingMore ? "true" : "false"}"
+        data-query-history-search="${escapeHtml(search)}"
+        data-query-history-scroll
+        data-query-history-tab="${escapeHtml(activeTab)}"
+      >
         ${
           error
             ? `
