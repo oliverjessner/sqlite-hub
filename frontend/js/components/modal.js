@@ -484,7 +484,7 @@ function renderChartEditorForm(modal, state) {
       <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
         ${renderSelectField({
           label: "Sort By",
-          value: draft.config?.sort_by ?? "x",
+          value: draft.config?.sort_by ?? "y",
           options: [
             { value: "x", label: "X column" },
             { value: "y", label: "Y value" },
@@ -493,7 +493,7 @@ function renderChartEditorForm(modal, state) {
         })}
         ${renderSelectField({
           label: "Sort Direction",
-          value: draft.config?.sort_direction ?? "asc",
+          value: draft.config?.sort_direction ?? "desc",
           options: [
             { value: "asc", label: "Ascending / smallest first" },
             { value: "desc", label: "Descending / largest first" },

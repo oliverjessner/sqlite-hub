@@ -312,7 +312,43 @@ function getFirstColumn(columns, predicate) {
 
 function getNextNumericColumn(analysis, excludedNames = []) {
   const excluded = new Set(excludedNames);
-  return getFirstColumn(analysis?.numberColumns, (column) => !excluded.has(column.name));
+  const candidates = (analysis?.numberColumns ?? []).filter((column) => !excluded.has(column.name));
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  const scoredCandidates = candidates
+    .map((column, index) => ({
+      column,
+      index,
+      score: getNumericMeasureScore(column.name),
+    }))
+    .sort((left, right) => right.score - left.score || left.index - right.index);
+
+  return scoredCandidates[0]?.column ?? null;
+}
+
+function getNumericMeasureScore(columnName = "") {
+  const normalized = String(columnName ?? "")
+    .trim()
+    .toLowerCase();
+
+  let score = 0;
+
+  if (
+    /(count|total|sum|avg|average|amount|score|size|value|price|cost|rate|percent|pct|percentage|number)/.test(
+      normalized
+    )
+  ) {
+    score += 20;
+  }
+
+  if (/(^|_)(id|uuid|pk|key)$/.test(normalized) || /(^|_)id$/.test(normalized)) {
+    score -= 40;
+  }
+
+  return score;
 }
 
 function getPrimaryDimensionColumn(analysis) {
@@ -406,8 +442,8 @@ export function buildSuggestedChartConfig(chartType, analysis) {
         y_column: firstNumeric?.name ?? "",
         show_legend: true,
         show_labels: false,
-        sort_by: "x",
-        sort_direction: "asc",
+        sort_by: "y",
+        sort_direction: "desc",
       };
   }
 }
