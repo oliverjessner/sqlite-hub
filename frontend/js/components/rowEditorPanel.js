@@ -50,15 +50,7 @@ function renderReadonlyField(label, value) {
     <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
       <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
         <span>${escapeHtml(displayLabel)}</span>
-        ${badges
-          .map(
-            (badge) => `
-              <span class="border border-outline-variant/20 bg-surface-container px-2 py-1 text-[9px] text-primary-container">
-                ${escapeHtml(badge)}
-              </span>
-            `
-          )
-          .join("")}
+        ${badges.map((badge) => renderFieldBadge(badge)).join("")}
       </div>
       ${
         jsonPreview
@@ -72,34 +64,65 @@ function renderReadonlyField(label, value) {
 function renderEditableField(field) {
   const badges = Array.isArray(field.badges) ? field.badges : [];
   const jsonPreview = getJsonPreview(field.value);
+  const inputType = field.inputType === "number" ? "number" : "text";
+  const numberStep = field.numberStep === "1" ? "1" : "any";
 
   return `
     <label class="block space-y-2">
       <span class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
         <span>${escapeHtml(field.label ?? field.name)}</span>
-        ${badges
-          .map(
-            (badge) => `
-              <span class="border border-outline-variant/20 bg-surface-container px-2 py-1 text-[9px] text-primary-container">
-                ${escapeHtml(badge)}
-              </span>
-            `
-          )
-          .join("")}
+        ${badges.map((badge) => renderFieldBadge(badge)).join("")}
       </span>
       ${
         jsonPreview
           ? renderJsonViewer(jsonPreview, "JSON Preview")
           : ""
       }
-      <textarea
-        class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container ${
-          jsonPreview ? "min-h-[14rem] font-mono leading-6" : "min-h-[56px]"
-        }"
-        name="field:${escapeHtml(field.name)}"
-        spellcheck="false"
-      >${escapeHtml(field.value ?? "")}</textarea>
+      ${
+        inputType === "number" && !jsonPreview
+          ? `
+              <input
+                class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+                name="field:${escapeHtml(field.name)}"
+                step="${escapeHtml(numberStep)}"
+                type="number"
+                value="${escapeHtml(field.value ?? "")}"
+              />
+            `
+          : `
+              <textarea
+                class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container ${
+                  jsonPreview ? "min-h-[14rem] font-mono leading-6" : "min-h-[56px]"
+                }"
+                name="field:${escapeHtml(field.name)}"
+                spellcheck="false"
+              >${escapeHtml(field.value ?? "")}</textarea>
+            `
+      }
     </label>
+  `;
+}
+
+function getFieldBadgeClassName(tone) {
+  if (tone === "primary-key") {
+    return "border-primary-container/35 bg-primary-container/15 text-primary-container";
+  }
+
+  if (tone === "foreign-key") {
+    return "border-tertiary-fixed-dim/35 bg-tertiary-fixed-dim/15 text-tertiary-fixed-dim";
+  }
+
+  return "border-outline-variant/20 bg-surface-container text-on-surface-variant";
+}
+
+function renderFieldBadge(badge) {
+  const label = typeof badge === "object" ? badge.label : badge;
+  const tone = typeof badge === "object" ? badge.tone : "";
+
+  return `
+    <span class="border px-2 py-1 text-[9px] ${getFieldBadgeClassName(tone)}">
+      ${escapeHtml(label)}
+    </span>
   `;
 }
 

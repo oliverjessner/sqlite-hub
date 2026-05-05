@@ -29,7 +29,9 @@ const DEFAULT_SETTINGS = {
     maxPageSize: 200,
     csvDelimiter: ',',
 };
+const DEFAULT_DATA_PAGE_SIZE = 50;
 const DATA_PAGE_SIZES = [25, 50, 100];
+const DATA_ROW_SIZE_STORAGE_KEY = 'data_row_size';
 const QUERY_HISTORY_PAGE_SIZE = 30;
 const QUERY_HISTORY_RUN_LIMIT = 8;
 const CHART_HEIGHT_PRESETS = new Set(['small', 'medium', 'large']);
@@ -45,6 +47,22 @@ let queryHistorySearchTimer = null;
 let chartsLoadVersion = 0;
 let chartsDetailLoadVersion = 0;
 let mediaTaggingPreviewVersion = 0;
+
+function readStoredDataPageSize(fallback = DEFAULT_DATA_PAGE_SIZE) {
+    try {
+        return normalizeDataPageSize(globalThis.localStorage?.getItem(DATA_ROW_SIZE_STORAGE_KEY), fallback);
+    } catch {
+        return fallback;
+    }
+}
+
+function storeDataPageSize(pageSize) {
+    try {
+        globalThis.localStorage?.setItem(DATA_ROW_SIZE_STORAGE_KEY, String(pageSize));
+    } catch {
+        // Ignore unavailable browser storage; the in-memory setting still applies.
+    }
+}
 
 const state = {
     ready: false,
@@ -79,7 +97,7 @@ const state = {
         saving: false,
         deleting: false,
         page: 1,
-        pageSize: 50,
+        pageSize: readStoredDataPageSize(),
         sortColumn: null,
         sortDirection: null,
         searchQuery: '',
@@ -1329,7 +1347,7 @@ async function resolvePendingDataBrowserRow(version) {
 
 async function loadDataTable(version) {
     const tableName = state.dataBrowser.selectedTable;
-    const pageSize = normalizeDataPageSize(state.dataBrowser.pageSize, 50);
+    const pageSize = normalizeDataPageSize(state.dataBrowser.pageSize, DEFAULT_DATA_PAGE_SIZE);
     const page = Math.max(1, Number(state.dataBrowser.page) || 1);
     const sortColumn = state.dataBrowser.sortColumn;
     const sortDirection = normalizeSortDirection(state.dataBrowser.sortDirection);
@@ -3389,6 +3407,7 @@ export async function setDataPageSize(pageSize) {
     }
 
     state.dataBrowser.pageSize = normalizedPageSize;
+    storeDataPageSize(normalizedPageSize);
     state.dataBrowser.page = 1;
     clearDataBrowserRowSelectionState();
     state.dataBrowser.saveError = null;

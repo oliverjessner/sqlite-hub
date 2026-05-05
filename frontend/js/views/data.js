@@ -449,7 +449,36 @@ export function renderDataRowEditorPanel(state) {
             (foreignKey.mappings ?? []).map(mapping => String(mapping.from ?? '').trim()).filter(Boolean),
         ),
     );
-    const getColumnBadges = column => (foreignKeyColumnNames.has(column.name) ? ['FK'] : []);
+    const getColumnTypeBadge = column => String(column.declaredType || column.affinity || 'BLOB').trim().toUpperCase();
+    const getColumnNumberInputMeta = column => {
+        const affinity = String(column.affinity ?? '').toUpperCase();
+
+        if (affinity === 'INTEGER') {
+            return { inputType: 'number', numberStep: '1' };
+        }
+
+        if (affinity === 'NUMERIC') {
+            return { inputType: 'number', numberStep: 'any' };
+        }
+
+        return {};
+    };
+    const getColumnBadges = column => {
+        const badges = [{ label: getColumnTypeBadge(column), tone: 'type' }];
+
+        if (column.primaryKeyPosition > 0) {
+            badges.push({
+                label: column.primaryKeyPosition > 1 ? `PK ${column.primaryKeyPosition}` : 'PK',
+                tone: 'primary-key',
+            });
+        }
+
+        if (foreignKeyColumnNames.has(column.name)) {
+            badges.push({ label: 'FK', tone: 'foreign-key' });
+        }
+
+        return badges;
+    };
 
     const identityColumns = table.identityStrategy?.type === 'primaryKey' ? (table.identityStrategy.columns ?? []) : [];
     const editableColumns = (table.columnMeta ?? []).filter(column => {
@@ -502,6 +531,7 @@ export function renderDataRowEditorPanel(state) {
                 name: column.name,
                 label: column.name,
                 badges: getColumnBadges(column),
+                ...getColumnNumberInputMeta(column),
                 value: value === null || value === undefined ? '' : String(value),
             };
         }),

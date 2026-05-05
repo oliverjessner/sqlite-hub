@@ -1,6 +1,8 @@
-# v0.9.2
+# v0.9.3
 
 - improving rerendering
+- fixed the sorting bug in charts
+- data row size is stored in localstorage
 
 # v0.9.1
 
