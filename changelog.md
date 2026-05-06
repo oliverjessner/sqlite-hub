@@ -3,6 +3,7 @@
 - improving rerendering
 - fixed the sorting bug in charts
 - data row size is stored in localstorage
+- saved charts
 
 # v0.9.1
 
