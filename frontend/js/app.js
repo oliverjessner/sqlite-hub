@@ -69,6 +69,7 @@ import {
     toggleDataTablesPanel,
     setCurrentQuery,
     setChartsHeightPreset,
+    setChartsHistoryTab,
     setEditorPanelVisibility,
     setEditorTab,
     submitDeleteChartConfirmation,
@@ -506,14 +507,16 @@ function buildChartsHistorySignature(state) {
         return 'charts-history:empty';
     }
 
-    return JSON.stringify(
-        queries.map(item => [
+    return JSON.stringify({
+        tab: state.charts.historyTab ?? 'recent',
+        queries: queries.map(item => [
             item.id,
             item.displayTitle,
             item.previewSql,
+            Boolean(item.isSaved),
             Array.isArray(item.chartTypes) ? item.chartTypes.join(',') : '',
         ]),
-    );
+    });
 }
 
 function syncChartsHistorySelectionUi(state) {
@@ -527,14 +530,16 @@ function syncChartsHistorySelectionUi(state) {
             continue;
         }
 
+        const itemNode = button.closest('[data-charts-history-item]');
         const isSelected = button.dataset.historyId === selectedHistoryId;
         const titleNode = button.querySelector('[data-charts-history-title]');
+        const selectionNode = itemNode instanceof HTMLElement ? itemNode : button;
 
-        button.classList.toggle('border-primary-container/30', isSelected);
-        button.classList.toggle('bg-surface-container-high', isSelected);
-        button.classList.toggle('border-outline-variant/10', !isSelected);
-        button.classList.toggle('bg-surface-container-lowest', !isSelected);
-        button.classList.toggle('hover:bg-surface-container-high', !isSelected);
+        selectionNode.classList.toggle('border-primary-container/30', isSelected);
+        selectionNode.classList.toggle('bg-surface-container-high', isSelected);
+        selectionNode.classList.toggle('border-outline-variant/10', !isSelected);
+        selectionNode.classList.toggle('bg-surface-container-lowest', !isSelected);
+        selectionNode.classList.toggle('hover:bg-surface-container-high', !isSelected);
 
         if (titleNode instanceof HTMLElement) {
             titleNode.classList.toggle('text-primary-container', isSelected);
@@ -543,6 +548,37 @@ function syncChartsHistorySelectionUi(state) {
     }
 
     return true;
+}
+
+function syncChartsSavedToggleUi(actionNode, nextValue) {
+    const itemNode = actionNode.closest('[data-charts-history-item]');
+
+    actionNode.classList.toggle('is-active', nextValue);
+    actionNode.dataset.nextValue = nextValue ? 'false' : 'true';
+    actionNode.title = nextValue ? 'Remove from saved' : 'Save query';
+
+    const iconNode = actionNode.querySelector('.material-symbols-outlined');
+    if (iconNode instanceof HTMLElement) {
+        iconNode.textContent = nextValue ? 'bookmark' : 'bookmark_add';
+    }
+
+    if (itemNode instanceof HTMLElement) {
+        itemNode.querySelector('[data-charts-saved-badge]')?.toggleAttribute('hidden', !nextValue);
+
+        if (!nextValue && getState().charts.historyTab === 'saved') {
+            itemNode.remove();
+        }
+    }
+
+    const countNode = shellRefs.view.querySelector('[data-charts-history-count]');
+    if (countNode instanceof HTMLElement) {
+        const state = getState();
+        const count =
+            state.charts.historyTab === 'saved'
+                ? (state.charts.queries ?? []).filter(item => item.isSaved).length
+                : (state.charts.queries ?? []).length;
+        countNode.textContent = String(count);
+    }
 }
 
 function patchChartsDetailUi(state) {
@@ -1230,6 +1266,20 @@ async function handleAction(actionNode) {
                 );
             }
             return;
+        case 'toggle-charts-query-history-saved':
+            if (actionNode.dataset.historyId) {
+                const nextValue = actionNode.dataset.nextValue === 'true';
+                const updated = await toggleQueryHistorySavedState(actionNode.dataset.historyId, nextValue, {
+                    notify: false,
+                    refresh: false,
+                    toast: false,
+                });
+
+                if (updated) {
+                    syncChartsSavedToggleUi(actionNode, nextValue);
+                }
+            }
+            return;
         case 'toggle-charts-sql-panel':
             toggleChartsSqlPanel();
             return;
@@ -1239,6 +1289,11 @@ async function handleAction(actionNode) {
         case 'set-charts-height-preset':
             if (actionNode.dataset.preset) {
                 setChartsHeightPreset(actionNode.dataset.preset);
+            }
+            return;
+        case 'set-charts-history-tab':
+            if (actionNode.dataset.tab) {
+                setChartsHistoryTab(actionNode.dataset.tab);
             }
             return;
         case 'export-query-chart-png':

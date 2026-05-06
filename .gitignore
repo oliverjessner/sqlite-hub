@@ -7,3 +7,4 @@ sqlite-hub-state.db-wal
 server/data/db_logos/*
 !server/data/db_logos/.gitkeep
 .qwen
+.playwright-mcp/

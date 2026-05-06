@@ -146,6 +146,7 @@ const state = {
         queries: [],
         loading: false,
         error: null,
+        historyTab: 'recent',
         selectedHistoryId: null,
         chartHeightPreset: 'medium',
         sqlExpanded: false,
@@ -689,6 +690,7 @@ function resetChartsState() {
     state.charts.queries = [];
     state.charts.loading = false;
     state.charts.error = null;
+    state.charts.historyTab = 'recent';
     state.charts.selectedHistoryId = null;
     state.charts.chartHeightPreset = 'medium';
     state.charts.sqlExpanded = false;
@@ -707,6 +709,10 @@ function normalizeChartsHeightPreset(value) {
         .toLowerCase();
 
     return CHART_HEIGHT_PRESETS.has(normalizedValue) ? normalizedValue : 'medium';
+}
+
+function normalizeChartsHistoryTab(value) {
+    return ['recent', 'saved'].includes(value) ? value : 'recent';
 }
 
 function mergeQueryHistoryItemWithChartSummary(updatedItem, fallbackItem = null) {
@@ -734,20 +740,24 @@ function syncQueryHistoryItem(updatedItem) {
         return;
     }
 
-    state.editor.history = state.editor.history.map(entry => (entry.id === updatedItem.id ? updatedItem : entry));
+    const updatedItemId = String(updatedItem.id);
 
-    if (state.editor.historyDetail?.id === updatedItem.id) {
+    state.editor.history = state.editor.history.map(entry => (String(entry.id) === updatedItemId ? updatedItem : entry));
+
+    if (String(state.editor.historyDetail?.id ?? '') === updatedItemId) {
         state.editor.historyDetail = updatedItem;
     }
 
     const existingChartsEntry =
-        state.charts.queries.find(entry => entry.id === updatedItem.id) ??
-        (state.charts.detail?.item?.id === updatedItem.id ? state.charts.detail.item : null);
+        state.charts.queries.find(entry => String(entry.id) === updatedItemId) ??
+        (String(state.charts.detail?.item?.id ?? '') === updatedItemId ? state.charts.detail.item : null);
     const mergedChartsItem = mergeQueryHistoryItemWithChartSummary(updatedItem, existingChartsEntry);
 
-    state.charts.queries = state.charts.queries.map(entry => (entry.id === updatedItem.id ? mergedChartsItem : entry));
+    state.charts.queries = state.charts.queries.map(entry =>
+        String(entry.id) === updatedItemId ? mergedChartsItem : entry,
+    );
 
-    if (state.charts.detail?.item?.id === updatedItem.id) {
+    if (String(state.charts.detail?.item?.id ?? '') === updatedItemId) {
         state.charts.detail = {
             ...state.charts.detail,
             item: mergeQueryHistoryItemWithChartSummary(updatedItem, state.charts.detail.item),
@@ -2268,6 +2278,21 @@ export function setChartsHeightPreset(preset) {
     emitChange();
 }
 
+export function setChartsHistoryTab(tab) {
+    const nextTab = normalizeChartsHistoryTab(
+        String(tab ?? '')
+            .trim()
+            .toLowerCase(),
+    );
+
+    if (state.charts.historyTab === nextTab) {
+        return;
+    }
+
+    state.charts.historyTab = nextTab;
+    emitChange();
+}
+
 export function updateCurrentQueryChartDraftField(field, value) {
     if (state.modal?.kind !== 'chart-editor' || !state.modal.draft) {
         return;
@@ -2692,16 +2717,25 @@ export async function runQueryHistoryItem(historyId) {
     return executeCurrentQuery();
 }
 
-export async function toggleQueryHistorySavedState(historyId, nextValue) {
+export async function toggleQueryHistorySavedState(historyId, nextValue, options = {}) {
     try {
         const response = await api.toggleQueryHistorySaved(historyId, nextValue);
         syncQueryHistoryItem(response.data);
-        pushToast(response.message || 'Query save state updated.', 'muted');
-        await refreshQueryHistoryState();
+        if (options.toast !== false) {
+            pushToast(response.message || 'Query save state updated.', 'muted');
+        }
+        if (options.notify !== false) {
+            emitChange();
+        }
+        if (options.refresh !== false) {
+            await refreshQueryHistoryState();
+        }
         return true;
     } catch (error) {
         state.editor.historyDetailError = normalizeError(error);
-        emitChange();
+        if (options.notify !== false) {
+            emitChange();
+        }
         return false;
     }
 }

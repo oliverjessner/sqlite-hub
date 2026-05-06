@@ -20,10 +20,12 @@ function renderMissingDatabase() {
 }
 
 function renderChartsList(state) {
-    const queries = state.charts.queries ?? [];
+    const activeTab = ['recent', 'saved'].includes(state.charts.historyTab) ? state.charts.historyTab : 'recent';
+    const allQueries = state.charts.queries ?? [];
+    const queries = activeTab === 'saved' ? allQueries.filter(item => item.isSaved) : allQueries;
     const selectedHistoryId = Number(state.charts.selectedHistoryId);
 
-    if (state.charts.loading && !queries.length) {
+    if (state.charts.loading && !allQueries.length) {
         return `
       <div class="flex h-full items-center justify-center px-6 text-center text-on-surface-variant/45">
         <div>
@@ -34,7 +36,7 @@ function renderChartsList(state) {
     `;
     }
 
-    if (state.charts.error && !queries.length) {
+    if (state.charts.error && !allQueries.length) {
         return `
       <div class="p-5">
         <div class="border border-error/30 bg-error-container/20 px-4 py-4 text-sm text-error">
@@ -45,15 +47,23 @@ function renderChartsList(state) {
     }
 
     if (!queries.length) {
+        const isSavedTab = activeTab === 'saved';
+
         return `
       <div class="flex h-full items-center justify-center px-6 text-center">
         <div>
-          <span class="material-symbols-outlined mb-3 text-4xl text-on-surface-variant/25">query_stats</span>
+          <span class="material-symbols-outlined mb-3 text-4xl text-on-surface-variant/25">${
+              isSavedTab ? 'bookmark' : 'query_stats'
+          }</span>
           <p class="font-headline text-lg font-black uppercase tracking-tight text-on-surface">
-            No Chartable Queries
+            ${isSavedTab ? 'No Saved Charts Queries' : 'No Chartable Queries'}
           </p>
           <p class="mt-2 max-w-xs text-sm leading-6 text-on-surface-variant/60">
-            Run SELECT queries in the SQL Editor first. They will appear here automatically.
+            ${
+                isSavedTab
+                    ? 'Save chartable queries from this list or from the SQL Editor to keep them here.'
+                    : 'Run SELECT queries in the SQL Editor first. They will appear here automatically.'
+            }
           </p>
         </div>
       </div>
@@ -66,41 +76,102 @@ function renderChartsList(state) {
         ${queries
             .map(
                 item => `
-              <button
-                class="w-full border px-4 py-3 text-left transition-colors ${
-                    selectedHistoryId === item.id
+              <article
+                class="group w-full border transition-colors ${
+                    selectedHistoryId === Number(item.id)
                         ? 'border-primary-container/30 bg-surface-container-high'
                         : 'border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-high'
                 }"
-                data-action="navigate"
-                data-history-id="${escapeHtml(item.id)}"
-                data-to="/charts/${encodeURIComponent(item.id)}"
-                type="button"
+                data-charts-history-item
               >
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0 flex-1 truncate font-mono text-xs ${
-                      selectedHistoryId === item.id ? 'text-primary-container' : 'text-on-surface'
-                  }" data-charts-history-title>
-                    ${escapeHtml(item.displayTitle)}
+                <button
+                  class="w-full px-4 py-3 text-left transition-colors group-hover:bg-surface-container-high"
+                  data-action="navigate"
+                  data-history-id="${escapeHtml(item.id)}"
+                  data-to="/charts/${encodeURIComponent(item.id)}"
+                  type="button"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1 truncate font-mono text-xs ${
+                        selectedHistoryId === Number(item.id) ? 'text-primary-container' : 'text-on-surface'
+                    }" data-charts-history-title>
+                      ${escapeHtml(item.displayTitle)}
+                    </div>
+                    <div class="flex shrink-0 flex-wrap justify-end gap-1">
+                      <span class="inline-flex" data-charts-saved-badge ${item.isSaved ? '' : 'hidden'}>
+                        ${renderStatusBadge('saved', 'primary')}
+                      </span>
+                      ${
+                          item.chartTypes?.length
+                              ? item.chartTypes
+                                    .map(chartType => renderStatusBadge(getQueryChartTypeLabel(chartType), 'primary'))
+                                    .join('')
+                              : renderStatusBadge('None', 'muted')
+                      }
+                    </div>
                   </div>
-                  <div class="flex shrink-0 flex-wrap justify-end gap-1">
-                    ${
-                        item.chartTypes?.length
-                            ? item.chartTypes
-                                  .map(chartType => renderStatusBadge(getQueryChartTypeLabel(chartType), 'primary'))
-                                  .join('')
-                            : renderStatusBadge('None', 'muted')
-                    }
+                  <div class="mt-1 truncate text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45">
+                    ${escapeHtml(item.previewSql)}
                   </div>
+                </button>
+                <div class="flex items-center justify-end border-t border-outline-variant/10 px-3 py-2 transition-colors group-hover:bg-surface-container-high">
+                  <button
+                    aria-label="Open chart query"
+                    class="min-h-[var(--control-height)] flex-1 self-stretch"
+                    data-action="navigate"
+                    data-history-id="${escapeHtml(item.id)}"
+                    data-to="/charts/${encodeURIComponent(item.id)}"
+                    type="button"
+                  ></button>
+                  <button
+                    class="query-history-icon-button ${item.isSaved ? 'is-active' : ''}"
+                    data-action="toggle-charts-query-history-saved"
+                    data-history-id="${escapeHtml(item.id)}"
+                    data-next-value="${item.isSaved ? 'false' : 'true'}"
+                    title="${item.isSaved ? 'Remove from saved' : 'Save query'}"
+                    type="button"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">
+                      ${item.isSaved ? 'bookmark' : 'bookmark_add'}
+                    </span>
+                  </button>
                 </div>
-                <div class="mt-1 truncate text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45">
-                  ${escapeHtml(item.previewSql)}
-                </div>
-              </button>
+              </article>
             `,
             )
             .join('')}
       </div>
+    </div>
+  `;
+}
+
+function renderChartsHistoryTabs(state) {
+    const activeTab = ['recent', 'saved'].includes(state.charts.historyTab) ? state.charts.historyTab : 'recent';
+    const savedCount = (state.charts.queries ?? []).filter(item => item.isSaved).length;
+    const tabs = [
+        { id: 'recent', label: 'Recent', count: state.charts.queries?.length ?? 0 },
+        { id: 'saved', label: 'Saved', count: savedCount },
+    ];
+
+    return `
+    <div class="mt-4 flex items-center gap-2">
+      ${tabs
+          .map(
+              tab => `
+                <button
+                  class="query-history-tab ${activeTab === tab.id ? 'is-active' : ''}"
+                  data-action="set-charts-history-tab"
+                  data-tab="${escapeHtml(tab.id)}"
+                  type="button"
+                >
+                  ${escapeHtml(tab.label)}
+                </button>
+              `,
+          )
+          .join('')}
+      <span class="ml-auto text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/50">
+        <span data-charts-history-count>${escapeHtml(String(tabs.find(tab => tab.id === activeTab)?.count ?? 0))}</span>
+      </span>
     </div>
   `;
 }
@@ -486,6 +557,7 @@ export function renderChartsView(state) {
                       <h2 class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
                         Charts
                       </h2>
+                      ${renderChartsHistoryTabs(state)}
                     </div>
                     ${renderChartsList(state)}
                   </aside>
