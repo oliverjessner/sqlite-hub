@@ -1,6 +1,16 @@
 node_modules
 tests/tmp
 .DS_Store
+.env
+.env.*
+!.env.example
+dist/
+build/
+.next/
+coverage/
+*.log
+*.sqlite
+*.db
 sqlite-hub-state.db
 sqlite-hub-state.db-shm
 sqlite-hub-state.db-wal

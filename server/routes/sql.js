@@ -1,5 +1,5 @@
 const express = require("express");
-const { route, successResponse } = require("../utils/errors");
+const { DatabaseRequiredError, route, successResponse } = require("../utils/errors");
 
 function parseBooleanFlag(value) {
   if (typeof value === "boolean") {
@@ -37,6 +37,16 @@ function getActiveDatabaseKey(connectionManager) {
   return connectionManager.getActiveConnection()?.id ?? null;
 }
 
+function requireActiveDatabaseKey(connectionManager) {
+  const databaseKey = getActiveDatabaseKey(connectionManager);
+
+  if (!databaseKey) {
+    throw new DatabaseRequiredError();
+  }
+
+  return databaseKey;
+}
+
 function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
   const router = express.Router();
 
@@ -57,7 +67,7 @@ function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
   router.get(
     "/history",
     route((req, res) => {
-      const databaseKey = getActiveDatabaseKey(connectionManager);
+      const databaseKey = requireActiveDatabaseKey(connectionManager);
       const tab = String(req.query.tab ?? "recent").trim().toLowerCase();
       const options = {
         databaseKey,
@@ -92,7 +102,7 @@ function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
   router.delete(
     "/history",
     route((req, res) => {
-      const databaseKey = getActiveDatabaseKey(connectionManager);
+      const databaseKey = requireActiveDatabaseKey(connectionManager);
       const deletedCount = appStateStore.clearQueryHistoryForDatabase(databaseKey);
 
       res.json(
@@ -114,12 +124,15 @@ function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
   router.get(
     "/history/:historyId/runs",
     route((req, res) => {
+      const databaseKey = requireActiveDatabaseKey(connectionManager);
       res.json(
         successResponse({
           data: appStateStore.getQueryRunsByHistoryId(
             req.params.historyId,
-            parseListLimit(req.query.limit, 8, 50)
+            parseListLimit(req.query.limit, 8, 50),
+            databaseKey
           ),
+          metadata: { databaseKey },
         })
       );
     })
@@ -129,10 +142,12 @@ function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
     "/history/:historyId/favorite",
     route((req, res) => {
       const nextValue = parseBooleanFlag(req.body?.value);
+      const databaseKey = requireActiveDatabaseKey(connectionManager);
       res.json(
         successResponse({
           message: nextValue ? "Query favorited." : "Query removed from favorites.",
-          data: appStateStore.toggleFavorite(req.params.historyId, nextValue),
+          data: appStateStore.toggleFavorite(req.params.historyId, nextValue, databaseKey),
+          metadata: { databaseKey },
         })
       );
     })
@@ -142,10 +157,12 @@ function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
     "/history/:historyId/saved",
     route((req, res) => {
       const nextValue = parseBooleanFlag(req.body?.value);
+      const databaseKey = requireActiveDatabaseKey(connectionManager);
       res.json(
         successResponse({
           message: nextValue ? "Query saved." : "Query removed from saved queries.",
-          data: appStateStore.toggleSaved(req.params.historyId, nextValue),
+          data: appStateStore.toggleSaved(req.params.historyId, nextValue, databaseKey),
+          metadata: { databaseKey },
         })
       );
     })
@@ -154,10 +171,12 @@ function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
   router.patch(
     "/history/:historyId/title",
     route((req, res) => {
+      const databaseKey = requireActiveDatabaseKey(connectionManager);
       res.json(
         successResponse({
           message: "Query title updated.",
-          data: appStateStore.renameQuery(req.params.historyId, req.body?.title),
+          data: appStateStore.renameQuery(req.params.historyId, req.body?.title, databaseKey),
+          metadata: { databaseKey },
         })
       );
     })
@@ -166,10 +185,12 @@ function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
   router.patch(
     "/history/:historyId/notes",
     route((req, res) => {
+      const databaseKey = requireActiveDatabaseKey(connectionManager);
       res.json(
         successResponse({
           message: "Query notes updated.",
-          data: appStateStore.updateQueryNotes(req.params.historyId, req.body?.notes),
+          data: appStateStore.updateQueryNotes(req.params.historyId, req.body?.notes, databaseKey),
+          metadata: { databaseKey },
         })
       );
     })
@@ -178,13 +199,15 @@ function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
   router.delete(
     "/history/:historyId",
     route((req, res) => {
-      appStateStore.deleteQueryHistoryItem(req.params.historyId);
+      const databaseKey = requireActiveDatabaseKey(connectionManager);
+      appStateStore.deleteQueryHistoryItem(req.params.historyId, databaseKey);
       res.json(
         successResponse({
           message: "Query history item deleted.",
           data: {
             id: Number(req.params.historyId),
           },
+          metadata: { databaseKey },
         })
       );
     })
@@ -193,9 +216,11 @@ function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
   router.get(
     "/history/:historyId",
     route((req, res) => {
+      const databaseKey = requireActiveDatabaseKey(connectionManager);
       res.json(
         successResponse({
-          data: appStateStore.getQueryHistoryItemById(req.params.historyId),
+          data: appStateStore.getQueryHistoryItemById(req.params.historyId, databaseKey),
+          metadata: { databaseKey },
         })
       );
     })

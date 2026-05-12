@@ -66,13 +66,13 @@ brew install sqlite-hub
 ### NPM
 
 ```bash
-npm install -g sqlit-hub
+npm install -g sqlite-hub
 ```
 
 ## alternative port
 
 ```bash
-sqlit-hub --port:4174
+sqlite-hub --port:4174
 ```
 
 ## CLI Interface

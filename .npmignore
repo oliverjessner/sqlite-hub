@@ -1,0 +1,13 @@
+docs/
+scripts/
+itworksbut.config.json
+.env.example
+.gitignore
+.DS_Store
+.qwen/
+.playwright-mcp/
+server/data/*.db
+server/data/*.db-shm
+server/data/*.db-wal
+server/data/db_logos/*
+!server/data/db_logos/.gitkeep

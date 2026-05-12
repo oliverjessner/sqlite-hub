@@ -1,4 +1,6 @@
 const express = require("express");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const path = require("node:path");
 const { errorMiddleware } = require("./utils/errors");
 const { resolveAppStatePaths } = require("./utils/appPaths");
@@ -58,9 +60,24 @@ connectionManager.initialize();
 
 const app = express();
 
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+  })
+);
+app.use(
+  "/api",
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false }));
 
+// auth: public liveness route for local CLI and browser startup checks.
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,
@@ -91,14 +108,17 @@ app.use("/api/media-tagging", createMediaTaggingRouter({ mediaTaggingService }))
 app.use("/api/settings", createSettingsRouter({ appStateStore }));
 app.use("/api/export", createExportRouter({ exportService }));
 
+// auth: public favicon response; it exposes no application data.
 app.get("/favicon.ico", (req, res) => {
   res.status(204).end();
 });
 
+// auth: public SPA entrypoint for the local SQLite Hub UI.
 app.get("/", (req, res) => {
   res.sendFile(FRONTEND_ENTRYPOINT);
 });
 
+// auth: public SPA entrypoint for direct browser reloads.
 app.get("/index.html", (req, res) => {
   res.sendFile(FRONTEND_ENTRYPOINT);
 });
@@ -118,6 +138,10 @@ app.use(
 app.use(
   "/vendor/echarts",
   express.static(path.resolve(__dirname, "..", "node_modules", "echarts"))
+);
+app.use(
+  "/vendor/material-symbols",
+  express.static(path.resolve(__dirname, "..", "node_modules", "material-symbols"))
 );
 app.use(express.static(FRONTEND_ROOT));
 app.use("/db_logos", express.static(path.join(APP_STATE_DIRECTORY, "db_logos")));

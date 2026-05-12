@@ -1,3 +1,9 @@
+# v1.0.0
+
+- removed external tailwind
+- fixed vibe coding problems with https://github.com/oliverjessner/ItWorksBut
+- localstorage for charts saved/recent
+
 # v0.9.3
 
 - improving rerendering

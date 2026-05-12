@@ -1263,7 +1263,14 @@ class AppStateStore {
       .filter((item) => item.chartsEligible);
   }
 
-  getQueryHistoryItemById(historyId) {
+  getQueryHistoryItemById(historyId, databaseKey) {
+    const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
+    const tenantId = normalizedDatabaseKey;
+
+    if (!tenantId) {
+      throw new ValidationError("Query history lookup requires a database key.");
+    }
+
     const row = this.db
       .prepare(`
         SELECT
@@ -1289,6 +1296,7 @@ class AppStateStore {
           latest.error_message AS last_run_error_message,
           latest.affected_rows AS last_run_affected_rows
         FROM query_history q
+        -- tenantId scope is enforced on q.database_key for direct id lookups.
         LEFT JOIN query_runs latest
           ON latest.id = (
             SELECT runs.id
@@ -1298,8 +1306,9 @@ class AppStateStore {
             LIMIT 1
           )
         WHERE q.id = ?
+          AND q.database_key = ?
       `)
-      .get(Number(historyId));
+      .get(Number(historyId), tenantId);
 
     if (!row) {
       throw new NotFoundError(`Query history item not found: ${historyId}`);
@@ -1357,14 +1366,7 @@ class AppStateStore {
   }
 
   getQueryHistoryItemForDatabase(historyId, databaseKey) {
-    const item = this.getQueryHistoryItemById(historyId);
-    const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
-
-    if (normalizedDatabaseKey && item.databaseKey !== normalizedDatabaseKey) {
-      throw new NotFoundError(`Query history item not found: ${historyId}`);
-    }
-
-    return item;
+    return this.getQueryHistoryItemById(historyId, databaseKey);
   }
 
   getChartQueryHistoryItemForDatabase(historyId, databaseKey) {
@@ -1377,8 +1379,9 @@ class AppStateStore {
     return item;
   }
 
-  getQueryRunsByHistoryId(historyId, limit = 8) {
+  getQueryRunsByHistoryId(historyId, limit = 8, databaseKey) {
     const normalizedLimit = Math.max(1, Math.min(50, Number(limit) || 8));
+    const item = this.getQueryHistoryItemById(historyId, databaseKey);
 
     return this.db
       .prepare(`
@@ -1396,7 +1399,7 @@ class AppStateStore {
         ORDER BY executed_at DESC, id DESC
         LIMIT ?
       `)
-      .all(Number(historyId), normalizedLimit)
+      .all(item.id, normalizedLimit)
       .map((row) => this.decorateQueryRun(row));
   }
 
@@ -1489,16 +1492,40 @@ class AppStateStore {
     };
   }
 
-  updateQueryHistoryField(historyId, fieldName, value) {
-    const result = this.db
-      .prepare(`UPDATE query_history SET ${fieldName} = ? WHERE id = ?`)
-      .run(value, Number(historyId));
+  updateQueryHistoryField(historyId, fieldName, value, databaseKey) {
+    const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
+
+    if (!normalizedDatabaseKey) {
+      throw new ValidationError("Query history update requires a database key.");
+    }
+
+    const statements = {
+      is_favorite: this.db.prepare(
+        "UPDATE query_history SET is_favorite = ? WHERE id = ? AND database_key = ?"
+      ),
+      is_saved: this.db.prepare(
+        "UPDATE query_history SET is_saved = ? WHERE id = ? AND database_key = ?"
+      ),
+      title: this.db.prepare(
+        "UPDATE query_history SET title = ? WHERE id = ? AND database_key = ?"
+      ),
+      notes: this.db.prepare(
+        "UPDATE query_history SET notes = ? WHERE id = ? AND database_key = ?"
+      ),
+    };
+    const statement = statements[fieldName];
+
+    if (!statement) {
+      throw new ValidationError(`Query history field cannot be updated: ${fieldName}`);
+    }
+
+    const result = statement.run(value, Number(historyId), normalizedDatabaseKey);
 
     if (!result.changes) {
       throw new NotFoundError(`Query history item not found: ${historyId}`);
     }
 
-    return this.getQueryHistoryItemById(historyId);
+    return this.getQueryHistoryItemById(historyId, normalizedDatabaseKey);
   }
 
   resolveUniqueQueryHistoryChartName(queryHistoryId, candidateName, { excludeChartId = null } = {}) {
@@ -1653,34 +1680,42 @@ class AppStateStore {
     return true;
   }
 
-  toggleFavorite(historyId, nextValue) {
-    return this.updateQueryHistoryField(historyId, "is_favorite", nextValue ? 1 : 0);
+  toggleFavorite(historyId, nextValue, databaseKey) {
+    return this.updateQueryHistoryField(historyId, "is_favorite", nextValue ? 1 : 0, databaseKey);
   }
 
-  toggleSaved(historyId, nextValue) {
-    return this.updateQueryHistoryField(historyId, "is_saved", nextValue ? 1 : 0);
+  toggleSaved(historyId, nextValue, databaseKey) {
+    return this.updateQueryHistoryField(historyId, "is_saved", nextValue ? 1 : 0, databaseKey);
   }
 
-  renameQuery(historyId, title) {
+  renameQuery(historyId, title, databaseKey) {
     return this.updateQueryHistoryField(
       historyId,
       "title",
-      this.normalizeQueryHistoryText(title)
+      this.normalizeQueryHistoryText(title),
+      databaseKey
     );
   }
 
-  updateQueryNotes(historyId, notes) {
+  updateQueryNotes(historyId, notes, databaseKey) {
     return this.updateQueryHistoryField(
       historyId,
       "notes",
-      this.normalizeQueryHistoryText(notes)
+      this.normalizeQueryHistoryText(notes),
+      databaseKey
     );
   }
 
-  deleteQueryHistoryItem(historyId) {
+  deleteQueryHistoryItem(historyId, databaseKey) {
+    const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
+
+    if (!normalizedDatabaseKey) {
+      throw new ValidationError("Query history delete requires a database key.");
+    }
+
     const result = this.db
-      .prepare("DELETE FROM query_history WHERE id = ?")
-      .run(Number(historyId));
+      .prepare("DELETE FROM query_history WHERE id = ? AND database_key = ?")
+      .run(Number(historyId), normalizedDatabaseKey);
 
     if (!result.changes) {
       throw new NotFoundError(`Query history item not found: ${historyId}`);

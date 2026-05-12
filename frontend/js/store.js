@@ -32,6 +32,8 @@ const DEFAULT_SETTINGS = {
 const DEFAULT_DATA_PAGE_SIZE = 50;
 const DATA_PAGE_SIZES = [25, 50, 100];
 const DATA_ROW_SIZE_STORAGE_KEY = 'data_row_size';
+const CHARTS_HISTORY_TAB_STORAGE_KEY = 'charts_history_tab';
+const QUERY_HISTORY_TAB_STORAGE_KEY = 'query_history_tab';
 const QUERY_HISTORY_PAGE_SIZE = 30;
 const QUERY_HISTORY_RUN_LIMIT = 8;
 const CHART_HEIGHT_PRESETS = new Set(['small', 'medium', 'large']);
@@ -59,6 +61,38 @@ function readStoredDataPageSize(fallback = DEFAULT_DATA_PAGE_SIZE) {
 function storeDataPageSize(pageSize) {
     try {
         globalThis.localStorage?.setItem(DATA_ROW_SIZE_STORAGE_KEY, String(pageSize));
+    } catch {
+        // Ignore unavailable browser storage; the in-memory setting still applies.
+    }
+}
+
+function readStoredChartsHistoryTab(fallback = 'recent') {
+    try {
+        return normalizeChartsHistoryTab(globalThis.localStorage?.getItem(CHARTS_HISTORY_TAB_STORAGE_KEY) ?? fallback);
+    } catch {
+        return normalizeChartsHistoryTab(fallback);
+    }
+}
+
+function storeChartsHistoryTab(tab) {
+    try {
+        globalThis.localStorage?.setItem(CHARTS_HISTORY_TAB_STORAGE_KEY, normalizeChartsHistoryTab(tab));
+    } catch {
+        // Ignore unavailable browser storage; the in-memory setting still applies.
+    }
+}
+
+function readStoredQueryHistoryTab(fallback = 'recent') {
+    try {
+        return normalizeQueryHistoryTab(globalThis.localStorage?.getItem(QUERY_HISTORY_TAB_STORAGE_KEY) ?? fallback);
+    } catch {
+        return normalizeQueryHistoryTab(fallback);
+    }
+}
+
+function storeQueryHistoryTab(tab) {
+    try {
+        globalThis.localStorage?.setItem(QUERY_HISTORY_TAB_STORAGE_KEY, normalizeQueryHistoryTab(tab));
     } catch {
         // Ignore unavailable browser storage; the in-memory setting still applies.
     }
@@ -117,7 +151,7 @@ const state = {
         historyLoading: false,
         historyLoadingMore: false,
         historyError: null,
-        historyTab: 'recent',
+        historyTab: readStoredQueryHistoryTab(),
         historySearchInput: '',
         historySearch: '',
         historyPageSize: QUERY_HISTORY_PAGE_SIZE,
@@ -146,7 +180,7 @@ const state = {
         queries: [],
         loading: false,
         error: null,
-        historyTab: 'recent',
+        historyTab: readStoredChartsHistoryTab(),
         selectedHistoryId: null,
         chartHeightPreset: 'medium',
         sqlExpanded: false,
@@ -690,7 +724,7 @@ function resetChartsState() {
     state.charts.queries = [];
     state.charts.loading = false;
     state.charts.error = null;
-    state.charts.historyTab = 'recent';
+    state.charts.historyTab = readStoredChartsHistoryTab(state.charts.historyTab);
     state.charts.selectedHistoryId = null;
     state.charts.chartHeightPreset = 'medium';
     state.charts.sqlExpanded = false;
@@ -2290,6 +2324,7 @@ export function setChartsHistoryTab(tab) {
     }
 
     state.charts.historyTab = nextTab;
+    storeChartsHistoryTab(nextTab);
     emitChange();
 }
 
@@ -2621,6 +2656,7 @@ export async function setQueryHistoryTab(tab) {
     }
 
     state.editor.historyTab = normalizedTab;
+    storeQueryHistoryTab(normalizedTab);
     state.editor.historyActiveId = null;
     clearQueryHistoryDetailState();
     emitChange();

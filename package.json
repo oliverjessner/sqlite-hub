@@ -1,22 +1,33 @@
 {
     "name": "sqlite-hub",
-    "version": "0.9.3",
+    "version": "1.0.0",
     "description": "SQLite-only local management app backend and SPA shell",
     "main": "server/server.js",
     "bin": {
         "sqlite-hub": "bin/sqlite-hub.js"
     },
     "scripts": {
+        "build": "npm run build:css",
+        "build:css": "tailwindcss -c tailwind.config.cjs -i ./frontend/styles/tailwind.css -o ./frontend/styles/tailwind.generated.css --minify",
         "start": "node bin/sqlite-hub.js",
         "dev": "node --watch server/server.js --port:4180",
+        "prepack": "npm run build:css",
         "publish": "bash scripts/publish_brew.sh && sleep 10 && npm login --auth-type=web && bash scripts/publish_npm.sh"
     },
     "dependencies": {
-        "better-sqlite3": "^11.8.1",
+        "better-sqlite3": "^12.10.0",
         "cytoscape": "^3.33.2",
         "cytoscape-elk": "^2.3.0",
         "echarts": "^5.6.0",
         "elkjs": "^0.11.1",
-        "express": "^4.21.2"
+        "express": "^4.21.2",
+        "express-rate-limit": "^8.5.1",
+        "helmet": "^8.1.0",
+        "material-symbols": "^0.44.6"
+    },
+    "devDependencies": {
+        "@tailwindcss/container-queries": "^0.1.1",
+        "@tailwindcss/forms": "^0.5.10",
+        "tailwindcss": "^3.4.17"
     }
 }
