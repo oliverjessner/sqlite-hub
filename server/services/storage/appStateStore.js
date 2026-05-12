@@ -430,6 +430,9 @@ class AppStateStore {
               .map((column) => column.name)
           )
         : new Set();
+      const logoPathSelection = recentConnectionColumns.has("logoPath")
+        ? "logoPath"
+        : "NULL AS logoPath";
 
       return {
         settings: tables.has("settings")
@@ -442,19 +445,23 @@ class AppStateStore {
           : {},
         recentConnections: tables.has("recent_connections")
           ? legacyDb
-              .prepare(`
-                SELECT
-                  id,
-                  label,
-                  path,
-                  lastOpenedAt,
-                  lastModifiedAt,
-                  sizeBytes,
-                  readOnly,
-                  ${recentConnectionColumns.has("logoPath") ? "logoPath" : "NULL AS logoPath"}
-                FROM recent_connections
-                ORDER BY lastOpenedAt DESC, id ASC
-              `)
+              .prepare(
+                [
+                  "SELECT",
+                  [
+                    "id",
+                    "label",
+                    "path",
+                    "lastOpenedAt",
+                    "lastModifiedAt",
+                    "sizeBytes",
+                    "readOnly",
+                    logoPathSelection,
+                  ].join(", "),
+                  "FROM recent_connections",
+                  "ORDER BY lastOpenedAt DESC, id ASC",
+                ].join(" ")
+              )
               .all()
           : [],
         sqlHistory: tables.has("sql_history")
@@ -1008,8 +1015,8 @@ class AppStateStore {
       onlyFavorites,
       latestStatus,
     });
-    const rows = this.db
-      .prepare(`
+    const queryHistoryRowsSql = [
+      `
         SELECT
           q.id,
           q.database_key,
@@ -1032,20 +1039,24 @@ class AppStateStore {
           latest.status AS last_run_status,
           latest.error_message AS last_run_error_message,
           latest.affected_rows AS last_run_affected_rows
-        ${baseFromSql}
-        ${whereSql}
-        ${orderBySql}
-        LIMIT ?
-        OFFSET ?
-      `)
+      `,
+      baseFromSql,
+      whereSql,
+      orderBySql,
+      "LIMIT ?",
+      "OFFSET ?",
+    ].join("\n");
+    const rows = this.db
+      .prepare(queryHistoryRowsSql)
       .all(...params, normalizedLimit, normalizedOffset)
       .map((row) => this.decorateQueryHistoryRow(row));
+    const queryHistoryCountSql = [
+      "SELECT COUNT(*) AS count",
+      baseFromSql,
+      whereSql,
+    ].join("\n");
     const countRow = this.db
-      .prepare(`
-        SELECT COUNT(*) AS count
-        ${baseFromSql}
-        ${whereSql}
-      `)
+      .prepare(queryHistoryCountSql)
       .get(...params);
     const total = Number(countRow?.count ?? 0);
 
@@ -1603,15 +1614,20 @@ class AppStateStore {
     let suffix = 2;
 
     while (true) {
+      const excludeChartClause = excludeChartId ? "AND id != ?" : "";
       const row = this.db
-        .prepare(`
-          SELECT id
-          FROM query_history_chart
-          WHERE query_history_id = ?
-            AND name = ?
-            ${excludeChartId ? "AND id != ?" : ""}
-          LIMIT 1
-        `)
+        .prepare(
+          [
+            "SELECT id",
+            "FROM query_history_chart",
+            "WHERE query_history_id = ?",
+            "AND name = ?",
+            excludeChartClause,
+            "LIMIT 1",
+          ]
+            .filter(Boolean)
+            .join(" ")
+        )
         .get(
           Number(queryHistoryId),
           nextName,
@@ -2264,7 +2280,7 @@ class AppStateStore {
       ...MEDIA_TAGGING_CONFIG_FIELDS.map((field) => field.column),
     ];
     const assignments = MEDIA_TAGGING_CONFIG_FIELDS.map(
-      (field) => `${field.column} = excluded.${field.column}`
+      (field) => field.column + " = excluded." + field.column
     );
 
     if (this.mediaTaggingConfigHasLegacyJsonColumn) {
@@ -2277,15 +2293,17 @@ class AppStateStore {
     assignments.push("updated_at = excluded.updated_at");
     values.push(updatedAt);
 
+    const upsertSql = [
+      "INSERT INTO media_tagging_config",
+      "(" + explicitColumns.join(", ") + ")",
+      "VALUES",
+      "(" + explicitColumns.map(() => "?").join(", ") + ")",
+      "ON CONFLICT(database_key) DO UPDATE SET",
+      assignments.join(", "),
+    ].join(" ");
+
     this.db
-      .prepare(
-        `
-          INSERT INTO media_tagging_config (${explicitColumns.join(", ")})
-          VALUES (${explicitColumns.map(() => "?").join(", ")})
-          ON CONFLICT(database_key) DO UPDATE SET
-            ${assignments.join(",\n            ")}
-        `
-      )
+      .prepare(upsertSql)
       .run(...values);
 
     return this.getMediaTaggingConfig(normalizedDatabaseKey);

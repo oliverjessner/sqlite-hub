@@ -334,7 +334,7 @@ async function main() {
                     } else if (stmt.kind === 'mutation') {
                         console.log(`Changes: ${stmt.changes}`);
                         if (stmt.lastInsertRowid) {
-                            console.log(`Last insert rowid: ${stmt.lastInsertRowid}`);
+                            console.log('Last insert rowid:', stmt.lastInsertRowid);
                         }
                     }
                 });

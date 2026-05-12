@@ -57,123 +57,98 @@ function getReferencedColumns(draft, catalogTables, referencesTable) {
 
 function renderColumnRow(column, draft, catalogTables) {
   const referenceColumns = getReferencedColumns(draft, catalogTables, column.referencesTable);
+  const typeOptions = draft.supportedTypes
+    .map((type) =>
+      [
+        '<option value="',
+        escapeHtml(type),
+        '" ',
+        type === column.type ? "selected" : "",
+        ">",
+        escapeHtml(type),
+        "</option>",
+      ].join("")
+    )
+    .join("");
+  const referenceTableOptions = catalogTables
+    .map((table) =>
+      [
+        '<option value="',
+        escapeHtml(table.name),
+        '" ',
+        table.name === column.referencesTable ? "selected" : "",
+        ">",
+        escapeHtml(table.name),
+        "</option>",
+      ].join("")
+    )
+    .join("");
+  const referenceColumnOptions = referenceColumns
+    .map((name) =>
+      [
+        '<option value="',
+        escapeHtml(name),
+        '" ',
+        name === column.referencesColumn ? "selected" : "",
+        ">",
+        escapeHtml(name),
+        "</option>",
+      ].join("")
+    )
+    .join("");
 
-  return `
-    <div class="table-designer-grid__row">
-      <input
-        class="table-designer-field"
-        data-bind="table-designer-column-field"
-        data-column-id="${escapeHtml(column.id)}"
-        data-field="name"
-        placeholder="column_name"
-        spellcheck="false"
-        type="text"
-        value="${escapeHtml(column.name)}"
-      />
-      <select
-        class="table-designer-field"
-        data-bind="table-designer-column-field"
-        data-column-id="${escapeHtml(column.id)}"
-        data-field="type"
-      >
-        ${draft.supportedTypes
-          .map(
-            (type) => `
-              <option value="${escapeHtml(type)}" ${type === column.type ? "selected" : ""}>
-                ${escapeHtml(type)}
-              </option>
-            `
-          )
-          .join("")}
-      </select>
-      <label class="standard-checkbox table-designer-check table-designer-checkbox-override">
-        <input
-          data-bind="table-designer-column-flag"
-          data-column-id="${escapeHtml(column.id)}"
-          data-field="notNull"
-          type="checkbox"
-          ${column.notNull ? "checked" : ""}
-        />
-        <span>Not null</span>
-      </label>
-      <label class="standard-checkbox table-designer-check table-designer-checkbox-override">
-        <input
-          data-bind="table-designer-column-flag"
-          data-column-id="${escapeHtml(column.id)}"
-          data-field="unique"
-          type="checkbox"
-          ${column.unique ? "checked" : ""}
-        />
-        <span>Unique</span>
-      </label>
-      <label class="standard-checkbox table-designer-check table-designer-checkbox-override">
-        <input
-          data-bind="table-designer-column-flag"
-          data-column-id="${escapeHtml(column.id)}"
-          data-field="primaryKey"
-          type="checkbox"
-          ${column.primaryKey ? "checked" : ""}
-        />
-        <span>PK</span>
-      </label>
-      <input
-        class="table-designer-field"
-        data-bind="table-designer-column-field"
-        data-column-id="${escapeHtml(column.id)}"
-        data-field="defaultValue"
-        placeholder="SQL default"
-        spellcheck="false"
-        type="text"
-        value="${escapeHtml(column.defaultValue)}"
-      />
-      <select
-        class="table-designer-field"
-        data-bind="table-designer-column-field"
-        data-column-id="${escapeHtml(column.id)}"
-        data-field="referencesTable"
-      >
-        <option value="">No FK table</option>
-        ${catalogTables
-          .map(
-            (table) => `
-              <option
-                value="${escapeHtml(table.name)}"
-                ${table.name === column.referencesTable ? "selected" : ""}
-              >
-                ${escapeHtml(table.name)}
-              </option>
-            `
-          )
-          .join("")}
-      </select>
-      <select
-        class="table-designer-field"
-        data-bind="table-designer-column-field"
-        data-column-id="${escapeHtml(column.id)}"
-        data-field="referencesColumn"
-      >
-        <option value="">No FK column</option>
-        ${referenceColumns
-          .map(
-            (name) => `
-              <option value="${escapeHtml(name)}" ${name === column.referencesColumn ? "selected" : ""}>
-                ${escapeHtml(name)}
-              </option>
-            `
-          )
-          .join("")}
-      </select>
-      <button
-        class="delete-button"
-        data-action="remove-table-designer-column"
-        data-column-id="${escapeHtml(column.id)}"
-        type="button"
-      >
-        <span class="material-symbols-outlined text-base">delete</span>
-        <span>Remove</span>
-      </button>
-    </div>
-  `;
+  const columnId = escapeHtml(column.id);
+
+  return [
+    '<div class="table-designer-grid__row">',
+    '<input class="table-designer-field" data-bind="table-designer-column-field" data-column-id="',
+    columnId,
+    '" data-field="name" placeholder="column_name" spellcheck="false" type="text" value="',
+    escapeHtml(column.name),
+    '" />',
+    '<select class="table-designer-field" data-bind="table-designer-column-field" data-column-id="',
+    columnId,
+    '" data-field="type">',
+    typeOptions,
+    "</select>",
+    '<label class="standard-checkbox table-designer-check table-designer-checkbox-override">',
+    '<input data-bind="table-designer-column-flag" data-column-id="',
+    columnId,
+    '" data-field="notNull" type="checkbox" ',
+    column.notNull ? "checked" : "",
+    ' /><span>Not null</span></label>',
+    '<label class="standard-checkbox table-designer-check table-designer-checkbox-override">',
+    '<input data-bind="table-designer-column-flag" data-column-id="',
+    columnId,
+    '" data-field="unique" type="checkbox" ',
+    column.unique ? "checked" : "",
+    ' /><span>Unique</span></label>',
+    '<label class="standard-checkbox table-designer-check table-designer-checkbox-override">',
+    '<input data-bind="table-designer-column-flag" data-column-id="',
+    columnId,
+    '" data-field="primaryKey" type="checkbox" ',
+    column.primaryKey ? "checked" : "",
+    ' /><span>PK</span></label>',
+    '<input class="table-designer-field" data-bind="table-designer-column-field" data-column-id="',
+    columnId,
+    '" data-field="defaultValue" placeholder="SQL default" spellcheck="false" type="text" value="',
+    escapeHtml(column.defaultValue),
+    '" />',
+    '<select class="table-designer-field" data-bind="table-designer-column-field" data-column-id="',
+    columnId,
+    '" data-field="referencesTable"><option value="">No FK table</option>',
+    referenceTableOptions,
+    "</select>",
+    '<select class="table-designer-field" data-bind="table-designer-column-field" data-column-id="',
+    columnId,
+    '" data-field="referencesColumn"><option value="">No FK column</option>',
+    referenceColumnOptions,
+    "</select>",
+    '<button class="delete-button" data-action="remove-table-designer-column" data-column-id="',
+    columnId,
+    '" type="button"><span class="material-symbols-outlined text-base">delete</span><span>Remove</span></button>',
+    "</div>",
+  ].join("");
 }
 
 function renderColumnGrid(draft, catalogTables) {

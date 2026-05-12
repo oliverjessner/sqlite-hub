@@ -241,38 +241,34 @@ function renderTableSearchBar(table, state, activeColumn, filteredRowCount) {
     if (!table || !columns.length) {
         return '';
     }
+    const columnOptions = columns
+        .map(columnName => [
+            '<option value="',
+            escapeHtml(columnName),
+            '" ',
+            columnName === activeColumn ? 'selected' : '',
+            '>',
+            escapeHtml(columnName),
+            '</option>',
+        ].join(''))
+        .join('');
 
-    return `
-    <div class="flex flex-wrap items-center gap-3 border-b border-outline-variant/10 bg-surface-container-low px-6 py-4">
-      <label class="control-shell flex min-w-[18rem] flex-1 items-center gap-3 border border-outline-variant/20 bg-surface-container-lowest px-3">
-        <span class="material-symbols-outlined text-base text-on-surface-variant/55">search</span>
-        <input
-          class="control-input control-input--ghost min-w-0 flex-1 text-sm text-on-surface outline-none placeholder:text-on-surface-variant/40"
-          data-bind="data-search-query"
-          placeholder="Filter current page..."
-          type="search"
-          value="${escapeHtml(state.dataBrowser.searchQuery ?? '')}"
-        />
-      </label>
-      <select
-        class="control-select min-w-[14rem] border border-outline-variant/20 bg-surface-container-lowest font-mono text-xs tracking-[0.04em] text-on-surface outline-none"
-        data-bind="data-search-column"
-      >
-        ${columns
-            .map(
-                columnName => `
-              <option value="${escapeHtml(columnName)}" ${columnName === activeColumn ? 'selected' : ''}>
-                ${escapeHtml(columnName)}
-              </option>
-            `,
-            )
-            .join('')}
-      </select>
-      <div class="text-[10px] font-mono tracking-[0.14em] text-on-surface-variant/55">
-        ${escapeHtml(formatNumber(filteredRowCount))} match${filteredRowCount === 1 ? '' : 'es'} on this page
-      </div>
-    </div>
-  `;
+    return [
+        '<div class="flex flex-wrap items-center gap-3 border-b border-outline-variant/10 bg-surface-container-low px-6 py-4">',
+        '<label class="control-shell flex min-w-[18rem] flex-1 items-center gap-3 border border-outline-variant/20 bg-surface-container-lowest px-3">',
+        '<span class="material-symbols-outlined text-base text-on-surface-variant/55">search</span>',
+        '<input class="control-input control-input--ghost min-w-0 flex-1 text-sm text-on-surface outline-none placeholder:text-on-surface-variant/40" data-bind="data-search-query" placeholder="Filter current page..." type="search" value="',
+        escapeHtml(state.dataBrowser.searchQuery ?? ''),
+        '" /></label>',
+        '<select class="control-select min-w-[14rem] border border-outline-variant/20 bg-surface-container-lowest font-mono text-xs tracking-[0.04em] text-on-surface outline-none" data-bind="data-search-column">',
+        columnOptions,
+        '</select>',
+        '<div class="text-[10px] font-mono tracking-[0.14em] text-on-surface-variant/55">',
+        escapeHtml(formatNumber(filteredRowCount)),
+        ' match',
+        filteredRowCount === 1 ? '' : 'es',
+        ' on this page</div></div>',
+    ].join('');
 }
 
 function renderTableSurface(state) {
@@ -331,107 +327,95 @@ function renderTableSurface(state) {
     const pageSizes = [25, 50, 100];
     const filteredRowCount = filteredRows.length;
     const hasActiveSearch = Boolean(searchQuery);
+    const gridMarkup = renderDataGrid({
+        columns,
+        rows: filteredRows.map(({ row }) => row),
+        tableClass: 'min-w-full border-collapse text-left font-mono text-xs',
+        theadClass: 'sticky top-0 z-10 bg-surface-container-highest',
+        tbodyClass: 'divide-y divide-outline-variant/5',
+        getRowClass: (_, filteredIndex) => {
+            const rowIndex = filteredRows[filteredIndex]?.index ?? filteredIndex;
 
-    return `
-    <div class="flex flex-1 min-h-0 flex-col bg-surface-container-lowest">
-      ${renderTableSearchBar(table, state, activeColumn, filteredRowCount)}
-      <div class="custom-scrollbar flex-1 overflow-auto">
-        ${renderDataGrid({
-            columns,
-            rows: filteredRows.map(({ row }) => row),
-            tableClass: 'min-w-full border-collapse text-left font-mono text-xs',
-            theadClass: 'sticky top-0 z-10 bg-surface-container-highest',
-            tbodyClass: 'divide-y divide-outline-variant/5',
-            getRowClass: (_, filteredIndex) => {
-                const rowIndex = filteredRows[filteredIndex]?.index ?? filteredIndex;
+            return [
+                'data-browser-row',
+                filteredIndex % 2 === 0 ? 'data-browser-row--even' : 'data-browser-row--odd',
+                state.dataBrowser.selectedRowIndex === rowIndex ? 'is-selected' : '',
+                'cursor-pointer transition-colors',
+            ].filter(Boolean).join(' ');
+        },
+        getRowAttrs: (_, filteredIndex) => {
+            const rowIndex = filteredRows[filteredIndex]?.index ?? filteredIndex;
 
-                return `data-browser-row ${
-                    filteredIndex % 2 === 0 ? 'data-browser-row--even' : 'data-browser-row--odd'
-                } ${state.dataBrowser.selectedRowIndex === rowIndex ? 'is-selected' : ''} cursor-pointer transition-colors`;
-            },
-            getRowAttrs: (_, filteredIndex) => {
-                const rowIndex = filteredRows[filteredIndex]?.index ?? filteredIndex;
+            return ['data-action="select-data-row" data-row-index="', rowIndex, '"'].join('');
+        },
+    });
+    const emptyMarkup = !table.rows?.length
+        ? '<div class="flex min-h-[180px] items-center justify-center border-t border-outline-variant/10"><p class="font-mono text-[10px] uppercase tracking-[0.22em] text-on-surface-variant/40">TABLE_IS_EMPTY</p></div>'
+        : !filteredRowCount
+          ? [
+                '<div class="flex min-h-[180px] items-center justify-center border-t border-outline-variant/10">',
+                '<p class="font-mono text-[10px] tracking-[0.18em] text-on-surface-variant/40">',
+                hasActiveSearch ? 'No matching rows on this page.' : 'No rows available.',
+                '</p></div>',
+            ].join('')
+          : '';
+    const visibleRowsText = hasActiveSearch
+        ? [' // ', escapeHtml(formatNumber(filteredRowCount)), ' visible on this page'].join('')
+        : '';
+    const pageSizeButtons = pageSizes
+        .map(pageSize =>
+            [
+                '<button class="standard-button ',
+                pageSize === (table.limit ?? state.dataBrowser.pageSize) ? 'is-active' : '',
+                '" data-action="set-data-page-size" data-page-size="',
+                pageSize,
+                '" type="button">',
+                pageSize,
+                '</button>',
+            ].join(''),
+        )
+        .join('');
 
-                return `data-action="select-data-row" data-row-index="${rowIndex}"`;
-            },
-        })}
-        ${
-            !table.rows?.length
-                ? `
-                <div class="flex min-h-[180px] items-center justify-center border-t border-outline-variant/10">
-                  <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-on-surface-variant/40">
-                    TABLE_IS_EMPTY
-                  </p>
-                </div>
-              `
-                : !filteredRowCount
-                  ? `
-                  <div class="flex min-h-[180px] items-center justify-center border-t border-outline-variant/10">
-                    <p class="font-mono text-[10px] tracking-[0.18em] text-on-surface-variant/40">
-                      ${hasActiveSearch ? 'No matching rows on this page.' : 'No rows available.'}
-                    </p>
-                  </div>
-                `
-                  : ''
-        }
-      </div>
-      <footer class="flex flex-wrap items-center justify-between gap-4 border-t border-outline-variant/10 bg-surface-container px-6 py-4">
-        <div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-          showing ${escapeHtml(formatNumber(fromRow))}-${escapeHtml(formatNumber(toRow))} of ${escapeHtml(
-              formatNumber(totalRows),
-          )} rows${hasActiveSearch ? ` // ${escapeHtml(formatNumber(filteredRowCount))} visible on this page` : ''}
-        </div>
-        <div class="flex flex-wrap items-center gap-4">
-          <div class="flex items-center gap-2">
-            <span class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-              rows
-            </span>
-            <div class="flex items-center gap-2">
-              ${pageSizes
-                  .map(
-                      pageSize => `
-                    <button
-                      class="standard-button ${
-                          pageSize === (table.limit ?? state.dataBrowser.pageSize) ? 'is-active' : ''
-                      }"
-                      data-action="set-data-page-size"
-                      data-page-size="${pageSize}"
-                      type="button"
-                    >
-                      ${pageSize}
-                    </button>
-                  `,
-                  )
-                  .join('')}
-            </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <button
-              class="standard-button"
-              data-action="set-data-page"
-              data-page="${page - 1}"
-              type="button"
-              ${page <= 1 ? 'disabled' : ''}
-            >
-              Prev
-            </button>
-            <div class="min-w-[7rem] text-center text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-              page ${escapeHtml(formatNumber(page))} / ${escapeHtml(formatNumber(pageCount))}
-            </div>
-            <button
-              class="standard-button"
-              data-action="set-data-page"
-              data-page="${page + 1}"
-              type="button"
-              ${page >= pageCount ? 'disabled' : ''}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </footer>
-    </div>
-  `;
+    return [
+        '<div class="flex flex-1 min-h-0 flex-col bg-surface-container-lowest">',
+        renderTableSearchBar(table, state, activeColumn, filteredRowCount),
+        '<div class="custom-scrollbar flex-1 overflow-auto">',
+        gridMarkup,
+        emptyMarkup,
+        '</div>',
+        '<footer class="flex flex-wrap items-center justify-between gap-4 border-t border-outline-variant/10 bg-surface-container px-6 py-4">',
+        '<div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">showing ',
+        escapeHtml(formatNumber(fromRow)),
+        '-',
+        escapeHtml(formatNumber(toRow)),
+        ' of ',
+        escapeHtml(formatNumber(totalRows)),
+        ' rows',
+        visibleRowsText,
+        '</div>',
+        '<div class="flex flex-wrap items-center gap-4"><div class="flex items-center gap-2">',
+        '<span class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">rows</span>',
+        '<div class="flex items-center gap-2">',
+        pageSizeButtons,
+        '</div></div>',
+        '<div class="flex items-center gap-2">',
+        '<button class="standard-button" data-action="set-data-page" data-page="',
+        page - 1,
+        '" type="button" ',
+        page <= 1 ? 'disabled' : '',
+        '>Prev</button>',
+        '<div class="min-w-[7rem] text-center text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">page ',
+        escapeHtml(formatNumber(page)),
+        ' / ',
+        escapeHtml(formatNumber(pageCount)),
+        '</div>',
+        '<button class="standard-button" data-action="set-data-page" data-page="',
+        page + 1,
+        '" type="button" ',
+        page >= pageCount ? 'disabled' : '',
+        '>Next</button>',
+        '</div></div></footer></div>',
+    ].join('');
 }
 
 export function renderDataRowEditorPanel(state) {

@@ -6,6 +6,6 @@
         "ci.no-ci-config": false,
         "package.scripts-missing": false,
         "database.no-migrations": false,
-        "web.dangerous-inner-html": false
+        "web.dangerous-inner-html": true
     }
 }

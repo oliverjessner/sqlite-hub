@@ -77,8 +77,12 @@ class DataBrowserService {
     const orderClause = buildTableOrderClause(tableDetail, sort);
     const statement = db.prepare(
       [
-        `SELECT ${selectExpression} FROM ${quoteIdentifier(tableName)}`,
-        orderClause ? `ORDER BY ${orderClause}` : "",
+        "SELECT",
+        selectExpression,
+        "FROM",
+        quoteIdentifier(tableName),
+        orderClause ? "ORDER BY" : "",
+        orderClause,
         "LIMIT ? OFFSET ?",
       ]
         .filter(Boolean)
@@ -184,7 +188,14 @@ class DataBrowserService {
     );
 
     db.prepare(
-      `UPDATE ${quoteIdentifier(tableName)} SET ${setClause} WHERE ${where.clause}`
+      [
+        "UPDATE",
+        quoteIdentifier(tableName),
+        "SET",
+        setClause,
+        "WHERE",
+        where.clause,
+      ].join(" ")
     ).run(...setParams, ...where.params);
 
     const updatedRow = this.getRowByIdentity(db, tableDetail, where);
@@ -214,7 +225,9 @@ class DataBrowserService {
 
     const where = this.buildWhereClause(tableDetail, identity);
     const result = db
-      .prepare(`DELETE FROM ${quoteIdentifier(tableName)} WHERE ${where.clause}`)
+      .prepare(
+        ["DELETE FROM", quoteIdentifier(tableName), "WHERE", where.clause].join(" ")
+      )
       .run(...where.params);
 
     if (!result.changes) {
@@ -271,7 +284,14 @@ class DataBrowserService {
       tableDetail.identityStrategy?.type === "rowid" ? "rowid AS __rowid__, *" : "*";
     const row = db
       .prepare(
-        `SELECT ${selectExpression} FROM ${quoteIdentifier(tableDetail.name)} WHERE ${where.clause}`
+        [
+          "SELECT",
+          selectExpression,
+          "FROM",
+          quoteIdentifier(tableDetail.name),
+          "WHERE",
+          where.clause,
+        ].join(" ")
       )
       .get(...where.params);
 

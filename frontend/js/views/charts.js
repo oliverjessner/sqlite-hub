@@ -374,49 +374,29 @@ function renderChartSurface(chart, state, analysis) {
 function renderChartCard(chart, state, analysis) {
     const sizeClass = resolveChartCardSizeClass(state);
 
-    return `
-    <article class="query-chart-card ${sizeClass}">
-      <header class="query-chart-card__header">
-        <div class="min-w-0">
-          <div class="flex flex-wrap items-center gap-2">
-            <h3 class="truncate font-headline text-xl font-black uppercase tracking-tight text-on-surface">
-              ${escapeHtml(chart.name)}
-            </h3>
-            ${renderStatusBadge(getQueryChartTypeLabel(chart.chartType), 'primary')}
-          </div>
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <button
-            class="standard-button"
-            data-action="open-edit-query-chart-modal"
-            data-chart-id="${escapeHtml(chart.id)}"
-            type="button"
-          >
-            Edit
-          </button>
-          <button
-            class="delete-button"
-            data-action="open-delete-query-chart-modal"
-            data-chart-id="${escapeHtml(chart.id)}"
-            type="button"
-          >
-            Delete
-          </button>
-          <button
-            class="standard-button"
-            data-action="export-query-chart-png"
-            data-chart-id="${escapeHtml(chart.id)}"
-            type="button"
-          >
-            Export PNG
-          </button>
-        </div>
-      </header>
-      <div class="query-chart-card__body">
-        ${renderChartSurface(chart, state, analysis)}
-      </div>
-    </article>
-  `;
+    return [
+        '<article class="query-chart-card ',
+        sizeClass,
+        '"><header class="query-chart-card__header"><div class="min-w-0">',
+        '<div class="flex flex-wrap items-center gap-2">',
+        '<h3 class="truncate font-headline text-xl font-black uppercase tracking-tight text-on-surface">',
+        escapeHtml(chart.name),
+        "</h3>",
+        renderStatusBadge(getQueryChartTypeLabel(chart.chartType), 'primary'),
+        '</div></div><div class="flex flex-wrap items-center gap-2">',
+        '<button class="standard-button" data-action="open-edit-query-chart-modal" data-chart-id="',
+        escapeHtml(chart.id),
+        '" type="button">Edit</button>',
+        '<button class="delete-button" data-action="open-delete-query-chart-modal" data-chart-id="',
+        escapeHtml(chart.id),
+        '" type="button">Delete</button>',
+        '<button class="standard-button" data-action="export-query-chart-png" data-chart-id="',
+        escapeHtml(chart.id),
+        '" type="button">Export PNG</button>',
+        '</div></header><div class="query-chart-card__body">',
+        renderChartSurface(chart, state, analysis),
+        "</div></article>",
+    ].join("");
 }
 
 export function renderChartsDetail(state) {

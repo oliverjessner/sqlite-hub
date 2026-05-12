@@ -126,169 +126,98 @@ export function renderQueryHistoryDetail({
     `;
   }
 
-  return `
-    <section class="flex h-full min-h-0 flex-col bg-surface-low">
-      <div class="border-b border-outline-variant/10 px-5 py-4">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/70">
-              Query Detail
-            </div>
-            <h2 class="mt-1 font-headline text-lg font-black uppercase tracking-tight text-on-surface">
-              ${escapeHtml(item.displayTitle)}
-            </h2>
-          </div>
-          <button
-            class="query-history-icon-button"
-            data-action="clear-query-history-selection"
-            type="button"
-          >
-            <span class="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        </div>
-        <div class="mt-4 flex flex-wrap gap-2">
-          ${renderStatusBadge(item.queryType, getQueryTypeTone(item.queryType))}
-          ${item.isSaved ? renderStatusBadge("saved", "primary") : ""}
-          ${item.isDestructive ? renderStatusBadge("destructive", "warning") : ""}
-          ${item.lastRun ? renderStatusBadge(item.lastRun.status, item.lastRun.status === "error" ? "alert" : "success") : ""}
-        </div>
-      </div>
-      <div class="custom-scrollbar min-h-0 flex-1 overflow-auto px-5 py-5">
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          ${renderDetailMetaItem("Last Used", formatDateTime(item.lastUsedAt))}
-          ${renderDetailMetaItem("First Executed", formatDateTime(item.firstExecutedAt))}
-          ${renderDetailMetaItem("Use Count", formatNumber(item.useCount))}
-          ${renderDetailMetaItem(
-            "Tables",
-            item.tablesDetected?.length ? item.tablesDetected.join(", ") : "None detected"
-          )}
-        </div>
+  const chartButton = canOpenQueryHistoryInCharts(item)
+    ? [
+        '<button class="standard-button" data-action="navigate" data-to="/charts/',
+        encodeURIComponent(item.id),
+        '" type="button"><span class="material-symbols-outlined text-sm">bar_chart</span>Open In Charts</button>',
+      ].join("")
+    : "";
+  const statusMarkup = [
+    renderStatusBadge(item.queryType, getQueryTypeTone(item.queryType)),
+    item.isSaved ? renderStatusBadge("saved", "primary") : "",
+    item.isDestructive ? renderStatusBadge("destructive", "warning") : "",
+    item.lastRun
+      ? renderStatusBadge(item.lastRun.status, item.lastRun.status === "error" ? "alert" : "success")
+      : "",
+  ].join("");
+  const metaMarkup = [
+    renderDetailMetaItem("Last Used", formatDateTime(item.lastUsedAt)),
+    renderDetailMetaItem("First Executed", formatDateTime(item.firstExecutedAt)),
+    renderDetailMetaItem("Use Count", formatNumber(item.useCount)),
+    renderDetailMetaItem(
+      "Tables",
+      item.tablesDetected?.length ? item.tablesDetected.join(", ") : "None detected"
+    ),
+  ].join("");
+  const runsMarkup = runs.length
+    ? runs.map((run) => renderRunItem(run)).join("")
+    : '<div class="border border-outline-variant/10 bg-surface-container px-3 py-4 text-sm text-on-surface-variant/65">No execution runs recorded yet.</div>';
 
-        <form class="mt-5" data-form="save-query-history-title">
-          <input name="historyId" type="hidden" value="${escapeHtml(item.id)}" />
-          <label class="block text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-            Custom Title
-          </label>
-          <div class="mt-2 flex gap-2">
-            <input
-              class="control-input flex-1 border border-outline-variant/20 bg-surface-container text-sm text-on-surface outline-none placeholder:text-on-surface-variant/35 focus:border-primary-container"
-              name="title"
-              placeholder="${escapeHtml(item.displayTitle)}"
-              type="text"
-              value="${escapeHtml(item.title ?? "")}"
-            />
-            <button
-              class="standard-button"
-              type="submit"
-            >
-              Save
-            </button>
-          </div>
-          <p class="mt-2 text-xs text-on-surface-variant/60">
-            Leave empty to fall back to the auto title generated from the query.
-          </p>
-        </form>
-
-        <div class="mt-5 flex flex-wrap gap-2">
-          <button
-            class="standard-button"
-            data-action="open-query-history"
-            data-history-id="${escapeHtml(item.id)}"
-            type="button"
-          >
-            Open In Editor
-          </button>
-          ${
-            canOpenQueryHistoryInCharts(item)
-              ? `
-                <button
-                  class="standard-button"
-                  data-action="navigate"
-                  data-to="/charts/${encodeURIComponent(item.id)}"
-                  type="button"
-                >
-                  <span class="material-symbols-outlined text-sm">bar_chart</span>
-                  Open In Charts
-                </button>
-              `
-              : ""
-          }
-          <button
-            class="standard-button"
-            data-action="run-query-history"
-            data-history-id="${escapeHtml(item.id)}"
-            type="button"
-          >
-            Run Now
-          </button>
-          <button
-            class="standard-button"
-            data-action="toggle-query-history-saved"
-            data-history-id="${escapeHtml(item.id)}"
-            data-next-value="${item.isSaved ? "false" : "true"}"
-            type="button"
-          >
-            ${item.isSaved ? "Unsave" : "Save"}
-          </button>
-          <button
-            class="delete-button"
-            data-action="open-delete-query-history-modal"
-            data-history-id="${escapeHtml(item.id)}"
-            type="button"
-          >
-            Delete
-          </button>
-        </div>
-
-        <div class="mt-6">
-          <div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-            SQL
-          </div>
-          <pre class="query-history-detail-sql custom-scrollbar mt-2 overflow-auto border border-outline-variant/10 bg-surface-container-lowest p-4 font-mono text-sm leading-6 text-on-surface"><code>${highlightSql(
-            item.rawSql
-          )}</code></pre>
-        </div>
-
-        <form class="mt-6" data-form="save-query-history-notes">
-          <input name="historyId" type="hidden" value="${escapeHtml(item.id)}" />
-          <label class="block text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-            Notes
-          </label>
-          <textarea class="custom-scrollbar mt-2 min-h-[120px] w-full resize-y border border-outline-variant/20 bg-surface-container px-3 py-3 text-sm leading-6 text-on-surface outline-none placeholder:text-on-surface-variant/35 focus:border-primary-container" name="notes" placeholder="Add context, caveats, or why this query matters...">${escapeHtml(
-            item.notes ?? ""
-          )}</textarea>
-          <div class="mt-2 flex justify-end">
-            <button
-              class="standard-button"
-              type="submit"
-            >
-              Save Notes
-            </button>
-          </div>
-        </form>
-
-        <div class="mt-6">
-          <div class="flex items-center justify-between gap-3">
-            <div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-              Latest Runs
-            </div>
-            <div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/40">
-              ${escapeHtml(formatNumber(runs.length))}
-            </div>
-          </div>
-          <div class="mt-3 space-y-3">
-            ${
-              runs.length
-                ? runs.map((run) => renderRunItem(run)).join("")
-                : `
-                    <div class="border border-outline-variant/10 bg-surface-container px-3 py-4 text-sm text-on-surface-variant/65">
-                      No execution runs recorded yet.
-                    </div>
-                  `
-            }
-          </div>
-        </div>
-      </div>
-    </section>
-  `;
+  return [
+    '<section class="flex h-full min-h-0 flex-col bg-surface-low">',
+    '<div class="border-b border-outline-variant/10 px-5 py-4">',
+    '<div class="flex items-center justify-between gap-3"><div>',
+    '<div class="text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/70">Query Detail</div>',
+    '<h2 class="mt-1 font-headline text-lg font-black uppercase tracking-tight text-on-surface">',
+    escapeHtml(item.displayTitle),
+    "</h2></div>",
+    '<button class="query-history-icon-button" data-action="clear-query-history-selection" type="button"><span class="material-symbols-outlined text-[18px]">close</span></button>',
+    '</div><div class="mt-4 flex flex-wrap gap-2">',
+    statusMarkup,
+    "</div></div>",
+    '<div class="custom-scrollbar min-h-0 flex-1 overflow-auto px-5 py-5">',
+    '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">',
+    metaMarkup,
+    "</div>",
+    '<form class="mt-5" data-form="save-query-history-title">',
+    '<input name="historyId" type="hidden" value="',
+    escapeHtml(item.id),
+    '" />',
+    '<label class="block text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">Custom Title</label>',
+    '<div class="mt-2 flex gap-2"><input class="control-input flex-1 border border-outline-variant/20 bg-surface-container text-sm text-on-surface outline-none placeholder:text-on-surface-variant/35 focus:border-primary-container" name="title" placeholder="',
+    escapeHtml(item.displayTitle),
+    '" type="text" value="',
+    escapeHtml(item.title ?? ""),
+    '" /><button class="standard-button" type="submit">Save</button></div>',
+    '<p class="mt-2 text-xs text-on-surface-variant/60">Leave empty to fall back to the auto title generated from the query.</p>',
+    "</form>",
+    '<div class="mt-5 flex flex-wrap gap-2">',
+    '<button class="standard-button" data-action="open-query-history" data-history-id="',
+    escapeHtml(item.id),
+    '" type="button">Open In Editor</button>',
+    chartButton,
+    '<button class="standard-button" data-action="run-query-history" data-history-id="',
+    escapeHtml(item.id),
+    '" type="button">Run Now</button>',
+    '<button class="standard-button" data-action="toggle-query-history-saved" data-history-id="',
+    escapeHtml(item.id),
+    '" data-next-value="',
+    item.isSaved ? "false" : "true",
+    '" type="button">',
+    item.isSaved ? "Unsave" : "Save",
+    "</button>",
+    '<button class="delete-button" data-action="open-delete-query-history-modal" data-history-id="',
+    escapeHtml(item.id),
+    '" type="button">Delete</button></div>',
+    '<div class="mt-6"><div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">SQL</div>',
+    '<pre class="query-history-detail-sql custom-scrollbar mt-2 overflow-auto border border-outline-variant/10 bg-surface-container-lowest p-4 font-mono text-sm leading-6 text-on-surface"><code>',
+    highlightSql(item.rawSql),
+    "</code></pre></div>",
+    '<form class="mt-6" data-form="save-query-history-notes">',
+    '<input name="historyId" type="hidden" value="',
+    escapeHtml(item.id),
+    '" />',
+    '<label class="block text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">Notes</label>',
+    '<textarea class="custom-scrollbar mt-2 min-h-[120px] w-full resize-y border border-outline-variant/20 bg-surface-container px-3 py-3 text-sm leading-6 text-on-surface outline-none placeholder:text-on-surface-variant/35 focus:border-primary-container" name="notes" placeholder="Add context, caveats, or why this query matters...">',
+    escapeHtml(item.notes ?? ""),
+    '</textarea><div class="mt-2 flex justify-end"><button class="standard-button" type="submit">Save Notes</button></div></form>',
+    '<div class="mt-6"><div class="flex items-center justify-between gap-3">',
+    '<div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">Latest Runs</div>',
+    '<div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/40">',
+    escapeHtml(formatNumber(runs.length)),
+    '</div></div><div class="mt-3 space-y-3">',
+    runsMarkup,
+    "</div></div></div></section>",
+  ].join("");
 }

@@ -3,60 +3,64 @@ import { escapeHtml, formatNumber } from "../utils/format.js";
 
 function renderEntryGroup(title, entries, activeName, options = {}) {
   const { compact = false, showMeta = true } = options;
+  const entriesMarkup = entries.length
+    ? [
+        '<div class="space-y-2">',
+        entries
+          .map((entry) => {
+            const isActive = entry.name === activeName;
+            const entryAttributes =
+              entry.type === "table"
+                ? [
+                    'data-structure-entry-name="',
+                    escapeHtml(entry.name),
+                    '"',
+                  ].join("")
+                : "";
+            const metaMarkup = showMeta
+              ? [
+                  '<div class="mt-1 text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45">',
+                  escapeHtml(entry.tableName || entry.type),
+                  "</div>",
+                ].join("")
+              : "";
+
+            return [
+              '<button class="w-full border px-3 ',
+              compact ? "py-2.5" : "py-3",
+              " text-left transition-colors ",
+              isActive
+                ? "border-primary-container/30 bg-surface-container-high"
+                : "border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-high",
+              '" data-action="select-structure-entry" data-entry-name="',
+              escapeHtml(entry.name),
+              '" ',
+              entryAttributes,
+              ' type="button">',
+              '<div class="font-mono text-xs ',
+              isActive ? "text-primary-container" : "text-on-surface",
+              '">',
+              escapeHtml(entry.name),
+              "</div>",
+              metaMarkup,
+              "</button>",
+            ].join("");
+          })
+          .join(""),
+        "</div>",
+      ].join("")
+    : [
+        '<div class="text-sm text-on-surface-variant/45">No ',
+        escapeHtml(title.toLowerCase()),
+        " found.</div>",
+      ].join("");
 
   return `
     <section class="structure-sidebar__section">
       <div class="mb-4 shrink-0 text-[10px] font-bold uppercase tracking-[0.25em] text-primary-container">
         ${escapeHtml(title)}
       </div>
-      ${
-        entries.length
-          ? `
-              <div class="space-y-2">
-                ${entries
-                  .map(
-                    (entry) => `
-                      <button
-                        class="w-full border px-3 ${compact ? "py-2.5" : "py-3"} text-left transition-colors ${
-                          entry.name === activeName
-                            ? "border-primary-container/30 bg-surface-container-high"
-                            : "border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-high"
-                        }"
-                        data-action="select-structure-entry"
-                        data-entry-name="${escapeHtml(entry.name)}"
-                        ${
-                          entry.type === "table"
-                            ? `data-structure-entry-name="${escapeHtml(entry.name)}"`
-                            : ""
-                        }
-                        type="button"
-                      >
-                        <div class="font-mono text-xs ${
-                          entry.name === activeName
-                            ? "text-primary-container"
-                            : "text-on-surface"
-                        }">
-                          ${escapeHtml(entry.name)}
-                        </div>
-                        ${
-                          showMeta
-                            ? `
-                                <div class="mt-1 text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45">
-                                  ${escapeHtml(entry.tableName || entry.type)}
-                                </div>
-                              `
-                            : ""
-                        }
-                      </button>
-                    `
-                  )
-                  .join("")}
-              </div>
-            `
-          : `<div class="text-sm text-on-surface-variant/45">No ${escapeHtml(
-              title.toLowerCase()
-            )} found.</div>`
-      }
+      ${entriesMarkup}
     </section>
   `;
 }

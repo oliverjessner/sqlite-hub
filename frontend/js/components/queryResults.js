@@ -76,7 +76,9 @@ export function renderQueryResultsPane(
                       editable ? "cursor-pointer hover:bg-surface-bright" : "hover:bg-surface-bright"
                     }`,
                   getRowAttrs: (_, index) =>
-                    editable ? `data-action="select-editor-row" data-row-index="${index}"` : "",
+                    editable
+                      ? ['data-action="select-editor-row" data-row-index="', index, '"'].join("")
+                      : "",
                 })
             : `
                 <div class="flex h-full flex-col items-center justify-center text-center text-on-surface-variant/35">

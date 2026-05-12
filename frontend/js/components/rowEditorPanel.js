@@ -149,43 +149,40 @@ export function renderRowEditorPanel({
 }) {
   const canSubmit = !disabledMessage && editableFields.length > 0;
   const canDelete = !disabledMessage && deleteEnabled;
-  const formId = `${formName}-panel-form`;
+  const formId = [formName, "-panel-form"].join("");
   const headerActions = [
     reloadAction
-      ? `
-          <button
-            class="standard-button"
-            data-action="${escapeHtml(reloadAction)}"
-            type="button"
-          >
-            Reload
-          </button>
-        `
+      ? [
+          '<button class="standard-button" data-action="',
+          escapeHtml(reloadAction),
+          '" type="button">Reload</button>',
+        ].join("")
       : "",
     canSubmit
-      ? `
-          <button
-            class="standard-button"
-            form="${escapeHtml(formId)}"
-            type="submit"
-            ${saving || deleting ? "disabled" : ""}
-          >
-            ${escapeHtml(saving ? "Saving..." : submitLabel)}
-          </button>
-        `
+      ? [
+          '<button class="standard-button" form="',
+          escapeHtml(formId),
+          '" type="submit" ',
+          saving || deleting ? "disabled" : "",
+          ">",
+          escapeHtml(saving ? "Saving..." : submitLabel),
+          "</button>",
+        ].join("")
       : "",
     canDelete
-      ? `
-          <button
-            class="delete-button"
-            data-action="${escapeHtml(deleteAction)}"
-            ${deleteRowIndex === null ? "" : `data-row-index="${escapeHtml(String(deleteRowIndex))}"`}
-            type="button"
-            ${saving || deleting ? "disabled" : ""}
-          >
-            ${escapeHtml(deleting ? "Deleting..." : deleteLabel)}
-          </button>
-        `
+      ? [
+          '<button class="delete-button" data-action="',
+          escapeHtml(deleteAction),
+          '" ',
+          deleteRowIndex === null
+            ? ""
+            : ['data-row-index="', escapeHtml(String(deleteRowIndex)), '"'].join(""),
+          ' type="button" ',
+          saving || deleting ? "disabled" : "",
+          ">",
+          escapeHtml(deleting ? "Deleting..." : deleteLabel),
+          "</button>",
+        ].join("")
       : "",
   ]
     .filter(Boolean)

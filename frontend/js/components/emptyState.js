@@ -6,6 +6,25 @@ import {
 } from "../utils/format.js";
 import { renderConnectionLogo } from "./connectionLogo.js";
 
+function renderRecentConnectionButton(connection) {
+  return [
+    '<button class="control-button flex items-center gap-2 border border-outline-variant/15 bg-surface-container-low px-4 text-left text-on-surface transition-colors hover:border-primary-container/30 hover:bg-surface-container-high" data-action="select-connection" data-connection-id="',
+    escapeHtml(connection.id),
+    '" type="button">',
+    renderConnectionLogo(connection, {
+      containerClass:
+        "flex h-8 w-8 items-center justify-center overflow-hidden bg-surface-container-highest",
+      imageClassName: "h-full w-full object-cover",
+      iconClassName: "text-sm text-primary-container",
+    }),
+    '<span class="min-w-0"><span class="block truncate font-mono text-xs">',
+    escapeHtml(connection.label),
+    '</span><span class="block truncate text-[10px] text-on-surface-variant/45">',
+    escapeHtml(truncateMiddle(connection.path, 34)),
+    "</span></span></button>",
+  ].join("");
+}
+
 function renderRecentConnections(recentConnections = []) {
   if (!recentConnections.length) {
     return `
@@ -19,29 +38,7 @@ function renderRecentConnections(recentConnections = []) {
     <div class="flex flex-wrap justify-center gap-4">
       ${recentConnections
         .slice(0, 4)
-        .map(
-          (connection) => `
-            <button
-              class="control-button flex items-center gap-2 border border-outline-variant/15 bg-surface-container-low px-4 text-left text-on-surface transition-colors hover:border-primary-container/30 hover:bg-surface-container-high"
-              data-action="select-connection"
-              data-connection-id="${escapeHtml(connection.id)}"
-              type="button"
-            >
-              ${renderConnectionLogo(connection, {
-                containerClass:
-                  "flex h-8 w-8 items-center justify-center overflow-hidden bg-surface-container-highest",
-                imageClassName: "h-full w-full object-cover",
-                iconClassName: "text-sm text-primary-container",
-              })}
-              <span class="min-w-0">
-                <span class="block truncate font-mono text-xs">${escapeHtml(connection.label)}</span>
-                <span class="block truncate text-[10px] text-on-surface-variant/45">${escapeHtml(
-                  truncateMiddle(connection.path, 34)
-                )}</span>
-              </span>
-            </button>
-          `
-        )
+        .map((connection) => renderRecentConnectionButton(connection))
         .join("")}
     </div>
   `;

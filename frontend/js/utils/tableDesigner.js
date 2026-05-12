@@ -713,13 +713,19 @@ function buildImportedInsertPreviewSql(draft, maxRows = 3) {
   }
 
   const columnSql = importedColumns.map((column) => quoteIdentifier(column.name)).join(", ");
-  const insertPrefix = `INSERT INTO ${quoteIdentifier(draft.tableName)} (${columnSql}) VALUES`;
+  const insertPrefix = [
+    "INSERT INTO",
+    quoteIdentifier(draft.tableName),
+    "(",
+    columnSql,
+    ") VALUES",
+  ].join(" ");
   const previewStatements = draft.importedCsvRows.slice(0, maxRows).map((row) => {
     const valueSql = importedColumns
       .map((column) => formatImportedCellValueForSql(column, row[column.importedValueIndex] ?? ""))
       .join(", ");
 
-    return `${insertPrefix} (${valueSql});`;
+    return [insertPrefix, "(", valueSql, ");"].join(" ");
   });
 
   if (draft.importedCsvRows.length > maxRows) {

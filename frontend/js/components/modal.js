@@ -97,28 +97,37 @@ function renderFileField({
 }
 
 function renderSelectField({ label, name, value = "", options = [], bind = "" }) {
-  return `
-    <label class="block space-y-2">
-      <span class="block text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
-        ${escapeHtml(label)}
-      </span>
-      <select
-        class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
-        ${bind ? `data-bind="${escapeHtml(bind)}"` : ""}
-        ${name ? `name="${escapeHtml(name)}"` : ""}
-      >
-        ${options
-          .map(
-            (option) => `
-              <option value="${escapeHtml(option.value)}" ${String(option.value) === String(value) ? "selected" : ""}>
-                ${escapeHtml(option.label)}
-              </option>
-            `
-          )
-          .join("")}
-      </select>
-    </label>
-  `;
+  const attributes = [
+    bind ? ['data-bind="', escapeHtml(bind), '"'].join("") : "",
+    name ? ['name="', escapeHtml(name), '"'].join("") : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const optionMarkup = options
+    .map((option) =>
+      [
+        '<option value="',
+        escapeHtml(option.value),
+        '" ',
+        String(option.value) === String(value) ? "selected" : "",
+        ">",
+        escapeHtml(option.label),
+        "</option>",
+      ].join("")
+    )
+    .join("");
+
+  return [
+    '<label class="block space-y-2">',
+    '<span class="block text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">',
+    escapeHtml(label),
+    "</span>",
+    '<select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" ',
+    attributes,
+    ">",
+    optionMarkup,
+    "</select></label>",
+  ].join("");
 }
 
 function renderError(error) {
@@ -283,62 +292,55 @@ function renderCreateDatabaseForm(modal) {
 
 function renderImportTargetOptions(state) {
   const recentOptions = state.connections.recent
-    .map(
-      (connection) => `
-        <option value="${escapeHtml(connection.id)}">
-          ${escapeHtml(connection.label)} • ${escapeHtml(truncateMiddle(connection.path, 42))}
-        </option>
-      `
+    .map((connection) =>
+      [
+        '<option value="',
+        escapeHtml(connection.id),
+        '">',
+        escapeHtml(connection.label),
+        " • ",
+        escapeHtml(truncateMiddle(connection.path, 42)),
+        "</option>",
+      ].join("")
     )
     .join("");
+  const activeOption = state.connections.active
+    ? '<option value="active">Use active database</option>'
+    : "";
+  const recentModeOption = state.connections.recent.length
+    ? '<option value="recent">Use recent connection</option>'
+    : "";
+  const recentConnectionSelect = state.connections.recent.length
+    ? [
+        '<label class="block space-y-2">',
+        '<span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">Recent Connection</span>',
+        '<select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" name="targetConnectionId">',
+        recentOptions,
+        "</select></label>",
+      ].join("")
+    : "";
 
-  return `
-    <label class="block space-y-2">
-      <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
-        Import Target
-      </span>
-      <select
-        class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
-        name="targetMode"
-      >
-        ${
-          state.connections.active
-            ? '<option value="active">Use active database</option>'
-            : ""
-        }
-        ${state.connections.recent.length ? '<option value="recent">Use recent connection</option>' : ""}
-        <option value="create">Create new database from dump</option>
-        <option value="path">Open explicit target path</option>
-      </select>
-    </label>
-    ${
-      state.connections.recent.length
-        ? `
-          <label class="block space-y-2">
-            <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
-              Recent Connection
-            </span>
-            <select
-              class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
-              name="targetConnectionId"
-            >
-              ${recentOptions}
-            </select>
-          </label>
-        `
-        : ""
-    }
-    ${renderField({
+  return [
+    '<label class="block space-y-2">',
+    '<span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">Import Target</span>',
+    '<select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" name="targetMode">',
+    activeOption,
+    recentModeOption,
+    '<option value="create">Create new database from dump</option>',
+    '<option value="path">Open explicit target path</option>',
+    "</select></label>",
+    recentConnectionSelect,
+    renderField({
       label: "Target Path",
       name: "targetPath",
       placeholder: "/absolute/path/to/target.sqlite",
-    })}
-    ${renderField({
+    }),
+    renderField({
       label: "Target Label",
       name: "label",
       placeholder: "Optional display name",
-    })}
-  `;
+    }),
+  ].join("");
 }
 
 function renderImportSqlForm(modal, state) {
@@ -376,71 +378,51 @@ function renderImportSqlForm(modal, state) {
 
 function renderDeleteRowConfirmForm(modal) {
   const rowPreview = modal.rowPreview ?? [];
+  const rowLabelMarkup = modal.rowLabel
+    ? [
+        '<div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">',
+        escapeHtml(modal.rowLabel),
+        "</div>",
+      ].join("")
+    : "";
+  const rowPreviewMarkup = rowPreview.length
+    ? [
+        '<div class="grid grid-cols-1 gap-3 md:grid-cols-2">',
+        rowPreview
+          .map((field) =>
+            [
+              '<div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">',
+              '<div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">',
+              escapeHtml(field.label),
+              "</div>",
+              '<div class="mt-2 text-sm text-on-surface" title="',
+              escapeHtml(field.fullValue ?? field.value ?? ""),
+              '">',
+              escapeHtml(field.value ?? ""),
+              "</div></div>",
+            ].join("")
+          )
+          .join(""),
+        "</div>",
+      ].join("")
+    : "";
 
-  return `
-    <form class="space-y-5" data-form="delete-row-confirm">
-      <div class="space-y-3">
-        <p class="text-sm leading-7 text-on-surface">
-          Delete this row from <span class="font-bold text-primary-container">${escapeHtml(
-            modal.tableName ?? "the current table"
-          )}</span>?
-        </p>
-        <p class="text-sm leading-7 text-on-surface-variant/65">
-          This action cannot be undone.
-        </p>
-        ${
-          modal.rowLabel
-            ? `
-                <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
-                  ${escapeHtml(modal.rowLabel)}
-                </div>
-              `
-            : ""
-        }
-        ${
-          rowPreview.length
-            ? `
-                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  ${rowPreview
-                    .map(
-                      (field) => `
-                        <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
-                          <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
-                            ${escapeHtml(field.label)}
-                          </div>
-                          <div
-                            class="mt-2 text-sm text-on-surface"
-                            title="${escapeHtml(field.fullValue ?? field.value ?? "")}"
-                          >
-                            ${escapeHtml(field.value ?? "")}
-                          </div>
-                        </div>
-                      `
-                    )
-                    .join("")}
-                </div>
-              `
-            : ""
-        }
-      </div>
-      ${renderError(modal.error)}
-      <div class="flex items-center justify-end gap-3 pt-2">
-        <button
-          class="standard-button"
-          data-action="close-modal"
-          type="button"
-        >
-          Cancel
-        </button>
-        <button
-          class="delete-button"
-          type="submit"
-        >
-          ${modal.submitting ? "Deleting..." : "Delete Row"}
-        </button>
-      </div>
-    </form>
-  `;
+  return [
+    '<form class="space-y-5" data-form="delete-row-confirm"><div class="space-y-3">',
+    '<p class="text-sm leading-7 text-on-surface">Delete this row from <span class="font-bold text-primary-container">',
+    escapeHtml(modal.tableName ?? "the current table"),
+    "</span>?</p>",
+    '<p class="text-sm leading-7 text-on-surface-variant/65">This action cannot be undone.</p>',
+    rowLabelMarkup,
+    rowPreviewMarkup,
+    "</div>",
+    renderError(modal.error),
+    '<div class="flex items-center justify-end gap-3 pt-2">',
+    '<button class="standard-button" data-action="close-modal" type="button">Cancel</button>',
+    '<button class="delete-button" type="submit">',
+    modal.submitting ? "Deleting..." : "Delete Row",
+    "</button></div></form>",
+  ].join("");
 }
 
 function renderChartColumnOptions(analysis, { allowEmpty = false, includeNumericHint = false } = {}) {
@@ -693,69 +675,37 @@ function renderChartEditorForm(modal, state) {
 }
 
 function renderDeleteChartForm(modal) {
-  return `
-    <form class="space-y-5" data-form="delete-query-chart">
-      <div class="space-y-3">
-        <p class="text-sm leading-7 text-on-surface">
-          Delete chart <span class="font-bold text-primary-container">${escapeHtml(
-            modal.chartName ?? "Chart"
-          )}</span>?
-        </p>
-        <p class="text-sm leading-7 text-on-surface-variant/65">
-          The linked query-history entry stays intact. Only this chart definition is removed.
-        </p>
-      </div>
-      ${renderError(modal.error)}
-      <div class="flex items-center justify-end gap-3 pt-2">
-        <button
-          class="standard-button"
-          data-action="close-modal"
-          type="button"
-        >
-          Cancel
-        </button>
-        <button
-          class="delete-button"
-          type="submit"
-        >
-          ${modal.submitting ? "Deleting..." : "Delete Chart"}
-        </button>
-      </div>
-    </form>
-  `;
+  return [
+    '<form class="space-y-5" data-form="delete-query-chart"><div class="space-y-3">',
+    '<p class="text-sm leading-7 text-on-surface">Delete chart <span class="font-bold text-primary-container">',
+    escapeHtml(modal.chartName ?? "Chart"),
+    "</span>?</p>",
+    '<p class="text-sm leading-7 text-on-surface-variant/65">The linked query-history entry stays intact. Only this chart definition is removed.</p>',
+    "</div>",
+    renderError(modal.error),
+    '<div class="flex items-center justify-end gap-3 pt-2">',
+    '<button class="standard-button" data-action="close-modal" type="button">Cancel</button>',
+    '<button class="delete-button" type="submit">',
+    modal.submitting ? "Deleting..." : "Delete Chart",
+    "</button></div></form>",
+  ].join("");
 }
 
 function renderDeleteQueryHistoryForm(modal) {
-  return `
-    <form class="space-y-5" data-form="delete-query-history-confirm">
-      <div class="space-y-3">
-        <p class="text-sm leading-7 text-on-surface">
-          Delete query <span class="font-bold text-primary-container">${escapeHtml(
-            modal.queryTitle ?? "SQL query"
-          )}</span>?
-        </p>
-        <p class="text-sm leading-7 text-on-surface-variant/65">
-          This removes the query-history entry and all recorded runs linked to it.
-        </p>
-      </div>
-      ${renderError(modal.error)}
-      <div class="flex items-center justify-end gap-3 pt-2">
-        <button
-          class="standard-button"
-          data-action="close-modal"
-          type="button"
-        >
-          Cancel
-        </button>
-        <button
-          class="delete-button"
-          type="submit"
-        >
-          ${modal.submitting ? "Deleting..." : "Delete Query"}
-        </button>
-      </div>
-    </form>
-  `;
+  return [
+    '<form class="space-y-5" data-form="delete-query-history-confirm"><div class="space-y-3">',
+    '<p class="text-sm leading-7 text-on-surface">Delete query <span class="font-bold text-primary-container">',
+    escapeHtml(modal.queryTitle ?? "SQL query"),
+    "</span>?</p>",
+    '<p class="text-sm leading-7 text-on-surface-variant/65">This removes the query-history entry and all recorded runs linked to it.</p>',
+    "</div>",
+    renderError(modal.error),
+    '<div class="flex items-center justify-end gap-3 pt-2">',
+    '<button class="standard-button" data-action="close-modal" type="button">Cancel</button>',
+    '<button class="delete-button" type="submit">',
+    modal.submitting ? "Deleting..." : "Delete Query",
+    "</button></div></form>",
+  ].join("");
 }
 
 function renderCreateMediaTaggingMappingTableForm(modal, state) {

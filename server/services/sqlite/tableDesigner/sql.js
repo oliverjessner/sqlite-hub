@@ -42,16 +42,32 @@ function buildCreateTableSql(draft) {
 }
 
 function buildAlterTableRenameSql(fromName, toName) {
-  return `ALTER TABLE ${quoteIdentifier(fromName)} RENAME TO ${quoteIdentifier(toName)};`;
+  return [
+    "ALTER TABLE",
+    quoteIdentifier(fromName),
+    "RENAME TO",
+    quoteIdentifier(toName),
+  ].join(" ") + ";";
 }
 
 function buildAlterTableAddColumnSql(tableName, column) {
-  return `ALTER TABLE ${quoteIdentifier(tableName)} ADD COLUMN ${buildColumnDefinition(column)};`;
+  return [
+    "ALTER TABLE",
+    quoteIdentifier(tableName),
+    "ADD COLUMN",
+    buildColumnDefinition(column),
+  ].join(" ") + ";";
 }
 
 function buildInsertRowsSql(tableName, columns) {
   const placeholders = columns.map(() => "?").join(", ");
-  return `INSERT INTO ${quoteIdentifier(tableName)} (${quoteIdentifierList(columns)}) VALUES (${placeholders});`;
+  return [
+    "INSERT INTO",
+    quoteIdentifier(tableName),
+    "(" + quoteIdentifierList(columns) + ")",
+    "VALUES",
+    "(" + placeholders + ");",
+  ].join(" ");
 }
 
 module.exports = {

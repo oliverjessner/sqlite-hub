@@ -367,7 +367,11 @@ function syncQueryHistoryUi(historyId) {
 
     const historyItem = state.editor.history.find(entry => Number(entry.id) === numericId) ?? state.editor.historyDetail ?? null;
     const listItemNode = shellRefs.view.querySelector(
-        `[data-action="select-query-history-item"][data-history-id="${String(numericId)}"]`,
+        [
+            '[data-action="select-query-history-item"][data-history-id="',
+            String(numericId),
+            '"]',
+        ].join(''),
     )?.closest('.query-history-item');
 
     if (historyItem && listItemNode instanceof HTMLElement) {

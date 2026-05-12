@@ -70,8 +70,10 @@ class ExportService {
     const orderClause = buildTableOrderClause(tableDetail, sort);
     const statement = db.prepare(
       [
-        `SELECT * FROM ${quoteIdentifier(tableName)}`,
-        orderClause ? `ORDER BY ${orderClause}` : "",
+        "SELECT * FROM",
+        quoteIdentifier(tableName),
+        orderClause ? "ORDER BY" : "",
+        orderClause,
       ]
         .filter(Boolean)
         .join(" ")

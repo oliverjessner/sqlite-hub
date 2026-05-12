@@ -180,52 +180,39 @@ function renderParentTagFields({
 
     const isCreatingParentTag = Boolean(parentToggleColumn ? tagFormValues[parentToggleColumn.name] : false);
     const selectedParentTagId = parentSelectColumn ? String(tagFormValues[parentSelectColumn.name] ?? '') : '';
+    const parentSelectMarkup = parentSelectColumn
+        ? [
+              '<label class="media-tagging-field"><span class="media-tagging-field__label">Parent Tag</span>',
+              '<select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" data-bind="media-tagging-tag-form-field" data-field="',
+              escapeHtml(parentSelectColumn.name),
+              '" ',
+              isCreatingParentTag ? 'disabled' : '',
+              '>',
+              renderOptionList(
+                  parentTagOptions.map(tag => ({
+                      value: String(tag.identityValue ?? ''),
+                      label: tag.label,
+                  })),
+                  selectedParentTagId,
+                  parentTagOptions.length ? 'Select a parent tag' : 'No parent tags available',
+              ),
+              '</select></label>',
+          ].join('')
+        : '';
+    const parentToggleMarkup = parentToggleColumn
+        ? [
+              '<div class="media-tagging-field"><label class="standard-checkbox table-designer-check table-designer-checkbox-override">',
+              '<input data-bind="media-tagging-tag-form-field" data-field="',
+              escapeHtml(parentToggleColumn.name),
+              '" type="checkbox" ',
+              isCreatingParentTag ? 'checked' : '',
+              '/>',
+              '<span class="media-tagging-field__meta"><span class="media-tagging-field__label">Create Parent Tag</span></span>',
+              '</label></div>',
+          ].join('')
+        : '';
 
-    return `
-      ${
-          parentSelectColumn
-              ? `
-              <label class="media-tagging-field">
-                <span class="media-tagging-field__label">Parent Tag</span>
-                <select
-                  class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
-                  data-bind="media-tagging-tag-form-field"
-                  data-field="${escapeHtml(parentSelectColumn.name)}"
-                  ${isCreatingParentTag ? 'disabled' : ''}
-                >
-                  ${renderOptionList(
-                      parentTagOptions.map(tag => ({
-                          value: String(tag.identityValue ?? ''),
-                          label: tag.label,
-                      })),
-                      selectedParentTagId,
-                      parentTagOptions.length ? 'Select a parent tag' : 'No parent tags available',
-                  )}
-                </select>
-              </label>
-            `
-              : ''
-      }
-      ${
-          parentToggleColumn
-              ? `
-              <div class="media-tagging-field">
-                <label class="standard-checkbox table-designer-check table-designer-checkbox-override">
-                  <input
-                    data-bind="media-tagging-tag-form-field"
-                    data-field="${escapeHtml(parentToggleColumn.name)}"
-                    type="checkbox"
-                    ${isCreatingParentTag ? 'checked' : ''}
-                  />
-                  <span class="media-tagging-field__meta">
-                    <span class="media-tagging-field__label">Create Parent Tag</span>
-                  </span>
-                </label>
-              </div>
-            `
-              : ''
-      }
-    `;
+    return [parentSelectMarkup, parentToggleMarkup].join('');
 }
 
 function renderTagList(tags = [], selectedTagKeys = []) {
@@ -285,42 +272,40 @@ function renderCreatedTagList(tags = [], { canRemove = false, removingTagKey = n
     return `
     <div class="media-tagging-created-tags custom-scrollbar">
       ${tags
-          .map(
-              tag => `
-            <article class="media-tagging-created-tag">
-              <div class="media-tagging-created-tag__content">
-                <div class="media-tagging-created-tag__label">${escapeHtml(tag.label)}</div>
-                ${
-                    tag.isParentTag || tag.parentTagLabel
-                        ? `
-                            <div class="media-tagging-created-tag__meta">
-                              ${tag.isParentTag ? '<span class="media-tagging-created-tag__badge">Parent</span>' : ''}
-                              ${
-                                  tag.parentTagLabel
-                                      ? `<span class="media-tagging-created-tag__badge">${escapeHtml(tag.parentTagLabel)}</span>`
-                                      : ''
-                              }
-                            </div>
-                          `
-                        : ''
-                }
-              </div>
-              <button
-                aria-label="Remove tag"
-                class="delete-button media-tagging-created-tag__remove"
-                data-action="remove-media-tag"
-                data-tag-key="${escapeHtml(tag.key)}"
-                type="button"
-                title="Remove tag"
-                ${canRemove && removingTagKey !== tag.key ? '' : 'disabled'}
-              >
-                <span class="material-symbols-outlined text-[18px]">
-                  ${removingTagKey === tag.key ? 'hourglass_top' : 'delete'}
-                </span>
-              </button>
-            </article>
-          `,
-          )
+          .map(tag => {
+              const parentMetaMarkup =
+                  tag.isParentTag || tag.parentTagLabel
+                      ? [
+                            '<div class="media-tagging-created-tag__meta">',
+                            tag.isParentTag ? '<span class="media-tagging-created-tag__badge">Parent</span>' : '',
+                            tag.parentTagLabel
+                                ? [
+                                      '<span class="media-tagging-created-tag__badge">',
+                                      escapeHtml(tag.parentTagLabel),
+                                      '</span>',
+                                  ].join('')
+                                : '',
+                            '</div>',
+                        ].join('')
+                      : '';
+
+              return [
+                  '<article class="media-tagging-created-tag">',
+                  '<div class="media-tagging-created-tag__content">',
+                  '<div class="media-tagging-created-tag__label">',
+                  escapeHtml(tag.label),
+                  '</div>',
+                  parentMetaMarkup,
+                  '</div>',
+                  '<button aria-label="Remove tag" class="delete-button media-tagging-created-tag__remove" data-action="remove-media-tag" data-tag-key="',
+                  escapeHtml(tag.key),
+                  '" type="button" title="Remove tag" ',
+                  canRemove && removingTagKey !== tag.key ? '' : 'disabled',
+                  '><span class="material-symbols-outlined text-[18px]">',
+                  removingTagKey === tag.key ? 'hourglass_top' : 'delete',
+                  '</span></button></article>',
+              ].join('');
+          })
           .join('')}
     </div>
   `;
@@ -633,89 +618,71 @@ function renderTaggingSection(state) {
     const mediaTableColumns = state.mediaTagging.mediaTableColumns ?? [];
     const pathCandidates = state.mediaTagging.pathCandidates ?? [];
     const booleanCandidates = state.mediaTagging.booleanCandidates ?? [];
+    const tableOptions = renderOptionList(
+        tables
+            .map(table => ({ value: table.name, label: table.name }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        draft.mediaTable,
+        'Select a media table',
+    );
+    const pathOptions = renderOptionList(
+        mediaTableColumns
+            .map(column => ({
+                value: column.name,
+                label: pathCandidates.includes(column.name)
+                    ? [column.name, ' // suggested'].join('')
+                    : column.name,
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        draft.pathColumn,
+        'Select the media path column',
+    );
+    const taggedOptions = renderOptionList(
+        mediaTableColumns
+            .map(column => ({
+                value: column.name,
+                label: booleanCandidates.includes(column.name)
+                    ? [column.name, ' // suggested'].join('')
+                    : column.name,
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        draft.taggedColumn,
+        mediaTableColumns.length ? 'Select the tagged flag column' : 'No columns available',
+    );
 
-    return `
-    <section class="media-tagging-card media-tagging-card--tagging shell-section">
-      <div class="media-tagging-card__header">
-        <div>
-          <div class="media-tagging-card__eyebrow">2. Tagging</div>
-          <h2 class="media-tagging-card__title">Media Source</h2>
-        </div>
-      </div>
-      <div class="media-tagging-card__body">
-        <div class="media-tagging-form-grid">
-          <label class="media-tagging-field">
-            <span class="media-tagging-field__label">Media Table</span>
-            <select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" data-bind="media-tagging-field" data-field="mediaTable">
-              ${renderOptionList(
-                  tables
-                      .map(table => ({ value: table.name, label: table.name }))
-                      .sort((a, b) => a.label.localeCompare(b.label)),
-                  draft.mediaTable,
-                  'Select a media table',
-              )}
-            </select>
-          </label>
-          <div></div>
-          <label class="media-tagging-field">
-            <span class="media-tagging-field__label">Path Column</span>
-            <select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" data-bind="media-tagging-field" data-field="pathColumn">
-              ${renderOptionList(
-                  mediaTableColumns
-                      .map(column => ({
-                          value: column.name,
-                          label: pathCandidates.includes(column.name) ? `${column.name} // suggested` : column.name,
-                      }))
-                      .sort((a, b) => a.label.localeCompare(b.label)),
-                  draft.pathColumn,
-                  'Select the media path column',
-              )}
-            </select>
-          </label>
-          <label class="media-tagging-field">
-            <span class="media-tagging-field__label">Tagged Boolean Column</span>
-            <select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" data-bind="media-tagging-field" data-field="taggedColumn">
-              ${renderOptionList(
-                  mediaTableColumns
-                      .map(column => ({
-                          value: column.name,
-                          label: booleanCandidates.includes(column.name) ? `${column.name} // suggested` : column.name,
-                      }))
-                      .sort((a, b) => a.label.localeCompare(b.label)),
-                  draft.taggedColumn,
-                  mediaTableColumns.length ? 'Select the tagged flag column' : 'No columns available',
-              )}
-            </select>
-          </label>
-        </div>
-
-        <div class="media-tagging-query-grid">
-          ${renderSqlTextarea({
-              label: 'Untagged Query',
-              value: draft.untaggedQuery,
-              dataBind: 'media-tagging-field',
-              dataField: 'untaggedQuery',
-          })}
-          ${renderSqlTextarea({
-              label: 'Tagged Query',
-              value: draft.taggedQuery,
-              dataBind: 'media-tagging-field',
-              dataField: 'taggedQuery',
-          })}
-        </div>
-
-        <div class="flex flex-wrap items-center gap-3">
-          <button
-            class="standard-button"
-            data-action="reset-media-tagging-queries"
-            type="button"
-          >
-            Reset Queries to Defaults
-          </button>
-        </div>
-      </div>
-    </section>
-  `;
+    return [
+        '<section class="media-tagging-card media-tagging-card--tagging shell-section">',
+        '<div class="media-tagging-card__header"><div><div class="media-tagging-card__eyebrow">2. Tagging</div><h2 class="media-tagging-card__title">Media Source</h2></div></div>',
+        '<div class="media-tagging-card__body"><div class="media-tagging-form-grid">',
+        '<label class="media-tagging-field"><span class="media-tagging-field__label">Media Table</span>',
+        '<select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" data-bind="media-tagging-field" data-field="mediaTable">',
+        tableOptions,
+        '</select></label><div></div>',
+        '<label class="media-tagging-field"><span class="media-tagging-field__label">Path Column</span>',
+        '<select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" data-bind="media-tagging-field" data-field="pathColumn">',
+        pathOptions,
+        '</select></label>',
+        '<label class="media-tagging-field"><span class="media-tagging-field__label">Tagged Boolean Column</span>',
+        '<select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" data-bind="media-tagging-field" data-field="taggedColumn">',
+        taggedOptions,
+        '</select></label></div>',
+        '<div class="media-tagging-query-grid">',
+        renderSqlTextarea({
+            label: 'Untagged Query',
+            value: draft.untaggedQuery,
+            dataBind: 'media-tagging-field',
+            dataField: 'untaggedQuery',
+        }),
+        renderSqlTextarea({
+            label: 'Tagged Query',
+            value: draft.taggedQuery,
+            dataBind: 'media-tagging-field',
+            dataField: 'taggedQuery',
+        }),
+        '</div>',
+        '<div class="flex flex-wrap items-center gap-3"><button class="standard-button" data-action="reset-media-tagging-queries" type="button">Reset Queries to Defaults</button></div>',
+        '</div></section>',
+    ].join('');
 }
 
 function renderMappingSection(state) {

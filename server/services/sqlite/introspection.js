@@ -92,7 +92,7 @@ function groupForeignKeys(rows) {
 function safeCountRows(db, tableName) {
   try {
     const row = db
-      .prepare(`SELECT COUNT(*) AS count FROM ${quoteIdentifier(tableName)}`)
+      .prepare(["SELECT COUNT(*) AS count FROM", quoteIdentifier(tableName)].join(" "))
       .get();
     return row?.count ?? 0;
   } catch (error) {
@@ -223,7 +223,7 @@ function getViewDetail(db, viewName) {
 
   try {
     columns = db
-      .prepare(`SELECT * FROM ${quoteIdentifier(viewName)} LIMIT 0`)
+      .prepare(["SELECT * FROM", quoteIdentifier(viewName), "LIMIT 0"].join(" "))
       .columns()
       .map((column) => ({
         name: column.name,

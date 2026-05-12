@@ -54,9 +54,9 @@ class StructureService {
     const table = getTableDetail(db, tableName);
     const previewLimit = Math.max(1, this.appStateStore.getSettings().defaultPageSize ?? 50);
     const previewStatement = db.prepare(
-      `SELECT * FROM ${quoteIdentifier(tableName)} LIMIT ${previewLimit}`
+      ["SELECT * FROM", quoteIdentifier(tableName), "LIMIT ?"].join(" ")
     );
-    const previewRows = serializeRows(previewStatement.all());
+    const previewRows = serializeRows(previewStatement.all(previewLimit));
     const previewColumns = previewStatement.columns().map((column) => column.name);
 
     return {

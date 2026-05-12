@@ -315,16 +315,18 @@ function buildDefaultMediaQueries(tableDetail, config = {}) {
 
   const selectionPrefix =
     tableDetail.identityStrategy?.type === "rowid"
-      ? `SELECT rowid AS ${quoteIdentifier(MEDIA_ROWID_ALIAS)}, *`
+      ? ["SELECT rowid AS", quoteIdentifier(MEDIA_ROWID_ALIAS), ", *"].join(" ")
       : "SELECT *";
-  const tableSql = `${selectionPrefix} FROM ${quoteIdentifier(tableDetail.name)}`;
+  const tableSql = [selectionPrefix, "FROM", quoteIdentifier(tableDetail.name)].join(" ");
   const taggedColumnSql = quoteIdentifier(config.taggedColumn);
   const orderByClause = buildOrderByClause(tableDetail, MEDIA_ROWID_ALIAS);
-  const orderSegment = orderByClause ? `\n${orderByClause}` : "";
+  const orderSegment = orderByClause ? "\n" + orderByClause : "";
 
   return {
-    untaggedQuery: `${tableSql}\nWHERE COALESCE(${taggedColumnSql}, 0) = 0${orderSegment}`,
-    taggedQuery: `${tableSql}\nWHERE COALESCE(${taggedColumnSql}, 0) = 1${orderSegment}`,
+    untaggedQuery:
+      tableSql + "\nWHERE COALESCE(" + taggedColumnSql + ", 0) = 0" + orderSegment,
+    taggedQuery:
+      tableSql + "\nWHERE COALESCE(" + taggedColumnSql + ", 0) = 1" + orderSegment,
   };
 }
 
@@ -342,7 +344,11 @@ function buildWrappedQuery(query) {
 
 function getQueryOutputColumns(db, query) {
   const statement = db.prepare(
-    `SELECT * FROM (${buildWrappedQuery(query)}) AS media_tagging_source LIMIT 0`
+    [
+      "SELECT * FROM (",
+      buildWrappedQuery(query),
+      ") AS media_tagging_source LIMIT 0",
+    ].join("")
   );
 
   return statement.columns().map((column) => column.name);
@@ -350,7 +356,13 @@ function getQueryOutputColumns(db, query) {
 
 function countQueryRows(db, query) {
   const row = db
-    .prepare(`SELECT COUNT(*) AS count FROM (${buildWrappedQuery(query)}) AS media_tagging_source`)
+    .prepare(
+      [
+        "SELECT COUNT(*) AS count FROM (",
+        buildWrappedQuery(query),
+        ") AS media_tagging_source",
+      ].join("")
+    )
     .get();
 
   return Number(row?.count ?? 0);
@@ -963,16 +975,21 @@ class MediaTaggingService {
     const labelColumns = getTagLabelColumns(tagTableDetail);
     const selectionPrefix =
       tagTableDetail.identityStrategy?.type === "rowid"
-        ? `SELECT rowid AS ${quoteIdentifier(TAG_ROWID_ALIAS)}, *`
+        ? ["SELECT rowid AS", quoteIdentifier(TAG_ROWID_ALIAS), ", *"].join(" ")
         : "SELECT *";
     const orderByColumns = labelColumns.length ? labelColumns : keyColumns;
     const parentTagFeature = getParentTagFeatureColumns(tagTableDetail);
     const singleIdentityColumn = getSingleTagIdentityColumn(tagTableDetail);
     const rows = db
       .prepare(
-        `${selectionPrefix} FROM ${quoteIdentifier(tagTableDetail.name)} ORDER BY ${orderByColumns
-          .map((column) => quoteIdentifier(column))
-          .join(", ")} ASC`
+        [
+          selectionPrefix,
+          "FROM",
+          quoteIdentifier(tagTableDetail.name),
+          "ORDER BY",
+          orderByColumns.map((column) => quoteIdentifier(column)).join(", "),
+          "ASC",
+        ].join(" ")
       )
       .all();
 
@@ -1172,7 +1189,13 @@ class MediaTaggingService {
 
   loadCurrentMediaRow(db, untaggedQuery, identityColumns, skippedMediaKeys = []) {
     const exclusion = buildExcludedKeyClause(identityColumns, skippedMediaKeys);
-    const sqlParts = [`SELECT * FROM (${buildWrappedQuery(untaggedQuery)}) AS media_tagging_source`];
+    const sqlParts = [
+      [
+        "SELECT * FROM (",
+        buildWrappedQuery(untaggedQuery),
+        ") AS media_tagging_source",
+      ].join(""),
+    ];
 
     if (exclusion.sql) {
       sqlParts.push(`WHERE NOT (${exclusion.sql})`);
@@ -1189,13 +1212,20 @@ class MediaTaggingService {
     const whereClause = buildKeyWhereClause(identityColumns, identityValues);
     const selectionPrefix =
       mediaTableDetail.identityStrategy?.type === "rowid"
-        ? `SELECT rowid AS ${quoteIdentifier(MEDIA_ROWID_ALIAS)}, *`
+        ? ["SELECT rowid AS", quoteIdentifier(MEDIA_ROWID_ALIAS), ", *"].join(" ")
         : "SELECT *";
 
     return (
       db
         .prepare(
-          `${selectionPrefix} FROM ${quoteIdentifier(mediaTableDetail.name)} WHERE ${whereClause.sql} LIMIT 1`
+          [
+            selectionPrefix,
+            "FROM",
+            quoteIdentifier(mediaTableDetail.name),
+            "WHERE",
+            whereClause.sql,
+            "LIMIT 1",
+          ].join(" ")
         )
         .get(...whereClause.params) ?? null
     );
@@ -1210,7 +1240,14 @@ class MediaTaggingService {
       .join(", ");
     const rows = db
       .prepare(
-        `SELECT ${tagSelection} FROM ${quoteIdentifier(selectedMapping.tableName)} WHERE ${mediaWhere}`
+        [
+          "SELECT",
+          tagSelection,
+          "FROM",
+          quoteIdentifier(selectedMapping.tableName),
+          "WHERE",
+          mediaWhere,
+        ].join(" ")
       )
       .all(
         selectedMapping.mediaForeignKey.mappings.map((mapping) => currentRow[mapping.to] ?? null)
@@ -1374,9 +1411,13 @@ class MediaTaggingService {
 
         const parentTag = db
           .prepare(
-            `SELECT * FROM ${quoteIdentifier(tagTableDetail.name)} WHERE ${quoteIdentifier(
-              singleIdentityColumn
-            )} = ? LIMIT 1`
+            [
+              "SELECT * FROM",
+              quoteIdentifier(tagTableDetail.name),
+              "WHERE",
+              quoteIdentifier(singleIdentityColumn),
+              "= ? LIMIT 1",
+            ].join(" ")
           )
           .get(normalizedValues[parentIdColumnName]);
 
@@ -1398,12 +1439,13 @@ class MediaTaggingService {
       throw new ValidationError("Enter at least one tag value before saving.");
     }
 
-    const sql = `
-      INSERT INTO ${quoteIdentifier(tagTableDetail.name)} (${providedColumns
-        .map((column) => quoteIdentifier(column.name))
-        .join(", ")})
-      VALUES (${providedColumns.map(() => "?").join(", ")})
-    `;
+    const sql = [
+      "INSERT INTO",
+      quoteIdentifier(tagTableDetail.name),
+      "(" + providedColumns.map((column) => quoteIdentifier(column.name)).join(", ") + ")",
+      "VALUES",
+      "(" + providedColumns.map(() => "?").join(", ") + ")",
+    ].join(" ");
 
     const providedColumnNames = providedColumns.map((column) => column.name);
     const insertTag = db.transaction(() => {
@@ -1418,12 +1460,15 @@ class MediaTaggingService {
       // the tag still ends up with a stable key for selection and mapping.
       if (implicitPrimaryKey && !providedColumnNames.includes(implicitPrimaryKey.name)) {
         db.prepare(
-          `
-            UPDATE ${quoteIdentifier(tagTableDetail.name)}
-            SET ${quoteIdentifier(implicitPrimaryKey.name)} = ?
-            WHERE rowid = ?
-              AND ${quoteIdentifier(implicitPrimaryKey.name)} IS NULL
-          `
+          [
+            "UPDATE",
+            quoteIdentifier(tagTableDetail.name),
+            "SET",
+            quoteIdentifier(implicitPrimaryKey.name),
+            "= ? WHERE rowid = ? AND",
+            quoteIdentifier(implicitPrimaryKey.name),
+            "IS NULL",
+          ].join(" ")
         ).run(result.lastInsertRowid, result.lastInsertRowid);
       }
     });
@@ -1471,13 +1516,20 @@ class MediaTaggingService {
         const mappingWhere = buildKeyWhereClause(mappingColumns, keyValues);
 
         db.prepare(
-          `DELETE FROM ${quoteIdentifier(selectedMapping.tableName)} WHERE ${mappingWhere.sql}`
+          [
+            "DELETE FROM",
+            quoteIdentifier(selectedMapping.tableName),
+            "WHERE",
+            mappingWhere.sql,
+          ].join(" ")
         ).run(mappingWhere.params);
       }
 
       const tagWhere = buildKeyWhereClause(keyColumns, keyValues);
       const result = db
-        .prepare(`DELETE FROM ${quoteIdentifier(tagTableDetail.name)} WHERE ${tagWhere.sql}`)
+        .prepare(
+          ["DELETE FROM", quoteIdentifier(tagTableDetail.name), "WHERE", tagWhere.sql].join(" ")
+        )
         .run(tagWhere.params);
 
       if (!result.changes) {
@@ -1593,12 +1645,13 @@ class MediaTaggingService {
 
         if (!this.mappingExists(db, selectedMapping.tableName, mappingPayload)) {
           const columns = Object.keys(mappingPayload);
-          const insertSql = `
-            INSERT INTO ${quoteIdentifier(selectedMapping.tableName)} (${columns
-              .map((column) => quoteIdentifier(column))
-              .join(", ")})
-            VALUES (${columns.map(() => "?").join(", ")})
-          `;
+          const insertSql = [
+            "INSERT INTO",
+            quoteIdentifier(selectedMapping.tableName),
+            "(" + columns.map((column) => quoteIdentifier(column)).join(", ") + ")",
+            "VALUES",
+            "(" + columns.map(() => "?").join(", ") + ")",
+          ].join(" ");
 
           db.prepare(insertSql).run(columns.map((column) => mappingPayload[column]));
         }
@@ -1682,7 +1735,13 @@ class MediaTaggingService {
     const whereClause = columns.map((column) => `${quoteIdentifier(column)} = ?`).join(" AND ");
     const row = db
       .prepare(
-        `SELECT 1 AS exists_flag FROM ${quoteIdentifier(mappingTableName)} WHERE ${whereClause} LIMIT 1`
+        [
+          "SELECT 1 AS exists_flag FROM",
+          quoteIdentifier(mappingTableName),
+          "WHERE",
+          whereClause,
+          "LIMIT 1",
+        ].join(" ")
       )
       .get(columns.map((column) => mappingPayload[column]));
 
@@ -1699,9 +1758,14 @@ class MediaTaggingService {
       const values = identity.columns.map((column) => currentRow[column] ?? null);
 
       db.prepare(
-        `UPDATE ${quoteIdentifier(mediaTableDetail.name)} SET ${quoteIdentifier(
-          taggedColumn
-        )} = 1 WHERE ${whereClause}`
+        [
+          "UPDATE",
+          quoteIdentifier(mediaTableDetail.name),
+          "SET",
+          quoteIdentifier(taggedColumn),
+          "= 1 WHERE",
+          whereClause,
+        ].join(" ")
       ).run(values);
       return;
     }
@@ -1716,9 +1780,13 @@ class MediaTaggingService {
       }
 
       db.prepare(
-        `UPDATE ${quoteIdentifier(mediaTableDetail.name)} SET ${quoteIdentifier(
-          taggedColumn
-        )} = 1 WHERE rowid = ?`
+        [
+          "UPDATE",
+          quoteIdentifier(mediaTableDetail.name),
+          "SET",
+          quoteIdentifier(taggedColumn),
+          "= 1 WHERE rowid = ?",
+        ].join(" ")
       ).run(rowIdValue);
       return;
     }
