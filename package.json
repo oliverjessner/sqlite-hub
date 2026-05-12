@@ -9,6 +9,8 @@
     "scripts": {
         "build": "npm run build:css",
         "build:css": "tailwindcss -c tailwind.config.cjs -i ./frontend/styles/tailwind.css -o ./frontend/styles/tailwind.generated.css --minify",
+        "audit": "npm audit --audit-level=high",
+        "test": "node --test tests/**/*.test.js",
         "start": "node bin/sqlite-hub.js",
         "dev": "node --watch server/server.js --port:4180",
         "prepack": "npm run build:css",

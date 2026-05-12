@@ -3,6 +3,7 @@ const path = require("node:path");
 const { fileURLToPath } = require("node:url");
 const { detectQueryType } = require("../storage/queryHistoryUtils");
 const { ConflictError, NotFoundError, ValidationError, mapSqliteError } = require("../../utils/errors");
+const { resolvePathInsideDirectory } = require("../../utils/fileValidation");
 const { quoteIdentifier } = require("../../utils/identifier");
 const { getRawStructureEntries, getTableDetail } = require("./introspection");
 const { serializeRow } = require("../../utils/sqliteTypes");
@@ -1247,14 +1248,28 @@ class MediaTaggingService {
       };
     }
 
-    const resolvedPath = this.resolveMediaFilePath(normalizedPath, connection);
+    let resolvedPath = null;
+
+    try {
+      resolvedPath = this.resolveMediaFilePath(normalizedPath, connection);
+    } catch (error) {
+      if (!(error instanceof ValidationError)) {
+        throw error;
+      }
+    }
 
     return {
       previewKind: inferPreviewKind(normalizedPath),
-      previewUrl: `/api/media-tagging/media-file?path=${encodeURIComponent(normalizedPath)}`,
+      previewUrl: resolvedPath
+        ? `/api/media-tagging/media-file?path=${encodeURIComponent(normalizedPath)}`
+        : null,
       resolvedPath,
       existsOnDisk: Boolean(resolvedPath && fs.existsSync(resolvedPath)),
     };
+  }
+
+  getMediaBaseDirectory(connection = this.getActiveConnection()) {
+    return connection?.path ? path.dirname(connection.path) : null;
   }
 
   resolveMediaFilePath(rawPath, connection = this.getActiveConnection()) {
@@ -1264,16 +1279,46 @@ class MediaTaggingService {
       return null;
     }
 
-    if (/^file:\/\//i.test(normalizedPath)) {
-      return fileURLToPath(normalizedPath);
+    const mediaBaseDirectory = this.getMediaBaseDirectory(connection);
+
+    if (!mediaBaseDirectory) {
+      return null;
     }
 
-    if (path.isAbsolute(normalizedPath) || path.win32.isAbsolute(normalizedPath)) {
-      return normalizedPath;
+    const candidatePath = /^file:\/\//i.test(normalizedPath)
+      ? fileURLToPath(normalizedPath)
+      : normalizedPath;
+
+    return resolvePathInsideDirectory(
+      mediaBaseDirectory,
+      candidatePath,
+      "Media file path"
+    );
+  }
+
+  getMediaFileForRequest(rawPath) {
+    const normalizedPath = String(rawPath ?? "").trim();
+    const resolvedPath = this.resolveMediaFilePath(normalizedPath);
+
+    if (!resolvedPath || !fs.existsSync(resolvedPath)) {
+      throw new NotFoundError(`Media file not found: ${normalizedPath}`);
     }
 
-    const basePath = connection?.path ? path.dirname(connection.path) : process.cwd();
-    return path.resolve(basePath, normalizedPath);
+    const stat = fs.statSync(resolvedPath);
+
+    if (!stat.isFile()) {
+      throw new NotFoundError(`Media file not found: ${normalizedPath}`);
+    }
+
+    return {
+      directory: path.dirname(resolvedPath),
+      fileName: path.basename(resolvedPath),
+    };
+  }
+
+  sendMediaFile(rawPath, res) {
+    const mediaFile = this.getMediaFileForRequest(rawPath);
+    res.sendFile(mediaFile.fileName, { root: mediaFile.directory });
   }
 
   createTag(payload = {}) {

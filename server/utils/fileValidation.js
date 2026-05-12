@@ -6,25 +6,108 @@ const { ConflictError, NotFoundError, ValidationError } = require("./errors");
 const SQLITE_EXTENSIONS = new Set([".db", ".sqlite", ".sqlite3"]);
 const SQL_DUMP_EXTENSIONS = new Set([".sql"]);
 const SQLITE_HEADER = Buffer.from("SQLite format 3\0", "utf8");
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f]/;
 
-function expandHome(filePath) {
-  if (typeof filePath !== "string" || !filePath.trim()) {
-    throw new ValidationError("A file path is required.");
+function splitPathSegments(filePath) {
+  return String(filePath)
+    .split(/[\\/]+/)
+    .filter((segment) => segment && segment !== ".");
+}
+
+function hasParentTraversal(filePath) {
+  return splitPathSegments(filePath).includes("..");
+}
+
+function isAbsolutePathInput(filePath) {
+  return path.isAbsolute(filePath) || path.win32.isAbsolute(filePath);
+}
+
+function toAbsolutePath(filePath, baseDirectory = process.cwd()) {
+  const normalizedPath = String(filePath);
+
+  if (isAbsolutePathInput(normalizedPath)) {
+    return path.normalize(normalizedPath);
   }
 
-  if (filePath === "~") {
+  return path.normalize(`${baseDirectory}${path.sep}${normalizedPath}`);
+}
+
+function assertSafePathInput(filePath, label = "File path") {
+  if (typeof filePath !== "string" || !filePath.trim()) {
+    throw new ValidationError(`${label} is required.`);
+  }
+
+  if (CONTROL_CHARACTER_PATTERN.test(filePath)) {
+    throw new ValidationError(`${label} contains unsupported control characters.`);
+  }
+
+  if (hasParentTraversal(filePath)) {
+    throw new ValidationError(`${label} must not contain parent directory segments.`);
+  }
+
+  return filePath.trim();
+}
+
+function expandHome(filePath, label = "File path") {
+  const normalizedPath = assertSafePathInput(filePath, label);
+
+  if (normalizedPath === "~") {
     return os.homedir();
   }
 
-  if (filePath.startsWith("~/")) {
-    return path.join(os.homedir(), filePath.slice(2));
+  if (normalizedPath.startsWith("~/")) {
+    return toAbsolutePath(normalizedPath.slice(2), os.homedir());
   }
 
-  return filePath;
+  return normalizedPath;
 }
 
-function resolveUserPath(filePath) {
-  return path.resolve(expandHome(filePath));
+function resolveBaseDirectory(baseDirectory, label = "Base directory") {
+  return toAbsolutePath(assertSafePathInput(baseDirectory, label));
+}
+
+function isInsideDirectory(filePath, baseDirectory) {
+  const relativePath = path.relative(baseDirectory, filePath);
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+  );
+}
+
+function assertPathInsideDirectory(filePath, baseDirectory, label = "File path") {
+  const resolvedBaseDirectory = resolveBaseDirectory(baseDirectory);
+  const resolvedPath = toAbsolutePath(filePath);
+
+  if (!isInsideDirectory(resolvedPath, resolvedBaseDirectory)) {
+    throw new ValidationError(`${label} must stay inside ${resolvedBaseDirectory}.`);
+  }
+
+  return resolvedPath;
+}
+
+function resolveUserPath(filePath, options = {}) {
+  const label = options.label ?? "File path";
+  const expandedPath = expandHome(filePath, label);
+  const baseDirectory = options.baseDirectory
+    ? resolveBaseDirectory(options.baseDirectory)
+    : null;
+  const resolvedPath =
+    baseDirectory && !isAbsolutePathInput(expandedPath)
+      ? toAbsolutePath(expandedPath, baseDirectory)
+      : toAbsolutePath(expandedPath);
+
+  if (baseDirectory) {
+    return assertPathInsideDirectory(resolvedPath, baseDirectory, label);
+  }
+
+  return resolvedPath;
+}
+
+function resolvePathInsideDirectory(baseDirectory, inputPath, label = "File path") {
+  return resolveUserPath(inputPath, {
+    baseDirectory,
+    label,
+  });
 }
 
 function assertExtension(filePath, allowedExtensions, label) {
@@ -124,11 +207,14 @@ function getFileMetadata(filePath) {
 
 module.exports = {
   SQLITE_EXTENSIONS,
+  assertPathInsideDirectory,
+  assertSafePathInput,
   ensureFileDoesNotExist,
   ensureParentDirectory,
   getFileMetadata,
   isRealSqliteDatabase,
   isWritable,
+  resolvePathInsideDirectory,
   resolveUserPath,
   validateSqlDumpPath,
   validateSqlitePath,

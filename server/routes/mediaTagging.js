@@ -1,6 +1,5 @@
-const fs = require("node:fs");
 const express = require("express");
-const { NotFoundError, route, successResponse } = require("../utils/errors");
+const { route, successResponse } = require("../utils/errors");
 
 function createMediaTaggingRouter({ mediaTaggingService }) {
   const router = express.Router();
@@ -147,14 +146,7 @@ function createMediaTaggingRouter({ mediaTaggingService }) {
   router.get(
     "/media-file",
     route((req, res) => {
-      const rawPath = String(req.query.path ?? "").trim();
-      const resolvedPath = mediaTaggingService.resolveMediaFilePath(rawPath);
-
-      if (!resolvedPath || !fs.existsSync(resolvedPath)) {
-        throw new NotFoundError(`Media file not found: ${rawPath}`);
-      }
-
-      res.sendFile(resolvedPath);
+      mediaTaggingService.sendMediaFile(req.query.path, res);
     })
   );
 

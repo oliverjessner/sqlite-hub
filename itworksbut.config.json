@@ -3,10 +3,9 @@
     "failOn": "low",
     "checks": {
         "ci.no-build-step": false,
-        "dependencies.audit-script-missing": false,
-        "package.scripts-missing": false,
         "ci.no-ci-config": false,
-        "database.raw-sql-interpolation": false,
+        "package.scripts-missing": false,
+        "database.no-migrations": false,
         "web.dangerous-inner-html": false
     }
 }

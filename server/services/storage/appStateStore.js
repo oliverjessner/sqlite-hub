@@ -1,7 +1,12 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const Database = require("better-sqlite3");
 const { ConflictError, NotFoundError, ValidationError } = require("../../utils/errors");
+const {
+  resolvePathInsideDirectory,
+  resolveUserPath,
+} = require("../../utils/fileValidation");
 const {
   buildAutoTitle,
   buildSqlPreview,
@@ -33,6 +38,8 @@ const DEFAULT_STATE = {
 };
 
 const CONNECTION_LOGO_DIRECTORY = "db_logos";
+const LEGACY_STATE_FILENAME = "app-state.json";
+const STATE_DATABASE_FILENAME = "sqlite-hub-state.db";
 const MAX_CONNECTION_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
 const CONNECTION_LOGO_EXTENSION_BY_MIME_TYPE = {
   "image/jpeg": "jpg",
@@ -107,17 +114,81 @@ function isChartCompatibleQuery(queryType, rawSql = "") {
   );
 }
 
+function normalizeStateStorePath(filePath, label) {
+  return resolveUserPath(filePath, { label });
+}
+
+function normalizeLegacyFilePath(filePath, { currentFilePath, expectedFileName, label }) {
+  if (!filePath) {
+    return null;
+  }
+
+  const resolvedPath = normalizeStateStorePath(filePath, label);
+
+  if (resolvedPath === currentFilePath || path.basename(resolvedPath) !== expectedFileName) {
+    return null;
+  }
+
+  return resolvedPath;
+}
+
+function normalizeLegacyDatabasePaths(legacyDatabasePaths, currentFilePath) {
+  if (!Array.isArray(legacyDatabasePaths)) {
+    return [];
+  }
+
+  const normalizedPaths = legacyDatabasePaths
+    .map((legacyPath) =>
+      normalizeLegacyFilePath(legacyPath, {
+        currentFilePath,
+        expectedFileName: STATE_DATABASE_FILENAME,
+        label: "Legacy app state database path",
+      })
+    )
+    .filter(Boolean);
+
+  return normalizedPaths.filter(
+    (legacyPath, index, legacyPaths) => legacyPaths.indexOf(legacyPath) === index
+  );
+}
+
+function readUtf8File(fileUrl) {
+  const fileHandle = fs.openSync(fileUrl, "r");
+
+  try {
+    const fileSize = fs.fstatSync(fileHandle).size;
+    const buffer = Buffer.alloc(fileSize);
+    fs.readSync(fileHandle, buffer, 0, buffer.length, 0);
+    return buffer.toString("utf8");
+  } finally {
+    fs.closeSync(fileHandle);
+  }
+}
+
 class AppStateStore {
   constructor(filePath, options = {}) {
-    this.filePath = filePath;
-    this.logoDirectory = path.join(path.dirname(this.filePath), CONNECTION_LOGO_DIRECTORY);
-    this.legacyFilePath = options.legacyFilePath ?? null;
-    this.legacyDatabasePaths = Array.isArray(options.legacyDatabasePaths)
-      ? options.legacyDatabasePaths
-      : [];
-    this.isFreshDatabase = !fs.existsSync(filePath);
+    this.filePath = normalizeStateStorePath(filePath, "App state database path");
+    this.stateDirectory = path.dirname(this.filePath);
+    this.logoDirectory = resolvePathInsideDirectory(
+      this.stateDirectory,
+      CONNECTION_LOGO_DIRECTORY,
+      "Connection logo directory"
+    );
+    this.legacyFilePath = normalizeLegacyFilePath(options.legacyFilePath, {
+      currentFilePath: this.filePath,
+      expectedFileName: LEGACY_STATE_FILENAME,
+      label: "Legacy app state path",
+    });
+    this.legacyFileUrl = this.legacyFilePath
+      ? pathToFileURL(this.legacyFilePath)
+      : null;
+    this.legacyDatabasePaths = normalizeLegacyDatabasePaths(
+      options.legacyDatabasePaths,
+      this.filePath
+    );
+    this.isFreshDatabase = !fs.existsSync(this.filePath);
 
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    fs.mkdirSync(this.stateDirectory, { recursive: true });
     fs.mkdirSync(this.logoDirectory, { recursive: true });
 
     this.db = new Database(this.filePath);
@@ -313,7 +384,7 @@ class AppStateStore {
   }
 
   readLegacyState() {
-    const raw = fs.readFileSync(this.legacyFilePath, "utf8");
+    const raw = readUtf8File(this.legacyFileUrl);
     const parsed = JSON.parse(raw);
 
     return {
@@ -328,11 +399,9 @@ class AppStateStore {
 
   getExistingLegacyDatabasePaths() {
     return this.legacyDatabasePaths
-      .filter(Boolean)
-      .map((legacyPath) => path.resolve(legacyPath))
       .filter(
         (legacyPath, index, legacyPaths) =>
-          legacyPath !== path.resolve(this.filePath) &&
+          legacyPath !== this.filePath &&
           legacyPaths.indexOf(legacyPath) === index &&
           fs.existsSync(legacyPath)
       );
@@ -1973,8 +2042,13 @@ class AppStateStore {
 
     const safeConnectionId = String(connectionId ?? "connection").replace(/[^a-zA-Z0-9_-]/g, "_");
     const storedFileName = `${safeConnectionId}-${Date.now()}.${extension}`;
+    const logoFilePath = resolvePathInsideDirectory(
+      this.logoDirectory,
+      storedFileName,
+      "Connection logo path"
+    );
 
-    fs.writeFileSync(path.join(this.logoDirectory, storedFileName), buffer);
+    fs.writeFileSync(logoFilePath, buffer);
 
     return storedFileName;
   }
@@ -1986,7 +2060,14 @@ class AppStateStore {
       return;
     }
 
-    fs.rmSync(path.join(this.logoDirectory, normalizedLogoPath), { force: true });
+    fs.rmSync(
+      resolvePathInsideDirectory(
+        this.logoDirectory,
+        normalizedLogoPath,
+        "Connection logo path"
+      ),
+      { force: true }
+    );
   }
 
   decorateConnection(connection = {}) {
@@ -2007,7 +2088,13 @@ class AppStateStore {
       return null;
     }
 
-    return path.basename(trimmedLogoPath);
+    const baseName = path.basename(trimmedLogoPath);
+
+    if (baseName !== trimmedLogoPath || baseName === "." || baseName === "..") {
+      return null;
+    }
+
+    return baseName;
   }
 
   setActiveConnectionId(id) {

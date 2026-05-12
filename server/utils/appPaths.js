@@ -1,10 +1,24 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const {
+  assertSafePathInput,
+  resolvePathInsideDirectory,
+} = require("./fileValidation");
 
 const APP_NAME = "sqlite-hub";
 const APP_STATE_DB_FILENAME = "sqlite-hub-state.db";
 const LEGACY_STATE_FILENAME = "app-state.json";
+const SAFE_HOMEBREW_SEGMENT_PATTERN = /^[a-zA-Z0-9._+-]+$/;
+
+function isSafeHomebrewSegment(segment) {
+  return (
+    typeof segment === "string" &&
+    SAFE_HOMEBREW_SEGMENT_PATTERN.test(segment) &&
+    segment !== "." &&
+    segment !== ".."
+  );
+}
 
 function resolvePackagedDataDirectories(packageRoot) {
   return [
@@ -51,7 +65,7 @@ function resolvePackagedLegacyStatePath(packageRoot) {
 }
 
 function resolveHomebrewCellarInfo(packageRoot) {
-  const resolvedPackageRoot = path.resolve(packageRoot);
+  const resolvedPackageRoot = path.resolve(assertSafePathInput(packageRoot, "Package root"));
   const { root } = path.parse(resolvedPackageRoot);
   const relativeSegments = resolvedPackageRoot
     .slice(root.length)
@@ -66,14 +80,42 @@ function resolveHomebrewCellarInfo(packageRoot) {
   const formulaName = relativeSegments[cellarIndex + 1];
   const currentVersion = relativeSegments[cellarIndex + 2];
 
-  if (formulaName !== APP_NAME || !currentVersion) {
+  if (
+    formulaName !== APP_NAME ||
+    !isSafeHomebrewSegment(currentVersion) ||
+    !isSafeHomebrewSegment(formulaName)
+  ) {
     return null;
   }
 
   return {
-    cellarRoot: path.join(root, ...relativeSegments.slice(0, cellarIndex + 2)),
+    cellarRoot: path.resolve(root, ...relativeSegments.slice(0, cellarIndex + 2)),
     currentVersion,
   };
+}
+
+function resolveLegacyStateDbPath(cellarRoot, versionName, dataSegments) {
+  const versionRoot = resolvePathInsideDirectory(
+    cellarRoot,
+    versionName,
+    "Homebrew version directory"
+  );
+  const packagedDataSegments = Array.isArray(dataSegments)
+    ? dataSegments
+    : [dataSegments];
+
+  return resolvePathInsideDirectory(
+    versionRoot,
+    path.join(
+      "libexec",
+      "lib",
+      "node_modules",
+      APP_NAME,
+      ...packagedDataSegments,
+      APP_STATE_DB_FILENAME
+    ),
+    "Legacy app state database path"
+  );
 }
 
 function safeStatMtimeMs(filePath) {
@@ -93,29 +135,23 @@ function collectHomebrewLegacyStateDbPaths(packageRoot) {
 
   return fs
     .readdirSync(cellarInfo.cellarRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name !== cellarInfo.currentVersion)
+    .filter(
+      (entry) =>
+        entry.isDirectory() &&
+        entry.name !== cellarInfo.currentVersion &&
+        isSafeHomebrewSegment(entry.name)
+    )
     .flatMap((entry) =>
       [
-        path.join(
+        resolveLegacyStateDbPath(
           cellarInfo.cellarRoot,
           entry.name,
-          "libexec",
-          "lib",
-          "node_modules",
-          APP_NAME,
-          "server",
-          "data",
-          APP_STATE_DB_FILENAME
+          ["server", "data"]
         ),
-        path.join(
+        resolveLegacyStateDbPath(
           cellarInfo.cellarRoot,
           entry.name,
-          "libexec",
-          "lib",
-          "node_modules",
-          APP_NAME,
-          "data",
-          APP_STATE_DB_FILENAME
+          ["data"]
         ),
       ].map((candidatePath) => ({
         path: candidatePath,
