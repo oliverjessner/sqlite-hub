@@ -182,7 +182,16 @@ pack_package() {
   trap 'rm -rf "$PACK_DIR"' EXIT
 
   info "Packing npm tarball"
-  TARBALL_NAME="$(cd "$PACK_DIR" && npm pack "$ROOT_DIR")"
+  local pack_output
+  pack_output="$(cd "$PACK_DIR" && npm pack "$ROOT_DIR")"
+  TARBALL_NAME="$(printf '%s\n' "$pack_output" | awk '/\.tgz$/ { name = $0 } END { print name }')"
+
+  if [[ -z "$TARBALL_NAME" || ! -f "$PACK_DIR/$TARBALL_NAME" ]]; then
+    echo "Failed to locate npm tarball in pack output:" >&2
+    printf '%s\n' "$pack_output" >&2
+    exit 1
+  fi
+
   TARBALL_PATH="$PACK_DIR/$TARBALL_NAME"
 }
 
