@@ -122,11 +122,15 @@ import { renderOverviewView } from './views/overview.js';
 import { renderSettingsView } from './views/settings.js';
 import { renderStructureView } from './views/structure.js';
 import { renderTableDesignerView } from './views/tableDesigner.js';
+import {
+    replaceChildrenFromRenderedMarkup,
+    replaceElementFromRenderedMarkup,
+} from './utils/dom.js';
 import { highlightSql } from './utils/format.js';
 
 const appRoot = document.querySelector('#app');
 
-appRoot.innerHTML = renderAppShell();
+replaceChildrenFromRenderedMarkup(appRoot, renderAppShell());
 
 const shellRefs = {
     shell: document.querySelector('.app-shell'),
@@ -186,7 +190,7 @@ function syncQueryEditorHighlight(textarea) {
         return;
     }
 
-    highlightNode.innerHTML = renderQueryHighlightMarkup(textarea.value);
+    replaceChildrenFromRenderedMarkup(highlightNode, renderQueryHighlightMarkup(textarea.value));
 }
 
 function syncQueryEditorScroll(textarea) {
@@ -258,12 +262,20 @@ function syncMediaTaggingCurrentMediaUi(button, detailsVisible) {
     const nextVisible = Boolean(detailsVisible);
     const expandedLabel = button.dataset.expandedLabel || 'Shrink Media Viewer';
     const collapsedLabel = button.dataset.collapsedLabel || 'Show Media Viewer';
-    const expandedMarkup = `<span class="material-symbols-outlined">visibility_off</span> ${expandedLabel}`;
-
     preview.classList.toggle('media-tagging-preview--meta-hidden', !nextVisible);
     button.dataset.nextValue = nextVisible ? 'false' : 'true';
     button.setAttribute('aria-expanded', nextVisible ? 'true' : 'false');
-    button.innerHTML = nextVisible ? expandedMarkup : collapsedLabel;
+
+    if (nextVisible) {
+        const icon = document.createElement('span');
+
+        icon.className = 'material-symbols-outlined';
+        icon.textContent = 'visibility_off';
+        button.replaceChildren(icon, document.createTextNode(` ${expandedLabel}`));
+    } else {
+        button.textContent = collapsedLabel;
+    }
+
     return true;
 }
 
@@ -350,7 +362,7 @@ function syncDataRowSelectionUi(selectedRowIndex = null) {
     const panelMarkup = renderDataRowEditorPanel(getState());
     const panelOpen = Boolean(panelMarkup);
 
-    shellRefs.panel.innerHTML = panelMarkup;
+    replaceChildrenFromRenderedMarkup(shellRefs.panel, panelMarkup);
     shellRefs.shell.classList.toggle('panel-open', panelOpen);
     lastRenderedPanelMarkup = panelMarkup;
     lastRenderedPanelOpen = panelOpen;
@@ -375,10 +387,13 @@ function syncQueryHistoryUi(historyId) {
     )?.closest('.query-history-item');
 
     if (historyItem && listItemNode instanceof HTMLElement) {
-        listItemNode.outerHTML = renderQueryHistoryListItem(
-            historyItem,
-            state.editor.historyActiveId,
-            state.editor.historySelectedId,
+        replaceElementFromRenderedMarkup(
+            listItemNode,
+            renderQueryHistoryListItem(
+                historyItem,
+                state.editor.historyActiveId,
+                state.editor.historySelectedId,
+            ),
         );
     }
 
@@ -391,7 +406,7 @@ function syncQueryHistoryUi(historyId) {
         });
         const panelOpen = Boolean(panelMarkup);
 
-        shellRefs.panel.innerHTML = panelMarkup;
+        replaceChildrenFromRenderedMarkup(shellRefs.panel, panelMarkup);
         shellRefs.shell.classList.toggle('panel-open', panelOpen);
         lastRenderedPanelMarkup = panelMarkup;
         lastRenderedPanelOpen = panelOpen;
@@ -414,7 +429,7 @@ function syncQueryHistorySelectionUi(selectedHistoryId = null) {
     }
 
     if (selectedHistoryId === null) {
-        shellRefs.panel.innerHTML = '';
+        shellRefs.panel.replaceChildren();
         shellRefs.shell.classList.remove('panel-open');
         lastRenderedPanelMarkup = '';
         lastRenderedPanelOpen = false;
@@ -600,7 +615,7 @@ function patchChartsDetailUi(state) {
         return false;
     }
 
-    detailNode.innerHTML = renderChartsDetail(state);
+    replaceChildrenFromRenderedMarkup(detailNode, renderChartsDetail(state));
     syncChartsHistorySelectionUi(state);
     return true;
 }
@@ -976,7 +991,7 @@ function renderApp(state) {
         !lockedRouteChanged;
 
     if (shellMarkupUnchanged && toastMarkup !== lastRenderedToastMarkup) {
-        shellRefs.toast.innerHTML = toastMarkup;
+        replaceChildrenFromRenderedMarkup(shellRefs.toast, toastMarkup);
         lastRenderedToastMarkup = toastMarkup;
         return;
     }
@@ -1013,7 +1028,7 @@ function renderApp(state) {
     }
 
     if (topNavChanged) {
-        shellRefs.topNav.innerHTML = topNavMarkup;
+        replaceChildrenFromRenderedMarkup(shellRefs.topNav, topNavMarkup);
     }
 
     if (sidebarChanged) {
@@ -1023,16 +1038,16 @@ function renderApp(state) {
             syncSidebarActiveRoute(state.route.name);
 
         if (!sidebarSynced) {
-            shellRefs.sidebar.innerHTML = sidebarMarkup;
+            replaceChildrenFromRenderedMarkup(shellRefs.sidebar, sidebarMarkup);
         }
     }
 
     if (statusBarChanged) {
-        shellRefs.statusBar.innerHTML = statusBarMarkup;
+        replaceChildrenFromRenderedMarkup(shellRefs.statusBar, statusBarMarkup);
     }
 
     if (mainChanged && !mainPatched) {
-        shellRefs.view.innerHTML = main;
+        replaceChildrenFromRenderedMarkup(shellRefs.view, main);
     }
 
     if (mainChanged || lockedRouteChanged) {
@@ -1040,15 +1055,15 @@ function renderApp(state) {
     }
 
     if (panelChanged) {
-        shellRefs.panel.innerHTML = panel;
+        replaceChildrenFromRenderedMarkup(shellRefs.panel, panel);
     }
 
     if (modalChanged) {
-        shellRefs.modal.innerHTML = modalMarkup;
+        replaceChildrenFromRenderedMarkup(shellRefs.modal, modalMarkup);
     }
 
     if (toastMarkup !== lastRenderedToastMarkup) {
-        shellRefs.toast.innerHTML = toastMarkup;
+        replaceChildrenFromRenderedMarkup(shellRefs.toast, toastMarkup);
     }
 
     if (panelChanged || panelOpenChanged) {

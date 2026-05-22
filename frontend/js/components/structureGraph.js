@@ -1,4 +1,5 @@
 import { showToast } from '../store.js';
+import { replaceChildrenFromRenderedMarkup } from '../utils/dom.js';
 import { escapeHtml, formatNumber } from '../utils/format.js';
 
 let cytoscapeFactory = null;
@@ -530,12 +531,12 @@ function updateInspectorToggleButton() {
     }
 
     currentGraph.inspectorToggleButton.classList.toggle('is-active', currentGraph.inspectorHidden);
-    currentGraph.inspectorToggleButton.innerHTML = `
-    <span class="material-symbols-outlined text-sm">${
-        currentGraph.inspectorHidden ? 'right_panel_open' : 'right_panel_close'
-    }</span>
-    ${currentGraph.inspectorHidden ? 'Show Inspector' : 'Hide Inspector'}
-  `;
+    const icon = document.createElement('span');
+    const label = currentGraph.inspectorHidden ? 'Show Inspector' : 'Hide Inspector';
+
+    icon.className = 'material-symbols-outlined text-sm';
+    icon.textContent = currentGraph.inspectorHidden ? 'right_panel_open' : 'right_panel_close';
+    currentGraph.inspectorToggleButton.replaceChildren(icon, document.createTextNode(` ${label}`));
 }
 
 function clearSelection() {
@@ -546,7 +547,7 @@ function clearSelection() {
     currentGraph.selectedTableName = null;
     resetHighlights(currentGraph.cy);
     syncEntryHighlights();
-    currentGraph.inspector.innerHTML = getDefaultInspectorMarkup();
+    replaceChildrenFromRenderedMarkup(currentGraph.inspector, getDefaultInspectorMarkup());
     updateOpenDataButton();
 }
 
@@ -557,7 +558,7 @@ function applyTableSelection(node, { focus = true } = {}) {
 
     const tableData = node.data('table');
     currentGraph.selectedTableName = tableData.name;
-    currentGraph.inspector.innerHTML = renderInspector(tableData);
+    replaceChildrenFromRenderedMarkup(currentGraph.inspector, renderInspector(tableData));
     highlightConnectedElements(currentGraph.cy, node);
     syncEntryHighlights([tableData.name]);
     updateOpenDataButton();
@@ -742,7 +743,7 @@ export async function mountStructureGraph(snapshot) {
 
     if (!schema.tables?.length) {
         empty?.removeAttribute('hidden');
-        inspector.innerHTML = clearInspector();
+        replaceChildrenFromRenderedMarkup(inspector, clearInspector());
         return;
     }
 
