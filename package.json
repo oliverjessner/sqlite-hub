@@ -1,6 +1,6 @@
 {
     "name": "sqlite-hub",
-    "version": "0.9.5",
+    "version": "0.9.6",
     "description": "SQLite-only local management app backend and SPA shell",
     "main": "server/server.js",
     "bin": {
@@ -8,7 +8,7 @@
     },
     "scripts": {
         "build": "npm run build:css",
-        "build:css": "tailwindcss -c tailwind.config.cjs -i ./frontend/styles/tailwind.css -o ./frontend/styles/tailwind.generated.css --minify",
+        "build:css": "tailwindcss -i ./frontend/styles/tailwind.css -o ./frontend/styles/tailwind.generated.css --minify",
         "audit": "npm audit --audit-level=high",
         "test": "node --test tests/**/*.test.js",
         "start": "node bin/sqlite-hub.js",
@@ -28,6 +28,7 @@
         "material-symbols": "^0.44.9"
     },
     "devDependencies": {
+        "@tailwindcss/cli": "^4.3.0",
         "@tailwindcss/container-queries": "^0.1.1",
         "@tailwindcss/forms": "^0.5.11",
         "tailwindcss": "^4.3.0"
