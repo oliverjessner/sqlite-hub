@@ -5,6 +5,11 @@ import { renderQueryHistoryListItem } from './components/queryHistoryPanel.js';
 import { renderSidebar } from './components/sidebar.js';
 import { renderStatusBar } from './components/statusBar.js';
 import {
+    renderTableDesignerFeedback,
+    renderTableDesignerReferenceColumnOptions,
+} from './components/tableDesignerEditor.js';
+import { renderTableDesignerSqlPreview } from './components/tableDesignerSqlPreview.js';
+import {
     mountStructureGraph,
     teardownStructureGraph,
     resetPersistedStructureGraphState,
@@ -342,6 +347,84 @@ function syncMediaTaggingTagSearchUi(input) {
     }
 
     return true;
+}
+
+function syncTableDesignerReferenceColumnOptions(sourceNode, state) {
+    if (
+        !(sourceNode instanceof HTMLSelectElement) ||
+        sourceNode.dataset.bind !== 'table-designer-column-field' ||
+        sourceNode.dataset.field !== 'referencesTable'
+    ) {
+        return true;
+    }
+
+    const rowNode = sourceNode.closest('.table-designer-grid__row');
+    const referenceColumnSelect = rowNode?.querySelector(
+        '[data-bind="table-designer-column-field"][data-field="referencesColumn"]',
+    );
+    const column = state.tableDesigner.draft?.columns.find(item => item.id === sourceNode.dataset.columnId);
+
+    if (!(referenceColumnSelect instanceof HTMLSelectElement) || !column) {
+        return false;
+    }
+
+    replaceChildrenFromRenderedMarkup(
+        referenceColumnSelect,
+        renderTableDesignerReferenceColumnOptions(
+            state.tableDesigner.draft,
+            state.tableDesigner.tables ?? [],
+            column.referencesTable,
+            column.referencesColumn,
+        ),
+    );
+    referenceColumnSelect.value = column.referencesColumn ?? '';
+    return true;
+}
+
+function syncTableDesignerDraftUi(sourceNode) {
+    const state = getState();
+    const draft = state.tableDesigner.draft;
+
+    if (state.route.name !== 'tableDesigner' || !draft) {
+        return false;
+    }
+
+    let synced = syncTableDesignerReferenceColumnOptions(sourceNode, state);
+
+    const saveButton = shellRefs.view.querySelector('[data-table-designer-save-button]');
+    if (saveButton instanceof HTMLButtonElement) {
+        saveButton.disabled = !draft.canSave;
+    } else {
+        synced = false;
+    }
+
+    const feedbackNode = shellRefs.view.querySelector('[data-table-designer-feedback]');
+    if (feedbackNode instanceof HTMLElement) {
+        replaceChildrenFromRenderedMarkup(
+            feedbackNode,
+            renderTableDesignerFeedback(draft, state.tableDesigner.saveError),
+        );
+    } else {
+        synced = false;
+    }
+
+    const previewNode = shellRefs.view.querySelector('.table-designer-workspace__bottom');
+    if (previewNode instanceof HTMLElement) {
+        previewNode.classList.toggle('is-collapsed', !state.tableDesigner.sqlPreviewVisible);
+        replaceChildrenFromRenderedMarkup(
+            previewNode,
+            renderTableDesignerSqlPreview(draft, state.tableDesigner.sqlPreviewVisible),
+        );
+    } else {
+        synced = false;
+    }
+
+    if (synced) {
+        lastRenderedMainMarkup = renderTableDesignerView(state).main;
+        lastRenderedPanelMarkup = '';
+    }
+
+    return synced;
 }
 
 function syncDataRowSelectionUi(selectedRowIndex = null) {
@@ -1655,7 +1738,10 @@ document.addEventListener('input', event => {
     }
 
     if (bindNode.dataset.bind === 'table-designer-field') {
-        if (bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox') {
+        if (
+            (bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox') ||
+            bindNode instanceof HTMLSelectElement
+        ) {
             return;
         }
 
@@ -1664,6 +1750,10 @@ document.addEventListener('input', event => {
     }
 
     if (bindNode.dataset.bind === 'table-designer-column-field') {
+        if (bindNode instanceof HTMLSelectElement) {
+            return;
+        }
+
         updateCurrentTableDesignerColumnField(bindNode.dataset.columnId, bindNode.dataset.field, bindNode.value);
         return;
     }
@@ -1768,11 +1858,33 @@ document.addEventListener('change', event => {
             return;
         }
 
+        if (bindNode instanceof HTMLSelectElement) {
+            updateCurrentTableDesignerField(bindNode.dataset.field, bindNode.value, { notify: false });
+
+            if (!syncTableDesignerDraftUi(bindNode)) {
+                renderApp(getState());
+            }
+
+            return;
+        }
+
         updateCurrentTableDesignerField(bindNode.dataset.field, bindNode.value);
         return;
     }
 
     if (bindNode.dataset.bind === 'table-designer-column-field') {
+        if (bindNode instanceof HTMLSelectElement) {
+            updateCurrentTableDesignerColumnField(bindNode.dataset.columnId, bindNode.dataset.field, bindNode.value, {
+                notify: false,
+            });
+
+            if (!syncTableDesignerDraftUi(bindNode)) {
+                renderApp(getState());
+            }
+
+            return;
+        }
+
         updateCurrentTableDesignerColumnField(bindNode.dataset.columnId, bindNode.dataset.field, bindNode.value);
         return;
     }

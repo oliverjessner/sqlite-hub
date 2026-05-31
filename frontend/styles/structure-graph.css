@@ -1,346 +1,348 @@
 .structure-graph {
-  background: var(--color-surface-container);
-  border: 1px solid rgba(138, 123, 52, 0.26);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
+    background: var(--color-surface-container);
+    border: 1px solid rgba(138, 123, 52, 0.26);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .structure-graph__toolbar {
-  align-items: center;
-  background: linear-gradient(
-    to bottom,
-    rgba(45, 43, 37, 0.97),
-    rgba(23, 23, 20, 0.96)
-  );
-  border-bottom: 1px solid rgba(138, 123, 52, 0.24);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  justify-content: space-between;
-  padding: 1rem 1.25rem;
+    align-items: center;
+    background: linear-gradient(to bottom, rgba(45, 43, 37, 0.97), rgba(23, 23, 20, 0.96));
+    border-bottom: 1px solid rgba(138, 123, 52, 0.24);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
 }
 
 .structure-graph__toolbar-main {
-  align-items: center;
-  display: flex;
-  flex: 1 1 20rem;
-  flex-wrap: wrap;
-  gap: 0.875rem;
-  min-width: 0;
+    align-items: center;
+    display: flex;
+    flex: 1 1 20rem;
+    flex-wrap: wrap;
+    gap: 0.875rem;
+    min-width: 0;
 }
 
 .structure-graph__toolbar-actions {
-  align-items: center;
-  display: flex;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  gap: 0.625rem;
-  justify-content: flex-end;
+    align-items: center;
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+    justify-content: flex-end;
 }
 
 .structure-graph__toolbar .standard-button,
 .structure-graph__section-header .standard-button {
-  align-items: center;
-  display: inline-flex;
-  flex-shrink: 0;
-  gap: 0.5rem;
-  justify-content: center;
+    align-items: center;
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: 0.5rem;
+    justify-content: center;
 }
 
 .structure-graph__toolbar .standard-button:hover {
-  background: var(--color-surface-container-highest);
+    background: var(--color-surface-container-highest);
 }
 
 .structure-graph__toolbar .standard-button.is-active {
-  background: var(--primary-alpha-12);
-  border-color: rgb(var(--rgb-primary) / 0.38);
-  color: var(--color-primary-container);
+    background: var(--primary-alpha-12);
+    border-color: rgb(var(--rgb-primary) / 0.38);
+    color: var(--color-primary-container);
 }
 
 .structure-graph__toolbar .standard-button:disabled,
 .structure-graph__section-header .standard-button:disabled {
-  border-color: var(--border-medium);
-  color: rgba(231, 223, 189, 0.34);
+    border-color: var(--border-medium);
+    color: rgba(231, 223, 189, 0.34);
 }
 
 .structure-graph__workspace {
-  display: grid;
-  flex: 1;
-  grid-template-columns: minmax(0, 1fr) 26rem;
-  min-height: 0;
+    display: grid;
+    flex: 1;
+    grid-template-columns: minmax(0, 1fr) 26rem;
+    min-height: 0;
 }
 
 .structure-graph.is-inspector-hidden .structure-graph__workspace {
-  grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .structure-graph__canvas-shell {
-  background:
-    linear-gradient(rgba(138, 123, 52, 0.09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(138, 123, 52, 0.08) 1px, transparent 1px),
-    radial-gradient(circle at top left, rgb(var(--rgb-primary) / 0.14), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(45, 250, 255, 0.1), transparent 24%),
-    linear-gradient(to bottom, rgba(27, 27, 24, 0.99), rgba(9, 10, 11, 0.99));
-  background-size: 28px 28px, 28px 28px, auto, auto, auto;
-  min-height: 0;
-  overflow: hidden;
-  position: relative;
+    background:
+        linear-gradient(rgba(138, 123, 52, 0.09) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(138, 123, 52, 0.08) 1px, transparent 1px),
+        radial-gradient(circle at top left, rgb(var(--rgb-primary) / 0.14), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(45, 250, 255, 0.1), transparent 24%),
+        linear-gradient(to bottom, rgba(27, 27, 24, 0.99), rgba(9, 10, 11, 0.99));
+    background-size:
+        28px 28px,
+        28px 28px,
+        auto,
+        auto,
+        auto;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
 }
 
 .structure-graph__canvas {
-  inset: 0;
-  position: absolute;
+    inset: 0;
+    position: absolute;
 }
 
 .structure-graph__empty {
-  align-items: center;
-  color: rgba(231, 223, 189, 0.58);
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-  inset: 0;
-  justify-content: center;
-  padding: 2rem;
-  position: absolute;
-  text-align: center;
+    align-items: center;
+    color: rgba(231, 223, 189, 0.58);
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    inset: 0;
+    justify-content: center;
+    padding: 2rem;
+    position: absolute;
+    text-align: center;
 }
 
 .structure-graph__empty-icon {
-  color: rgb(var(--rgb-primary) / 0.42);
-  font-size: 2.25rem;
+    color: rgb(var(--rgb-primary) / 0.42);
+    font-size: 2.25rem;
 }
 
 .structure-graph__inspector {
-  background: linear-gradient(to bottom, rgba(26, 25, 23, 0.98), rgba(11, 11, 10, 0.99));
-  border-left: 1px solid rgba(138, 123, 52, 0.24);
-  height: 100%;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+    background: linear-gradient(to bottom, rgba(26, 25, 23, 0.98), rgba(11, 11, 10, 0.99));
+    border-left: 1px solid rgba(138, 123, 52, 0.24);
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .structure-graph.is-inspector-hidden .structure-graph__inspector {
-  display: none;
+    display: none;
 }
 
 .structure-graph__panel {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  min-height: 100%;
-  padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-height: 100%;
+    padding: 1.25rem;
 }
 
 .structure-graph__panel.is-empty {
-  align-items: center;
-  justify-content: center;
-  text-align: center;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
 }
 
 .structure-graph__eyebrow {
-  color: rgba(231, 223, 189, 0.62);
-  font-family: var(--font-family-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+    color: rgba(231, 223, 189, 0.62);
+    font-family: var(--font-family-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
 }
 
 .structure-graph__title {
-  color: var(--color-primary-container);
-  font-family: var(--font-family-headline);
-  font-size: 2rem;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  line-height: 1;
-  text-transform: uppercase;
+    color: var(--color-primary-container);
+    font-family: var(--font-family-headline);
+    font-size: 2rem;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    text-transform: uppercase;
+    word-break: break-all;
 }
 
 .structure-graph__subtitle {
-  color: rgba(231, 223, 189, 0.62);
-  font-family: var(--font-family-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+    color: rgba(231, 223, 189, 0.62);
+    font-family: var(--font-family-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
 }
 
 .structure-graph__summary {
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
 }
 
 .structure-graph__summary-card {
-  background: rgba(15, 15, 13, 0.94);
-  border: 1px solid rgba(138, 123, 52, 0.26);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  min-height: 0;
-  padding: 0.625rem 0.75rem;
+    background: rgba(15, 15, 13, 0.94);
+    border: 1px solid rgba(138, 123, 52, 0.26);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 0;
+    padding: 0.625rem 0.75rem;
 }
 
 .structure-graph__summary-label {
-  color: rgba(231, 223, 189, 0.52);
-  flex: 1;
-  font-family: var(--font-family-mono);
-  font-size: 0.5625rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+    color: rgba(231, 223, 189, 0.52);
+    flex: 1;
+    font-family: var(--font-family-mono);
+    font-size: 0.5625rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
 }
 
 .structure-graph__summary-value {
-  color: var(--color-primary-container);
-  flex: 0 0 auto;
-  font-family: var(--font-family-mono);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+    color: var(--color-primary-container);
+    flex: 0 0 auto;
+    font-family: var(--font-family-mono);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
 }
 
 .structure-graph__section {
-  background: rgba(15, 15, 13, 0.84);
-  border: 1px solid rgba(138, 123, 52, 0.22);
-  display: flex;
-  flex-direction: column;
-  gap: 0.875rem;
-  padding: 1rem;
+    background: rgba(15, 15, 13, 0.84);
+    border: 1px solid rgba(138, 123, 52, 0.22);
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+    padding: 1rem;
 }
 
 .structure-graph__section-title {
-  color: var(--color-primary-container);
-  font-family: var(--font-family-mono);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+    color: var(--color-primary-container);
+    font-family: var(--font-family-mono);
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
 }
 
 .structure-graph__section-header {
-  align-items: center;
-  display: flex;
-  gap: 0.75rem;
-  justify-content: space-between;
+    align-items: center;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
 }
 
 .structure-graph__column-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
 }
 
 .structure-graph__column-row {
-  align-items: flex-start;
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: minmax(0, 1fr) auto;
+    align-items: flex-start;
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .structure-graph__column-name {
-  color: var(--color-on-surface);
-  font-family: var(--font-family-mono);
-  font-size: 0.75rem;
-  min-width: 0;
-  overflow-wrap: anywhere;
+    color: var(--color-on-surface);
+    font-family: var(--font-family-mono);
+    font-size: 0.75rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .structure-graph__column-type {
-  color: rgba(231, 223, 189, 0.58);
-  font-family: var(--font-family-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+    color: rgba(231, 223, 189, 0.58);
+    font-family: var(--font-family-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
 }
 
 .structure-graph__column-flags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-  justify-content: flex-end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    justify-content: flex-end;
 }
 
 .structure-graph__flag {
-  background: rgba(39, 38, 34, 0.94);
-  border: 1px solid rgba(138, 123, 52, 0.24);
-  color: rgba(244, 239, 232, 0.82);
-  font-family: var(--font-family-mono);
-  font-size: 0.5625rem;
-  letter-spacing: 0.14em;
-  padding: 0.125rem 0.375rem;
-  text-transform: uppercase;
+    background: rgba(39, 38, 34, 0.94);
+    border: 1px solid rgba(138, 123, 52, 0.24);
+    color: rgba(244, 239, 232, 0.82);
+    font-family: var(--font-family-mono);
+    font-size: 0.5625rem;
+    letter-spacing: 0.14em;
+    padding: 0.125rem 0.375rem;
+    text-transform: uppercase;
 }
 
 .structure-graph__flag.is-key {
-  background: var(--primary-alpha-18);
-  border-color: rgb(var(--rgb-primary) / 0.34);
-  color: #fff6ae;
+    background: var(--primary-alpha-18);
+    border-color: rgb(var(--rgb-primary) / 0.34);
+    color: #fff6ae;
 }
 
 .structure-graph__flag.is-link {
-  background: rgba(45, 250, 255, 0.14);
-  border-color: rgba(45, 250, 255, 0.28);
-  color: #9ffcff;
+    background: rgba(45, 250, 255, 0.14);
+    border-color: rgba(45, 250, 255, 0.28);
+    color: #9ffcff;
 }
 
 .structure-graph__flag.is-nullable {
-  color: rgba(231, 223, 189, 0.58);
+    color: rgba(231, 223, 189, 0.58);
 }
 
 .structure-graph__list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .structure-graph__list-item {
-  align-items: center;
-  color: rgb(var(--rgb-on-surface) / 0.82);
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
+    align-items: center;
+    color: rgb(var(--rgb-on-surface) / 0.82);
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
 }
 
 .structure-graph__list-item-label {
-  color: rgba(231, 223, 189, 0.62);
-  font-family: var(--font-family-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+    color: rgba(231, 223, 189, 0.62);
+    font-family: var(--font-family-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
 }
 
 .structure-graph__ddl {
-  color: rgba(244, 239, 232, 0.78);
-  font-family: var(--font-family-mono);
-  font-size: 0.6875rem;
-  line-height: 1.65;
-  margin: 0;
-  max-height: 18rem;
-  overflow: auto;
-  white-space: pre-wrap;
+    color: rgba(244, 239, 232, 0.78);
+    font-family: var(--font-family-mono);
+    font-size: 0.6875rem;
+    line-height: 1.65;
+    margin: 0;
+    max-height: 18rem;
+    overflow: auto;
+    white-space: pre-wrap;
 }
 
 .structure-entry--graph-active {
-  border-color: rgb(var(--rgb-primary) / 0.44);
-  box-shadow: inset 0 0 0 1px var(--primary-alpha-18);
+    border-color: rgb(var(--rgb-primary) / 0.44);
+    box-shadow: inset 0 0 0 1px var(--primary-alpha-18);
 }
 
 .structure-entry--graph-related {
-  border-color: rgba(45, 250, 255, 0.34);
+    border-color: rgba(45, 250, 255, 0.34);
 }
 
 @media (max-width: 1279px) {
-  .structure-graph__workspace {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(28rem, 1fr) auto;
-  }
+    .structure-graph__workspace {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(28rem, 1fr) auto;
+    }
 
-  .structure-graph__inspector {
-    border-left: 0;
-    border-top: 1px solid var(--border-medium);
-    max-height: 28rem;
-  }
+    .structure-graph__inspector {
+        border-left: 0;
+        border-top: 1px solid var(--border-medium);
+        max-height: 28rem;
+    }
 }

@@ -2856,7 +2856,7 @@ export function setTableDesignerSqlPreviewVisibility(visible) {
     emitChange();
 }
 
-export function updateCurrentTableDesignerField(field, value) {
+export function updateCurrentTableDesignerField(field, value, options = {}) {
     if (!state.tableDesigner.draft) {
         return;
     }
@@ -2868,10 +2868,13 @@ export function updateCurrentTableDesignerField(field, value) {
         getTableDesignerContext(),
     );
     state.tableDesigner.saveError = null;
-    emitChange();
+
+    if (options.notify !== false) {
+        emitChange();
+    }
 }
 
-export function updateCurrentTableDesignerColumnField(columnId, field, value) {
+export function updateCurrentTableDesignerColumnField(columnId, field, value, options = {}) {
     if (!state.tableDesigner.draft) {
         return;
     }
@@ -2884,7 +2887,10 @@ export function updateCurrentTableDesignerColumnField(columnId, field, value) {
         getTableDesignerContext(),
     );
     state.tableDesigner.saveError = null;
-    emitChange();
+
+    if (options.notify !== false) {
+        emitChange();
+    }
 }
 
 export function addCurrentTableDesignerColumn() {

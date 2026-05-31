@@ -55,8 +55,33 @@ function getReferencedColumns(draft, catalogTables, referencesTable) {
   );
 }
 
+export function renderTableDesignerReferenceColumnOptions(
+  draft,
+  catalogTables,
+  referencesTable,
+  selectedValue
+) {
+  const referenceColumns = getReferencedColumns(draft, catalogTables, referencesTable);
+
+  return [
+    '<option value="">No FK column</option>',
+    referenceColumns
+      .map((name) =>
+        [
+          '<option value="',
+          escapeHtml(name),
+          '" ',
+          name === selectedValue ? "selected" : "",
+          ">",
+          escapeHtml(name),
+          "</option>",
+        ].join("")
+      )
+      .join(""),
+  ].join("");
+}
+
 function renderColumnRow(column, draft, catalogTables) {
-  const referenceColumns = getReferencedColumns(draft, catalogTables, column.referencesTable);
   const typeOptions = draft.supportedTypes
     .map((type) =>
       [
@@ -83,19 +108,12 @@ function renderColumnRow(column, draft, catalogTables) {
       ].join("")
     )
     .join("");
-  const referenceColumnOptions = referenceColumns
-    .map((name) =>
-      [
-        '<option value="',
-        escapeHtml(name),
-        '" ',
-        name === column.referencesColumn ? "selected" : "",
-        ">",
-        escapeHtml(name),
-        "</option>",
-      ].join("")
-    )
-    .join("");
+  const referenceColumnOptions = renderTableDesignerReferenceColumnOptions(
+    draft,
+    catalogTables,
+    column.referencesTable,
+    column.referencesColumn
+  );
 
   const columnId = escapeHtml(column.id);
 
@@ -141,7 +159,7 @@ function renderColumnRow(column, draft, catalogTables) {
     "</select>",
     '<select class="table-designer-field" data-bind="table-designer-column-field" data-column-id="',
     columnId,
-    '" data-field="referencesColumn"><option value="">No FK column</option>',
+    '" data-field="referencesColumn">',
     referenceColumnOptions,
     "</select>",
     '<button class="delete-button" data-action="remove-table-designer-column" data-column-id="',
@@ -202,6 +220,26 @@ function renderFillToggle(draft) {
   `;
 }
 
+export function renderTableDesignerFeedback(draft, saveError) {
+  const validationItems = (draft?.validationErrors ?? []).map((message) => ({
+    title: message,
+  }));
+  const warningItems = draft?.warnings ?? [];
+
+  return [
+    saveError
+      ? `
+              <div class="table-designer-main__error">
+                <div class="table-designer-main__error-code">${escapeHtml(saveError.code)}</div>
+                <div class="table-designer-main__error-text">${escapeHtml(saveError.message)}</div>
+              </div>
+            `
+      : "",
+    renderWarningList(validationItems, "table-designer-banner is-validation", "Validation", "alert"),
+    renderWarningList(warningItems, "table-designer-banner is-warning", "Warnings", "alert"),
+  ].join("");
+}
+
 export function renderTableDesignerEditor(state) {
   const draft = state.tableDesigner.draft;
 
@@ -228,10 +266,6 @@ export function renderTableDesignerEditor(state) {
     `;
   }
 
-  const validationItems = (draft.validationErrors ?? []).map((message) => ({
-    title: message,
-  }));
-  const warningItems = draft.warnings ?? [];
   const catalogTables = state.tableDesigner.tables ?? [];
   const visibleColumns = draft.columns.filter((column) => !column.deleted);
   const saveLabel =
@@ -286,6 +320,7 @@ export function renderTableDesignerEditor(state) {
           <button
             class="standard-button"
             data-action="save-table-designer"
+            data-table-designer-save-button
             ${draft.canSave ? "" : "disabled"}
             type="button"
           >
@@ -294,23 +329,9 @@ export function renderTableDesignerEditor(state) {
         </div>
       </header>
 
-      ${
-        state.tableDesigner.saveError
-          ? `
-              <div class="table-designer-main__error">
-                <div class="table-designer-main__error-code">${escapeHtml(
-                  state.tableDesigner.saveError.code
-                )}</div>
-                <div class="table-designer-main__error-text">${escapeHtml(
-                  state.tableDesigner.saveError.message
-                )}</div>
-              </div>
-            `
-          : ""
-      }
-
-      ${renderWarningList(validationItems, "table-designer-banner is-validation", "Validation", "alert")}
-      ${renderWarningList(warningItems, "table-designer-banner is-warning", "Warnings", "alert")}
+      <div data-table-designer-feedback>
+        ${renderTableDesignerFeedback(draft, state.tableDesigner.saveError)}
+      </div>
 
       <section class="table-designer-main__section">
         <div class="table-designer-main__section-header">

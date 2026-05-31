@@ -131,6 +131,7 @@ img {
 
 .font-headline {
     font-family: var(--font-family-headline);
+    word-break: break-all;
 }
 
 .font-body {
