@@ -3,13 +3,13 @@
 
 @layer components {
   .signature-button {
-    @apply inline-flex items-center justify-center gap-2 h-[var(--control-height)] min-h-[var(--control-height)] border border-primary-container bg-primary-container px-[var(--control-padding-inline)] font-headline text-xs font-bold uppercase tracking-[0.16em] text-on-primary transition-all;
+    @apply inline-flex items-center justify-center gap-2 h-[var(--button-height)] min-h-[var(--button-height)] border border-primary-container bg-primary-container px-[var(--button-padding-inline)] font-headline text-[10px] font-bold uppercase tracking-[0.16em] text-black transition-all;
     box-shadow: 0 0 18px -10px rgb(var(--rgb-primary) / 0.7);
-    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+    clip-path: polygon(0 0, calc(100% - var(--button-corner-size)) 0, 100% var(--button-corner-size), 100% 100%, 0 100%);
   }
 
   .signature-button:hover {
-    @apply -translate-y-px bg-primary-fixed text-on-primary;
+    @apply -translate-y-px bg-primary-fixed text-black;
     border-color: rgb(var(--rgb-primary) / 0.55);
     box-shadow: 0 0 24px -8px rgb(var(--rgb-primary) / 0.92);
     filter: brightness(1.03);
@@ -28,7 +28,7 @@
   }
 
   .standard-button {
-    @apply inline-flex items-center justify-center gap-2 h-[var(--control-height)] min-h-[var(--control-height)] border border-outline-variant/20 bg-surface-container px-[var(--control-padding-inline)] font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface transition-colors;
+    @apply inline-flex items-center justify-center gap-2 h-[var(--button-height)] min-h-[var(--button-height)] border border-outline-variant/20 bg-surface-container px-[var(--button-padding-inline)] font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-on-surface transition-colors;
   }
 
   .standard-button:hover {
@@ -65,7 +65,7 @@
   }
 
   .delete-button {
-    @apply inline-flex items-center justify-center gap-2 h-[var(--control-height)] min-h-[var(--control-height)] border border-error/25 bg-error-container/10 px-[var(--control-padding-inline)] font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-error transition-all;
+    @apply inline-flex items-center justify-center gap-2 h-[var(--button-height)] min-h-[var(--button-height)] border border-error/25 bg-error-container/10 px-[var(--button-padding-inline)] font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-error transition-all;
   }
 
   .delete-button:hover {

@@ -118,6 +118,11 @@
     width: 4rem;
 }
 
+.landing-primary-action,
+.landing-primary-action:hover {
+    color: #000;
+}
+
 .system-placeholder-grid {
     display: grid;
     gap: var(--spacing-4);
@@ -265,7 +270,7 @@
     border: 1px solid var(--border-medium);
     display: inline-flex;
     gap: 0;
-    height: var(--control-height);
+    height: var(--button-height);
     overflow: hidden;
 }
 
@@ -279,7 +284,7 @@
     font-family: var(--font-family-mono);
     font-size: 0.625rem;
     font-weight: 700;
-    height: var(--control-height);
+    height: var(--button-height);
     justify-content: center;
     line-height: 1;
     letter-spacing: 0.16em;
@@ -696,9 +701,9 @@
 .media-tagging-preview__icon-button {
     backdrop-filter: blur(8px);
     background: rgba(20, 20, 20, 0.78);
-    min-width: var(--control-height);
+    min-width: var(--button-height);
     padding: 0;
-    width: var(--control-height);
+    width: var(--button-height);
 }
 
 .media-tagging-preview__toggle {

@@ -70,6 +70,9 @@
   --font-size-icon: 18px;
   --control-height: 36px;
   --control-padding-inline: 12px;
+  --button-height: 32px;
+  --button-padding-inline: 10px;
+  --button-corner-size: 10px;
   --spacing-1: 4px;
   --spacing-2: 8px;
   --spacing-3: 12px;

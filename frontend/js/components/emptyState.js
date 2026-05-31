@@ -108,7 +108,7 @@ export function renderEmptyState({ activeConnection, recentConnections = [] }) {
         </div>
         <div class="mx-auto grid w-full max-w-3xl grid-cols-1 gap-4 px-6 md:grid-cols-2">
           <button
-            class="clipped-btn group flex items-center justify-between bg-primary-container px-8 py-6 font-headline text-lg font-bold text-on-primary transition-all duration-300 hover:shadow-[0_0_20px_rgba(252,227,0,0.3)]"
+            class="landing-primary-action clipped-btn group flex items-center justify-between bg-primary-container px-8 py-6 font-headline text-lg font-bold transition-all duration-300 hover:shadow-[0_0_20px_rgba(252,227,0,0.3)]"
             data-action="open-modal"
             data-modal="open-connection"
             style="--clip-path: polygon(0 0, 90% 0, 100% 25%, 100% 100%, 0 100%);"

@@ -242,6 +242,37 @@
     line-height: 1;
 }
 
+.standard-button {
+    color: var(--color-on-surface);
+    font-family: var(--font-family-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.signature-button {
+    color: #000;
+    font-family: var(--font-family-headline);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.signature-button:hover {
+    color: #000;
+}
+
+.delete-button {
+    color: var(--color-error);
+    font-family: var(--font-family-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
 .standard-button:focus-visible,
 .signature-button:focus-visible,
 .delete-button:focus-visible,
@@ -262,9 +293,9 @@
 
 .toolbar-button {
     gap: var(--spacing-2);
-    height: var(--control-height);
-    min-height: var(--control-height);
-    padding: 0 var(--control-padding-inline);
+    height: var(--button-height);
+    min-height: var(--button-height);
+    padding: 0 var(--button-padding-inline);
     text-transform: uppercase;
     transition:
         background-color var(--transition-fast),
@@ -968,11 +999,11 @@ input.table-designer-main__name[type='text'] {
     border: 0;
     box-sizing: border-box;
     color: var(--text-muted);
-    height: var(--control-height);
+    height: var(--button-height);
     transition:
         color var(--transition-fast),
         background-color var(--transition-fast);
-    width: var(--control-height);
+    width: var(--button-height);
 }
 
 .query-history-icon-button:hover,
