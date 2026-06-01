@@ -245,9 +245,7 @@ export function renderEditorView(state, { isResultsRoute = false } = {}) {
         main: `
       <section class="view-surface flex h-full min-h-0 flex-col overflow-hidden xl:flex-row">
         <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <section class="${editorSectionClass} flex min-h-0 flex-col ${
-              isResultsRoute ? 'border-b-4 border-background' : ''
-          }">
+          <section class="${editorSectionClass} flex min-h-0 flex-col">
             ${renderQueryEditor({
                 query: state.editor.sqlText,
                 executing: state.editor.executing,

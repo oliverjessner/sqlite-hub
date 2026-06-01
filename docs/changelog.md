@@ -8,6 +8,7 @@
 - Display execution time in seconds when it exceeds 10 seconds.
 - The Performance panel in the SQL Editor shows query memory size.
 - The Structure view remembers the last selected table.
+- Removed pixel shift bug in SQL Editor on the bottom cards
 
 # v0.9.3
 
