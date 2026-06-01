@@ -2,6 +2,14 @@ const { ValidationError, mapSqliteError } = require("../../utils/errors");
 const { serializeRows } = require("../../utils/sqliteTypes");
 const { getTableDetail } = require("./introspection");
 
+function getSerializedMemoryBytes(value) {
+  try {
+    return Buffer.byteLength(JSON.stringify(value ?? null), "utf8");
+  } catch {
+    return 0;
+  }
+}
+
 function getFirstKeyword(statement) {
   const trimmed = statement.trim().replace(/^--.*$/gm, "").trim();
   const match = trimmed.match(/^[A-Za-z]+/);
@@ -427,6 +435,8 @@ class SqlExecutor {
       affectedRowCount: totalChanges,
       resultKind: lastResultSet ? "resultSet" : results.at(-1)?.kind ?? "unknown",
     };
+    payload.memoryBytes = getSerializedMemoryBytes(payload);
+
     let historyId = null;
 
     if (options.persistHistory !== false) {

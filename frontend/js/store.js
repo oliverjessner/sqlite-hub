@@ -558,6 +558,16 @@ function getCurrentStructureEntry(snapshot = state) {
     return entries.find(entry => entry.name === snapshot.structure.selectedName) ?? null;
 }
 
+function resolveStructureSelectedName(structure, preferredName) {
+    const entries = structure?.entries ?? [];
+
+    if (preferredName && entries.some(entry => entry.name === preferredName)) {
+        return preferredName;
+    }
+
+    return structure?.grouped?.tables?.[0]?.name ?? entries[0]?.name ?? null;
+}
+
 function getTableDesignerContext(snapshot = state) {
     return {
         catalogTables: snapshot.tableDesigner.tables ?? [],
@@ -986,7 +996,6 @@ function syncRouteContext() {
         state.structure.detail = null;
     } else if (route.name !== 'structure') {
         state.structure.detail = null;
-        state.structure.selectedName = null;
     }
 
     if (route.name !== 'tableDesigner') {
@@ -1572,11 +1581,7 @@ async function loadStructure(version) {
         }
 
         state.structure.data = response.data;
-        state.structure.selectedName =
-            state.structure.selectedName ??
-            response.data.grouped.tables[0]?.name ??
-            response.data.entries[0]?.name ??
-            null;
+        state.structure.selectedName = resolveStructureSelectedName(response.data, state.structure.selectedName);
 
         await loadStructureDetail(version);
     } catch (error) {
@@ -3927,6 +3932,7 @@ export function getQueryPerformance(snapshot = state) {
     if (!result) {
         return {
             timingMs: null,
+            memoryBytes: 0,
             statementCount: 0,
             rowCount: 0,
             affectedRowCount: 0,
@@ -3935,6 +3941,7 @@ export function getQueryPerformance(snapshot = state) {
 
     return {
         timingMs: result.timingMs ?? 0,
+        memoryBytes: result.memoryBytes ?? 0,
         statementCount: result.statementCount ?? result.statements?.length ?? 0,
         rowCount: result.rows?.length ?? 0,
         affectedRowCount: result.affectedRowCount ?? 0,

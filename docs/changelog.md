@@ -1,92 +1,95 @@
 # v1.0.0
 
-- removed external tailwind
-- fixed vibe coding problems with https://github.com/oliverjessner/ItWorksBut
-- localstorage for charts saved/recent
-- updated deps
-- replaced innerHTML with dom functions
+- Removed external Tailwind.
+- Fixed vibe-coding issues with https://github.com/oliverjessner/ItWorksBut.
+- Persisted saved/recent chart tabs in localStorage.
+- Updated dependencies.
+- Replaced innerHTML with DOM functions.
+- Display execution time in seconds when it exceeds 10 seconds.
+- The Performance panel in the SQL Editor shows query memory size.
+- The Structure view remembers the last selected table.
 
 # v0.9.3
 
-- improving rerendering
-- fixed the sorting bug in charts
-- data row size is stored in localstorage
-- saved charts
+- Improved re-rendering.
+- Fixed the sorting bug in Charts.
+- Stored the data row size in localStorage.
+- Saved charts.
 
 # v0.9.1
 
-- Improvements in tagging queue
-- rotate right, rotate left
+- Tagging queue improvements.
+- Rotate right and rotate left.
 
 # v0.9.0
 
-- tagging view
-- filtered out the create, update, delete queries from the chart section
+- Tagging view.
+- Filtered Create, Update, and Delete queries out of the chart section.
 
 # v0.8.8
 
-- modal window fix in delete query
-- csv export filename based on query name
-- unsaved query history tab
+- Fixed the delete-query modal window.
+- CSV export filenames are based on query names.
+- Unsaved query history tab.
 
 # v0.8.7
 
-- UX fixes
-- fixing a lot of the vibe slop
-- trying to build reuseable components
+- UX fixes.
+- Fixed a lot of vibe slop.
+- Started building reusable components.
 
 # v0.8.0
 
-- DDL copy button
-- open in charts button in query details
-- clear makes editor active
-- UI fixes
-- Overview improvement
+- DDL copy button.
+- Open in Charts button in query details.
+- Clear makes the editor active.
+- UI fixes.
+- Overview improvements.
 
 # v0.7.0
 
-- hide query history, hide editor
-- better cli interface
-- plotting and graphs
-- removing inconsistencies in the UI
+- Hide Query History and Hide Editor controls.
+- Better CLI interface.
+- Plotting and graphs.
+- Removed UI inconsistencies.
 
 # v0.6.0
 
-- table designer, create tables in sqlit_hub
+- Table Designer: create tables in SQLite Hub.
 
 # v0.5.1
 
-- bug fix in sql editor
+- Bug fix in the SQL Editor.
 
 # v0.5.0
 
-- sql query history
-- open in finder in overview
-- sort columns in data & sql_editor
-- json view in row editor
+- SQL query history.
+- Open in Finder from Overview.
+- Sort columns in Data and the SQL Editor.
+- JSON view in the row editor.
 
 # v0.4.0
 
-- search in data
-- shift + enter
-- logos for databases
-- clean up some chaotic code things :)
+- Search in Data.
+- Shift + Enter.
+- Database logos.
+- Cleaned up some chaotic code.
 
 # v0.3.2
 
-- delete rows
-- modal windows for rows
+- Delete rows.
+- Modal windows for rows.
 
 # v0.3.1
 
-- visualize tables
-- export csv from data and sql_editor
-- Backup mode
+- Visualize tables.
+- Export CSV from Data and the SQL Editor.
+- Backup mode.
 
 # v0.2.0
 
-- db fix
+- Database fix.
 
 # v0.1.3
 
-- edit in sql editor
+- Edit in the SQL Editor.

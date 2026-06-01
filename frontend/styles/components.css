@@ -311,6 +311,10 @@
     padding: var(--spacing-6);
 }
 
+.performance-metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+}
+
 .metric-card--accent {
     box-shadow: inset 2px 0 0 var(--color-primary-container);
 }

@@ -1,6 +1,6 @@
 {
     "name": "sqlite-hub",
-    "version": "0.9.9",
+    "version": "0.9.11",
     "description": "SQLite-only local management app backend and SPA shell",
     "main": "server/server.js",
     "bin": {
@@ -20,12 +20,14 @@
         "better-sqlite3": "^12.10.0",
         "cytoscape": "^3.33.4",
         "cytoscape-elk": "^2.3.0",
+        "dotenv": "^17.4.2",
         "echarts": "^6.1.0",
         "elkjs": "^0.11.1",
         "express": "^5.2.1",
         "express-rate-limit": "^8.5.2",
         "helmet": "^8.2.0",
-        "material-symbols": "^0.44.9"
+        "material-symbols": "^0.44.9",
+        "openai": "^6.39.1"
     },
     "devDependencies": {
         "@tailwindcss/cli": "^4.3.0",

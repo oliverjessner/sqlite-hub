@@ -5,7 +5,7 @@ import { renderQueryHistoryPanel } from '../components/queryHistoryPanel.js';
 import { renderRowEditorPanel } from '../components/rowEditorPanel.js';
 import { renderQueryResultsPane } from '../components/queryResults.js';
 import { getCurrentConnection, getQueryMessages, getQueryPerformance } from '../store.js';
-import { escapeHtml, formatCellValue, formatNumber, isBlobPreview } from '../utils/format.js';
+import { escapeHtml, formatBytes, formatCellValue, formatExecutionTimeMs, formatNumber, isBlobPreview } from '../utils/format.js';
 
 function renderMissingDatabase() {
     return `
@@ -50,12 +50,12 @@ function renderPerformancePane(state) {
     const metrics = getQueryPerformance(state);
 
     return `
-    <div class="grid flex-1 grid-cols-1 gap-4 bg-surface-container-lowest p-6 md:grid-cols-4">
+    <div class="performance-metrics-grid grid flex-1 gap-4 bg-surface-container-lowest p-6">
       <div class="metric-card">
         <span class="text-[10px] font-mono uppercase text-on-surface/40">Exec_Time</span>
         <span class="font-headline text-3xl font-bold text-on-surface">${escapeHtml(
-            String(metrics.timingMs ?? 0),
-        )}ms</span>
+            formatExecutionTimeMs(metrics.timingMs ?? 0),
+        )}</span>
         <span class="text-[10px] text-primary-container">Measured backend execution time</span>
       </div>
       <div class="metric-card">
@@ -71,6 +71,13 @@ function renderPerformancePane(state) {
             formatNumber(metrics.rowCount),
         )}</span>
         <span class="text-[10px] text-on-surface/40">Visible result set size</span>
+      </div>
+      <div class="metric-card">
+        <span class="text-[10px] font-mono uppercase text-on-surface/40">Memory_Size</span>
+        <span class="font-headline text-3xl font-bold text-on-surface">${escapeHtml(
+            formatBytes(metrics.memoryBytes),
+        )}</span>
+        <span class="text-[10px] text-on-surface/40">Serialized result payload</span>
       </div>
       <div class="metric-card metric-card--accent">
         <span class="text-[10px] font-mono uppercase text-on-surface/40">Rows_Affected</span>

@@ -9,6 +9,11 @@ const COMPACT_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   dateStyle: "short",
   timeStyle: "short",
 });
+const EXECUTION_TIME_SECONDS_THRESHOLD_MS = 10000;
+const EXECUTION_TIME_SECONDS_FORMATTER = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
 
 export function escapeHtml(value = "") {
   return String(value)
@@ -73,6 +78,20 @@ export function formatDurationMs(value) {
   }
 
   return `${numericValue.toLocaleString("en-US")} ms`;
+}
+
+export function formatExecutionTimeMs(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    return "N/A";
+  }
+
+  if (numericValue > EXECUTION_TIME_SECONDS_THRESHOLD_MS) {
+    return `${EXECUTION_TIME_SECONDS_FORMATTER.format(numericValue / 1000)}s`;
+  }
+
+  return `${numericValue.toLocaleString("en-US")}ms`;
 }
 
 export function formatRelativeBoolean(value) {
