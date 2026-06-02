@@ -385,6 +385,13 @@ export function updateDataTableRow(tableName, payload) {
   });
 }
 
+export function previewDataTableRowUpdate(tableName, payload) {
+  return request(`/api/data/${encodeURIComponent(tableName)}/rows/preview-update`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export function deleteDataTableRow(tableName, payload) {
   return request(`/api/data/${encodeURIComponent(tableName)}/rows`, {
     method: "DELETE",

@@ -11,6 +11,7 @@
 - Removed pixel shift bug in SQL Editor on the bottom cards
 - title name changing depending on the menu
 - in messages you can see your executed query
+- secure execute for destructive queries
 
 # v0.9.3
 

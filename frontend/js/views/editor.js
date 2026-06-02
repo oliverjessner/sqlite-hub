@@ -4,7 +4,7 @@ import { renderQueryHistoryDetail } from '../components/queryHistoryDetail.js';
 import { renderQueryHistoryPanel } from '../components/queryHistoryPanel.js';
 import { renderRowEditorPanel } from '../components/rowEditorPanel.js';
 import { renderQueryResultsPane } from '../components/queryResults.js';
-import { getCurrentConnection, getQueryMessages, getQueryPerformance } from '../store.js';
+import { getQueryMessages, getQueryPerformance } from '../store.js';
 import { escapeHtml, formatBytes, formatCellValue, formatExecutionTimeMs, formatNumber, isBlobPreview } from '../utils/format.js';
 
 function renderMissingDatabase() {
@@ -244,7 +244,6 @@ function renderResultsSurface(state, isResultsRoute) {
 }
 
 export function renderEditorView(state, { isResultsRoute = false } = {}) {
-    const connection = getCurrentConnection(state);
     const editorSectionClass = state.editor.editorPanelVisible ? 'min-h-[27.5%] max-h-[60%]' : 'flex-none';
     const resultsSectionClass = 'flex-1';
 
@@ -261,7 +260,6 @@ export function renderEditorView(state, { isResultsRoute = false } = {}) {
                 historyTotal: state.editor.historyTotal,
                 editorVisible: state.editor.editorPanelVisible,
                 historyVisible: state.editor.historyPanelVisible,
-                title: connection?.label ?? 'SQLite Query Workspace',
             })}
           </section>
           <section class="${resultsSectionClass} flex min-h-0 min-w-0 flex-col overflow-hidden">

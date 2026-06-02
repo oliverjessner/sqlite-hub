@@ -543,6 +543,10 @@
     min-height: 13rem;
 }
 
+.sql-highlight-shell--compact {
+    min-height: 8rem;
+}
+
 .sql-highlight-shell--tall {
     min-height: 22rem;
 }

@@ -67,6 +67,20 @@ function createDataRouter({ dataBrowserService }) {
     })
   );
 
+  router.post(
+    "/:tableName/rows/preview-update",
+    route((req, res) => {
+      const data = dataBrowserService.previewTableRowUpdate(req.params.tableName, req.body ?? {});
+
+      res.json(
+        successResponse({
+          message: "Table row update preview generated.",
+          data,
+        })
+      );
+    })
+  );
+
   router.delete(
     "/:tableName/rows",
     route((req, res) => {

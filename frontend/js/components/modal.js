@@ -425,6 +425,98 @@ function renderDeleteRowConfirmForm(modal) {
   ].join("");
 }
 
+function renderRowUpdatePreviewForm(modal) {
+  const preview = modal.preview ?? {};
+  const changes = preview.changes ?? [];
+  const params = preview.params ?? [];
+  const warnings = preview.warnings ?? [];
+  const changesMarkup = changes.length
+    ? [
+        '<div class="overflow-hidden border border-outline-variant/10">',
+        '<table class="w-full text-left text-sm">',
+        '<thead class="bg-surface-container-highest text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">',
+        '<tr><th class="px-3 py-2">Column</th><th class="px-3 py-2">Old</th><th class="px-3 py-2">New</th></tr>',
+        '</thead><tbody class="divide-y divide-outline-variant/10">',
+        changes
+          .map(
+            change => `
+              <tr>
+                <td class="px-3 py-2 font-mono text-xs text-primary-container">${escapeHtml(change.column)}</td>
+                <td class="px-3 py-2 text-on-surface-variant/70">${escapeHtml(change.oldValue)}</td>
+                <td class="px-3 py-2 text-on-surface">${escapeHtml(change.newValue)}</td>
+              </tr>
+            `,
+          )
+          .join(''),
+        '</tbody></table></div>',
+      ].join('')
+    : '<div class="border border-outline-variant/10 bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant/65">No changed values were detected.</div>';
+  const paramsMarkup = params.length
+    ? `
+        <div class="space-y-2">
+          <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">Parameters</div>
+          <div class="space-y-2">
+            ${params
+              .map(
+                param => `
+                  <div class="flex gap-3 border border-outline-variant/10 bg-surface-container-low px-3 py-2 text-xs">
+                    <span class="font-mono text-primary-container">$${escapeHtml(param.index)}</span>
+                    <span class="min-w-0 break-words text-on-surface">${escapeHtml(param.value)}</span>
+                  </div>
+                `,
+              )
+              .join('')}
+          </div>
+        </div>
+      `
+    : '';
+  const warningsMarkup = warnings.length
+    ? `
+        <div class="space-y-2">
+          ${warnings
+            .map(
+              warning => `
+                <div class="border border-primary-container/20 bg-primary-container/10 px-4 py-3 text-sm text-on-surface">
+                  ${escapeHtml(warning)}
+                </div>
+              `,
+            )
+            .join('')}
+        </div>
+      `
+    : '';
+
+  return `
+    <form class="space-y-5" data-form="apply-row-update-preview">
+      <div class="space-y-2">
+        <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
+          ${escapeHtml(modal.tableName ?? 'Table Row')}
+        </div>
+        <p class="text-sm leading-7 text-on-surface-variant/70">
+          Review the SQL and changed values before applying this row update.
+        </p>
+      </div>
+      ${warningsMarkup}
+      <div class="space-y-2">
+        <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">SQL Preview</div>
+        ${renderSqlPreviewField(preview.sql ?? '', 'sql-highlight-shell--compact')}
+      </div>
+      <div class="space-y-2">
+        <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">Changed Values</div>
+        ${changesMarkup}
+      </div>
+      ${paramsMarkup}
+      ${renderError(modal.error)}
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button class="standard-button" data-action="close-modal" type="button">Cancel</button>
+        <button class="signature-button" type="submit">
+          ${modal.submitting ? 'Applying...' : 'Apply Changes'}
+        </button>
+      </div>
+    </form>
+  `;
+}
+
 function renderChartColumnOptions(analysis, { allowEmpty = false, includeNumericHint = false } = {}) {
   const options = allowEmpty ? [{ value: "", label: "None" }] : [];
 
@@ -869,6 +961,11 @@ export function renderModal(state) {
       title: "Delete Row",
       body: renderDeleteRowConfirmForm(modal),
     },
+    "row-update-preview": {
+      eyebrow: "Mutation // Review row update",
+      title: "Review Update",
+      body: renderRowUpdatePreviewForm(modal),
+    },
     "chart-editor": {
       eyebrow: "Charts // Configure query-based ECharts panel",
       title: modal.draft?.mode === "edit" ? "Edit Chart" : "New Chart",
@@ -904,7 +1001,7 @@ export function renderModal(state) {
 
   return `
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-4 backdrop-blur-sm">
-      <div class="w-full ${modal.kind === "chart-editor" ? "max-w-3xl" : "max-w-xl"} border border-outline-variant/20 bg-surface-container shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+      <div class="w-full ${modal.kind === "chart-editor" || modal.kind === "row-update-preview" ? "max-w-3xl" : "max-w-xl"} border border-outline-variant/20 bg-surface-container shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
         <div class="flex items-start justify-between gap-4 border-b border-outline-variant/10 bg-surface-container-low px-6 py-5">
           <div>
             <div class="text-[10px] font-mono uppercase tracking-[0.26em] text-primary-container/70">

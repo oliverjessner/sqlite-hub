@@ -52,6 +52,34 @@ function normalizePaginationOptions(options = {}) {
   };
 }
 
+function formatPreviewValue(value) {
+  if (value && typeof value === "object" && value.__type === "blob") {
+    return `BLOB ${value.sizeBytes ?? 0} bytes`;
+  }
+
+  if (value === null) {
+    return "NULL";
+  }
+
+  if (value === undefined) {
+    return "UNDEFINED";
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+function isUnchangedSubmittedValue(currentValue, submittedValue) {
+  if (currentValue === null && submittedValue === "") {
+    return true;
+  }
+
+  return formatPreviewValue(currentValue) === formatPreviewValue(submittedValue);
+}
+
 class DataBrowserService {
   constructor({ connectionManager }) {
     this.connectionManager = connectionManager;
@@ -153,52 +181,11 @@ class DataBrowserService {
     this.connectionManager.assertWritable();
 
     const db = this.connectionManager.getActiveDatabase();
-    const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
-    const values = payload.values ?? {};
-    const identity = payload.identity ?? null;
+    const updatePlan = this.buildUpdatePlan(db, tableName, payload);
 
-    if (tableDetail.notSafelyUpdatable) {
-      throw new ValidationError(
-        `Table ${tableName} cannot be safely updated because it has no stable row identity.`
-      );
-    }
+    db.prepare(updatePlan.sql).run(...updatePlan.params);
 
-    const identityColumnSet = new Set(
-      tableDetail.identityStrategy?.type === "primaryKey"
-        ? tableDetail.identityStrategy.columns
-        : []
-    );
-    const editableColumns = tableDetail.columns.filter(
-      (column) => column.visible && !column.generated && !identityColumnSet.has(column.name)
-    );
-    const columnsToUpdate = editableColumns.filter((column) =>
-      Object.prototype.hasOwnProperty.call(values, column.name)
-    );
-
-    if (!columnsToUpdate.length) {
-      throw new ValidationError("No editable column values were provided.");
-    }
-
-    const where = this.buildWhereClause(tableDetail, identity);
-    const setClause = columnsToUpdate
-      .map((column) => `${quoteIdentifier(column.name)} = ?`)
-      .join(", ");
-    const setParams = columnsToUpdate.map((column) =>
-      deserializeSqliteValue(values[column.name])
-    );
-
-    db.prepare(
-      [
-        "UPDATE",
-        quoteIdentifier(tableName),
-        "SET",
-        setClause,
-        "WHERE",
-        where.clause,
-      ].join(" ")
-    ).run(...setParams, ...where.params);
-
-    const updatedRow = this.getRowByIdentity(db, tableDetail, where);
+    const updatedRow = this.getRowByIdentity(db, updatePlan.tableDetail, updatePlan.where);
 
     if (!updatedRow) {
       throw new NotFoundError(`Row not found in table: ${tableName}`);
@@ -207,6 +194,24 @@ class DataBrowserService {
     return {
       tableName,
       row: updatedRow,
+    };
+  }
+
+  previewTableRowUpdate(tableName, payload = {}) {
+    this.connectionManager.assertWritable();
+
+    const db = this.connectionManager.getActiveDatabase();
+    const updatePlan = this.buildUpdatePlan(db, tableName, payload);
+
+    return {
+      tableName: updatePlan.tableDetail.name,
+      sql: updatePlan.sql,
+      params: updatePlan.params.map((value, index) => ({
+        index: index + 1,
+        value: formatPreviewValue(value),
+      })),
+      changes: updatePlan.changes,
+      warnings: updatePlan.warnings,
     };
   }
 
@@ -279,6 +284,81 @@ class DataBrowserService {
       `Table ${tableDetail.name} cannot be updated because it has no stable row identity.`
     );
   }
+
+  buildUpdatePlan(db, tableName, payload = {}) {
+    const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
+    const values = payload.values ?? {};
+    const identity = payload.identity ?? null;
+
+    if (tableDetail.notSafelyUpdatable) {
+      throw new ValidationError(
+        `Table ${tableName} cannot be safely updated because it has no stable row identity.`
+      );
+    }
+
+    const where = this.buildWhereClause(tableDetail, identity);
+    const currentRow = this.getRowByIdentity(db, tableDetail, where);
+
+    if (!currentRow) {
+      throw new NotFoundError(`Row not found in table: ${tableName}`);
+    }
+
+    const identityColumnSet = new Set(
+      tableDetail.identityStrategy?.type === "primaryKey"
+        ? tableDetail.identityStrategy.columns
+        : []
+    );
+    const editableColumns = tableDetail.columns.filter(
+      (column) => column.visible && !column.generated && !identityColumnSet.has(column.name)
+    );
+    const providedColumns = editableColumns.filter((column) =>
+      Object.prototype.hasOwnProperty.call(values, column.name)
+    );
+    const columnsToUpdate = providedColumns.filter(
+      (column) => !isUnchangedSubmittedValue(currentRow[column.name], values[column.name])
+    );
+
+    if (!columnsToUpdate.length) {
+      throw new ValidationError(
+        providedColumns.length
+          ? "No row values changed."
+          : "No editable column values were provided."
+      );
+    }
+
+    const setClause = columnsToUpdate
+      .map((column) => `${quoteIdentifier(column.name)} = ?`)
+      .join(", ");
+    const setParams = columnsToUpdate.map((column) =>
+      deserializeSqliteValue(values[column.name])
+    );
+    const sql = [
+      "UPDATE",
+      quoteIdentifier(tableDetail.name),
+      "SET",
+      setClause,
+      "WHERE",
+      where.clause,
+    ].join(" ");
+
+    return {
+      tableDetail,
+      where,
+      sql,
+      params: [...setParams, ...where.params],
+      changes: columnsToUpdate.map((column) => ({
+        column: column.name,
+        oldValue: formatPreviewValue(currentRow[column.name]),
+        newValue: formatPreviewValue(values[column.name]),
+      })),
+      warnings:
+        tableDetail.identityStrategy?.type === "primaryKey" &&
+        (tableDetail.identityStrategy.columns?.length ?? 0) > 1
+          ? ["This update targets a row through a composite primary key."]
+          : [],
+    };
+  }
+
   getRowByIdentity(db, tableDetail, where) {
     const selectExpression =
       tableDetail.identityStrategy?.type === "rowid" ? "rowid AS __rowid__, *" : "*";

@@ -16,8 +16,37 @@ function getSelectedRow(state) {
     return state.dataBrowser.table?.rows?.[rowIndex] ?? null;
 }
 
+function getFilteredTables(tables, searchQuery) {
+    const normalizedSearch = String(searchQuery ?? '')
+        .trim()
+        .toLowerCase();
+
+    if (!normalizedSearch) {
+        return tables;
+    }
+
+    return tables.filter(table => table.name.toLowerCase().includes(normalizedSearch));
+}
+
+function renderDataTableSearch(state) {
+    return `
+      <label class="table-designer-sidebar__search">
+        <span class="material-symbols-outlined text-sm text-on-surface-variant/55">search</span>
+        <input
+          class="table-designer-sidebar__search-input"
+          data-bind="data-table-search"
+          placeholder="Search tables..."
+          spellcheck="false"
+          type="search"
+          value="${escapeHtml(state.dataBrowser.tableSearchQuery ?? '')}"
+        />
+      </label>
+    `;
+}
+
 function renderTableList(state) {
     const tables = state.dataBrowser.tables ?? [];
+    const filteredTables = getFilteredTables(tables, state.dataBrowser.tableSearchQuery);
     const activeName = state.dataBrowser.selectedTable;
 
     if (state.dataBrowser.loading && !tables.length) {
@@ -39,10 +68,18 @@ function renderTableList(state) {
     `;
     }
 
+    if (!filteredTables.length) {
+        return `
+      <div class="px-6 py-6 text-sm text-on-surface-variant/55">
+        No tables match the current search.
+      </div>
+    `;
+    }
+
     return `
     <div class="custom-scrollbar flex-1 overflow-auto px-4 py-4">
       <div class="space-y-2">
-        ${tables
+        ${filteredTables
             .map(
                 table => `
               <button
@@ -556,6 +593,7 @@ export function renderDataView(state) {
                           total ${escapeHtml(formatNumber(state.dataBrowser.tables.length))}
                         </div>
                       </div>
+                      ${renderDataTableSearch(state)}
                       ${renderTableList(state)}
                     </aside>
                   `

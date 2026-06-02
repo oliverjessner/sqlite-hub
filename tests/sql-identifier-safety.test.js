@@ -8,6 +8,7 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
   const db = new Database(":memory:");
   const tableName = 'items" archived';
   const valueColumn = 'display"name';
+  const noteColumn = 'review"note';
 
   try {
     db.exec(
@@ -16,7 +17,9 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
         quoteIdentifier(tableName),
         "(",
         quoteIdentifier(valueColumn),
-        "TEXT, status INTEGER",
+        "TEXT, status INTEGER,",
+        quoteIdentifier(noteColumn),
+        "TEXT",
         ")",
       ].join(" ")
     );
@@ -24,10 +27,10 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
       [
         "INSERT INTO",
         quoteIdentifier(tableName),
-        "(" + quoteIdentifier(valueColumn) + ", status)",
-        "VALUES (?, ?)",
+        "(" + quoteIdentifier(valueColumn) + ", status, " + quoteIdentifier(noteColumn) + ")",
+        "VALUES (?, ?, ?)",
       ].join(" ")
-    ).run("before", 0);
+    ).run("before", 0, null);
 
     const service = new DataBrowserService({
       connectionManager: {
@@ -37,19 +40,56 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
     });
     const tableData = service.getTableData(tableName, { limit: 10, offset: 0 });
     const identity = tableData.rows[0].__identity;
+    const preview = service.previewTableRowUpdate(tableName, {
+      identity,
+      values: {
+        [valueColumn]: "after",
+        status: 0,
+        [noteColumn]: "",
+      },
+    });
+
+    assert.equal(
+      preview.sql,
+      [
+        "UPDATE",
+        quoteIdentifier(tableName),
+        "SET",
+        quoteIdentifier(valueColumn) + " = ?",
+        "WHERE",
+        "rowid IS ?",
+      ].join(" ")
+    );
+    assert.deepEqual(preview.changes, [
+      {
+        column: valueColumn,
+        oldValue: "before",
+        newValue: "after",
+      },
+    ]);
 
     const updated = service.updateTableRow(tableName, {
       identity,
       values: {
         [valueColumn]: "after",
+        [noteColumn]: "",
       },
     });
 
     assert.equal(updated.row[valueColumn], "after");
-    assert.equal(
-      db.prepare(["SELECT", quoteIdentifier(valueColumn), "FROM", quoteIdentifier(tableName)].join(" ")).get()[valueColumn],
-      "after"
-    );
+    assert.equal(updated.row[noteColumn], null);
+    const persistedRow = db.prepare(
+      [
+        "SELECT",
+        quoteIdentifier(valueColumn) + ",",
+        quoteIdentifier(noteColumn),
+        "FROM",
+        quoteIdentifier(tableName),
+      ].join(" ")
+    ).get();
+
+    assert.equal(persistedRow[valueColumn], "after");
+    assert.equal(persistedRow[noteColumn], null);
 
     const deleted = service.deleteTableRow(tableName, {
       identity: updated.row.__identity,

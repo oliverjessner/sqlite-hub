@@ -38,6 +38,7 @@ const UI_PREFERENCE_STORAGE_KEYS = {
     sqlEditorHistoryVisible: 'sqlite_hub_sql_editor_history_visible',
     sqlEditorEditorVisible: 'sqlite_hub_sql_editor_editor_visible',
     sqlEditorActiveTab: 'sqlite_hub_sql_editor_active_tab',
+    sqlEditorQueryDraft: 'sqlite_hub_sql_editor_query_draft',
     dataTablesVisible: 'sqlite_hub_data_tables_visible',
     structureTablesVisible: 'sqlite_hub_structure_tables_visible',
     chartsHistoryVisible: 'sqlite_hub_charts_history_visible',
@@ -100,6 +101,23 @@ function storeBoolean(key, value) {
         globalThis.localStorage?.setItem(key, String(Boolean(value)));
     } catch {
         // Ignore unavailable browser storage; the in-memory setting still applies.
+    }
+}
+
+function readStoredString(key, fallback = '') {
+    try {
+        const value = globalThis.localStorage?.getItem(key);
+        return value === null || value === undefined ? fallback : value;
+    } catch {
+        return fallback;
+    }
+}
+
+function storeString(key, value) {
+    try {
+        globalThis.localStorage?.setItem(key, String(value ?? ''));
+    } catch {
+        // Ignore unavailable browser storage; the in-memory value still applies.
     }
 }
 
@@ -193,6 +211,7 @@ const state = {
         sortColumn: null,
         sortDirection: null,
         searchQuery: '',
+        tableSearchQuery: '',
         searchColumn: '',
         selectedRowIndex: null,
         selectedRow: null,
@@ -202,7 +221,7 @@ const state = {
         saveError: null,
     },
     editor: {
-        sqlText: '',
+        sqlText: readStoredString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft),
         editorPanelVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.sqlEditorEditorVisible, true),
         history: [],
         historyPanelVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.sqlEditorHistoryVisible, true),
@@ -271,6 +290,7 @@ const state = {
         selectedName: null,
         detail: null,
         tablesVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.structureTablesVisible, true),
+        tableSearchQuery: '',
         loading: false,
         detailLoading: false,
         error: null,
@@ -527,6 +547,10 @@ function resetDataBrowserSearch() {
     state.dataBrowser.searchColumn = '';
 }
 
+function resetDataBrowserTableSearch() {
+    state.dataBrowser.tableSearchQuery = '';
+}
+
 function resetDataBrowserSort() {
     state.dataBrowser.sortColumn = null;
     state.dataBrowser.sortDirection = null;
@@ -707,7 +731,11 @@ function clearDataBrowserRowSelectionState() {
 }
 
 function resolveDataBrowserRowSelection(rowIndex, identity = null) {
-    const numericIndex = Number(rowIndex);
+    const hasRowIndex =
+        rowIndex !== null &&
+        rowIndex !== undefined &&
+        (typeof rowIndex !== 'string' || rowIndex.trim() !== '');
+    const numericIndex = hasRowIndex ? Number(rowIndex) : NaN;
 
     if (Number.isInteger(numericIndex) && numericIndex >= 0) {
         const indexedRow = state.dataBrowser.table?.rows?.[numericIndex] ?? null;
@@ -951,6 +979,7 @@ function setMissingDatabaseState() {
     state.dataBrowser.selectedTable = null;
     state.dataBrowser.table = null;
     state.dataBrowser.page = 1;
+    resetDataBrowserTableSearch();
     resetDataBrowserSort();
     resetDataBrowserSearch();
     clearDataBrowserRowSelectionState();
@@ -964,6 +993,7 @@ function setMissingDatabaseState() {
     state.structure.data = null;
     state.structure.detail = null;
     state.structure.tablesVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.structureTablesVisible, true);
+    state.structure.tableSearchQuery = '';
     state.structure.error = error;
 
     state.tableDesigner.loading = false;
@@ -1919,6 +1949,7 @@ function invalidateDatabaseCaches() {
     state.dataBrowser.selectedTable = null;
     state.dataBrowser.table = null;
     state.dataBrowser.page = 1;
+    resetDataBrowserTableSearch();
     resetDataBrowserSearch();
     clearDataBrowserRowSelectionState();
     state.dataBrowser.pendingOpenRow = null;
@@ -1939,6 +1970,7 @@ function invalidateDatabaseCaches() {
     state.structure.data = null;
     state.structure.detail = null;
     state.structure.tablesVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.structureTablesVisible, true);
+    state.structure.tableSearchQuery = '';
     state.mediaTagging.loading = false;
     state.mediaTagging.previewLoading = false;
     state.mediaTagging.saving = false;
@@ -2356,6 +2388,92 @@ export function closeModal() {
     closeModalInternal();
 }
 
+export async function openDataRowUpdatePreview(rowIndex, values, identity = null) {
+    const tableName = state.dataBrowser.selectedTable;
+    const selected = resolveDataBrowserRowSelection(rowIndex, identity);
+
+    if (!tableName || !selected.identity) {
+        pushToast('The selected row could not be loaded.', 'alert');
+        return null;
+    }
+
+    state.dataBrowser.saving = true;
+    state.dataBrowser.saveError = null;
+    emitChange();
+
+    try {
+        const response = await api.previewDataTableRowUpdate(tableName, {
+            identity: selected.identity,
+            values,
+        });
+
+        state.modal = {
+            kind: 'row-update-preview',
+            target: 'data',
+            tableName,
+            rowIndex: selected.rowIndex,
+            identity: selected.identity,
+            values,
+            preview: response.data,
+            error: null,
+            submitting: false,
+        };
+        emitChange();
+        return response.data;
+    } catch (error) {
+        state.dataBrowser.saveError = normalizeError(error);
+        emitChange();
+        return null;
+    } finally {
+        state.dataBrowser.saving = false;
+        emitChange();
+    }
+}
+
+export async function openEditorRowUpdatePreview(rowIndex, values) {
+    const numericIndex = Number(rowIndex);
+    const result = state.editor.result;
+    const row = result?.rows?.[numericIndex];
+    const tableName = result?.editing?.tableName ?? null;
+
+    if (!tableName || !row || !canEditQueryResult()) {
+        pushToast('The selected query result row could not be loaded.', 'alert');
+        return null;
+    }
+
+    state.editor.saving = true;
+    state.editor.saveError = null;
+    emitChange();
+
+    try {
+        const response = await api.previewDataTableRowUpdate(tableName, {
+            identity: row.__identity,
+            values,
+        });
+
+        state.modal = {
+            kind: 'row-update-preview',
+            target: 'editor',
+            tableName,
+            rowIndex: numericIndex,
+            identity: row.__identity,
+            values,
+            preview: response.data,
+            error: null,
+            submitting: false,
+        };
+        emitChange();
+        return response.data;
+    } catch (error) {
+        state.editor.saveError = normalizeError(error);
+        emitChange();
+        return null;
+    } finally {
+        state.editor.saving = false;
+        emitChange();
+    }
+}
+
 export function toggleChartsSqlPanel() {
     state.charts.sqlExpanded = !state.charts.sqlExpanded;
     emitChange();
@@ -2623,6 +2741,7 @@ export function setCurrentQuery(query) {
     const nextLineCount = Math.max(1, nextQuery.split('\n').length);
 
     state.editor.sqlText = nextQuery;
+    storeString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft, nextQuery);
 
     if (previousLineCount !== nextLineCount) {
         emitChange();
@@ -2631,6 +2750,7 @@ export function setCurrentQuery(query) {
 
 export function clearCurrentQuery() {
     state.editor.sqlText = '';
+    storeString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft, '');
     state.editor.result = null;
     state.editor.lastExecutedSql = '';
     resetEditorResultSort();
@@ -2696,6 +2816,8 @@ export async function executeCurrentQuery() {
         return true;
     } catch (error) {
         state.editor.error = normalizeError(error);
+        state.editor.activeTab = 'messages';
+        storeEditorActiveTab('messages');
         await refreshQueryHistoryState();
         return false;
     } finally {
@@ -2819,6 +2941,7 @@ export function openQueryHistoryInEditor(historyId, options = {}) {
     setActiveQueryHistoryItem(historyId);
     clearQueryHistoryDetailState();
     state.editor.sqlText = options.append ? [state.editor.sqlText.trim(), rawSql].filter(Boolean).join('\n\n') : rawSql;
+    storeString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft, state.editor.sqlText);
     emitChange();
     return true;
 }
@@ -2923,6 +3046,16 @@ export function toggleStructureTablesPanel() {
 
 export function setTableDesignerSearchQuery(query) {
     state.tableDesigner.searchQuery = String(query ?? '');
+    emitChange();
+}
+
+export function setDataTableSearchQuery(query) {
+    state.dataBrowser.tableSearchQuery = String(query ?? '');
+    emitChange();
+}
+
+export function setStructureTableSearchQuery(query) {
+    state.structure.tableSearchQuery = String(query ?? '');
     emitChange();
 }
 
@@ -3577,9 +3710,10 @@ export async function setDataPageSize(pageSize) {
     }
 }
 
-export async function submitDataRowUpdate(rowIndex, values, identity = null) {
+export async function submitDataRowUpdate(rowIndex, values, identity = null, options = {}) {
     const tableName = state.dataBrowser.selectedTable;
     const selected = resolveDataBrowserRowSelection(rowIndex, identity);
+    const reportErrorToModal = Boolean(options.reportErrorToModal);
 
     if (!tableName || !selected.identity) {
         pushToast('The selected row could not be loaded.', 'alert');
@@ -3601,8 +3735,12 @@ export async function submitDataRowUpdate(rowIndex, values, identity = null) {
         clearDataBrowserRowSelectionState();
         return response.data;
     } catch (error) {
-        state.dataBrowser.saveError = normalizeError(error);
-        emitChange();
+        if (reportErrorToModal) {
+            withModalError(error);
+        } else {
+            state.dataBrowser.saveError = normalizeError(error);
+            emitChange();
+        }
         return null;
     } finally {
         state.dataBrowser.saving = false;
@@ -3654,11 +3792,12 @@ export async function submitDataRowDelete(rowIndex, options = {}) {
     }
 }
 
-export async function submitEditorRowUpdate(rowIndex, values) {
+export async function submitEditorRowUpdate(rowIndex, values, options = {}) {
     const numericIndex = Number(rowIndex);
     const result = state.editor.result;
     const row = result?.rows?.[numericIndex];
     const tableName = result?.editing?.tableName ?? null;
+    const reportErrorToModal = Boolean(options.reportErrorToModal);
 
     if (!tableName || !row || !canEditQueryResult()) {
         pushToast('The selected query result row could not be loaded.', 'alert');
@@ -3688,8 +3827,12 @@ export async function submitEditorRowUpdate(rowIndex, values) {
         emitChange();
         return response.data;
     } catch (error) {
-        state.editor.saveError = normalizeError(error);
-        emitChange();
+        if (reportErrorToModal) {
+            withModalError(error);
+        } else {
+            state.editor.saveError = normalizeError(error);
+            emitChange();
+        }
         return null;
     } finally {
         state.editor.saving = false;
@@ -3758,6 +3901,29 @@ export async function submitDeleteRowConfirmation() {
             : await submitDataRowDelete(modal.rowIndex, {
                   reportErrorToModal: true,
                   identity: modal.identity ?? null,
+              });
+
+    if (result) {
+        closeModalInternal();
+    }
+
+    return result;
+}
+
+export async function submitRowUpdatePreviewConfirmation() {
+    const modal = state.modal;
+
+    if (modal?.kind !== 'row-update-preview') {
+        return null;
+    }
+
+    startModalSubmission();
+
+    const result =
+        modal.target === 'editor'
+            ? await submitEditorRowUpdate(modal.rowIndex, modal.values, { reportErrorToModal: true })
+            : await submitDataRowUpdate(modal.rowIndex, modal.values, modal.identity, {
+                  reportErrorToModal: true,
               });
 
     if (result) {
@@ -3988,12 +4154,12 @@ export function getQueryMessages(snapshot = state) {
 
     if (snapshot.editor.error) {
         return [
-            ...queryMessages,
             {
                 tone: 'alert',
                 label: snapshot.editor.error.code,
                 value: snapshot.editor.error.message,
             },
+            ...queryMessages,
         ];
     }
 
@@ -4008,7 +4174,6 @@ export function getQueryMessages(snapshot = state) {
     }
 
     return [
-        ...queryMessages,
         ...snapshot.editor.result.statements.map(statement => ({
             tone: statement.kind === 'resultSet' ? 'success' : inferStatusTone(statement.keyword),
             label: `${statement.keyword} #${statement.index + 1}`,
@@ -4017,6 +4182,7 @@ export function getQueryMessages(snapshot = state) {
                     ? `${statement.rowCount} row(s) returned.`
                     : `${statement.changes} row(s) affected.`,
         })),
+        ...queryMessages,
     ];
 }
 

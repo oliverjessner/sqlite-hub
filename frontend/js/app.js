@@ -49,6 +49,8 @@ import {
     openEditConnectionModal,
     openCreateQueryChartModal,
     openEditQueryChartModal,
+    openDataRowUpdatePreview,
+    openEditorRowUpdatePreview,
     refreshCurrentRoute,
     refreshMediaTaggingPreview,
     removeConnection,
@@ -66,6 +68,8 @@ import {
     selectStructureEntry,
     setTableDesignerSearchQuery,
     setTableDesignerSqlPreviewVisibility,
+    setDataTableSearchQuery,
+    setStructureTableSearchQuery,
     toggleStructureTablesPanel,
     setDataPage,
     setDataPageSize,
@@ -82,6 +86,7 @@ import {
     submitCreateMediaTaggingTagTable,
     submitCreateMediaTaggingMappingTable,
     submitDeleteQueryHistoryConfirmation,
+    submitRowUpdatePreviewConfirmation,
     setQueryHistoryPanelVisibility,
     sortDataTableByColumn,
     sortEditorResultsByColumn,
@@ -100,8 +105,6 @@ import {
     submitCreateConnection,
     createCurrentMediaTag,
     submitDeleteRowConfirmation,
-    submitDataRowUpdate,
-    submitEditorRowUpdate,
     submitEditConnection,
     submitImportSql,
     submitOpenConnection,
@@ -1775,6 +1778,16 @@ document.addEventListener('input', event => {
         return;
     }
 
+    if (bindNode.dataset.bind === 'data-table-search') {
+        setDataTableSearchQuery(bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'structure-table-search') {
+        setStructureTableSearchQuery(bindNode.value);
+        return;
+    }
+
     if (bindNode.dataset.bind === 'table-designer-search') {
         setTableDesignerSearchQuery(bindNode.value);
         return;
@@ -2055,6 +2068,9 @@ document.addEventListener('submit', async event => {
         case 'delete-query-history-confirm':
             await submitDeleteQueryHistoryConfirmation();
             return;
+        case 'apply-row-update-preview':
+            await submitRowUpdatePreviewConfirmation();
+            return;
         case 'create-media-tagging-tag-table':
             await submitCreateMediaTaggingTagTable();
             return;
@@ -2083,7 +2099,7 @@ document.addEventListener('submit', async event => {
                 }
             }
 
-            await submitDataRowUpdate(String(formData.get('rowIndex') ?? ''), values, rowIdentity);
+            await openDataRowUpdatePreview(String(formData.get('rowIndex') ?? ''), values, rowIdentity);
             return;
         }
         case 'save-editor-row': {
@@ -2097,7 +2113,7 @@ document.addEventListener('submit', async event => {
                 values[key.slice('field:'.length)] = String(value ?? '');
             }
 
-            await submitEditorRowUpdate(String(formData.get('rowIndex') ?? ''), values);
+            await openEditorRowUpdatePreview(String(formData.get('rowIndex') ?? ''), values);
             return;
         }
         case 'save-query-history-title': {

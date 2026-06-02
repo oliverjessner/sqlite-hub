@@ -2,7 +2,7 @@ import { clearInspector, renderDdlSection, renderInspector } from "../components
 import { escapeHtml, formatNumber } from "../utils/format.js";
 
 function renderEntryGroup(title, entries, activeName, options = {}) {
-  const { compact = false, showMeta = true } = options;
+  const { compact = false, showMeta = true, emptyMessage = null } = options;
   const entriesMarkup = entries.length
     ? [
         '<div class="space-y-2">',
@@ -51,8 +51,8 @@ function renderEntryGroup(title, entries, activeName, options = {}) {
       ].join("")
     : [
         '<div class="text-sm text-on-surface-variant/45">No ',
-        escapeHtml(title.toLowerCase()),
-        " found.</div>",
+        emptyMessage ? escapeHtml(emptyMessage) : `${escapeHtml(title.toLowerCase())} found.`,
+        "</div>",
       ].join("");
 
   return `
@@ -62,6 +62,34 @@ function renderEntryGroup(title, entries, activeName, options = {}) {
       </div>
       ${entriesMarkup}
     </section>
+  `;
+}
+
+function getFilteredTables(tables, searchQuery) {
+  const normalizedSearch = String(searchQuery ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalizedSearch) {
+    return tables;
+  }
+
+  return tables.filter((table) => table.name.toLowerCase().includes(normalizedSearch));
+}
+
+function renderStructureTableSearch(state) {
+  return `
+    <label class="table-designer-sidebar__search">
+      <span class="material-symbols-outlined text-sm text-on-surface-variant/55">search</span>
+      <input
+        class="table-designer-sidebar__search-input"
+        data-bind="structure-table-search"
+        placeholder="Search tables..."
+        spellcheck="false"
+        type="search"
+        value="${escapeHtml(state.structure.tableSearchQuery ?? "")}"
+      />
+    </label>
   `;
 }
 
@@ -308,6 +336,9 @@ function renderStructureWorkspaceHeader(structure, selectedName) {
 
 export function renderStructureView(state) {
   const structure = state.structure.data;
+  const filteredTables = structure
+    ? getFilteredTables(structure.grouped.tables ?? [], state.structure.tableSearchQuery)
+    : [];
   const detail =
     state.structure.detail?.name === state.structure.selectedName ? state.structure.detail : null;
   const tablesVisible = state.structure.tablesVisible !== false;
@@ -334,15 +365,22 @@ export function renderStructureView(state) {
                     )}
                   </div>
                 </div>
+                ${renderStructureTableSearch(state)}
                 <div class="structure-view__sidebar-body custom-scrollbar">
                   ${
                     structure
                       ? `
                           ${renderEntryGroup(
                             "Tables",
-                            structure.grouped.tables,
+                            filteredTables,
                             state.structure.selectedName,
-                            { compact: true, showMeta: false }
+                            {
+                              compact: true,
+                              showMeta: false,
+                              emptyMessage: state.structure.tableSearchQuery
+                                ? "tables match the current search."
+                                : null,
+                            }
                           )}
                           ${renderEntryGroup(
                             "Views",

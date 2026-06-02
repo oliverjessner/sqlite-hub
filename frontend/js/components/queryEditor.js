@@ -38,7 +38,6 @@ function renderEditorSurface({ query }) {
 
 export function renderQueryEditor({
   query,
-  title,
   executing = false,
   exporting = false,
   historyLoading = false,
@@ -48,13 +47,7 @@ export function renderQueryEditor({
 }) {
   const secondaryButtonClass = "standard-button";
   const left = `
-    <div class="flex items-center gap-2 bg-surface-container-lowest px-3 py-1">
-      <span class="material-symbols-outlined text-xs text-[#FCE300]">database</span>
-      <span class="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant">${escapeHtml(
-        title
-      )}</span>
-    </div>
-    <div class="hidden items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/40 md:flex">
+    <div class="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/40">
       <span class="material-symbols-outlined text-xs">history</span>
       ${historyLoading ? "Loading history..." : `${historyTotal} queries tracked`}
     </div>
