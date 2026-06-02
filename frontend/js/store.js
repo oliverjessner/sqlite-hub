@@ -30,7 +30,7 @@ const DEFAULT_SETTINGS = {
     csvDelimiter: ',',
 };
 const DEFAULT_DATA_PAGE_SIZE = 50;
-const DATA_PAGE_SIZES = [25, 50, 100];
+const DATA_PAGE_SIZES = [25, 50, 100, 250];
 const DATA_ROW_SIZE_STORAGE_KEY = 'data_row_size';
 const CHARTS_HISTORY_TAB_STORAGE_KEY = 'charts_history_tab';
 const QUERY_HISTORY_TAB_STORAGE_KEY = 'query_history_tab';

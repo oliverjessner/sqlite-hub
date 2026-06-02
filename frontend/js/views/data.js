@@ -279,15 +279,17 @@ function renderTableSearchBar(table, state, activeColumn, filteredRowCount) {
         return '';
     }
     const columnOptions = columns
-        .map(columnName => [
-            '<option value="',
-            escapeHtml(columnName),
-            '" ',
-            columnName === activeColumn ? 'selected' : '',
-            '>',
-            escapeHtml(columnName),
-            '</option>',
-        ].join(''))
+        .map(columnName =>
+            [
+                '<option value="',
+                escapeHtml(columnName),
+                '" ',
+                columnName === activeColumn ? 'selected' : '',
+                '>',
+                escapeHtml(columnName),
+                '</option>',
+            ].join(''),
+        )
         .join('');
 
     return [
@@ -361,7 +363,7 @@ function renderTableSurface(state) {
     const pageCount = table.pageCount ?? Math.max(1, Math.ceil(totalRows / (table.limit ?? 50)));
     const fromRow = totalRows === 0 ? 0 : (table.offset ?? 0) + 1;
     const toRow = totalRows === 0 ? 0 : Math.min((table.offset ?? 0) + (table.rows?.length ?? 0), totalRows);
-    const pageSizes = [25, 50, 100];
+    const pageSizes = Object.freeze([25, 50, 100, 250]);
     const filteredRowCount = filteredRows.length;
     const hasActiveSearch = Boolean(searchQuery);
     const gridMarkup = renderDataGrid({
@@ -378,7 +380,9 @@ function renderTableSurface(state) {
                 filteredIndex % 2 === 0 ? 'data-browser-row--even' : 'data-browser-row--odd',
                 state.dataBrowser.selectedRowIndex === rowIndex ? 'is-selected' : '',
                 'cursor-pointer transition-colors',
-            ].filter(Boolean).join(' ');
+            ]
+                .filter(Boolean)
+                .join(' ');
         },
         getRowAttrs: (_, filteredIndex) => {
             const rowIndex = filteredRows[filteredIndex]?.index ?? filteredIndex;
@@ -470,7 +474,10 @@ export function renderDataRowEditorPanel(state) {
             (foreignKey.mappings ?? []).map(mapping => String(mapping.from ?? '').trim()).filter(Boolean),
         ),
     );
-    const getColumnTypeBadge = column => String(column.declaredType || column.affinity || 'BLOB').trim().toUpperCase();
+    const getColumnTypeBadge = column =>
+        String(column.declaredType || column.affinity || 'BLOB')
+            .trim()
+            .toUpperCase();
     const getColumnNumberInputMeta = column => {
         const affinity = String(column.affinity ?? '').toUpperCase();
 

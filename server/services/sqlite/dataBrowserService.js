@@ -9,7 +9,7 @@ const { getRawStructureEntries, getTableDetail } = require("./introspection");
 const { buildTableOrderClause, normalizeTableSort } = require("./tableSort");
 
 const DEFAULT_LIMIT = 50;
-const MAX_LIMIT = 100;
+const MAX_LIMIT = 250;
 
 function buildRowIdentity(tableDetail, row) {
   if (tableDetail.identityStrategy?.type === "rowid") {
