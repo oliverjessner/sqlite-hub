@@ -39,6 +39,42 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
       },
     });
     const tableData = service.getTableData(tableName, { limit: 10, offset: 0 });
+    const filteredTableData = service.getTableData(tableName, {
+      limit: 10,
+      offset: 0,
+      filterColumn: valueColumn,
+      filterOperator: "=",
+      filterValue: "EFO",
+    });
+    const negativeFilteredTableData = service.getTableData(tableName, {
+      limit: 10,
+      offset: 0,
+      filterColumn: valueColumn,
+      filterOperator: "!=",
+      filterValue: "EFO",
+    });
+
+    assert.equal(filteredTableData.rowCount, 1);
+    assert.equal(filteredTableData.rows[0][valueColumn], "before");
+    assert.deepEqual(filteredTableData.filter, {
+      column: valueColumn,
+      operator: "=",
+      value: "EFO",
+      matchMode: "contains",
+    });
+    assert.equal(negativeFilteredTableData.rowCount, 0);
+    assert.throws(
+      () =>
+        service.getTableData(tableName, {
+          limit: 10,
+          offset: 0,
+          filterColumn: valueColumn,
+          filterOperator: "<>",
+          filterValue: "before",
+        }),
+      /filterOperator/
+    );
+
     const identity = tableData.rows[0].__identity;
     const preview = service.previewTableRowUpdate(tableName, {
       identity,

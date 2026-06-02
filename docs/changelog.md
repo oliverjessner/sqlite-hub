@@ -12,6 +12,8 @@
 - title name changing depending on the menu
 - in messages you can see your executed query
 - secure execute for destructive queries
+- 250 page size, advanced search in data
+- better error in sql edito
 
 # v0.9.3
 

@@ -73,6 +73,7 @@ import {
     toggleStructureTablesPanel,
     setDataPage,
     setDataPageSize,
+    setDataFilterOperator,
     setDataSearchColumn,
     setDataSearchQuery,
     toggleDataTablesPanel,
@@ -1774,7 +1775,7 @@ document.addEventListener('input', event => {
     }
 
     if (bindNode.dataset.bind === 'data-search-query') {
-        setDataSearchQuery(bindNode.value);
+        void setDataSearchQuery(bindNode.value);
         return;
     }
 
@@ -1883,7 +1884,12 @@ document.addEventListener('change', event => {
     }
 
     if (bindNode.dataset.bind === 'data-search-column') {
-        setDataSearchColumn(bindNode.value);
+        void setDataSearchColumn(bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'data-filter-operator') {
+        void setDataFilterOperator(bindNode.value);
         return;
     }
 

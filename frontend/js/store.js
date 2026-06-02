@@ -31,6 +31,7 @@ const DEFAULT_SETTINGS = {
 };
 const DEFAULT_DATA_PAGE_SIZE = 50;
 const DATA_PAGE_SIZES = [25, 50, 100, 250];
+const DATA_FILTER_OPERATORS = new Set(['=', '!=', '<', '>', '<=', '>=']);
 const DATA_ROW_SIZE_STORAGE_KEY = 'data_row_size';
 const CHARTS_HISTORY_TAB_STORAGE_KEY = 'charts_history_tab';
 const QUERY_HISTORY_TAB_STORAGE_KEY = 'query_history_tab';
@@ -213,6 +214,7 @@ const state = {
         searchQuery: '',
         tableSearchQuery: '',
         searchColumn: '',
+        filterOperator: '=',
         selectedRowIndex: null,
         selectedRow: null,
         pendingOpenRow: null,
@@ -545,6 +547,7 @@ function canEditQueryResult(snapshot = state) {
 function resetDataBrowserSearch() {
     state.dataBrowser.searchQuery = '';
     state.dataBrowser.searchColumn = '';
+    state.dataBrowser.filterOperator = '=';
 }
 
 function resetDataBrowserTableSearch() {
@@ -1512,6 +1515,9 @@ async function loadDataTable(version) {
             offset: (page - 1) * pageSize,
             sortColumn,
             sortDirection,
+            filterColumn: state.dataBrowser.searchColumn,
+            filterOperator: state.dataBrowser.filterOperator,
+            filterValue: state.dataBrowser.searchQuery,
         });
 
         if (version !== routeLoadVersion) {
@@ -1523,9 +1529,17 @@ async function loadDataTable(version) {
         state.dataBrowser.page = response.data?.page ?? page;
         state.dataBrowser.sortColumn = response.data?.sort?.column ?? null;
         state.dataBrowser.sortDirection = response.data?.sort?.direction ?? null;
-        state.dataBrowser.searchColumn = response.data?.columns?.includes(state.dataBrowser.searchColumn)
-            ? state.dataBrowser.searchColumn
-            : (response.data?.columns?.[0] ?? '');
+        const responseColumns = response.data?.columns ?? [];
+        const responseFilter = response.data?.filter ?? null;
+
+        state.dataBrowser.searchColumn =
+            responseFilter?.column ??
+            (responseColumns.includes(state.dataBrowser.searchColumn)
+                ? state.dataBrowser.searchColumn
+                : (responseColumns[0] ?? ''));
+        state.dataBrowser.filterOperator = DATA_FILTER_OPERATORS.has(responseFilter?.operator)
+            ? responseFilter.operator
+            : state.dataBrowser.filterOperator;
         clearDataBrowserRowSelectionState();
         await resolvePendingDataBrowserRow(version);
     } catch (error) {
@@ -3627,18 +3641,55 @@ export function clearDataRowSelection(options = {}) {
     }
 }
 
-export function setDataSearchQuery(query) {
-    state.dataBrowser.searchQuery = String(query ?? '');
-    clearDataBrowserRowSelectionState();
-    state.dataBrowser.saveError = null;
-    emitChange();
+async function reloadDataTableForFilterChange() {
+    if (state.route.name === 'data' && state.dataBrowser.selectedTable) {
+        await loadDataTable(++routeLoadVersion);
+    }
 }
 
-export function setDataSearchColumn(columnName) {
-    state.dataBrowser.searchColumn = String(columnName ?? '');
+export async function setDataSearchQuery(query) {
+    const nextQuery = String(query ?? '');
+
+    if (state.dataBrowser.searchQuery === nextQuery) {
+        return;
+    }
+
+    state.dataBrowser.searchQuery = nextQuery;
+    state.dataBrowser.page = 1;
     clearDataBrowserRowSelectionState();
     state.dataBrowser.saveError = null;
     emitChange();
+    await reloadDataTableForFilterChange();
+}
+
+export async function setDataSearchColumn(columnName) {
+    const nextColumnName = String(columnName ?? '');
+
+    if (state.dataBrowser.searchColumn === nextColumnName) {
+        return;
+    }
+
+    state.dataBrowser.searchColumn = nextColumnName;
+    state.dataBrowser.page = 1;
+    clearDataBrowserRowSelectionState();
+    state.dataBrowser.saveError = null;
+    emitChange();
+    await reloadDataTableForFilterChange();
+}
+
+export async function setDataFilterOperator(operator) {
+    const nextOperator = String(operator ?? '=').trim();
+
+    if (!DATA_FILTER_OPERATORS.has(nextOperator) || state.dataBrowser.filterOperator === nextOperator) {
+        return;
+    }
+
+    state.dataBrowser.filterOperator = nextOperator;
+    state.dataBrowser.page = 1;
+    clearDataBrowserRowSelectionState();
+    state.dataBrowser.saveError = null;
+    emitChange();
+    await reloadDataTableForFilterChange();
 }
 
 export function toggleDataTablesPanel() {

@@ -28,6 +28,9 @@ function createDataRouter({ dataBrowserService }) {
         offset: req.query.offset,
         sortColumn: req.query.sortColumn,
         sortDirection: req.query.sortDirection,
+        filterColumn: req.query.filterColumn,
+        filterOperator: req.query.filterOperator,
+        filterValue: req.query.filterValue,
       });
 
       res.json(

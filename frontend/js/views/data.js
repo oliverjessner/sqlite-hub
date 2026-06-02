@@ -240,44 +240,39 @@ function renderSortableHeader(columnName, sortColumn, sortDirection, action) {
   `;
 }
 
-function getFilteredTableRows(table, state) {
-    const allRows = table?.rows ?? [];
+function getActiveFilterColumn(table, state) {
     const availableColumns = table?.columns ?? [];
-    const searchQuery = String(state.dataBrowser.searchQuery ?? '')
-        .trim()
-        .toLowerCase();
-    const activeColumn = availableColumns.includes(state.dataBrowser.searchColumn)
+
+    return availableColumns.includes(state.dataBrowser.searchColumn)
         ? state.dataBrowser.searchColumn
         : (availableColumns[0] ?? '');
-
-    const indexedRows = allRows.map((row, index) => ({
-        row,
-        index,
-    }));
-
-    if (!searchQuery || !activeColumn) {
-        return {
-            activeColumn,
-            filteredRows: indexedRows,
-            searchQuery,
-        };
-    }
-
-    return {
-        activeColumn,
-        searchQuery,
-        filteredRows: indexedRows.filter(({ row }) =>
-            formatCellValue(row[activeColumn]).toLowerCase().includes(searchQuery),
-        ),
-    };
 }
 
-function renderTableSearchBar(table, state, activeColumn, filteredRowCount) {
+function isTextFilterColumn(table, columnName) {
+    const column = (table?.columnMeta ?? []).find(item => item.name === columnName);
+
+    return String(column?.affinity ?? '').toUpperCase() === 'TEXT';
+}
+
+function getFilterOperatorLabel(operator, textColumn) {
+    if (textColumn && operator === '=') {
+        return 'contains';
+    }
+
+    if (textColumn && operator === '!=') {
+        return 'not contains';
+    }
+
+    return operator;
+}
+
+function renderTableFilterBar(table, state, activeColumn) {
     const columns = table?.columns ?? [];
 
     if (!table || !columns.length) {
         return '';
     }
+
     const columnOptions = columns
         .map(columnName =>
             [
@@ -291,22 +286,38 @@ function renderTableSearchBar(table, state, activeColumn, filteredRowCount) {
             ].join(''),
         )
         .join('');
+    const operators = ['=', '!=', '<', '>', '<=', '>='];
+    const activeOperator = operators.includes(state.dataBrowser.filterOperator) ? state.dataBrowser.filterOperator : '=';
+    const activeColumnIsText = isTextFilterColumn(table, activeColumn);
+    const operatorOptions = operators
+        .map(operator =>
+            [
+                '<option value="',
+                escapeHtml(operator),
+                '" ',
+                operator === activeOperator ? 'selected' : '',
+                '>',
+                escapeHtml(getFilterOperatorLabel(operator, activeColumnIsText)),
+                '</option>',
+            ].join(''),
+        )
+        .join('');
+    const filterValue = String(state.dataBrowser.searchQuery ?? '');
 
     return [
         '<div class="flex flex-wrap items-center gap-3 border-b border-outline-variant/10 bg-surface-container-low px-6 py-4">',
-        '<label class="control-shell flex min-w-[18rem] flex-1 items-center gap-3 border border-outline-variant/20 bg-surface-container-lowest px-3">',
-        '<span class="material-symbols-outlined text-base text-on-surface-variant/55">search</span>',
-        '<input class="control-input control-input--ghost min-w-0 flex-1 text-sm text-on-surface outline-none placeholder:text-on-surface-variant/40" data-bind="data-search-query" placeholder="Filter current page..." type="search" value="',
-        escapeHtml(state.dataBrowser.searchQuery ?? ''),
-        '" /></label>',
+        '<span class="material-symbols-outlined text-base text-on-surface-variant/55">filter_alt</span>',
         '<select class="control-select min-w-[14rem] border border-outline-variant/20 bg-surface-container-lowest font-mono text-xs tracking-[0.04em] text-on-surface outline-none" data-bind="data-search-column">',
         columnOptions,
         '</select>',
-        '<div class="text-[10px] font-mono tracking-[0.14em] text-on-surface-variant/55">',
-        escapeHtml(formatNumber(filteredRowCount)),
-        ' match',
-        filteredRowCount === 1 ? '' : 'es',
-        ' on this page</div></div>',
+        '<select class="control-select min-w-[7rem] border border-outline-variant/20 bg-surface-container-lowest font-mono text-xs tracking-[0.04em] text-on-surface outline-none" data-bind="data-filter-operator">',
+        operatorOptions,
+        '</select>',
+        '<label class="control-shell flex min-w-[18rem] flex-1 items-center gap-3 border border-outline-variant/20 bg-surface-container-lowest px-3">',
+        '<input class="control-input control-input--ghost min-w-0 flex-1 text-sm text-on-surface outline-none placeholder:text-on-surface-variant/40" data-bind="data-search-query" placeholder="Value..." type="search" value="',
+        escapeHtml(filterValue),
+        '" /></label>',
+        '</div>',
     ].join('');
 }
 
@@ -339,7 +350,11 @@ function renderTableSurface(state) {
     `;
     }
 
-    const { activeColumn, filteredRows, searchQuery } = getFilteredTableRows(table, state);
+    const activeColumn = getActiveFilterColumn(table, state);
+    const indexedRows = (table.rows ?? []).map((row, index) => ({
+        row,
+        index,
+    }));
     const sortColumn = state.dataBrowser.sortColumn;
     const sortDirection = state.dataBrowser.sortDirection;
     const columns = (table.columns ?? []).map(columnName => ({
@@ -364,45 +379,40 @@ function renderTableSurface(state) {
     const fromRow = totalRows === 0 ? 0 : (table.offset ?? 0) + 1;
     const toRow = totalRows === 0 ? 0 : Math.min((table.offset ?? 0) + (table.rows?.length ?? 0), totalRows);
     const pageSizes = Object.freeze([25, 50, 100, 250]);
-    const filteredRowCount = filteredRows.length;
-    const hasActiveSearch = Boolean(searchQuery);
+    const hasActiveFilter = Boolean(String(state.dataBrowser.searchQuery ?? '').trim() && activeColumn);
     const gridMarkup = renderDataGrid({
         columns,
-        rows: filteredRows.map(({ row }) => row),
+        rows: indexedRows.map(({ row }) => row),
         tableClass: 'min-w-full border-collapse text-left font-mono text-xs',
         theadClass: 'sticky top-0 z-10 bg-surface-container-highest',
         tbodyClass: 'divide-y divide-outline-variant/5',
-        getRowClass: (_, filteredIndex) => {
-            const rowIndex = filteredRows[filteredIndex]?.index ?? filteredIndex;
+        getRowClass: (_, rowIndexOnPage) => {
+            const rowIndex = indexedRows[rowIndexOnPage]?.index ?? rowIndexOnPage;
 
             return [
                 'data-browser-row',
-                filteredIndex % 2 === 0 ? 'data-browser-row--even' : 'data-browser-row--odd',
+                rowIndexOnPage % 2 === 0 ? 'data-browser-row--even' : 'data-browser-row--odd',
                 state.dataBrowser.selectedRowIndex === rowIndex ? 'is-selected' : '',
                 'cursor-pointer transition-colors',
             ]
                 .filter(Boolean)
                 .join(' ');
         },
-        getRowAttrs: (_, filteredIndex) => {
-            const rowIndex = filteredRows[filteredIndex]?.index ?? filteredIndex;
+        getRowAttrs: (_, rowIndexOnPage) => {
+            const rowIndex = indexedRows[rowIndexOnPage]?.index ?? rowIndexOnPage;
 
             return ['data-action="select-data-row" data-row-index="', rowIndex, '"'].join('');
         },
     });
     const emptyMarkup = !table.rows?.length
-        ? '<div class="flex min-h-[180px] items-center justify-center border-t border-outline-variant/10"><p class="font-mono text-[10px] uppercase tracking-[0.22em] text-on-surface-variant/40">TABLE_IS_EMPTY</p></div>'
-        : !filteredRowCount
-          ? [
-                '<div class="flex min-h-[180px] items-center justify-center border-t border-outline-variant/10">',
-                '<p class="font-mono text-[10px] tracking-[0.18em] text-on-surface-variant/40">',
-                hasActiveSearch ? 'No matching rows on this page.' : 'No rows available.',
-                '</p></div>',
-            ].join('')
-          : '';
-    const visibleRowsText = hasActiveSearch
-        ? [' // ', escapeHtml(formatNumber(filteredRowCount)), ' visible on this page'].join('')
+        ? [
+              '<div class="flex min-h-[180px] items-center justify-center border-t border-outline-variant/10">',
+              '<p class="font-mono text-[10px] uppercase tracking-[0.22em] text-on-surface-variant/40">',
+              hasActiveFilter ? 'NO_ROWS_MATCH_FILTER' : 'TABLE_IS_EMPTY',
+              '</p></div>',
+          ].join('')
         : '';
+    const filteredRowsText = hasActiveFilter ? ' filtered' : '';
     const pageSizeButtons = pageSizes
         .map(pageSize =>
             [
@@ -419,7 +429,7 @@ function renderTableSurface(state) {
 
     return [
         '<div class="flex flex-1 min-h-0 flex-col bg-surface-container-lowest">',
-        renderTableSearchBar(table, state, activeColumn, filteredRowCount),
+        renderTableFilterBar(table, state, activeColumn),
         '<div class="custom-scrollbar flex-1 overflow-auto">',
         gridMarkup,
         emptyMarkup,
@@ -431,8 +441,8 @@ function renderTableSurface(state) {
         escapeHtml(formatNumber(toRow)),
         ' of ',
         escapeHtml(formatNumber(totalRows)),
+        filteredRowsText,
         ' rows',
-        visibleRowsText,
         '</div>',
         '<div class="flex flex-wrap items-center gap-4"><div class="flex items-center gap-2">',
         '<span class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">rows</span>',

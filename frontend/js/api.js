@@ -366,6 +366,15 @@ export function getDataTable(tableName, options = {}) {
     params.set("sortDirection", String(options.sortDirection));
   }
 
+  const filterColumn = String(options.filterColumn ?? "").trim();
+  const filterValue = String(options.filterValue ?? "");
+
+  if (filterColumn && filterValue.trim()) {
+    params.set("filterColumn", filterColumn);
+    params.set("filterOperator", String(options.filterOperator ?? "="));
+    params.set("filterValue", filterValue);
+  }
+
   const query = params.toString();
 
   return request(`/api/data/${encodeURIComponent(tableName)}${query ? `?${query}` : ""}`);
