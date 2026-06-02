@@ -29,16 +29,23 @@ function renderMessagesPane(state) {
       <div class="space-y-4">
         ${items
             .map(
-                item => `
+                item => {
+                    const valueClass =
+                        item.kind === 'query'
+                            ? 'mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-6 text-on-surface'
+                            : 'mt-2 text-sm text-on-surface';
+
+                    return `
               <div class="border border-outline-variant/10 bg-surface-container-low px-4 py-4">
                 <div class="text-[10px] font-mono uppercase tracking-[0.2em] ${
                     item.tone === 'alert' ? 'text-error' : 'text-primary-container'
                 }">
                   ${escapeHtml(item.label)}
                 </div>
-                <div class="mt-2 text-sm text-on-surface">${escapeHtml(item.value)}</div>
+                <div class="${valueClass}">${escapeHtml(item.value)}</div>
               </div>
-            `,
+            `;
+                },
             )
             .join('')}
       </div>

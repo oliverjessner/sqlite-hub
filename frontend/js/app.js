@@ -75,6 +75,7 @@ import {
     setCurrentQuery,
     setChartsHeightPreset,
     setChartsHistoryTab,
+    setChartsHistoryPanelVisibility,
     setEditorPanelVisibility,
     setEditorTab,
     submitDeleteChartConfirmation,
@@ -163,8 +164,45 @@ let pendingNewTableDesignerAutofocus = false;
 let pendingQueryEditorFocus = false;
 let pendingMediaTaggingTagSearchFocus = false;
 
+const APP_TITLE = 'SQLite Hub';
+const ROUTE_TITLE_SEGMENTS = {
+    connections: 'Connections',
+    overview: 'Overview',
+    data: 'Data',
+    structure: 'Structure',
+    editor: 'SQL Editor',
+    editorResults: 'SQL Editor',
+    charts: 'Charts',
+    tableDesigner: 'Table Designer',
+    mediaTaggingSetup: 'Media Tagging',
+    mediaTaggingQueue: 'Tagging Queue',
+    settings: 'Settings',
+    notFound: 'Not Found',
+};
+
 function invalidateMainRenderCache() {
     lastRenderedMainMarkup = null;
+}
+
+function isSqlEditorRouteName(routeName) {
+    return routeName === 'editor' || routeName === 'editorResults';
+}
+
+function resolveDocumentTitle(state) {
+    if (isSqlEditorRouteName(state.route.name) && state.editor.executing) {
+        return `${APP_TITLE} | Running`;
+    }
+
+    const segment = ROUTE_TITLE_SEGMENTS[state.route.name];
+    return segment ? `${APP_TITLE} | ${segment}` : APP_TITLE;
+}
+
+function syncDocumentTitle(state) {
+    const nextTitle = resolveDocumentTitle(state);
+
+    if (document.title !== nextTitle) {
+        document.title = nextTitle;
+    }
 }
 
 function isMediaTaggingRouteName(routeName) {
@@ -589,7 +627,7 @@ function buildChartsHistorySignature(state) {
         return '';
     }
 
-    const historyVisible = state.editor.historyPanelVisible !== false || !state.charts.selectedHistoryId;
+    const historyVisible = state.charts.historyPanelVisible !== false || !state.charts.selectedHistoryId;
 
     if (!historyVisible) {
         return 'charts-history:hidden';
@@ -691,7 +729,7 @@ function patchChartsDetailUi(state) {
         return false;
     }
 
-    const historyVisible = state.editor.historyPanelVisible !== false || !state.charts.selectedHistoryId;
+    const historyVisible = state.charts.historyPanelVisible !== false || !state.charts.selectedHistoryId;
     const sidebarNode = chartsView.querySelector('.charts-view__sidebar');
 
     if (Boolean(sidebarNode) !== historyVisible) {
@@ -1033,6 +1071,8 @@ async function handleTableDesignerCsvImport(fileInput) {
 }
 
 function renderApp(state) {
+    syncDocumentTitle(state);
+
     const previousRoutePath = lastRenderedRoutePath;
     const previousRouteName = lastRenderedRouteName;
     const { main, panel } = resolveView(state);
@@ -1208,7 +1248,8 @@ const router = createRouter(route => {
 
 async function executeEditorQueryAndNavigate() {
     const success = await executeCurrentQuery();
-    router.navigate(success ? '/editor/results' : '/editor');
+    const activeTab = getState().editor.activeTab;
+    router.navigate(success && activeTab === 'results' ? '/editor/results' : '/editor');
 }
 
 async function handleAction(actionNode) {
@@ -1337,9 +1378,15 @@ async function handleAction(actionNode) {
             }
             return;
         case 'toggle-query-history-panel':
-            setQueryHistoryPanelVisibility(
-                actionNode.dataset.nextValue ? actionNode.dataset.nextValue === 'true' : undefined,
-            );
+            if (getState().route.name === 'charts') {
+                setChartsHistoryPanelVisibility(
+                    actionNode.dataset.nextValue ? actionNode.dataset.nextValue === 'true' : undefined,
+                );
+            } else {
+                setQueryHistoryPanelVisibility(
+                    actionNode.dataset.nextValue ? actionNode.dataset.nextValue === 'true' : undefined,
+                );
+            }
             return;
         case 'toggle-editor-panel':
             setEditorPanelVisibility(
@@ -1357,7 +1404,8 @@ async function handleAction(actionNode) {
         case 'run-query-history':
             if (actionNode.dataset.historyId) {
                 const success = await runQueryHistoryItem(actionNode.dataset.historyId);
-                router.navigate(success ? '/editor/results' : '/editor');
+                const activeTab = getState().editor.activeTab;
+                router.navigate(success && activeTab === 'results' ? '/editor/results' : '/editor');
             }
             return;
         case 'toggle-query-history-saved':

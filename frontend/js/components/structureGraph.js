@@ -6,6 +6,33 @@ let cytoscapeFactory = null;
 let currentGraph = null;
 let mountVersion = 0;
 let persistedGraphState = null;
+const STRUCTURE_INSPECTOR_VISIBLE_STORAGE_KEY = 'sqlite_hub_structure_inspector_visible';
+
+function readStoredInspectorHidden() {
+    try {
+        const value = globalThis.localStorage?.getItem(STRUCTURE_INSPECTOR_VISIBLE_STORAGE_KEY);
+
+        if (value === 'true') {
+            return false;
+        }
+
+        if (value === 'false') {
+            return true;
+        }
+
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+function storeInspectorHidden(hidden) {
+    try {
+        globalThis.localStorage?.setItem(STRUCTURE_INSPECTOR_VISIBLE_STORAGE_KEY, String(!hidden));
+    } catch {
+        // Ignore unavailable browser storage; the in-memory setting still applies.
+    }
+}
 
 function getTableId(tableName) {
     return `table:${tableName}`;
@@ -690,6 +717,7 @@ export function setupToolbar(cy) {
                 break;
             case 'toggle-inspector':
                 currentGraph.inspectorHidden = !currentGraph.inspectorHidden;
+                storeInspectorHidden(currentGraph.inspectorHidden);
                 updateInspectorToggleButton();
                 syncInspectorLayout();
                 break;
@@ -765,7 +793,7 @@ export async function mountStructureGraph(snapshot) {
         resizeHandler: null,
         openDataButton: null,
         inspectorToggleButton: null,
-        inspectorHidden: cachedState?.inspectorHidden ?? false,
+        inspectorHidden: cachedState?.inspectorHidden ?? readStoredInspectorHidden(),
         persistStateOnDestroy: true,
         selectedTableName: null,
     };

@@ -9,6 +9,8 @@
 - The Performance panel in the SQL Editor shows query memory size.
 - The Structure view remembers the last selected table.
 - Removed pixel shift bug in SQL Editor on the bottom cards
+- title name changing depending on the menu
+- in messages you can see your executed query
 
 # v0.9.3
 

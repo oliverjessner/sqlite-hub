@@ -34,9 +34,20 @@ const DATA_PAGE_SIZES = [25, 50, 100];
 const DATA_ROW_SIZE_STORAGE_KEY = 'data_row_size';
 const CHARTS_HISTORY_TAB_STORAGE_KEY = 'charts_history_tab';
 const QUERY_HISTORY_TAB_STORAGE_KEY = 'query_history_tab';
+const UI_PREFERENCE_STORAGE_KEYS = {
+    sqlEditorHistoryVisible: 'sqlite_hub_sql_editor_history_visible',
+    sqlEditorEditorVisible: 'sqlite_hub_sql_editor_editor_visible',
+    sqlEditorActiveTab: 'sqlite_hub_sql_editor_active_tab',
+    dataTablesVisible: 'sqlite_hub_data_tables_visible',
+    structureTablesVisible: 'sqlite_hub_structure_tables_visible',
+    chartsHistoryVisible: 'sqlite_hub_charts_history_visible',
+    chartsResultsVisible: 'sqlite_hub_charts_results_visible',
+    tableDesignerSqlPreviewVisible: 'sqlite_hub_table_designer_sql_preview_visible',
+};
 const QUERY_HISTORY_PAGE_SIZE = 30;
 const QUERY_HISTORY_RUN_LIMIT = 8;
 const CHART_HEIGHT_PRESETS = new Set(['small', 'medium', 'large']);
+const EDITOR_RESULT_TABS = new Set(['results', 'performance', 'messages']);
 const MISSING_DATABASE_ERROR = {
     code: 'ACTIVE_DATABASE_REQUIRED',
     message: 'No active SQLite database selected.',
@@ -61,6 +72,53 @@ function readStoredDataPageSize(fallback = DEFAULT_DATA_PAGE_SIZE) {
 function storeDataPageSize(pageSize) {
     try {
         globalThis.localStorage?.setItem(DATA_ROW_SIZE_STORAGE_KEY, String(pageSize));
+    } catch {
+        // Ignore unavailable browser storage; the in-memory setting still applies.
+    }
+}
+
+function readStoredBoolean(key, fallback) {
+    try {
+        const value = globalThis.localStorage?.getItem(key);
+
+        if (value === 'true') {
+            return true;
+        }
+
+        if (value === 'false') {
+            return false;
+        }
+
+        return fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+function storeBoolean(key, value) {
+    try {
+        globalThis.localStorage?.setItem(key, String(Boolean(value)));
+    } catch {
+        // Ignore unavailable browser storage; the in-memory setting still applies.
+    }
+}
+
+function readStoredEditorActiveTab(fallback = 'messages') {
+    try {
+        const value = globalThis.localStorage?.getItem(UI_PREFERENCE_STORAGE_KEYS.sqlEditorActiveTab);
+        return EDITOR_RESULT_TABS.has(value) ? value : fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+function storeEditorActiveTab(tab) {
+    if (!EDITOR_RESULT_TABS.has(tab)) {
+        return;
+    }
+
+    try {
+        globalThis.localStorage?.setItem(UI_PREFERENCE_STORAGE_KEYS.sqlEditorActiveTab, tab);
     } catch {
         // Ignore unavailable browser storage; the in-memory setting still applies.
     }
@@ -124,7 +182,7 @@ const state = {
     dataBrowser: {
         tables: [],
         selectedTable: null,
-        tablesVisible: true,
+        tablesVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.dataTablesVisible, true),
         table: null,
         loading: false,
         tableLoading: false,
@@ -145,9 +203,9 @@ const state = {
     },
     editor: {
         sqlText: '',
-        editorPanelVisible: true,
+        editorPanelVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.sqlEditorEditorVisible, true),
         history: [],
-        historyPanelVisible: true,
+        historyPanelVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.sqlEditorHistoryVisible, true),
         historyLoading: false,
         historyLoadingMore: false,
         historyError: null,
@@ -163,9 +221,10 @@ const state = {
         historyRuns: [],
         historyDetailLoading: false,
         historyDetailError: null,
-        activeTab: 'messages',
+        activeTab: readStoredEditorActiveTab(),
         executing: false,
         result: null,
+        lastExecutedSql: '',
         resultSortColumn: null,
         resultSortDirection: null,
         error: null,
@@ -181,10 +240,11 @@ const state = {
         loading: false,
         error: null,
         historyTab: readStoredChartsHistoryTab(),
+        historyPanelVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsHistoryVisible, true),
         selectedHistoryId: null,
         chartHeightPreset: 'medium',
         sqlExpanded: false,
-        resultsVisible: true,
+        resultsVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsResultsVisible, true),
         detail: null,
         detailLoading: false,
         detailError: null,
@@ -196,7 +256,7 @@ const state = {
         tables: [],
         selectedTableName: null,
         draft: null,
-        sqlPreviewVisible: true,
+        sqlPreviewVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerSqlPreviewVisible, true),
         pendingImportedDraft: null,
         loading: false,
         detailLoading: false,
@@ -210,7 +270,7 @@ const state = {
         data: null,
         selectedName: null,
         detail: null,
-        tablesVisible: true,
+        tablesVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.structureTablesVisible, true),
         loading: false,
         detailLoading: false,
         error: null,
@@ -735,10 +795,11 @@ function resetChartsState() {
     state.charts.loading = false;
     state.charts.error = null;
     state.charts.historyTab = readStoredChartsHistoryTab(state.charts.historyTab);
+    state.charts.historyPanelVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsHistoryVisible, true);
     state.charts.selectedHistoryId = null;
     state.charts.chartHeightPreset = 'medium';
     state.charts.sqlExpanded = false;
-    state.charts.resultsVisible = true;
+    state.charts.resultsVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsResultsVisible, true);
     state.charts.detail = null;
     state.charts.detailLoading = false;
     state.charts.detailError = null;
@@ -902,7 +963,7 @@ function setMissingDatabaseState() {
     state.structure.detailLoading = false;
     state.structure.data = null;
     state.structure.detail = null;
-    state.structure.tablesVisible = true;
+    state.structure.tablesVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.structureTablesVisible, true);
     state.structure.error = error;
 
     state.tableDesigner.loading = false;
@@ -910,7 +971,7 @@ function setMissingDatabaseState() {
     state.tableDesigner.tables = [];
     state.tableDesigner.selectedTableName = null;
     state.tableDesigner.draft = null;
-    state.tableDesigner.sqlPreviewVisible = true;
+    state.tableDesigner.sqlPreviewVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerSqlPreviewVisible, true);
     state.tableDesigner.pendingImportedDraft = null;
     state.tableDesigner.saving = false;
     state.tableDesigner.searchQuery = '';
@@ -964,9 +1025,8 @@ function syncRouteContext() {
 
     if (route.name === 'editorResults') {
         state.editor.activeTab = 'results';
+        storeEditorActiveTab('results');
         clearQueryHistoryDetailState();
-    } else if (route.name === 'editor' && state.editor.activeTab === 'results') {
-        state.editor.activeTab = 'messages';
     }
 
     if (route.name !== 'editorResults') {
@@ -1184,7 +1244,7 @@ async function loadChartsDetail(historyId) {
     if (!Number.isInteger(numericId) || numericId < 1) {
         state.charts.selectedHistoryId = null;
         state.charts.sqlExpanded = false;
-        state.charts.resultsVisible = true;
+        state.charts.resultsVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsResultsVisible, true);
         state.charts.detail = null;
         state.charts.detailLoading = false;
         state.charts.detailError = null;
@@ -1197,7 +1257,7 @@ async function loadChartsDetail(historyId) {
 
     state.charts.selectedHistoryId = numericId;
     state.charts.sqlExpanded = false;
-    state.charts.resultsVisible = true;
+    state.charts.resultsVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsResultsVisible, true);
     state.charts.detail = null;
     state.charts.detailLoading = true;
     state.charts.detailError = null;
@@ -1868,7 +1928,7 @@ function invalidateDatabaseCaches() {
     state.tableDesigner.tables = [];
     state.tableDesigner.selectedTableName = null;
     state.tableDesigner.draft = null;
-    state.tableDesigner.sqlPreviewVisible = true;
+    state.tableDesigner.sqlPreviewVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerSqlPreviewVisible, true);
     state.tableDesigner.pendingImportedDraft = null;
     state.tableDesigner.saving = false;
     state.tableDesigner.searchQuery = '';
@@ -1878,7 +1938,7 @@ function invalidateDatabaseCaches() {
     resetChartsState();
     state.structure.data = null;
     state.structure.detail = null;
-    state.structure.tablesVisible = true;
+    state.structure.tablesVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.structureTablesVisible, true);
     state.mediaTagging.loading = false;
     state.mediaTagging.previewLoading = false;
     state.mediaTagging.saving = false;
@@ -2303,6 +2363,19 @@ export function toggleChartsSqlPanel() {
 
 export function toggleChartsResultsPanel() {
     state.charts.resultsVisible = !state.charts.resultsVisible;
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsResultsVisible, state.charts.resultsVisible);
+    emitChange();
+}
+
+export function setChartsHistoryPanelVisibility(visible) {
+    const nextValue = typeof visible === 'boolean' ? visible : !Boolean(state.charts.historyPanelVisible);
+
+    if (state.charts.historyPanelVisible === nextValue) {
+        return;
+    }
+
+    state.charts.historyPanelVisible = nextValue;
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsHistoryVisible, nextValue);
     emitChange();
 }
 
@@ -2559,6 +2632,7 @@ export function setCurrentQuery(query) {
 export function clearCurrentQuery() {
     state.editor.sqlText = '';
     state.editor.result = null;
+    state.editor.lastExecutedSql = '';
     resetEditorResultSort();
     state.editor.error = null;
     clearQueryHistoryDetailState();
@@ -2566,22 +2640,17 @@ export function clearCurrentQuery() {
     state.editor.saving = false;
     state.editor.deleting = false;
     state.editor.saveError = null;
-    if (state.editor.activeTab === 'results' || state.editor.activeTab === 'performance') {
-        state.editor.activeTab = 'messages';
-    }
     emitChange();
 }
 
 export function clearEditorResults() {
     state.editor.result = null;
+    state.editor.lastExecutedSql = '';
     resetEditorResultSort();
     state.editor.error = null;
     state.editor.selectedRowIndex = null;
     state.editor.saving = false;
     state.editor.saveError = null;
-    if (state.editor.activeTab === 'results') {
-        state.editor.activeTab = 'messages';
-    }
     emitChange();
 }
 
@@ -2593,16 +2662,23 @@ export function setEditorPanelVisibility(visible) {
     }
 
     state.editor.editorPanelVisible = nextValue;
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.sqlEditorEditorVisible, nextValue);
     emitChange();
 }
 
 export function setEditorTab(tab) {
+    if (!EDITOR_RESULT_TABS.has(tab)) {
+        return;
+    }
+
     state.editor.activeTab = tab;
+    storeEditorActiveTab(tab);
     emitChange();
 }
 
 export async function executeCurrentQuery() {
     state.editor.executing = true;
+    state.editor.lastExecutedSql = state.editor.sqlText;
     state.editor.error = null;
     state.editor.selectedRowIndex = null;
     state.editor.saving = false;
@@ -2614,14 +2690,12 @@ export async function executeCurrentQuery() {
         state.editor.result = response.data;
         resetEditorResultSort();
         state.editor.error = null;
-        state.editor.activeTab = 'results';
         invalidateDatabaseCaches();
         await refreshQueryHistoryState();
         pushToast(response.message || `Executed ${response.data.statementCount} SQL statement(s).`, 'success');
         return true;
     } catch (error) {
         state.editor.error = normalizeError(error);
-        state.editor.activeTab = 'messages';
         await refreshQueryHistoryState();
         return false;
     } finally {
@@ -2676,6 +2750,7 @@ export function setQueryHistoryPanelVisibility(visible) {
     }
 
     state.editor.historyPanelVisible = nextValue;
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.sqlEditorHistoryVisible, nextValue);
     emitChange();
 }
 
@@ -2842,6 +2917,7 @@ export async function selectStructureEntry(name) {
 
 export function toggleStructureTablesPanel() {
     state.structure.tablesVisible = state.structure.tablesVisible === false;
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.structureTablesVisible, state.structure.tablesVisible);
     emitChange();
 }
 
@@ -2858,6 +2934,7 @@ export function setTableDesignerSqlPreviewVisibility(visible) {
     }
 
     state.tableDesigner.sqlPreviewVisible = nextValue;
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerSqlPreviewVisible, nextValue);
     emitChange();
 }
 
@@ -3433,6 +3510,7 @@ export function setDataSearchColumn(columnName) {
 
 export function toggleDataTablesPanel() {
     state.dataBrowser.tablesVisible = state.dataBrowser.tablesVisible === false;
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.dataTablesVisible, state.dataBrowser.tablesVisible);
     emitChange();
 }
 
@@ -3896,8 +3974,21 @@ export function getCurrentConnection(snapshot = state) {
 }
 
 export function getQueryMessages(snapshot = state) {
+    const queryText = snapshot.editor.result?.sql ?? (snapshot.editor.error ? snapshot.editor.lastExecutedSql : '');
+    const queryMessages = queryText
+        ? [
+              {
+                  tone: 'muted',
+                  label: 'QUERY',
+                  value: queryText,
+                  kind: 'query',
+              },
+          ]
+        : [];
+
     if (snapshot.editor.error) {
         return [
+            ...queryMessages,
             {
                 tone: 'alert',
                 label: snapshot.editor.error.code,
@@ -3916,14 +4007,17 @@ export function getQueryMessages(snapshot = state) {
         ];
     }
 
-    return snapshot.editor.result.statements.map(statement => ({
-        tone: statement.kind === 'resultSet' ? 'success' : inferStatusTone(statement.keyword),
-        label: `${statement.keyword} #${statement.index + 1}`,
-        value:
-            statement.kind === 'resultSet'
-                ? `${statement.rowCount} row(s) returned.`
-                : `${statement.changes} row(s) affected.`,
-    }));
+    return [
+        ...queryMessages,
+        ...snapshot.editor.result.statements.map(statement => ({
+            tone: statement.kind === 'resultSet' ? 'success' : inferStatusTone(statement.keyword),
+            label: `${statement.keyword} #${statement.index + 1}`,
+            value:
+                statement.kind === 'resultSet'
+                    ? `${statement.rowCount} row(s) returned.`
+                    : `${statement.changes} row(s) affected.`,
+        })),
+    ];
 }
 
 export function getQueryPerformance(snapshot = state) {

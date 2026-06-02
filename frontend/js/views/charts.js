@@ -402,7 +402,7 @@ function renderChartCard(chart, state, analysis) {
 export function renderChartsDetail(state) {
     const detail = state.charts.detail;
     const selectedHistoryId = state.charts.selectedHistoryId;
-    const historyVisible = state.editor.historyPanelVisible !== false;
+    const historyVisible = state.charts.historyPanelVisible !== false;
 
     if (!selectedHistoryId) {
         return renderEmptyChartDetail();
@@ -514,7 +514,7 @@ export function renderChartsDetail(state) {
 }
 
 export function renderChartsView(state) {
-    const historyVisible = state.editor.historyPanelVisible !== false || !state.charts.selectedHistoryId;
+    const historyVisible = state.charts.historyPanelVisible !== false || !state.charts.selectedHistoryId;
 
     if (!state.connections.active && state.charts.error?.code === 'ACTIVE_DATABASE_REQUIRED') {
         return {
