@@ -50,6 +50,11 @@ const QUERY_HISTORY_PAGE_SIZE = 30;
 const QUERY_HISTORY_RUN_LIMIT = 8;
 const CHART_HEIGHT_PRESETS = new Set(['small', 'medium', 'large']);
 const EDITOR_RESULT_TABS = new Set(['results', 'performance', 'messages']);
+const TEXT_EXPORT_FORMAT_LABELS = {
+    csv: 'CSV',
+    tsv: 'TSV',
+    md: 'Markdown',
+};
 const MISSING_DATABASE_ERROR = {
     code: 'ACTIVE_DATABASE_REQUIRED',
     message: 'No active SQLite database selected.',
@@ -2259,6 +2264,34 @@ export function openModal(kind) {
     emitChange();
 }
 
+export function openQueryExportModal() {
+    if (!String(state.editor.sqlText ?? '').trim()) {
+        pushToast('Enter a query before exporting.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind: 'query-export',
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+export function openDataExportModal() {
+    if (!state.dataBrowser.selectedTable) {
+        pushToast('No table selected for export.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind: 'data-export',
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
 export function openEditConnectionModal(id) {
     const connection = state.connections.recent.find(entry => entry.id === id);
 
@@ -3164,9 +3197,15 @@ export function addCurrentTableDesignerColumn() {
     return nextColumn?.id ?? null;
 }
 
-export function queueTableDesignerCsvImport(fileName, csvText) {
+export function queueTableDesignerCsvImport(fileName, csvText, options = {}) {
     try {
-        const imported = createTableDesignerDraftFromCsvImport({ fileName, csvText }, getTableDesignerContext());
+        const imported = createTableDesignerDraftFromCsvImport(
+            { fileName, csvText },
+            {
+                ...getTableDesignerContext(),
+                ...(options.context ?? {}),
+            },
+        );
 
         state.tableDesigner.pendingImportedDraft = imported.draft;
         state.tableDesigner.selectedTableName = null;
@@ -3175,6 +3214,10 @@ export function queueTableDesignerCsvImport(fileName, csvText) {
         emitChange();
         return imported;
     } catch (error) {
+        if (options.throwOnError) {
+            throw error;
+        }
+
         pushToast(error?.message || 'CSV import failed.', 'alert');
         return null;
     }
@@ -4138,25 +4181,127 @@ export async function submitDeleteQueryHistoryConfirmation() {
     return deleted;
 }
 
-export async function exportCurrentQueryCsv() {
+function beginCurrentQueryExport() {
     state.editor.exportLoading = true;
+    if (state.modal?.kind === 'query-export') {
+        state.modal.submitting = true;
+        state.modal.error = null;
+    }
     emitChange();
+}
+
+function reportCurrentQueryExportError(error) {
+    if (state.modal?.kind === 'query-export') {
+        withModalError(error);
+        return;
+    }
+
+    state.editor.error = normalizeError(error);
+    emitChange();
+}
+
+function finishCurrentQueryExport() {
+    state.editor.exportLoading = false;
+    if (state.modal?.kind === 'query-export') {
+        state.modal.submitting = false;
+    }
+    emitChange();
+}
+
+export async function exportCurrentQueryFormat(format = 'csv') {
+    const normalizedFormat = String(format ?? 'csv').toLowerCase();
+    const label = TEXT_EXPORT_FORMAT_LABELS[normalizedFormat] ?? TEXT_EXPORT_FORMAT_LABELS.csv;
+
+    beginCurrentQueryExport();
 
     try {
-        await api.downloadQueryCsv(state.editor.sqlText);
-        pushToast('Query export started.', 'success');
+        await api.downloadQueryExport(state.editor.sqlText, normalizedFormat);
+        closeModalInternal();
+        pushToast(`${label} export started.`, 'success');
         return true;
+    } catch (error) {
+        reportCurrentQueryExportError(error);
+        return false;
+    } finally {
+        finishCurrentQueryExport();
+    }
+}
+
+export async function duplicateCurrentQueryAsTable() {
+    beginCurrentQueryExport();
+
+    try {
+        const response = await api.getQueryExport(state.editor.sqlText, 'csv');
+        const exportData = response?.data ?? {};
+        const imported = queueTableDesignerCsvImport(
+            exportData.filename || 'query-results.csv',
+            exportData.content || '',
+            { throwOnError: true },
+        );
+
+        closeModalInternal();
+        pushToast(
+            `Table draft created from ${imported.importedRowCount} row${imported.importedRowCount === 1 ? '' : 's'}.`,
+            'success',
+        );
+        return imported;
+    } catch (error) {
+        reportCurrentQueryExportError(error);
+        return null;
+    } finally {
+        finishCurrentQueryExport();
+    }
+}
+
+export async function exportCurrentQueryCsv() {
+    try {
+        return await exportCurrentQueryFormat('csv');
     } catch (error) {
         state.editor.error = normalizeError(error);
         emitChange();
         return false;
-    } finally {
-        state.editor.exportLoading = false;
-        emitChange();
     }
 }
 
-export async function exportCurrentDataTableCsv() {
+function getCurrentDataTableExportOptions(format = 'csv') {
+    return {
+        sortColumn: state.dataBrowser.sortColumn,
+        sortDirection: state.dataBrowser.sortDirection,
+        filterColumn: state.dataBrowser.searchColumn,
+        filterOperator: state.dataBrowser.filterOperator,
+        filterValue: state.dataBrowser.searchQuery,
+        format,
+    };
+}
+
+function beginCurrentDataTableExport() {
+    state.dataBrowser.exportLoading = true;
+    if (state.modal?.kind === 'data-export') {
+        state.modal.submitting = true;
+        state.modal.error = null;
+    }
+    emitChange();
+}
+
+function reportCurrentDataTableExportError(error) {
+    if (state.modal?.kind === 'data-export') {
+        withModalError(error);
+        return;
+    }
+
+    state.dataBrowser.error = normalizeError(error);
+    emitChange();
+}
+
+function finishCurrentDataTableExport() {
+    state.dataBrowser.exportLoading = false;
+    if (state.modal?.kind === 'data-export') {
+        state.modal.submitting = false;
+    }
+    emitChange();
+}
+
+export async function exportCurrentDataTableFormat(format = 'csv') {
     const tableName = state.dataBrowser.selectedTable;
 
     if (!tableName) {
@@ -4164,24 +4309,66 @@ export async function exportCurrentDataTableCsv() {
         return false;
     }
 
-    state.dataBrowser.exportLoading = true;
-    emitChange();
+    const normalizedFormat = String(format ?? 'csv').toLowerCase();
+    const label = TEXT_EXPORT_FORMAT_LABELS[normalizedFormat] ?? TEXT_EXPORT_FORMAT_LABELS.csv;
+
+    beginCurrentDataTableExport();
 
     try {
-        await api.downloadTableCsv(tableName, {
-            sortColumn: state.dataBrowser.sortColumn,
-            sortDirection: state.dataBrowser.sortDirection,
-        });
-        pushToast(`CSV export started for ${tableName}.`, 'success');
+        await api.downloadTableExport(tableName, getCurrentDataTableExportOptions(normalizedFormat));
+        closeModalInternal();
+        pushToast(`${label} export started for ${tableName}.`, 'success');
         return true;
     } catch (error) {
-        state.dataBrowser.error = normalizeError(error);
-        emitChange();
+        reportCurrentDataTableExportError(error);
         return false;
     } finally {
-        state.dataBrowser.exportLoading = false;
-        emitChange();
+        finishCurrentDataTableExport();
     }
+}
+
+export async function duplicateCurrentDataTableAsTable() {
+    const tableName = state.dataBrowser.selectedTable;
+
+    if (!tableName) {
+        pushToast('No table selected for export.', 'alert');
+        return null;
+    }
+
+    beginCurrentDataTableExport();
+
+    try {
+        const response = await api.getTableExport(tableName, getCurrentDataTableExportOptions('csv'));
+        const exportData = response?.data ?? {};
+        const imported = queueTableDesignerCsvImport(
+            exportData.filename || `${tableName}.csv`,
+            exportData.content || '',
+            {
+                throwOnError: true,
+                context: {
+                    catalogTables: state.tableDesigner.tables?.length
+                        ? state.tableDesigner.tables
+                        : state.dataBrowser.tables,
+                },
+            },
+        );
+
+        closeModalInternal();
+        pushToast(
+            `Table draft created from ${imported.importedRowCount} row${imported.importedRowCount === 1 ? '' : 's'}.`,
+            'success',
+        );
+        return imported;
+    } catch (error) {
+        reportCurrentDataTableExportError(error);
+        return null;
+    } finally {
+        finishCurrentDataTableExport();
+    }
+}
+
+export async function exportCurrentDataTableCsv() {
+    return exportCurrentDataTableFormat('csv');
 }
 
 export function sortEditorResultsByColumn(columnName) {

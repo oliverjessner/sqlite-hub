@@ -419,22 +419,72 @@ export function patchSettings(settings) {
   });
 }
 
-export function downloadQueryCsv(sql) {
-  return download("/api/export/query.csv", {
+const TEXT_EXPORT_EXTENSIONS = {
+  csv: "csv",
+  tsv: "tsv",
+  md: "md",
+};
+
+function normalizeTextExportFormat(format) {
+  const normalized = String(format ?? "csv").toLowerCase();
+  return TEXT_EXPORT_EXTENSIONS[normalized] ? normalized : "csv";
+}
+
+export function getQueryExport(sql, format = "csv") {
+  return request("/api/export/query", {
+    method: "POST",
+    body: {
+      sql,
+      format: normalizeTextExportFormat(format),
+    },
+  });
+}
+
+export function downloadQueryExport(sql, format = "csv") {
+  const normalizedFormat = normalizeTextExportFormat(format);
+  const extension = TEXT_EXPORT_EXTENSIONS[normalizedFormat];
+
+  return download(`/api/export/query.${extension}`, {
     method: "POST",
     body: { sql },
-    fallbackFilename: "query-results.csv",
+    fallbackFilename: `query-results.${extension}`,
+  });
+}
+
+export function downloadQueryCsv(sql) {
+  return downloadQueryExport(sql, "csv");
+}
+
+function buildTableExportBody(tableName, options = {}) {
+  return {
+    tableName,
+    sortColumn: options.sortColumn,
+    sortDirection: options.sortDirection,
+    filterColumn: options.filterColumn,
+    filterOperator: options.filterOperator,
+    filterValue: options.filterValue,
+    format: normalizeTextExportFormat(options.format),
+  };
+}
+
+export function getTableExport(tableName, options = {}) {
+  return request("/api/export/table", {
+    method: "POST",
+    body: buildTableExportBody(tableName, options),
+  });
+}
+
+export function downloadTableExport(tableName, options = {}) {
+  const normalizedFormat = normalizeTextExportFormat(options.format);
+  const extension = TEXT_EXPORT_EXTENSIONS[normalizedFormat];
+
+  return download(`/api/export/table.${extension}`, {
+    method: "POST",
+    body: buildTableExportBody(tableName, { ...options, format: normalizedFormat }),
+    fallbackFilename: `${tableName || "table"}.${extension}`,
   });
 }
 
 export function downloadTableCsv(tableName, options = {}) {
-  return download("/api/export/table.csv", {
-    method: "POST",
-    body: {
-      tableName,
-      sortColumn: options.sortColumn,
-      sortDirection: options.sortDirection,
-    },
-    fallbackFilename: `${tableName || "table"}.csv`,
-  });
+  return downloadTableExport(tableName, { ...options, format: "csv" });
 }

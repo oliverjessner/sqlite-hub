@@ -1,7 +1,12 @@
 const { quoteIdentifier } = require("../../utils/identifier");
 const { serializeRows } = require("../../utils/sqliteTypes");
-const { rowsToCsv } = require("../../utils/csv");
+const {
+  rowsToCsv,
+  rowsToDelimitedText,
+  rowsToMarkdownTable,
+} = require("../../utils/csv");
 const { getTableDetail } = require("./introspection");
+const { normalizeTableFilter } = require("./tableFilter");
 const { buildTableOrderClause, normalizeTableSort } = require("./tableSort");
 const {
   buildAutoTitle,
@@ -23,6 +28,43 @@ function sanitizeFilenameBase(value, fallback = "query-results") {
   return sanitized.slice(0, 120);
 }
 
+const EXPORT_FORMATS = {
+  csv: {
+    extension: "csv",
+    mimeType: "text/csv; charset=utf-8",
+  },
+  tsv: {
+    extension: "tsv",
+    mimeType: "text/tab-separated-values; charset=utf-8",
+  },
+  md: {
+    extension: "md",
+    mimeType: "text/markdown; charset=utf-8",
+  },
+};
+
+function normalizeExportFormat(format) {
+  const normalized = String(format ?? "csv").toLowerCase();
+
+  if (!EXPORT_FORMATS[normalized]) {
+    throw new Error(`Unsupported export format: ${format}`);
+  }
+
+  return normalized;
+}
+
+function renderExportContent({ columns, rows, format, csvDelimiter }) {
+  if (format === "tsv") {
+    return rowsToDelimitedText({ columns, rows, delimiter: "\t" });
+  }
+
+  if (format === "md") {
+    return rowsToMarkdownTable({ columns, rows });
+  }
+
+  return rowsToCsv({ columns, rows, delimiter: csvDelimiter });
+}
+
 class ExportService {
   constructor({ appStateStore, connectionManager, sqlExecutor }) {
     this.appStateStore = appStateStore;
@@ -34,7 +76,9 @@ class ExportService {
     return this.appStateStore.getSettings().csvDelimiter || ",";
   }
 
-  exportQuery(sql) {
+  exportQuery(sql, options = {}) {
+    const format = normalizeExportFormat(options.format);
+    const formatConfig = EXPORT_FORMATS[format];
     const activeConnection = this.connectionManager.getActiveConnection();
     const historyItem = activeConnection
       ? this.appStateStore.findQueryHistoryItemBySql(activeConnection.id, sql)
@@ -50,44 +94,59 @@ class ExportService {
       persistHistory: false,
       requireReader: true,
     });
+    const content = renderExportContent({
+      columns: result.columns,
+      rows: result.rows,
+      format,
+      csvDelimiter: this.getDelimiter(),
+    });
 
     return {
-      filename: `${filenameBase}.csv`,
-      csv: rowsToCsv({
-        columns: result.columns,
-        rows: result.rows,
-        delimiter: this.getDelimiter(),
-      }),
+      filename: `${filenameBase}.${formatConfig.extension}`,
+      content,
+      csv: format === "csv" ? content : undefined,
+      format,
+      mimeType: formatConfig.mimeType,
       columns: result.columns,
       rowCount: result.rows.length,
     };
   }
 
   exportTable(tableName, options = {}) {
+    const format = normalizeExportFormat(options.format);
+    const formatConfig = EXPORT_FORMATS[format];
     const db = this.connectionManager.getActiveDatabase();
     const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
     const sort = normalizeTableSort(tableDetail, options);
+    const filter = normalizeTableFilter(tableDetail, options);
     const orderClause = buildTableOrderClause(tableDetail, sort);
+    const whereClause = filter ? `WHERE ${filter.clause}` : "";
     const statement = db.prepare(
       [
         "SELECT * FROM",
         quoteIdentifier(tableName),
+        whereClause,
         orderClause ? "ORDER BY" : "",
         orderClause,
       ]
         .filter(Boolean)
         .join(" ")
     );
-    const rows = serializeRows(statement.all());
+    const rows = serializeRows(statement.all(...(filter?.params ?? [])));
     const columns = statement.columns().map((column) => column.name);
+    const content = renderExportContent({
+      columns,
+      rows,
+      format,
+      csvDelimiter: this.getDelimiter(),
+    });
 
     return {
-      filename: `${tableName}.csv`,
-      csv: rowsToCsv({
-        columns,
-        rows,
-        delimiter: this.getDelimiter(),
-      }),
+      filename: `${tableName}.${formatConfig.extension}`,
+      content,
+      csv: format === "csv" ? content : undefined,
+      format,
+      mimeType: formatConfig.mimeType,
       columns,
       rowCount: rows.length,
     };

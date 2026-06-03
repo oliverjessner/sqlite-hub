@@ -33,8 +33,10 @@ import {
     dismissMediaTaggingIssue,
     dismissToast,
     executeCurrentQuery,
-    exportCurrentDataTableCsv,
-    exportCurrentQueryCsv,
+    duplicateCurrentDataTableAsTable,
+    exportCurrentDataTableFormat,
+    duplicateCurrentQueryAsTable,
+    exportCurrentQueryFormat,
     getState,
     initializeApp,
     loadMoreQueryHistory,
@@ -45,6 +47,8 @@ import {
     openDeleteEditorRowModal,
     openDeleteQueryHistoryModal,
     openDeleteQueryChartModal,
+    openDataExportModal,
+    openQueryExportModal,
     openDataRowByIdentity,
     openEditConnectionModal,
     openCreateQueryChartModal,
@@ -132,10 +136,7 @@ import { renderOverviewView } from './views/overview.js';
 import { renderSettingsView } from './views/settings.js';
 import { renderStructureView } from './views/structure.js';
 import { renderTableDesignerView } from './views/tableDesigner.js';
-import {
-    replaceChildrenFromRenderedMarkup,
-    replaceElementFromRenderedMarkup,
-} from './utils/dom.js';
+import { replaceChildrenFromRenderedMarkup, replaceElementFromRenderedMarkup } from './utils/dom.js';
 import { highlightSql } from './utils/format.js';
 
 const appRoot = document.querySelector('#app');
@@ -333,7 +334,7 @@ function normalizeMediaTaggingRotationDegrees(value) {
         return 0;
     }
 
-    return ((Math.round(numericValue / 90) * 90) % 360 + 360) % 360;
+    return (((Math.round(numericValue / 90) * 90) % 360) + 360) % 360;
 }
 
 function syncMediaTaggingMediaRotationUi(node, rotationDegrees) {
@@ -384,7 +385,9 @@ function syncMediaTaggingTagSearchUi(input) {
             continue;
         }
 
-        const searchText = String(tagOption.dataset.tagSearchText ?? '').trim().toLowerCase();
+        const searchText = String(tagOption.dataset.tagSearchText ?? '')
+            .trim()
+            .toLowerCase();
         tagOption.hidden = Boolean(normalizedQuery) && !searchText.includes(normalizedQuery);
     }
 
@@ -502,23 +505,18 @@ function syncQueryHistoryUi(historyId) {
         return false;
     }
 
-    const historyItem = state.editor.history.find(entry => Number(entry.id) === numericId) ?? state.editor.historyDetail ?? null;
-    const listItemNode = shellRefs.view.querySelector(
-        [
-            '[data-action="select-query-history-item"][data-history-id="',
-            String(numericId),
-            '"]',
-        ].join(''),
-    )?.closest('.query-history-item');
+    const historyItem =
+        state.editor.history.find(entry => Number(entry.id) === numericId) ?? state.editor.historyDetail ?? null;
+    const listItemNode = shellRefs.view
+        .querySelector(
+            ['[data-action="select-query-history-item"][data-history-id="', String(numericId), '"]'].join(''),
+        )
+        ?.closest('.query-history-item');
 
     if (historyItem && listItemNode instanceof HTMLElement) {
         replaceElementFromRenderedMarkup(
             listItemNode,
-            renderQueryHistoryListItem(
-                historyItem,
-                state.editor.historyActiveId,
-                state.editor.historySelectedId,
-            ),
+            renderQueryHistoryListItem(historyItem, state.editor.historyActiveId, state.editor.historySelectedId),
         );
     }
 
@@ -1256,6 +1254,43 @@ async function executeEditorQueryAndNavigate() {
     router.navigate(success && activeTab === 'results' ? '/editor/results' : '/editor');
 }
 
+const OPENABLE_URL_PATTERN = /^https?:\/\/[^\s<>"']+$/i;
+
+function getOpenableUrl(value) {
+    const text = String(value ?? '').trim();
+
+    if (!OPENABLE_URL_PATTERN.test(text)) {
+        return null;
+    }
+
+    try {
+        const url = new URL(text);
+        return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function openRowEditorUrl(actionNode) {
+    const field = actionNode.closest('[data-row-editor-url-field]');
+    const inputValue = field?.querySelector('[data-row-editor-url-input]')?.value;
+    const url = getOpenableUrl(inputValue ?? actionNode.dataset.url);
+
+    if (!url) {
+        showToast('Field value is not a valid URL.', 'alert');
+        return;
+    }
+
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+}
+
 async function handleAction(actionNode) {
     const { action } = actionNode.dataset;
 
@@ -1265,6 +1300,9 @@ async function handleAction(actionNode) {
             return;
         case 'refresh-view':
             await refreshCurrentRoute();
+            return;
+        case 'open-row-editor-url':
+            openRowEditorUrl(actionNode);
             return;
         case 'open-modal':
             openModal(actionNode.dataset.modal);
@@ -1464,12 +1502,44 @@ async function handleAction(actionNode) {
             router.navigate(tab === 'results' ? '/editor/results' : '/editor');
             return;
         }
-        case 'export-query-csv':
-            await exportCurrentQueryCsv();
+        case 'open-query-export-modal':
+            openQueryExportModal();
             return;
-        case 'export-data-csv':
-            await exportCurrentDataTableCsv();
+        case 'export-query-format': {
+            const format = actionNode.dataset.exportFormat;
+
+            if (format === 'table') {
+                const imported = await duplicateCurrentQueryAsTable();
+
+                if (imported) {
+                    router.navigate('/table-designer/new');
+                }
+
+                return;
+            }
+
+            await exportCurrentQueryFormat(format);
             return;
+        }
+        case 'open-data-export-modal':
+            openDataExportModal();
+            return;
+        case 'export-data-format': {
+            const format = actionNode.dataset.exportFormat;
+
+            if (format === 'table') {
+                const imported = await duplicateCurrentDataTableAsTable();
+
+                if (imported) {
+                    router.navigate('/table-designer/new');
+                }
+
+                return;
+            }
+
+            await exportCurrentDataTableFormat(format);
+            return;
+        }
         case 'toggle-data-tables':
             toggleDataTablesPanel();
             return;
@@ -1565,11 +1635,7 @@ async function handleAction(actionNode) {
             const currentRotation = getState().mediaTagging.workflowMediaRotationDegrees ?? 0;
             const command = actionNode.dataset.rotationCommand;
             const nextRotation =
-                command === 'left'
-                    ? currentRotation - 90
-                    : command === 'right'
-                      ? currentRotation + 90
-                      : 0;
+                command === 'left' ? currentRotation - 90 : command === 'right' ? currentRotation + 90 : 0;
 
             syncMediaTaggingMediaRotationUi(actionNode, nextRotation);
             setMediaTaggingWorkflowMediaRotationDegrees(nextRotation, { notify: false });

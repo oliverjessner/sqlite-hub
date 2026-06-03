@@ -223,6 +223,8 @@ function mapEditableColumns(tableDetail, columnDefinitions) {
       visible: isRowId ? true : Boolean(columnMeta?.visible),
       generated: Boolean(columnMeta?.generated),
       identity: identityColumns.has(definition.column),
+      notNull: Boolean(columnMeta?.notNull),
+      allowedValues: columnMeta?.allowedValues ?? [],
     };
   });
 }

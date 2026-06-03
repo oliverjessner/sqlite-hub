@@ -800,6 +800,91 @@ function renderDeleteQueryHistoryForm(modal) {
   ].join("");
 }
 
+function renderQueryExportPreview(lines = []) {
+  return lines.map((line) => `<span class="block whitespace-pre">${escapeHtml(line)}</span>`).join("");
+}
+
+function getExportOptions() {
+  return [
+    { label: "CSV", format: "csv", icon: "table_rows", meta: ".csv", preview: ["id,name", "1,Acme"] },
+    { label: "TSV", format: "tsv", icon: "view_column", meta: ".tsv", preview: ["id\tname", "1\tAcme"] },
+    {
+      label: "Markdown",
+      format: "md",
+      icon: "article",
+      meta: ".md",
+      preview: ["| id | name |", "| --- | --- |"],
+    },
+    {
+      label: "Duplicate",
+      format: "table",
+      icon: "table_chart",
+      meta: "as table",
+      preview: ["columns inferred", "rows prefilled"],
+    },
+  ];
+}
+
+function renderTextExportModal(modal, action) {
+  const disabledAttribute = modal.submitting ? 'disabled aria-disabled="true"' : "";
+
+  return `
+    <div class="space-y-5">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        ${getExportOptions()
+          .map(
+            (option) => `
+              <button
+                class="group flex min-h-36 flex-col justify-between border border-outline-variant/20 bg-surface-container-low px-5 py-5 text-left text-on-surface transition-colors hover:border-primary-container/45 hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-container disabled:cursor-wait disabled:opacity-60"
+                data-action="${escapeHtml(action)}"
+                data-export-format="${escapeHtml(option.format)}"
+                type="button"
+                ${disabledAttribute}
+              >
+                <span class="flex w-full items-start justify-between gap-4">
+                  <span class="flex min-w-0 items-center gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center border border-outline-variant/20 bg-surface-container-highest text-primary-container group-hover:border-primary-container/35">
+                      <span class="material-symbols-outlined text-xl">${escapeHtml(option.icon)}</span>
+                    </span>
+                    <span class="min-w-0">
+                      <span class="block truncate font-headline text-lg font-black uppercase tracking-normal text-primary-container">
+                        ${escapeHtml(option.label)}
+                      </span>
+                      <span class="mt-1 block font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/55">
+                        ${escapeHtml(option.meta)}
+                      </span>
+                    </span>
+                  </span>
+                  <span class="material-symbols-outlined mt-1 text-base text-on-surface-variant/35 group-hover:text-primary-container">
+                    arrow_forward
+                  </span>
+                </span>
+                <span class="mt-5 block w-full overflow-hidden border border-outline-variant/10 bg-surface-container-lowest px-3 py-3 font-mono text-[11px] leading-5 text-on-surface-variant/70">
+                  ${renderQueryExportPreview(option.preview)}
+                </span>
+              </button>
+            `,
+          )
+          .join("")}
+      </div>
+      ${renderError(modal.error)}
+      <div class="flex justify-end">
+        <button class="standard-button" data-action="close-modal" type="button">
+          Cancel
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderQueryExportModal(modal) {
+  return renderTextExportModal(modal, "export-query-format");
+}
+
+function renderDataExportModal(modal) {
+  return renderTextExportModal(modal, "export-data-format");
+}
+
 function renderCreateMediaTaggingMappingTableForm(modal, state) {
   const mappingExists = hasDefaultMediaTaggingMappingTable(state.mediaTagging.schemaTables ?? []);
   const readOnly = Boolean(state.mediaTagging.connection?.readOnly);
@@ -980,6 +1065,16 @@ export function renderModal(state) {
       eyebrow: "History // Confirm query deletion",
       title: "Delete Query",
       body: renderDeleteQueryHistoryForm(modal),
+    },
+    "query-export": {
+      eyebrow: "SQL Editor // Export query result",
+      title: "Export Query",
+      body: renderQueryExportModal(modal),
+    },
+    "data-export": {
+      eyebrow: "Data Browser // Export table data",
+      title: "Export Table",
+      body: renderDataExportModal(modal),
     },
     "create-media-tagging-tag-table": {
       eyebrow: "Media Tagging // Create default tag table",

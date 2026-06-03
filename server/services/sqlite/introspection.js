@@ -64,6 +64,198 @@ function normalizeColumn(column, visibleSet) {
   };
 }
 
+function isIdentifierCharacter(character) {
+  return /[A-Za-z0-9_$]/.test(character);
+}
+
+function skipQuotedSql(text, index) {
+  const quote = text[index];
+  let cursor = index + 1;
+
+  while (cursor < text.length) {
+    if (text[cursor] === quote) {
+      if (text[cursor + 1] === quote) {
+        cursor += 2;
+        continue;
+      }
+
+      return cursor + 1;
+    }
+
+    cursor += 1;
+  }
+
+  return text.length;
+}
+
+function findMatchingParenthesis(text, openIndex) {
+  let depth = 0;
+
+  for (let index = openIndex; index < text.length; index += 1) {
+    const character = text[index];
+
+    if (character === "'" || character === '"' || character === "`") {
+      index = skipQuotedSql(text, index) - 1;
+      continue;
+    }
+
+    if (character === "[") {
+      const closeIndex = text.indexOf("]", index + 1);
+      index = closeIndex === -1 ? text.length : closeIndex;
+      continue;
+    }
+
+    if (character === "(") {
+      depth += 1;
+      continue;
+    }
+
+    if (character === ")") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+
+  return -1;
+}
+
+function extractCheckExpressions(ddl = "") {
+  const expressions = [];
+  const checkPattern = /\bCHECK\s*\(/gi;
+  let match;
+
+  while ((match = checkPattern.exec(ddl))) {
+    const openIndex = ddl.indexOf("(", match.index);
+    const closeIndex = findMatchingParenthesis(ddl, openIndex);
+
+    if (closeIndex === -1) {
+      continue;
+    }
+
+    expressions.push(ddl.slice(openIndex + 1, closeIndex));
+    checkPattern.lastIndex = closeIndex + 1;
+  }
+
+  return expressions;
+}
+
+function normalizeIdentifier(value) {
+  const text = String(value ?? "").trim();
+
+  if (text.startsWith('"') && text.endsWith('"')) {
+    return text.slice(1, -1).replace(/""/g, '"').toLowerCase();
+  }
+
+  if (text.startsWith("`") && text.endsWith("`")) {
+    return text.slice(1, -1).replace(/``/g, "`").toLowerCase();
+  }
+
+  if (text.startsWith("[") && text.endsWith("]")) {
+    return text.slice(1, -1).replace(/\]\]/g, "]").toLowerCase();
+  }
+
+  return text.toLowerCase();
+}
+
+function parseSqlStringList(text = "") {
+  const values = [];
+  let index = 0;
+
+  while (index < text.length) {
+    if (text[index] !== "'") {
+      index += 1;
+      continue;
+    }
+
+    let value = "";
+    index += 1;
+
+    while (index < text.length) {
+      if (text[index] === "'") {
+        if (text[index + 1] === "'") {
+          value += "'";
+          index += 2;
+          continue;
+        }
+
+        index += 1;
+        values.push(value);
+        break;
+      }
+
+      value += text[index];
+      index += 1;
+    }
+  }
+
+  return values;
+}
+
+function findColumnInListExpression(expression, columnName) {
+  const normalizedColumnName = normalizeIdentifier(columnName);
+  const identifierPattern = /(?:"(?:[^"]|"")+"|`(?:[^`]|``)+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_$]*)\s+IN\s*\(/gi;
+  let match;
+
+  while ((match = identifierPattern.exec(expression))) {
+    const matchedIdentifier = match[0].replace(/\s+IN\s*\($/i, "").trim();
+
+    if (normalizeIdentifier(matchedIdentifier) !== normalizedColumnName) {
+      continue;
+    }
+
+    const before = expression[match.index - 1] ?? "";
+
+    if (before && isIdentifierCharacter(before)) {
+      continue;
+    }
+
+    const openIndex = expression.indexOf("(", match.index + matchedIdentifier.length);
+    const closeIndex = findMatchingParenthesis(expression, openIndex);
+
+    if (closeIndex === -1) {
+      continue;
+    }
+
+    const values = parseSqlStringList(expression.slice(openIndex + 1, closeIndex));
+
+    if (values.length) {
+      return values;
+    }
+  }
+
+  return [];
+}
+
+function parseCheckAllowedValues(ddl = "", columns = []) {
+  const allowedValuesByColumn = new Map();
+  const expressions = extractCheckExpressions(ddl);
+
+  columns.forEach((column) => {
+    const values = [];
+    const seen = new Set();
+
+    expressions.forEach((expression) => {
+      findColumnInListExpression(expression, column.name).forEach((value) => {
+        if (seen.has(value)) {
+          return;
+        }
+
+        seen.add(value);
+        values.push(value);
+      });
+    });
+
+    if (values.length) {
+      allowedValuesByColumn.set(column.name, values);
+    }
+  });
+
+  return allowedValuesByColumn;
+}
+
 function groupForeignKeys(rows) {
   const grouped = new Map();
 
@@ -140,9 +332,15 @@ function getTableDetail(db, tableName, options = {}) {
     .all();
   const visibleSet = new Set(tableInfo.map((column) => column.name));
 
-  const columns = extendedInfo
+  let columns = extendedInfo
     .map((column) => normalizeColumn(column, visibleSet))
     .sort((left, right) => left.cid - right.cid);
+  const allowedValuesByColumn = parseCheckAllowedValues(entry.sql, columns);
+
+  columns = columns.map((column) => ({
+    ...column,
+    allowedValues: allowedValuesByColumn.get(column.name) ?? [],
+  }));
 
   const foreignKeys = groupForeignKeys(
     db.prepare(`PRAGMA foreign_key_list(${quoteIdentifier(tableName)})`).all()

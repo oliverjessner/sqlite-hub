@@ -34,7 +34,7 @@ function renderSettingsContent(state) {
         <div class="space-y-5 p-6">
           <div>
             <div class="text-[10px] font-mono uppercase tracking-[0.2em] text-on-surface-variant/60">
-              Current Version
+              Current_Version
             </div>
             <div class="mt-2 font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
               v${escapeHtml(state.settings.appVersion ?? '0.0.0')}

@@ -193,6 +193,8 @@ function renderEditorRowPanel(state) {
             return {
                 name: column.sourceColumn,
                 label: column.sourceColumn,
+                allowedValues: column.allowedValues ?? [],
+                notNull: Boolean(column.notNull),
                 value: value === null || value === undefined ? '' : String(value),
             };
         }),

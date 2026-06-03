@@ -1,5 +1,7 @@
 import { escapeHtml } from "../utils/format.js";
 
+const URL_PATTERN = /^https?:\/\/[^\s<>"']+$/i;
+
 function getJsonPreview(value) {
   if (value === null || value === undefined) {
     return null;
@@ -28,6 +30,114 @@ function getJsonPreview(value) {
   }
 }
 
+function getUrlValue(value) {
+  const text = String(value ?? "").trim();
+
+  if (!URL_PATTERN.test(text)) {
+    return null;
+  }
+
+  try {
+    const url = new URL(text);
+
+    return ["http:", "https:"].includes(url.protocol) ? url.href : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function withUrlBadge(badges = [], url) {
+  if (!url) {
+    return badges;
+  }
+
+  const hasUrlBadge = badges.some((badge) => {
+    const label = typeof badge === "object" ? badge.label : badge;
+    return String(label ?? "").toUpperCase() === "URL";
+  });
+
+  return hasUrlBadge ? badges : [...badges, { label: "URL", tone: "url" }];
+}
+
+function getAllowedValues(field) {
+  const seen = new Set();
+
+  return (Array.isArray(field.allowedValues) ? field.allowedValues : [])
+    .map((value) => String(value))
+    .filter((value) => {
+      if (seen.has(value)) {
+        return false;
+      }
+
+      seen.add(value);
+      return true;
+    });
+}
+
+function withCheckBadge(badges = [], allowedValues = []) {
+  if (!allowedValues.length) {
+    return badges;
+  }
+
+  const hasCheckBadge = badges.some((badge) => {
+    const label = typeof badge === "object" ? badge.label : badge;
+    return String(label ?? "").toUpperCase() === "CHECK";
+  });
+
+  return hasCheckBadge ? badges : [...badges, { label: "CHECK", tone: "check" }];
+}
+
+function renderOpenUrlButton(url) {
+  if (!url) {
+    return "";
+  }
+
+  return `
+    <div class="mt-2">
+      <button
+        class="standard-button"
+        data-action="open-row-editor-url"
+        data-url="${escapeHtml(url)}"
+        type="button"
+      >
+        <span class="material-symbols-outlined text-sm">open_in_new</span>
+        Open in tab
+      </button>
+    </div>
+  `;
+}
+
+function renderAllowedValuesSelect(field, allowedValues) {
+  const currentValue = String(field.value ?? "");
+  const hasCurrentAllowedValue = allowedValues.includes(currentValue);
+  const shouldRenderEmptyOption = field.notNull !== true;
+  const shouldRenderCurrentOption =
+    currentValue !== "" && !hasCurrentAllowedValue;
+  const options = [
+    shouldRenderEmptyOption
+      ? `<option value="" ${currentValue === "" ? "selected" : ""}>NULL / empty</option>`
+      : "",
+    shouldRenderCurrentOption
+      ? `<option value="${escapeHtml(currentValue)}" selected>${escapeHtml(currentValue)}</option>`
+      : "",
+    ...allowedValues.map(
+      (value) =>
+        `<option value="${escapeHtml(value)}" ${
+          value === currentValue ? "selected" : ""
+        }>${escapeHtml(value)}</option>`
+    ),
+  ].join("");
+
+  return `
+    <select
+      class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+      name="field:${escapeHtml(field.name)}"
+    >
+      ${options}
+    </select>
+  `;
+}
+
 function renderJsonViewer(prettyJson, title = "JSON Viewer") {
   return `
     <div class="border border-outline-variant/10 bg-surface-container px-4 py-4">
@@ -42,12 +152,15 @@ function renderJsonViewer(prettyJson, title = "JSON Viewer") {
 }
 
 function renderReadonlyField(label, value) {
-  const badges = Array.isArray(label?.badges) ? label.badges : [];
+  const url = getUrlValue(value);
+  const badges = withUrlBadge(Array.isArray(label?.badges) ? label.badges : [], url);
   const displayLabel = typeof label === "object" ? label.label : label;
   const jsonPreview = getJsonPreview(value);
 
   return `
-    <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
+    <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3" ${
+      url ? "data-row-editor-url-field" : ""
+    }>
       <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
         <span>${escapeHtml(displayLabel)}</span>
         ${badges.map((badge) => renderFieldBadge(badge)).join("")}
@@ -57,18 +170,22 @@ function renderReadonlyField(label, value) {
           ? `<div class="mt-2">${renderJsonViewer(jsonPreview)}</div>`
           : `<div class="mt-2 text-sm text-on-surface">${escapeHtml(value)}</div>`
       }
+      ${renderOpenUrlButton(url)}
     </div>
   `;
 }
 
 function renderEditableField(field) {
-  const badges = Array.isArray(field.badges) ? field.badges : [];
+  const url = getUrlValue(field.value);
+  const allowedValues = getAllowedValues(field);
+  const baseBadges = withCheckBadge(Array.isArray(field.badges) ? field.badges : [], allowedValues);
+  const badges = withUrlBadge(baseBadges, url);
   const jsonPreview = getJsonPreview(field.value);
   const inputType = field.inputType === "number" ? "number" : "text";
   const numberStep = field.numberStep === "1" ? "1" : "any";
 
   return `
-    <label class="block space-y-2">
+    <div class="block space-y-2" ${url ? "data-row-editor-url-field" : ""}>
       <span class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
         <span>${escapeHtml(field.label ?? field.name)}</span>
         ${badges.map((badge) => renderFieldBadge(badge)).join("")}
@@ -79,7 +196,9 @@ function renderEditableField(field) {
           : ""
       }
       ${
-        inputType === "number" && !jsonPreview
+        allowedValues.length && !jsonPreview
+          ? renderAllowedValuesSelect(field, allowedValues)
+          : inputType === "number" && !jsonPreview
           ? `
               <input
                 class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
@@ -88,6 +207,18 @@ function renderEditableField(field) {
                 type="number"
                 value="${escapeHtml(field.value ?? "")}"
               />
+            `
+          : url && !jsonPreview
+            ? `
+              <input
+                class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+                name="field:${escapeHtml(field.name)}"
+                data-row-editor-url-input
+                spellcheck="false"
+                type="text"
+                value="${escapeHtml(field.value ?? "")}"
+              />
+              ${renderOpenUrlButton(url)}
             `
           : `
               <textarea
@@ -99,7 +230,7 @@ function renderEditableField(field) {
               >${escapeHtml(field.value ?? "")}</textarea>
             `
       }
-    </label>
+    </div>
   `;
 }
 
@@ -109,6 +240,14 @@ function getFieldBadgeClassName(tone) {
   }
 
   if (tone === "foreign-key") {
+    return "border-tertiary-fixed-dim/35 bg-tertiary-fixed-dim/15 text-tertiary-fixed-dim";
+  }
+
+  if (tone === "url") {
+    return "border-primary-container/35 bg-primary-container/15 text-primary-container";
+  }
+
+  if (tone === "check") {
     return "border-tertiary-fixed-dim/35 bg-tertiary-fixed-dim/15 text-tertiary-fixed-dim";
   }
 

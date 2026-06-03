@@ -142,10 +142,11 @@ function renderWorkspaceHeader(state) {
                   </button>
                   <button
                     class="standard-button"
-                    data-action="export-data-csv"
+                    data-action="open-data-export-modal"
                     type="button"
                   >
-                    ${state.dataBrowser.exportLoading ? 'Exporting...' : 'Export CSV'}
+                    <span class="material-symbols-outlined text-sm">download</span>
+                    ${state.dataBrowser.exportLoading ? 'Exporting...' : 'Export'}
                   </button>`
                   : ''
           }
@@ -574,6 +575,8 @@ export function renderDataRowEditorPanel(state) {
                 label: column.name,
                 badges: getColumnBadges(column),
                 ...getColumnNumberInputMeta(column),
+                allowedValues: column.allowedValues ?? [],
+                notNull: Boolean(column.notNull),
                 value: value === null || value === undefined ? '' : String(value),
             };
         }),

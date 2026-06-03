@@ -81,10 +81,11 @@ export function renderQueryEditor({
     </button>
     <button
       class="${secondaryButtonClass}"
-      data-action="export-query-csv"
+      data-action="open-query-export-modal"
       type="button"
     >
-      ${exporting ? "Exporting..." : "Export CSV"}
+      <span class="material-symbols-outlined text-sm">download</span>
+      ${exporting ? "Exporting..." : "Export"}
     </button>
     <button
       class="signature-button"

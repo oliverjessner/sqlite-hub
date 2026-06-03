@@ -16,7 +16,7 @@ SQLite Hub keeps that workflow sharp:
 - filter, sort, page through, and export table data
 - inspect schema, structure, and relationships
 - edit records in place with an SQL diff preview before saving
-- export tables and query results as CSV
+- export tables and query results as CSV, TSV, Markdown, duplicate as table
 - create simple local backups of the active database
 - run SQL in a syntax-highlighted editor with history, messages, and performance metrics
 - turn query-history results into local charts
