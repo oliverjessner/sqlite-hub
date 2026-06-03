@@ -1978,14 +1978,20 @@ async function previewMediaTaggingDraft(options = {}) {
     }
 }
 
-function invalidateDatabaseCaches() {
+function invalidateDatabaseCaches(options = {}) {
+    const preserveDataBrowserState = options.preserveDataBrowserState === true;
+
     state.overview.data = null;
     state.dataBrowser.tables = [];
-    state.dataBrowser.selectedTable = null;
+    if (!preserveDataBrowserState) {
+        state.dataBrowser.selectedTable = null;
+    }
     state.dataBrowser.table = null;
-    state.dataBrowser.page = 1;
-    resetDataBrowserTableSearch();
-    resetDataBrowserSearch();
+    if (!preserveDataBrowserState) {
+        state.dataBrowser.page = 1;
+        resetDataBrowserTableSearch();
+        resetDataBrowserSearch();
+    }
     clearDataBrowserRowSelectionState();
     state.dataBrowser.pendingOpenRow = null;
     state.dataBrowser.exportLoading = false;
@@ -2845,7 +2851,7 @@ export async function executeCurrentQuery() {
         state.editor.result = response.data;
         resetEditorResultSort();
         state.editor.error = null;
-        invalidateDatabaseCaches();
+        invalidateDatabaseCaches({ preserveDataBrowserState: true });
         await refreshQueryHistoryState();
         pushToast(response.message || `Executed ${response.data.statementCount} SQL statement(s).`, 'success');
         return true;
