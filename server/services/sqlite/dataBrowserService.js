@@ -10,7 +10,7 @@ const { buildTableOrderClause, normalizeTableSort } = require("./tableSort");
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 250;
-const FILTER_OPERATORS = new Set(["=", "!=", "<", ">", "<=", ">="]);
+const FILTER_OPERATORS = new Set(["=", "!=", "<", ">", "<=", ">=", "equals"]);
 
 function escapeLikePattern(value) {
   return String(value).replace(/[\\%_]/g, (character) => `\\${character}`);
@@ -86,6 +86,17 @@ function normalizeFilterOptions(tableDetail, options = {}) {
 
   const normalizedValue = String(value);
   const quotedColumn = quoteIdentifier(filterColumn.name);
+
+  if (operator === "equals") {
+    return {
+      column: filterColumn.name,
+      operator,
+      value: normalizedValue,
+      matchMode: "equals",
+      clause: `${quotedColumn}${isTextColumn(filterColumn) ? " COLLATE NOCASE" : ""} = ?`,
+      params: [normalizedValue],
+    };
+  }
 
   if (isTextColumn(filterColumn) && (operator === "=" || operator === "!=")) {
     return {

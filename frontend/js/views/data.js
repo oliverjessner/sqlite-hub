@@ -259,6 +259,10 @@ function getFilterOperatorLabel(operator, textColumn) {
         return 'contains';
     }
 
+    if (textColumn && operator === 'equals') {
+        return 'equals';
+    }
+
     if (textColumn && operator === '!=') {
         return 'not contains';
     }
@@ -286,9 +290,9 @@ function renderTableFilterBar(table, state, activeColumn) {
             ].join(''),
         )
         .join('');
-    const operators = ['=', '!=', '<', '>', '<=', '>='];
-    const activeOperator = operators.includes(state.dataBrowser.filterOperator) ? state.dataBrowser.filterOperator : '=';
     const activeColumnIsText = isTextFilterColumn(table, activeColumn);
+    const operators = activeColumnIsText ? ['=', 'equals', '!=', '<', '>', '<=', '>='] : ['=', '!=', '<', '>', '<=', '>='];
+    const activeOperator = operators.includes(state.dataBrowser.filterOperator) ? state.dataBrowser.filterOperator : '=';
     const operatorOptions = operators
         .map(operator =>
             [

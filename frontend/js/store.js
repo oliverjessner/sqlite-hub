@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS = {
 };
 const DEFAULT_DATA_PAGE_SIZE = 50;
 const DATA_PAGE_SIZES = [25, 50, 100, 250];
-const DATA_FILTER_OPERATORS = new Set(['=', '!=', '<', '>', '<=', '>=']);
+const DATA_FILTER_OPERATORS = new Set(['=', '!=', '<', '>', '<=', '>=', 'equals']);
 const DATA_ROW_SIZE_STORAGE_KEY = 'data_row_size';
 const CHARTS_HISTORY_TAB_STORAGE_KEY = 'charts_history_tab';
 const QUERY_HISTORY_TAB_STORAGE_KEY = 'query_history_tab';
@@ -548,6 +548,22 @@ function resetDataBrowserSearch() {
     state.dataBrowser.searchQuery = '';
     state.dataBrowser.searchColumn = '';
     state.dataBrowser.filterOperator = '=';
+}
+
+function isDataBrowserTextColumn(columnName) {
+    const column = (state.dataBrowser.table?.columnMeta ?? []).find(item => item.name === columnName);
+
+    return String(column?.affinity ?? '').toUpperCase() === 'TEXT';
+}
+
+function normalizeDataFilterOperatorForColumn(operator, columnName) {
+    const normalizedOperator = DATA_FILTER_OPERATORS.has(operator) ? operator : '=';
+
+    if (normalizedOperator === 'equals' && !isDataBrowserTextColumn(columnName)) {
+        return '=';
+    }
+
+    return normalizedOperator;
 }
 
 function resetDataBrowserTableSearch() {
@@ -1537,9 +1553,14 @@ async function loadDataTable(version) {
             (responseColumns.includes(state.dataBrowser.searchColumn)
                 ? state.dataBrowser.searchColumn
                 : (responseColumns[0] ?? ''));
-        state.dataBrowser.filterOperator = DATA_FILTER_OPERATORS.has(responseFilter?.operator)
+        const responseOperator = DATA_FILTER_OPERATORS.has(responseFilter?.operator)
             ? responseFilter.operator
             : state.dataBrowser.filterOperator;
+
+        state.dataBrowser.filterOperator = normalizeDataFilterOperatorForColumn(
+            responseOperator,
+            state.dataBrowser.searchColumn,
+        );
         clearDataBrowserRowSelectionState();
         await resolvePendingDataBrowserRow(version);
     } catch (error) {
@@ -3670,6 +3691,10 @@ export async function setDataSearchColumn(columnName) {
     }
 
     state.dataBrowser.searchColumn = nextColumnName;
+    state.dataBrowser.filterOperator = normalizeDataFilterOperatorForColumn(
+        state.dataBrowser.filterOperator,
+        nextColumnName,
+    );
     state.dataBrowser.page = 1;
     clearDataBrowserRowSelectionState();
     state.dataBrowser.saveError = null;

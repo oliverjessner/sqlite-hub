@@ -53,6 +53,20 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
       filterOperator: "!=",
       filterValue: "EFO",
     });
+    const exactFilteredTableData = service.getTableData(tableName, {
+      limit: 10,
+      offset: 0,
+      filterColumn: valueColumn,
+      filterOperator: "equals",
+      filterValue: "BEFORE",
+    });
+    const exactSubstringMissTableData = service.getTableData(tableName, {
+      limit: 10,
+      offset: 0,
+      filterColumn: valueColumn,
+      filterOperator: "equals",
+      filterValue: "EFO",
+    });
 
     assert.equal(filteredTableData.rowCount, 1);
     assert.equal(filteredTableData.rows[0][valueColumn], "before");
@@ -63,6 +77,15 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
       matchMode: "contains",
     });
     assert.equal(negativeFilteredTableData.rowCount, 0);
+    assert.equal(exactFilteredTableData.rowCount, 1);
+    assert.equal(exactFilteredTableData.rows[0][valueColumn], "before");
+    assert.deepEqual(exactFilteredTableData.filter, {
+      column: valueColumn,
+      operator: "equals",
+      value: "BEFORE",
+      matchMode: "equals",
+    });
+    assert.equal(exactSubstringMissTableData.rowCount, 0);
     assert.throws(
       () =>
         service.getTableData(tableName, {
