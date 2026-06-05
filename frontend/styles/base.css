@@ -279,6 +279,12 @@ img {
     border-right: 2px solid var(--color-primary-container);
 }
 
+.text-xs {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 @keyframes cursor-blink {
     from,
     to {

@@ -9,31 +9,92 @@ function getSortIcon(columnName, sortColumn, sortDirection) {
   return sortDirection === "desc" ? "south" : "north";
 }
 
-function renderSortableHeader(columnName, sortColumn, sortDirection) {
+const COPY_COLUMN_ACTIONS = [
+  { mode: "column", label: "Copy column" },
+  { mode: "column-with-header", label: "Copy column with header" },
+  { mode: "first-10", label: "Copy first 10" },
+];
+
+function renderColumnActionMenu(columnName, resultScope) {
+  return `
+    <details class="query-result-column-menu" data-copy-column-menu>
+      <summary
+        aria-label="Column actions for ${escapeHtml(columnName)}"
+        class="query-result-column-menu__toggle"
+        title="Column actions"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">more_vert</span>
+      </summary>
+      <div class="query-result-column-menu__panel" role="menu">
+        ${COPY_COLUMN_ACTIONS.map(
+          (item) => `
+            <button
+              class="query-result-column-menu__item"
+              data-action="open-copy-column-modal"
+              data-column-name="${escapeHtml(columnName)}"
+              data-copy-mode="${escapeHtml(item.mode)}"
+              data-result-scope="${escapeHtml(resultScope)}"
+              role="menuitem"
+              type="button"
+            >
+              ${escapeHtml(item.label)}
+            </button>
+          `
+        ).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderSortableHeader(columnName, sortColumn, sortDirection, { resultScope, sortAction }) {
   const isActive = columnName === sortColumn;
+  const labelMarkup = `<span class="query-result-column-label truncate" title="${escapeHtml(columnName)}">${escapeHtml(
+    columnName
+  )}</span>`;
 
   return `
-    <button
-      class="flex w-full items-center justify-between gap-2 text-left transition-colors ${
-        isActive ? "text-primary-container" : "text-on-surface-variant hover:text-primary-container"
-      }"
-      data-action="sort-editor-results-column"
+    <div
+      class="query-result-column-header"
       data-column-name="${escapeHtml(columnName)}"
-      type="button"
+      data-result-column-header
+      data-result-scope="${escapeHtml(resultScope)}"
     >
-      <span class="truncate">${escapeHtml(columnName)}</span>
-      <span class="material-symbols-outlined text-sm leading-none">${getSortIcon(
-        columnName,
-        sortColumn,
-        sortDirection
-      )}</span>
-    </button>
+      ${
+        sortAction
+          ? `
+            <button
+              class="query-result-column-sort ${
+                isActive ? "text-primary-container" : "text-on-surface-variant hover:text-primary-container"
+              }"
+              data-action="${escapeHtml(sortAction)}"
+              data-column-name="${escapeHtml(columnName)}"
+              type="button"
+            >
+              ${labelMarkup}
+              <span class="material-symbols-outlined text-sm leading-none">${getSortIcon(
+                columnName,
+                sortColumn,
+                sortDirection
+              )}</span>
+            </button>
+          `
+          : `<span class="query-result-column-static text-on-surface-variant">${labelMarkup}</span>`
+      }
+      ${renderColumnActionMenu(columnName, resultScope)}
+    </div>
   `;
 }
 
 export function renderQueryResultsPane(
   result,
-  { selectedRowIndex = null, editable = false, sortColumn = null, sortDirection = null } = {}
+  {
+    selectedRowIndex = null,
+    editable = false,
+    sortColumn = null,
+    sortDirection = null,
+    resultScope = "editor",
+    sortAction = "sort-editor-results-column",
+  } = {}
 ) {
   if (!result) {
     return `
@@ -48,8 +109,8 @@ export function renderQueryResultsPane(
 
   const columns = (result.columns ?? []).map((columnName) => ({
     headerClassName:
-      "border-b-2 border-primary-container px-4 py-3 text-[10px] font-bold uppercase tracking-widest",
-    renderHeader: () => renderSortableHeader(columnName, sortColumn, sortDirection),
+      "query-result-header-cell border-b-2 border-primary-container px-4 py-3 text-[10px] font-bold uppercase tracking-widest",
+    renderHeader: () => renderSortableHeader(columnName, sortColumn, sortDirection, { resultScope, sortAction }),
     cellClassName: "px-4 py-3 align-top text-on-surface",
     render: (row) => {
       const value = formatCellValue(row[columnName]);

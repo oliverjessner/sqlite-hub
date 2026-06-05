@@ -35,6 +35,8 @@ const DATA_FILTER_OPERATORS = new Set(['=', '!=', '<', '>', '<=', '>=', 'equals'
 const DATA_ROW_SIZE_STORAGE_KEY = 'data_row_size';
 const CHARTS_HISTORY_TAB_STORAGE_KEY = 'charts_history_tab';
 const QUERY_HISTORY_TAB_STORAGE_KEY = 'query_history_tab';
+const COPY_COLUMN_SEPARATOR_STORAGE_KEY = 'sqlitehub.copyColumn.separator';
+const COPY_COLUMN_WRAPPER_STORAGE_KEY = 'sqlitehub.copyColumn.wrapper';
 const UI_PREFERENCE_STORAGE_KEYS = {
     sqlEditorHistoryVisible: 'sqlite_hub_sql_editor_history_visible',
     sqlEditorEditorVisible: 'sqlite_hub_sql_editor_editor_visible',
@@ -50,6 +52,7 @@ const QUERY_HISTORY_PAGE_SIZE = 30;
 const QUERY_HISTORY_RUN_LIMIT = 8;
 const CHART_HEIGHT_PRESETS = new Set(['small', 'medium', 'large']);
 const EDITOR_RESULT_TABS = new Set(['results', 'performance', 'messages']);
+const COPY_COLUMN_MODES = new Set(['column', 'column-with-header', 'first-10']);
 const TEXT_EXPORT_FORMAT_LABELS = {
     csv: 'CSV',
     tsv: 'TSV',
@@ -125,6 +128,26 @@ function storeString(key, value) {
     } catch {
         // Ignore unavailable browser storage; the in-memory value still applies.
     }
+}
+
+function readCopyColumnPreferences() {
+    return {
+        separator: readStoredString(COPY_COLUMN_SEPARATOR_STORAGE_KEY, ','),
+        wrapper: readStoredString(COPY_COLUMN_WRAPPER_STORAGE_KEY, '"'),
+    };
+}
+
+function normalizeCopyColumnMode(mode) {
+    const normalizedMode = String(mode ?? '').trim();
+    return COPY_COLUMN_MODES.has(normalizedMode) ? normalizedMode : 'column';
+}
+
+function normalizeCopyColumnScope(scope) {
+    return scope === 'charts' ? 'charts' : 'editor';
+}
+
+function getResultByCopyColumnScope(scope, snapshot = state) {
+    return normalizeCopyColumnScope(scope) === 'charts' ? snapshot.charts.result : snapshot.editor.result;
 }
 
 function readStoredEditorActiveTab(fallback = 'messages') {
@@ -2290,6 +2313,84 @@ export function openDataExportModal() {
         submitting: false,
     };
     emitChange();
+}
+
+export function openCopyColumnModal({ scope = 'editor', columnName = '', mode = 'column' } = {}) {
+    const resultScope = normalizeCopyColumnScope(scope);
+    const normalizedColumnName = String(columnName ?? '');
+    const result = getResultByCopyColumnScope(resultScope);
+    const hasColumn = (result?.columns ?? []).some(column => String(column) === normalizedColumnName);
+
+    if (!hasColumn) {
+        pushToast('Column could not be found in the current result set.', 'alert');
+        return;
+    }
+
+    const preferences = readCopyColumnPreferences();
+
+    state.modal = {
+        kind: 'copy-column',
+        scope: resultScope,
+        columnName: normalizedColumnName,
+        copyMode: normalizeCopyColumnMode(mode),
+        separator: preferences.separator,
+        wrapper: preferences.wrapper,
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+export function storeCopyColumnPreferences({ separator = ',', wrapper = '"' } = {}) {
+    storeString(COPY_COLUMN_SEPARATOR_STORAGE_KEY, separator);
+    storeString(COPY_COLUMN_WRAPPER_STORAGE_KEY, wrapper);
+
+    if (state.modal?.kind === 'copy-column') {
+        state.modal.separator = String(separator ?? '');
+        state.modal.wrapper = String(wrapper ?? '');
+    }
+}
+
+export function updateCopyColumnModalFormatField(field, value) {
+    if (state.modal?.kind !== 'copy-column') {
+        return;
+    }
+
+    const normalizedField = String(field ?? '').trim();
+
+    if (normalizedField !== 'separator' && normalizedField !== 'wrapper') {
+        return;
+    }
+
+    const normalizedValue = String(value ?? '');
+    state.modal[normalizedField] = normalizedValue;
+    state.modal.error = null;
+
+    storeString(
+        normalizedField === 'separator' ? COPY_COLUMN_SEPARATOR_STORAGE_KEY : COPY_COLUMN_WRAPPER_STORAGE_KEY,
+        normalizedValue,
+    );
+    emitChange();
+}
+
+export function setCopyColumnModalSubmitting(submitting) {
+    if (state.modal?.kind !== 'copy-column') {
+        return;
+    }
+
+    state.modal.submitting = Boolean(submitting);
+    if (submitting) {
+        state.modal.error = null;
+    }
+    emitChange();
+}
+
+export function setCopyColumnModalError(error) {
+    if (state.modal?.kind !== 'copy-column') {
+        return;
+    }
+
+    withModalError(error);
 }
 
 export function openEditConnectionModal(id) {

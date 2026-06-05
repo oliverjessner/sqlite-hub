@@ -14,6 +14,7 @@
 - secure execute for destructive queries
 - 250 page size, advanced search in data
 - export TSV, CSV, markdown, duplicate as table
+- copy from column function
 
 # v0.9.3
 

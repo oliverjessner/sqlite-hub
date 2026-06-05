@@ -52,6 +52,7 @@ import {
     openDataRowByIdentity,
     openEditConnectionModal,
     openCreateQueryChartModal,
+    openCopyColumnModal,
     openEditQueryChartModal,
     openDataRowUpdatePreview,
     openEditorRowUpdatePreview,
@@ -97,6 +98,8 @@ import {
     sortEditorResultsByColumn,
     setQueryHistorySearchInput,
     setQueryHistoryTab,
+    setCopyColumnModalError,
+    setCopyColumnModalSubmitting,
     setRoute,
     saveQueryHistoryNotes,
     saveQueryHistoryTitle,
@@ -107,6 +110,7 @@ import {
     setMediaTaggingWorkflowMediaRotationDegrees,
     queueTableDesignerCsvImport,
     showToast,
+    storeCopyColumnPreferences,
     submitCreateConnection,
     createCurrentMediaTag,
     submitDeleteRowConfirmation,
@@ -118,6 +122,7 @@ import {
     toggleQueryHistorySavedState,
     updateCurrentMediaTaggingField,
     updateCurrentMediaTaggingTagFormField,
+    updateCopyColumnModalFormatField,
     updateCurrentQueryChartDraftConfigField,
     updateCurrentQueryChartDraftField,
     updateCurrentTableDesignerColumnField,
@@ -137,7 +142,7 @@ import { renderSettingsView } from './views/settings.js';
 import { renderStructureView } from './views/structure.js';
 import { renderTableDesignerView } from './views/tableDesigner.js';
 import { replaceChildrenFromRenderedMarkup, replaceElementFromRenderedMarkup } from './utils/dom.js';
-import { highlightSql } from './utils/format.js';
+import { formatNumber, highlightSql } from './utils/format.js';
 
 const appRoot = document.querySelector('#app');
 
@@ -1291,6 +1296,115 @@ function openRowEditorUrl(actionNode) {
     link.remove();
 }
 
+function closeCopyColumnMenus(exceptMenu = null) {
+    document.querySelectorAll('[data-copy-column-menu][open]').forEach(menu => {
+        if (menu !== exceptMenu && menu instanceof HTMLDetailsElement) {
+            menu.open = false;
+        }
+    });
+}
+
+function openCopyColumnMenu(headerNode) {
+    const menu = headerNode?.querySelector('[data-copy-column-menu]');
+
+    if (!(menu instanceof HTMLDetailsElement)) {
+        return;
+    }
+
+    closeCopyColumnMenus(menu);
+    menu.open = true;
+    menu.querySelector('summary')?.focus({ preventScroll: true });
+}
+
+function getCopyColumnResult(state, scope) {
+    return scope === 'charts' ? state.charts.result : state.editor.result;
+}
+
+function normalizeCopyColumnMode(mode) {
+    return ['column', 'column-with-header', 'first-10'].includes(mode) ? mode : 'column';
+}
+
+function formatCopyColumnValue(value, wrapper) {
+    const text = value === null || value === undefined ? '' : String(value);
+    const normalizedWrapper = String(wrapper ?? '');
+
+    if (!normalizedWrapper) {
+        return text;
+    }
+
+    return `${normalizedWrapper}${text
+        .split(normalizedWrapper)
+        .join(`${normalizedWrapper}${normalizedWrapper}`)}${normalizedWrapper}`;
+}
+
+function buildCopyColumnText({ result, columnName, copyMode, separator, wrapper }) {
+    const rows = result?.rows ?? [];
+    const sourceRows = copyMode === 'first-10' ? rows.slice(0, 10) : rows;
+    const values = sourceRows.map(row => row?.[columnName]);
+    const outputValues = copyMode === 'column-with-header' ? [columnName, ...values] : values;
+
+    return {
+        text: outputValues.map(value => formatCopyColumnValue(value, wrapper)).join(separator),
+        valueCount: values.length,
+    };
+}
+
+async function submitCopyColumnModal(formData) {
+    const state = getState();
+    const modal = state.modal;
+
+    if (modal?.kind !== 'copy-column') {
+        return;
+    }
+
+    const scope = String(formData.get('scope') ?? modal.scope ?? 'editor');
+    const columnName = String(formData.get('columnName') ?? modal.columnName ?? '');
+    const copyMode = normalizeCopyColumnMode(String(formData.get('copyMode') ?? modal.copyMode ?? 'column'));
+    const separator = String(formData.get('separator') ?? ',');
+    const wrapper = String(formData.get('wrapper') ?? '');
+    const result = getCopyColumnResult(state, scope);
+    const hasColumn = (result?.columns ?? []).some(column => String(column) === columnName);
+
+    if (!hasColumn) {
+        setCopyColumnModalError({
+            code: 'COPY_COLUMN_UNAVAILABLE',
+            message: 'Column is no longer available in the current result set.',
+        });
+        showToast('Column could not be copied.', 'alert');
+        return;
+    }
+
+    storeCopyColumnPreferences({ separator, wrapper });
+    setCopyColumnModalSubmitting(true);
+
+    const { text, valueCount } = buildCopyColumnText({
+        result,
+        columnName,
+        copyMode,
+        separator,
+        wrapper,
+    });
+
+    try {
+        if (!navigator.clipboard?.writeText) {
+            throw new Error('Clipboard API is not available.');
+        }
+
+        await navigator.clipboard.writeText(text);
+        closeModal();
+        showToast(
+            `Column "${columnName}" copied · ${formatNumber(valueCount)} ${valueCount === 1 ? 'value' : 'values'}`,
+            'success',
+        );
+    } catch (error) {
+        setCopyColumnModalError({
+            code: 'CLIPBOARD_ACCESS_FAILED',
+            message: error?.message || 'Clipboard access failed.',
+        });
+        showToast('Clipboard access failed.', 'alert');
+    }
+}
+
 async function handleAction(actionNode) {
     const { action } = actionNode.dataset;
 
@@ -1306,6 +1420,14 @@ async function handleAction(actionNode) {
             return;
         case 'open-modal':
             openModal(actionNode.dataset.modal);
+            return;
+        case 'open-copy-column-modal':
+            closeCopyColumnMenus();
+            openCopyColumnModal({
+                scope: actionNode.dataset.resultScope,
+                columnName: actionNode.dataset.columnName ?? '',
+                mode: actionNode.dataset.copyMode,
+            });
             return;
         case 'open-create-query-chart-modal':
             openCreateQueryChartModal();
@@ -1735,13 +1857,43 @@ function canApplyMediaTaggingShortcut(state) {
 }
 
 document.addEventListener('click', event => {
-    const actionNode = event.target.closest('[data-action]');
+    const target = event.target instanceof Element ? event.target : null;
+
+    if (!target) {
+        return;
+    }
+
+    const copyColumnMenu = target.closest('[data-copy-column-menu]');
+
+    if (!copyColumnMenu) {
+        closeCopyColumnMenus();
+    } else if (target.closest('.query-result-column-menu__toggle')) {
+        window.requestAnimationFrame(() => {
+            if (copyColumnMenu instanceof HTMLDetailsElement && copyColumnMenu.open) {
+                closeCopyColumnMenus(copyColumnMenu);
+            }
+        });
+    }
+
+    const actionNode = target.closest('[data-action]');
 
     if (!actionNode) {
         return;
     }
 
     handleAction(actionNode);
+});
+
+document.addEventListener('contextmenu', event => {
+    const target = event.target instanceof Element ? event.target : null;
+    const headerNode = target?.closest('[data-result-column-header]');
+
+    if (!headerNode) {
+        return;
+    }
+
+    event.preventDefault();
+    openCopyColumnMenu(headerNode);
 });
 
 document.addEventListener('keydown', event => {
@@ -1810,6 +1962,12 @@ document.addEventListener('keydown', event => {
         return;
     }
 
+    if (document.querySelector('[data-copy-column-menu][open]')) {
+        event.preventDefault();
+        closeCopyColumnMenus();
+        return;
+    }
+
     if (
         state.route.name === 'data' &&
         (typeof state.dataBrowser.selectedRowIndex === 'number' || Boolean(state.dataBrowser.selectedRow))
@@ -1829,6 +1987,11 @@ document.addEventListener('input', event => {
     const bindNode = event.target.closest('[data-bind]');
 
     if (!bindNode) {
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'copy-column-format-field') {
+        updateCopyColumnModalFormatField(bindNode.dataset.field, bindNode.value);
         return;
     }
 
@@ -2148,6 +2311,9 @@ document.addEventListener('submit', async event => {
             return;
         case 'create-media-tagging-mapping-table':
             await submitCreateMediaTaggingMappingTable();
+            return;
+        case 'copy-column':
+            await submitCopyColumnModal(formData);
             return;
         case 'save-data-row': {
             const values = {};

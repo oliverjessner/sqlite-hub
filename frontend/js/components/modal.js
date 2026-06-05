@@ -1,4 +1,4 @@
-import { escapeHtml, highlightSql, truncateMiddle } from "../utils/format.js";
+import { escapeHtml, formatNumber, highlightSql, truncateMiddle } from "../utils/format.js";
 import { renderConnectionLogo } from "./connectionLogo.js";
 import {
   analyzeQueryChartResult,
@@ -885,6 +885,136 @@ function renderDataExportModal(modal) {
   return renderTextExportModal(modal, "export-data-format");
 }
 
+function getCopyColumnActionLabel(copyMode) {
+  if (copyMode === "column-with-header") {
+    return "Copy column with header";
+  }
+
+  if (copyMode === "first-10") {
+    return "Copy first 10";
+  }
+
+  return "Copy column";
+}
+
+function getCopyColumnResult(state, modal) {
+  return modal.scope === "charts" ? state.charts.result : state.editor.result;
+}
+
+function formatCopyColumnPreviewValue(value, wrapper) {
+  const text = value === null || value === undefined ? "" : String(value);
+  const normalizedWrapper = String(wrapper ?? "");
+
+  if (!normalizedWrapper) {
+    return text;
+  }
+
+  return `${normalizedWrapper}${text
+    .split(normalizedWrapper)
+    .join(`${normalizedWrapper}${normalizedWrapper}`)}${normalizedWrapper}`;
+}
+
+function renderCopyColumnPreview(modal, state) {
+  const result = getCopyColumnResult(state, modal);
+  const rows = result?.rows ?? [];
+  const rowLimit = modal.copyMode === "first-10" ? 10 : rows.length;
+  const sampleValues = rows.slice(0, Math.min(rowLimit, 4)).map((row) => row?.[modal.columnName]);
+  const values = modal.copyMode === "column-with-header" ? [modal.columnName, ...sampleValues] : sampleValues;
+  const separator = String(modal.separator ?? ",");
+  const wrapper = String(modal.wrapper ?? '"');
+  const preview = values.map((value) => formatCopyColumnPreviewValue(value, wrapper)).join(separator);
+
+  if (!preview) {
+    return "";
+  }
+
+  return `
+    <div class="space-y-2">
+      <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+        Preview
+      </div>
+      <pre class="copy-column-preview custom-scrollbar">${escapeHtml(preview)}</pre>
+    </div>
+  `;
+}
+
+function renderCopyColumnFormatField({ label, name, value = "" }) {
+  return `
+    <label class="block space-y-2">
+      <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+        ${escapeHtml(label)}
+      </span>
+      <input
+        class="control-input w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+        data-bind="copy-column-format-field"
+        data-field="${escapeHtml(name)}"
+        name="${escapeHtml(name)}"
+        type="text"
+        value="${escapeHtml(value)}"
+      />
+    </label>
+  `;
+}
+
+function renderCopyColumnModal(modal, state) {
+  const result = getCopyColumnResult(state, modal);
+  const rows = result?.rows ?? [];
+  const valueCount = modal.copyMode === "first-10" ? Math.min(rows.length, 10) : rows.length;
+  const disabledAttribute = modal.submitting ? 'disabled aria-disabled="true"' : "";
+
+  return `
+    <form class="space-y-5" data-form="copy-column">
+      <input name="scope" type="hidden" value="${escapeHtml(modal.scope ?? "editor")}" />
+      <input name="columnName" type="hidden" value="${escapeHtml(modal.columnName ?? "")}" />
+      <input name="copyMode" type="hidden" value="${escapeHtml(modal.copyMode ?? "column")}" />
+      <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
+        <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          Column
+        </div>
+        <div class="mt-2 flex min-w-0 items-center justify-between gap-4">
+          <code class="min-w-0 truncate font-mono text-sm text-primary-container" title="${escapeHtml(
+            modal.columnName ?? ""
+          )}">${escapeHtml(modal.columnName ?? "")}</code>
+          <span class="shrink-0 font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/50">
+            ${escapeHtml(getCopyColumnActionLabel(modal.copyMode))} · ${formatNumber(valueCount)}
+          </span>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        ${renderCopyColumnFormatField({
+          label: "Separator",
+          name: "separator",
+          value: modal.separator ?? ",",
+        })}
+        ${renderCopyColumnFormatField({
+          label: "Wrapper",
+          name: "wrapper",
+          value: modal.wrapper ?? '"',
+        })}
+      </div>
+      ${renderCopyColumnPreview(modal, state)}
+      ${renderError(modal.error)}
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button
+          class="standard-button"
+          data-action="close-modal"
+          type="button"
+          ${disabledAttribute}
+        >
+          Cancel
+        </button>
+        <button
+          class="signature-button"
+          type="submit"
+          ${disabledAttribute}
+        >
+          ${modal.submitting ? "Copying..." : "Copy"}
+        </button>
+      </div>
+    </form>
+  `;
+}
+
 function renderCreateMediaTaggingMappingTableForm(modal, state) {
   const mappingExists = hasDefaultMediaTaggingMappingTable(state.mediaTagging.schemaTables ?? []);
   const readOnly = Boolean(state.mediaTagging.connection?.readOnly);
@@ -1075,6 +1205,11 @@ export function renderModal(state) {
       eyebrow: "Data Browser // Export table data",
       title: "Export Table",
       body: renderDataExportModal(modal),
+    },
+    "copy-column": {
+      eyebrow: "Results // Copy column values",
+      title: "Copy column",
+      body: renderCopyColumnModal(modal, state),
     },
     "create-media-tagging-tag-table": {
       eyebrow: "Media Tagging // Create default tag table",

@@ -233,6 +233,8 @@ function renderResultsSurface(state, isResultsRoute) {
                   editable: editingState.enabled,
                   sortColumn: state.editor.resultSortColumn,
                   sortDirection: state.editor.resultSortDirection,
+                  resultScope: 'editor',
+                  sortAction: 'sort-editor-results-column',
               })
             : renderMissingDatabase();
     }

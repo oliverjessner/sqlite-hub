@@ -284,6 +284,8 @@ function renderQueryResultsSection(state) {
                   editable: false,
                   sortColumn: null,
                   sortDirection: null,
+                  resultScope: 'charts',
+                  sortAction: null,
               })}
             </div>
           `
