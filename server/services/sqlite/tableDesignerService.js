@@ -109,7 +109,7 @@ class TableDesignerService {
 
     if (!analysis.executable) {
       throw new ValidationError(
-        "This schema change set would require a SQLite table rebuild. Table Designer v1 keeps the SQL preview available but will not execute those changes automatically.",
+        "This schema change set would require a SQLite table rebuild. Table Designer v2 keeps the SQL preview available but will not execute those changes automatically.",
         {
           code: "TABLE_DESIGNER_REBUILD_REQUIRED",
           warnings: analysis.warnings,

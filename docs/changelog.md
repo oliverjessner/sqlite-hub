@@ -15,6 +15,8 @@
 - 250 page size, advanced search in data
 - export TSV, CSV, markdown, duplicate as table
 - copy from column function
+- quick picks for database
+- export row as json
 
 # v0.9.3
 

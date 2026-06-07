@@ -74,6 +74,95 @@ function buildSimpleForeignKeyMap(foreignKeys = []) {
   return map;
 }
 
+function buildUniqueConstraintExpression(index = {}) {
+  const columns = (index.columns ?? [])
+    .map((column) => column?.name)
+    .filter(Boolean);
+
+  if (!columns.length) {
+    return "UNIQUE constraint";
+  }
+
+  return `UNIQUE (${columns.map((columnName) => quoteIdentifier(columnName)).join(", ")})`;
+}
+
+function mapComplexUniqueConstraint(index = {}) {
+  const sql = String(index.sql ?? "").trim();
+  const columns = (index.columns ?? [])
+    .map((column) => ({
+      name: column.name ?? "",
+      descending: Boolean(column.descending),
+      collation: column.collation ?? "",
+    }))
+    .filter((column) => column.name);
+
+  return {
+    id: `unique:${index.name}`,
+    name: index.name ?? "",
+    originalName: index.name ?? "",
+    columns,
+    partial: Boolean(index.partial),
+    origin: index.origin ?? "",
+    sql,
+    originalSql: sql,
+    expression: sql || buildUniqueConstraintExpression(index),
+    originalExpression: sql || buildUniqueConstraintExpression(index),
+    editable: true,
+    preserved: true,
+  };
+}
+
+function buildComplexUniqueConstraints(indexes = []) {
+  return indexes
+    .filter((index) => index?.unique && (index.partial || (index.columns?.length ?? 0) !== 1))
+    .map(mapComplexUniqueConstraint);
+}
+
+function expressionMentionsColumn(expression = "", columnName = "") {
+  const normalizedExpression = String(expression ?? "").toLowerCase();
+  const normalizedColumn = String(columnName ?? "").toLowerCase();
+
+  if (!normalizedColumn) {
+    return false;
+  }
+
+  return (
+    new RegExp(`(^|[^a-z0-9_$])${normalizedColumn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9_$]|$)`).test(
+      normalizedExpression
+    ) ||
+    normalizedExpression.includes(`"${normalizedColumn.replaceAll('"', '""')}"`) ||
+    normalizedExpression.includes(`\`${normalizedColumn.replaceAll("`", "``")}\``) ||
+    normalizedExpression.includes(`[${normalizedColumn}]`)
+  );
+}
+
+function buildCheckConstraints(tableDetail) {
+  const visibleColumns = (tableDetail.columns ?? []).filter(
+    (column) => column.visible !== false && !column.generated
+  );
+
+  return (tableDetail.checkConstraints ?? []).map((constraint, index) => {
+    const expression = String(constraint.expression ?? "").trim();
+    const columns = visibleColumns
+      .filter((column) => expressionMentionsColumn(expression, column.name))
+      .map((column) => ({
+        name: column.name,
+        allowedValues: Array.isArray(column.allowedValues) ? column.allowedValues : [],
+      }));
+
+    return {
+      id: `check:${constraint.id ?? index}`,
+      name: `CHECK ${index + 1}`,
+      originalName: `CHECK ${index + 1}`,
+      columns,
+      expression: expression ? `CHECK (${expression})` : "CHECK constraint",
+      originalExpression: expression ? `CHECK (${expression})` : "CHECK constraint",
+      editable: true,
+      preserved: true,
+    };
+  });
+}
+
 function buildSchemaWarnings(tableDetail) {
   const warnings = [];
   const generatedColumns = (tableDetail.columns ?? []).filter((column) => column.generated);
@@ -83,9 +172,7 @@ function buildSchemaWarnings(tableDetail) {
   const complexForeignKeys = (tableDetail.foreignKeys ?? []).filter(
     (foreignKey) => (foreignKey.mappings?.length ?? 0) !== 1
   );
-  const complexUniqueIndexes = (tableDetail.indexes ?? []).filter(
-    (index) => index.unique && (index.partial || (index.columns?.length ?? 0) !== 1)
-  );
+  const complexUniqueConstraints = buildComplexUniqueConstraints(tableDetail.indexes);
 
   if (generatedColumns.length) {
     warnings.push(
@@ -93,7 +180,7 @@ function buildSchemaWarnings(tableDetail) {
         code: "GENERATED_COLUMNS_PRESENT",
         title: "Generated Columns Detected",
         message:
-          "Generated or hidden columns are not editable in Table Designer v1. Safe operations like table rename or adding simple columns still work.",
+          "Generated or hidden columns are inspectable but not editable in Table Designer v2. Safe operations like table rename or adding simple columns still work.",
       })
     );
   }
@@ -104,7 +191,7 @@ function buildSchemaWarnings(tableDetail) {
         code: "COMPOSITE_PRIMARY_KEY_PRESENT",
         title: "Composite Primary Key Detected",
         message:
-          "This table uses more than one primary key column. Table Designer v1 preserves it, but changing primary key structure requires a manual table rebuild.",
+          "This table uses more than one primary key column. Table Designer v2 preserves it, but changing primary key structure requires a manual table rebuild.",
       })
     );
   }
@@ -115,18 +202,19 @@ function buildSchemaWarnings(tableDetail) {
         code: "COMPLEX_FOREIGN_KEYS_PRESENT",
         title: "Complex Foreign Keys Detected",
         message:
-          "Composite or multi-mapping foreign keys cannot be edited directly in Table Designer v1. They are preserved until a rebuild is done manually.",
+          "Composite or multi-mapping foreign keys cannot be edited directly in Table Designer v2. They are preserved until a rebuild is done manually.",
       })
     );
   }
 
-  if (complexUniqueIndexes.length) {
+  if (complexUniqueConstraints.length) {
     warnings.push(
       createDesignerWarning({
         code: "COMPLEX_UNIQUE_CONSTRAINTS_PRESENT",
-        title: "Complex Unique Constraints Detected",
+        title: "Table Designer v2 Unique Constraints",
         message:
-          "Multi-column or partial UNIQUE constraints are outside Table Designer v1. They remain untouched unless you rebuild the table manually.",
+          "Multi-column and partial UNIQUE constraints are detected, shown in the v2 constraints panel, and preserved by SQLite-safe saves. Editing them still requires manual SQL review.",
+        tone: "muted",
       })
     );
   }
@@ -149,7 +237,7 @@ function buildSchemaWarnings(tableDetail) {
         code: "WITHOUT_ROWID_PRESENT",
         title: "WITHOUT ROWID Table",
         message:
-          "WITHOUT ROWID tables can be inspected here, but rebuild-style changes are intentionally blocked in v1.",
+          "WITHOUT ROWID tables can be inspected here, but rebuild-style changes are intentionally blocked in v2.",
         tone: "muted",
       })
     );
@@ -189,6 +277,8 @@ function mapTableColumnToDraft(column, { uniqueColumns, foreignKeyMap }) {
 function buildTableDesignerDraft(tableDetail) {
   const uniqueColumns = buildSingleColumnUniqueSet(tableDetail.indexes);
   const foreignKeyMap = buildSimpleForeignKeyMap(tableDetail.foreignKeys);
+  const uniqueConstraints = buildComplexUniqueConstraints(tableDetail.indexes);
+  const checkConstraints = buildCheckConstraints(tableDetail);
   const columns = (tableDetail.columns ?? [])
     .filter((column) => column.visible !== false && !column.generated)
     .map((column) => mapTableColumnToDraft(column, { uniqueColumns, foreignKeyMap }));
@@ -199,6 +289,9 @@ function buildTableDesignerDraft(tableDetail) {
     originalTableName: tableDetail.name,
     tableName: tableDetail.name,
     columns,
+    uniqueConstraints,
+    checkConstraints,
+    designerVersion: 2,
     dirty: false,
     schemaWarnings,
     warnings: [...schemaWarnings],
@@ -227,6 +320,8 @@ function listDesignerTables(db) {
 module.exports = {
   SUPPORTED_TABLE_DESIGNER_TYPES,
   buildTableDesignerDraft,
+  buildComplexUniqueConstraints,
+  buildCheckConstraints,
   createDesignerWarning,
   listDesignerTables,
   normalizeDesignerType,

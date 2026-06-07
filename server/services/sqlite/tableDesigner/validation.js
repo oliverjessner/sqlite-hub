@@ -66,6 +66,53 @@ function normalizeColumnPayload(column = {}, index = 0) {
   };
 }
 
+function normalizeUniqueConstraintPayload(constraint = {}, index = 0) {
+  return {
+    id: String(constraint.id ?? `unique:${index}`),
+    name: String(constraint.name ?? "").trim(),
+    originalName: String(constraint.originalName ?? constraint.name ?? "").trim(),
+    columns: Array.isArray(constraint.columns)
+      ? constraint.columns
+          .map((column) => ({
+            name: String(column?.name ?? "").trim(),
+            descending: normalizeBoolean(column?.descending),
+            collation: String(column?.collation ?? "").trim(),
+          }))
+          .filter((column) => column.name)
+      : [],
+    partial: normalizeBoolean(constraint.partial),
+    origin: String(constraint.origin ?? "").trim(),
+    sql: String(constraint.sql ?? "").trim(),
+    originalSql: String(constraint.originalSql ?? constraint.sql ?? "").trim(),
+    expression: String(constraint.expression ?? "").trim(),
+    originalExpression: String(constraint.originalExpression ?? constraint.expression ?? constraint.sql ?? "").trim(),
+    editable: normalizeBoolean(constraint.editable),
+    preserved: constraint.preserved === undefined ? true : normalizeBoolean(constraint.preserved),
+  };
+}
+
+function normalizeCheckConstraintPayload(constraint = {}, index = 0) {
+  return {
+    id: String(constraint.id ?? `check:${index}`),
+    name: String(constraint.name ?? `CHECK ${index + 1}`).trim(),
+    originalName: String(constraint.originalName ?? constraint.name ?? `CHECK ${index + 1}`).trim(),
+    columns: Array.isArray(constraint.columns)
+      ? constraint.columns
+          .map((column) => ({
+            name: String(column?.name ?? "").trim(),
+            allowedValues: Array.isArray(column?.allowedValues)
+              ? column.allowedValues.map((value) => String(value ?? ""))
+              : [],
+          }))
+          .filter((column) => column.name)
+      : [],
+    expression: String(constraint.expression ?? "").trim(),
+    originalExpression: String(constraint.originalExpression ?? constraint.expression ?? "").trim(),
+    editable: normalizeBoolean(constraint.editable),
+    preserved: constraint.preserved === undefined ? true : normalizeBoolean(constraint.preserved),
+  };
+}
+
 function normalizeDraftPayload(payload = {}) {
   const mode = String(payload.mode ?? "create").trim() === "edit" ? "edit" : "create";
 
@@ -76,6 +123,17 @@ function normalizeDraftPayload(payload = {}) {
     columns: Array.isArray(payload.columns)
       ? payload.columns.map((column, index) => normalizeColumnPayload(column, index))
       : [],
+    uniqueConstraints: Array.isArray(payload.uniqueConstraints)
+      ? payload.uniqueConstraints.map((constraint, index) =>
+          normalizeUniqueConstraintPayload(constraint, index)
+        )
+      : [],
+    checkConstraints: Array.isArray(payload.checkConstraints)
+      ? payload.checkConstraints.map((constraint, index) =>
+          normalizeCheckConstraintPayload(constraint, index)
+        )
+      : [],
+    designerVersion: Number(payload.designerVersion) || 1,
     schemaWarnings: Array.isArray(payload.schemaWarnings) ? payload.schemaWarnings : [],
     warnings: Array.isArray(payload.warnings) ? payload.warnings : [],
     fillImportedRows: normalizeBoolean(payload.fillImportedRows),
@@ -112,7 +170,7 @@ function validatePrimaryKeys(draft, originalDraft) {
 
   if (!originalDraft) {
     throw new ValidationError(
-      "Table Designer v1 supports a single primary key column when creating a table."
+      "Table Designer v2 supports a single primary key column when creating a table."
     );
   }
 
@@ -134,7 +192,7 @@ function validatePrimaryKeys(draft, originalDraft) {
 
   if (!isUnchangedCompositePrimaryKey) {
     throw new ValidationError(
-      "Table Designer v1 does not support editing composite primary keys."
+      "Table Designer v2 does not support editing composite primary keys."
     );
   }
 }

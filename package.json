@@ -1,6 +1,6 @@
 {
     "name": "sqlite-hub",
-    "version": "0.12.0",
+    "version": "0.15.0",
     "description": "SQLite-only local management app backend and SPA shell",
     "main": "server/server.js",
     "bin": {
@@ -27,7 +27,8 @@
         "express-rate-limit": "^8.5.2",
         "helmet": "^8.2.0",
         "material-symbols": "^0.44.9",
-        "openai": "^6.39.1"
+        "openai": "^6.39.1",
+        "yahoo-finance2": "^3.15.2"
     },
     "devDependencies": {
         "@tailwindcss/cli": "^4.3.0",

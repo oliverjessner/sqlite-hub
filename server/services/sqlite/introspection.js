@@ -345,12 +345,20 @@ function getTableDetail(db, tableName, options = {}) {
   const foreignKeys = groupForeignKeys(
     db.prepare(`PRAGMA foreign_key_list(${quoteIdentifier(tableName)})`).all()
   );
+  const checkConstraints = extractCheckExpressions(entry.sql).map((expression, index) => ({
+    id: index,
+    expression: expression.trim(),
+  }));
 
   const indexList = db
     .prepare(`PRAGMA index_list(${quoteIdentifier(tableName)})`)
     .all()
     .map((indexEntry) => {
       let indexColumns = [];
+      const indexSql =
+        db
+          .prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?")
+          .get(indexEntry.name)?.sql ?? null;
 
       try {
         indexColumns = db
@@ -380,6 +388,7 @@ function getTableDetail(db, tableName, options = {}) {
         unique: Boolean(indexEntry.unique),
         origin: indexEntry.origin,
         partial: Boolean(indexEntry.partial),
+        sql: indexSql,
         columns: indexColumns,
       };
     });
@@ -402,6 +411,7 @@ function getTableDetail(db, tableName, options = {}) {
     withoutRowId,
     strict: Boolean(tableListEntry?.strict),
     columns,
+    checkConstraints,
     foreignKeys,
     indexes: indexList,
     indexCount: indexList.length,

@@ -204,6 +204,13 @@ function mapEditableColumns(tableDetail, columnDefinitions) {
   const tableColumnsByName = new Map(
     tableDetail.columns.map((column) => [column.name, column])
   );
+  const foreignKeyColumnNames = new Set(
+    (tableDetail.foreignKeys ?? []).flatMap((foreignKey) =>
+      (foreignKey.mappings ?? [])
+        .map((mapping) => String(mapping.from ?? "").trim())
+        .filter(Boolean)
+    )
+  );
   const identityColumns = new Set(
     tableDetail.identityStrategy?.type === "primaryKey"
       ? tableDetail.identityStrategy.columns ?? []
@@ -223,10 +230,29 @@ function mapEditableColumns(tableDetail, columnDefinitions) {
       visible: isRowId ? true : Boolean(columnMeta?.visible),
       generated: Boolean(columnMeta?.generated),
       identity: identityColumns.has(definition.column),
+      declaredType: columnMeta?.declaredType ?? "",
+      affinity: columnMeta?.affinity ?? "",
+      primaryKeyPosition: Number(columnMeta?.primaryKeyPosition ?? 0),
+      foreignKey: foreignKeyColumnNames.has(definition.column),
       notNull: Boolean(columnMeta?.notNull),
       allowedValues: columnMeta?.allowedValues ?? [],
     };
   });
+}
+
+function buildTableMeta(tableDetail) {
+  return {
+    columns: (tableDetail.columns ?? []).map((column) => ({
+      name: column.name,
+      declaredType: column.declaredType,
+      affinity: column.affinity,
+      primaryKeyPosition: Number(column.primaryKeyPosition ?? 0),
+      foreignKey: (tableDetail.foreignKeys ?? []).some((foreignKey) =>
+        (foreignKey.mappings ?? []).some((mapping) => mapping.from === column.name)
+      ),
+    })),
+    foreignKeys: tableDetail.foreignKeys ?? [],
+  };
 }
 
 function hasRequiredIdentityColumns(tableDetail, editableColumns) {
@@ -301,6 +327,7 @@ function resolveEditableResult(db, columnDefinitions, serializedRows) {
       reason: getEditableResultReason(tableDetail),
       columns: editableColumns,
       identityStrategy: tableDetail.identityStrategy,
+      tableMeta: buildTableMeta(tableDetail),
     };
   }
 
@@ -319,6 +346,7 @@ function resolveEditableResult(db, columnDefinitions, serializedRows) {
     reason: "",
     columns: editableColumns,
     identityStrategy: tableDetail.identityStrategy,
+    tableMeta: buildTableMeta(tableDetail),
     rows,
   };
 }
@@ -378,6 +406,7 @@ class SqlExecutor {
                   reason: editableResult.reason ?? "",
                   columns: editableResult.columns ?? [],
                   identityStrategy: editableResult.identityStrategy ?? null,
+                  tableMeta: editableResult.tableMeta ?? null,
                 }
               : null,
           };

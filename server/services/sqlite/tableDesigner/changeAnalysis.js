@@ -26,6 +26,17 @@ function hasColumnChanged(originalColumn, draftColumn) {
   );
 }
 
+function hasConstraintChanged(constraint) {
+  return (
+    normalizeComparableValue(constraint.name) !==
+      normalizeComparableValue(constraint.originalName ?? constraint.name) ||
+    normalizeComparableValue(constraint.expression || constraint.sql) !==
+      normalizeComparableValue(
+        constraint.originalExpression ?? constraint.originalSql ?? constraint.expression ?? constraint.sql
+      )
+  );
+}
+
 function hasMeaningfulNewDraftContent(draft) {
   return (
     Boolean(String(draft.tableName ?? "").trim()) ||
@@ -149,7 +160,7 @@ function analyzeEditDraft(draft, originalDraft) {
           warnings.push(
             buildRiskyChangeWarning(
               "Column Rename Requires Rebuild",
-              `Renaming column ${originalColumn.name} to ${column.name} is intentionally blocked in Table Designer v1.`
+              `Renaming column ${originalColumn.name} to ${column.name} is intentionally blocked in Table Designer v2.`
             )
           );
         }
@@ -262,6 +273,19 @@ function analyzeEditDraft(draft, originalDraft) {
 
     executableStatements.push(
       buildAlterTableAddColumnSql(tableRenameChanged ? draft.tableName : originalDraft.tableName, column)
+    );
+  });
+
+  [...(draft.uniqueConstraints ?? []), ...(draft.checkConstraints ?? [])].forEach((constraint) => {
+    if (!hasConstraintChanged(constraint)) {
+      return;
+    }
+
+    warnings.push(
+      buildRiskyChangeWarning(
+        "Constraint Change Requires Rebuild",
+        `Changing ${constraint.originalName || constraint.name || "a table constraint"} requires a SQLite table rebuild.`
+      )
     );
   });
 

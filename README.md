@@ -16,7 +16,9 @@ SQLite Hub keeps that workflow sharp:
 - filter, sort, page through, and export table data
 - inspect schema, structure, and relationships
 - edit records in place with an SQL diff preview before saving
-- export tables and query results as CSV, TSV, Markdown, duplicate as table
+- export tables and query results as CSV, TSV, Markdown, or duplicate them as a table
+- copy result columns with formatting, headers, first-10 previews, TXT export, and Markdown todo export
+- switch between recent databases with sidebar quick picks
 - create simple local backups of the active database
 - run SQL in a syntax-highlighted editor with history, messages, and performance metrics
 - turn query-history results into local charts
@@ -35,7 +37,7 @@ Inspect tables, columns, types, indexes, foreign keys, and schema details withou
 
 ![](./frontend/assets/mockups/data.png)
 
-Scan rows, sort fast, move through local data quickly, and export full tables as CSV. The Data browser supports table search, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching.
+Scan rows, sort fast, move through local data quickly, and export full tables as CSV, TSV, or Markdown. The Data browser also supports duplicating exports as a new table, table search, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching.
 
 ### Row editing
 
@@ -47,7 +49,9 @@ Open one record, edit it in place, preview the SQL diff, then commit. SQLite Hub
 
 ![](./frontend/assets/mockups/sql_editor.png)
 
-Write queries in a syntax-highlighted editor, inspect results in the same workflow, and export result sets as CSV. Query drafts survive reloads, query history can be searched and saved, and direct single-table `SELECT` results can be edited from the result grid.
+Write queries in a syntax-highlighted editor, inspect results in the same workflow, and export result sets as CSV, TSV, Markdown, or duplicate them as a table. Query drafts survive reloads, query history can be searched and saved, and direct single-table `SELECT` results can be edited from the result grid.
+
+Result column menus include copy actions for a full column, a column with header, or the first 10 values. The same modal can preview the output, copy it, export it as TXT, or turn a column into Markdown todo items.
 
 The bottom panel keeps separate tabs for:
 
@@ -76,6 +80,10 @@ Configure a media table, tag table, and mapping table, then work through a taggi
 ### UI preferences
 
 SQLite Hub remembers common workspace preferences in local storage, including hidden panels, selected editor tabs, query drafts, chart panels, table row size, and Table Designer preview visibility.
+
+### Database quick picks
+
+The active database footer in the sidebar opens a quick-pick panel with the five most recent databases, so you can switch databases without going back to the Connections view.
 
 ### Simple backups
 
