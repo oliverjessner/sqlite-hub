@@ -152,6 +152,11 @@ import {
 } from './utils/copyColumnExport.js';
 import { formatNumber, highlightSql } from './utils/format.js';
 import {
+    compactPathForDisplay,
+    detectFilePathValue,
+    getPathTypeLabel,
+} from './utils/filePathPreview.js';
+import {
     buildDataRowEditorJsonObject,
     buildEditorRowEditorJsonObject,
     stringifyRowEditorJson,
@@ -1346,6 +1351,63 @@ function syncRowEditorTimestampPreview(inputNode) {
     previewNode.textContent = `Interpretiert als Datum: ${preview.formatted}`;
 }
 
+function syncRowEditorFilePathPreview(inputNode) {
+    const fieldNode = inputNode.closest('[data-row-editor-field]');
+    const previewNode = fieldNode?.querySelector('[data-row-editor-filepath-preview]');
+
+    if (!fieldNode || !previewNode) {
+        return;
+    }
+
+    const columnName = fieldNode.dataset.rowEditorColumnName ?? '';
+    const protectedKeyColumn = fieldNode.dataset.rowEditorProtectedKey === 'true';
+    const tableMeta = {
+        columns: [
+            {
+                name: columnName,
+                primaryKeyPosition: protectedKeyColumn ? 1 : 0,
+                foreignKey: protectedKeyColumn,
+            },
+        ],
+        foreignKeys: [],
+    };
+    const preview = detectFilePathValue(inputNode.value, columnName, tableMeta);
+
+    if (!preview) {
+        previewNode.hidden = true;
+        return;
+    }
+
+    const filenameNode = previewNode.querySelector('[data-row-editor-filepath-filename]');
+    const directoryRowNode = previewNode.querySelector('[data-row-editor-filepath-directory-row]');
+    const directoryNode = previewNode.querySelector('[data-row-editor-filepath-directory]');
+    const extensionNode = previewNode.querySelector('[data-row-editor-filepath-extension]');
+    const typeNode = previewNode.querySelector('[data-row-editor-filepath-type]');
+
+    if (filenameNode) {
+        filenameNode.textContent = preview.fileName ?? 'N/A';
+    }
+
+    if (directoryRowNode) {
+        directoryRowNode.hidden = !preview.directory;
+    }
+
+    if (directoryNode) {
+        directoryNode.textContent = preview.directory ? compactPathForDisplay(preview.directory, 72) : '';
+        directoryNode.setAttribute('title', preview.directory ?? '');
+    }
+
+    if (extensionNode) {
+        extensionNode.textContent = preview.extension ?? 'N/A';
+    }
+
+    if (typeNode) {
+        typeNode.textContent = getPathTypeLabel(preview.pathType);
+    }
+
+    previewNode.hidden = false;
+}
+
 function closeCopyColumnMenus(exceptMenu = null) {
     document.querySelectorAll('[data-copy-column-menu][open]').forEach(menu => {
         if (menu !== exceptMenu && menu instanceof HTMLDetailsElement) {
@@ -2249,6 +2311,7 @@ document.addEventListener('input', event => {
 
     if (timestampInput) {
         syncRowEditorTimestampPreview(timestampInput);
+        syncRowEditorFilePathPreview(timestampInput);
     }
 
     const bindNode = event.target.closest('[data-bind]');
@@ -2393,6 +2456,7 @@ document.addEventListener('change', event => {
 
     if (timestampInput) {
         syncRowEditorTimestampPreview(timestampInput);
+        syncRowEditorFilePathPreview(timestampInput);
     }
 
     const bindNode = event.target.closest('[data-bind]');

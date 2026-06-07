@@ -1,5 +1,10 @@
 import { escapeHtml } from "../utils/format.js";
 import {
+  compactPathForDisplay,
+  detectFilePathValue,
+  getPathTypeLabel,
+} from "../utils/filePathPreview.js";
+import {
   getTimestampPreviewForField,
   isProtectedKeyColumn,
 } from "../utils/timestampPreview.js";
@@ -89,6 +94,19 @@ function withCheckBadge(badges = [], allowedValues = []) {
   });
 
   return hasCheckBadge ? badges : [...badges, { label: "CHECK", tone: "check" }];
+}
+
+function withFilePathBadge(badges = [], filePathPreview) {
+  if (!filePathPreview) {
+    return badges;
+  }
+
+  const hasPathBadge = badges.some((badge) => {
+    const label = typeof badge === "object" ? badge.label : badge;
+    return String(label ?? "").toUpperCase() === "PATH";
+  });
+
+  return hasPathBadge ? badges : [...badges, { label: "PATH", tone: "filepath" }];
 }
 
 function renderOpenUrlButton(url) {
@@ -186,6 +204,51 @@ function renderTimestampPreview(field = {}, tableMeta = {}) {
   `;
 }
 
+function getFieldFilePathPreview(field = {}, tableMeta = {}) {
+  return detectFilePathValue(getFieldRawValue(field), getFieldColumnName(field), tableMeta);
+}
+
+function renderFilePathPreview(field = {}, tableMeta = {}) {
+  if (isProtectedKeyColumn(getFieldColumnName(field), tableMeta)) {
+    return "";
+  }
+
+  const preview = getFieldFilePathPreview(field, tableMeta);
+
+  return `
+    <div
+      class="border border-outline-variant/10 bg-surface-container px-4 py-4 text-xs text-on-surface"
+      data-row-editor-filepath-preview
+      ${preview ? "" : "hidden"}
+    >
+      <div class="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/75">
+        <span class="material-symbols-outlined text-sm">folder</span>
+        Interpretiert als Filepath
+      </div>
+      <div class="mt-3 grid gap-2 font-mono text-[11px] leading-5">
+        <div>
+          <span class="text-on-surface-variant/55">Filename:</span>
+          <span data-row-editor-filepath-filename>${escapeHtml(preview?.fileName ?? "N/A")}</span>
+        </div>
+        <div data-row-editor-filepath-directory-row ${preview?.directory ? "" : "hidden"}>
+          <span class="text-on-surface-variant/55">Directory:</span>
+          <span data-row-editor-filepath-directory title="${escapeHtml(preview?.directory ?? "")}">
+            ${escapeHtml(preview?.directory ? compactPathForDisplay(preview.directory, 72) : "")}
+          </span>
+        </div>
+        <div>
+          <span class="text-on-surface-variant/55">Extension:</span>
+          <span data-row-editor-filepath-extension>${escapeHtml(preview?.extension ?? "N/A")}</span>
+        </div>
+        <div>
+          <span class="text-on-surface-variant/55">Type:</span>
+          <span data-row-editor-filepath-type>${escapeHtml(preview ? getPathTypeLabel(preview.pathType) : "N/A")}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderJsonViewer(prettyJson, title = "JSON Viewer") {
   return `
     <div class="border border-outline-variant/10 bg-surface-container px-4 py-4">
@@ -205,8 +268,9 @@ function renderReadonlyField(field = {}, tableMeta = {}) {
   const rawValue = getFieldRawValue(field);
   const columnName = getFieldColumnName(field);
   const protectedKeyColumn = isProtectedKeyColumn(columnName, tableMeta);
+  const filePathPreview = getFieldFilePathPreview({ ...field, rawValue }, tableMeta);
   const url = getUrlValue(value);
-  const badges = withUrlBadge(Array.isArray(label?.badges) ? label.badges : [], url);
+  const badges = withFilePathBadge(withUrlBadge(Array.isArray(label?.badges) ? label.badges : [], url), filePathPreview);
   const displayLabel = typeof label === "object" ? label.label : label;
   const jsonPreview = getJsonPreview(value);
 
@@ -229,6 +293,7 @@ function renderReadonlyField(field = {}, tableMeta = {}) {
           : `<div class="mt-2 text-sm text-on-surface">${escapeHtml(value)}</div>`
       }
       ${renderTimestampPreview({ ...field, rawValue }, tableMeta)}
+      ${renderFilePathPreview({ ...field, rawValue }, tableMeta)}
       ${renderOpenUrlButton(url)}
     </div>
   `;
@@ -239,8 +304,9 @@ function renderEditableField(field, tableMeta = {}) {
   const protectedKeyColumn = isProtectedKeyColumn(columnName, tableMeta);
   const url = getUrlValue(field.value);
   const allowedValues = getAllowedValues(field);
+  const filePathPreview = getFieldFilePathPreview(field, tableMeta);
   const baseBadges = withCheckBadge(Array.isArray(field.badges) ? field.badges : [], allowedValues);
-  const badges = withUrlBadge(baseBadges, url);
+  const badges = withFilePathBadge(withUrlBadge(baseBadges, url), filePathPreview);
   const jsonPreview = getJsonPreview(field.value);
   const inputType = field.inputType === "number" ? "number" : "text";
   const numberStep = field.numberStep === "1" ? "1" : "any";
@@ -304,6 +370,7 @@ function renderEditableField(field, tableMeta = {}) {
             `
       }
       ${renderTimestampPreview(field, tableMeta)}
+      ${renderFilePathPreview(field, tableMeta)}
     </div>
   `;
 }
@@ -323,6 +390,10 @@ function getFieldBadgeClassName(tone) {
 
   if (tone === "check") {
     return "border-tertiary-fixed-dim/35 bg-tertiary-fixed-dim/15 text-tertiary-fixed-dim";
+  }
+
+  if (tone === "filepath") {
+    return "border-outline-variant/30 bg-surface-container-high text-on-surface";
   }
 
   return "border-outline-variant/20 bg-surface-container text-on-surface-variant";

@@ -14,9 +14,10 @@
 - secure execute for destructive queries
 - 250 page size, advanced search in data
 - export TSV, CSV, markdown, duplicate as table
-- copy from column function
+- copy from and export column function, with separator and wrapper
 - quick picks for database
 - export row as json
+- row editor shows urls and opens in browser, path detection, timestamp detection
 
 # v0.9.3
 

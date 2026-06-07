@@ -1,6 +1,7 @@
 import { renderDataGrid } from '../components/dataGrid.js';
 import { renderRowEditorPanel } from '../components/rowEditorPanel.js';
 import { escapeHtml, formatCellValue, formatNumber, isBlobPreview, truncateMiddle } from '../utils/format.js';
+import { compactPathForDisplay, detectFilePathValue } from '../utils/filePathPreview.js';
 
 function getSelectedRow(state) {
     if (state.dataBrowser.selectedRow) {
@@ -366,15 +367,36 @@ function renderTableSurface(state) {
     }));
     const sortColumn = state.dataBrowser.sortColumn;
     const sortDirection = state.dataBrowser.sortDirection;
+    const tableMeta = {
+        columns: table.columnMeta ?? [],
+        foreignKeys: table.foreignKeys ?? [],
+    };
     const columns = (table.columns ?? []).map(columnName => ({
         headerClassName:
             'border-b border-primary-container/20 px-4 py-3 text-[10px] font-bold tracking-[0.08em] text-primary-container',
         renderHeader: () => renderSortableHeader(columnName, sortColumn, sortDirection, 'sort-data-column'),
         cellClassName: 'px-4 py-2 align-top text-[11px] text-on-surface',
         render: row => {
-            const value = formatCellValue(row[columnName]);
+            const rawValue = row[columnName];
+            const filePath = detectFilePathValue(rawValue, columnName, tableMeta);
+            const value = formatCellValue(rawValue);
             const isNull = value === 'NULL';
             const widthClass = getCellWidthClass(columnName);
+
+            if (filePath) {
+                return `
+                  <span
+                    class="inline-flex ${widthClass} items-center gap-2 overflow-hidden whitespace-nowrap text-on-surface"
+                    title="${escapeHtml(filePath.rawValue)}"
+                  >
+                    <span class="material-symbols-outlined text-sm text-on-surface-variant/55">folder</span>
+                    <span class="min-w-0 overflow-hidden text-ellipsis">${escapeHtml(
+                        compactPathForDisplay(filePath.rawValue, 48),
+                    )}</span>
+                  </span>
+                `;
+            }
+
             const displayValue = isNull ? value : truncateMiddle(value, 48);
 
             return `<span class="block ${widthClass} overflow-hidden text-ellipsis whitespace-nowrap ${
