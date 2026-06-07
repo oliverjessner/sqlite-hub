@@ -1,4 +1,8 @@
 import { escapeHtml } from "../utils/format.js";
+import {
+  getTimestampPreviewForField,
+  isProtectedKeyColumn,
+} from "../utils/timestampPreview.js";
 
 const URL_PATTERN = /^https?:\/\/[^\s<>"']+$/i;
 
@@ -131,10 +135,54 @@ function renderAllowedValuesSelect(field, allowedValues) {
   return `
     <select
       class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+      data-row-editor-initial-value="${escapeHtml(currentValue)}"
+      data-row-editor-timestamp-source
       name="field:${escapeHtml(field.name)}"
     >
       ${options}
     </select>
+  `;
+}
+
+function getFieldColumnName(field = {}) {
+  return String(field.sourceColumn ?? field.name ?? "");
+}
+
+function getFieldRawValue(field = {}) {
+  return field.rawValue === undefined ? field.value : field.rawValue;
+}
+
+function getFieldTimestampPreview(field = {}, tableMeta = {}) {
+  return getTimestampPreviewForField({
+    columnName: getFieldColumnName(field),
+    value: getFieldRawValue(field),
+    tableMeta,
+  });
+}
+
+function renderTimestampPreview(field = {}, tableMeta = {}) {
+  const preview = getFieldTimestampPreview(field, tableMeta);
+
+  if (preview.kind === "protected-key") {
+    return `
+      <div class="text-[11px] text-on-surface-variant/55">
+        Key column - shown as raw value
+      </div>
+    `;
+  }
+
+  return `
+    <div
+      class="text-[11px] text-on-surface-variant/70"
+      data-row-editor-timestamp-preview
+      ${preview.kind === "timestamp" ? "" : "hidden"}
+    >
+      ${
+        preview.kind === "timestamp"
+          ? `Interpretiert als Datum: ${escapeHtml(preview.formatted)}`
+          : ""
+      }
+    </div>
   `;
 }
 
@@ -151,14 +199,24 @@ function renderJsonViewer(prettyJson, title = "JSON Viewer") {
   `;
 }
 
-function renderReadonlyField(label, value) {
+function renderReadonlyField(field = {}, tableMeta = {}) {
+  const label = field.label ?? field.name;
+  const value = field.value;
+  const rawValue = getFieldRawValue(field);
+  const columnName = getFieldColumnName(field);
+  const protectedKeyColumn = isProtectedKeyColumn(columnName, tableMeta);
   const url = getUrlValue(value);
   const badges = withUrlBadge(Array.isArray(label?.badges) ? label.badges : [], url);
   const displayLabel = typeof label === "object" ? label.label : label;
   const jsonPreview = getJsonPreview(value);
 
   return `
-    <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3" ${
+    <div
+      class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3"
+      data-row-editor-column-name="${escapeHtml(columnName)}"
+      data-row-editor-field
+      data-row-editor-protected-key="${protectedKeyColumn ? "true" : "false"}"
+      ${
       url ? "data-row-editor-url-field" : ""
     }>
       <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
@@ -170,12 +228,15 @@ function renderReadonlyField(label, value) {
           ? `<div class="mt-2">${renderJsonViewer(jsonPreview)}</div>`
           : `<div class="mt-2 text-sm text-on-surface">${escapeHtml(value)}</div>`
       }
+      ${renderTimestampPreview({ ...field, rawValue }, tableMeta)}
       ${renderOpenUrlButton(url)}
     </div>
   `;
 }
 
-function renderEditableField(field) {
+function renderEditableField(field, tableMeta = {}) {
+  const columnName = getFieldColumnName(field);
+  const protectedKeyColumn = isProtectedKeyColumn(columnName, tableMeta);
   const url = getUrlValue(field.value);
   const allowedValues = getAllowedValues(field);
   const baseBadges = withCheckBadge(Array.isArray(field.badges) ? field.badges : [], allowedValues);
@@ -185,7 +246,13 @@ function renderEditableField(field) {
   const numberStep = field.numberStep === "1" ? "1" : "any";
 
   return `
-    <div class="block space-y-2" ${url ? "data-row-editor-url-field" : ""}>
+    <div
+      class="block space-y-2"
+      data-row-editor-column-name="${escapeHtml(columnName)}"
+      data-row-editor-field
+      data-row-editor-protected-key="${protectedKeyColumn ? "true" : "false"}"
+      ${url ? "data-row-editor-url-field" : ""}
+    >
       <span class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
         <span>${escapeHtml(field.label ?? field.name)}</span>
         ${badges.map((badge) => renderFieldBadge(badge)).join("")}
@@ -202,6 +269,8 @@ function renderEditableField(field) {
           ? `
               <input
                 class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+                data-row-editor-initial-value="${escapeHtml(field.value ?? "")}"
+                data-row-editor-timestamp-source
                 name="field:${escapeHtml(field.name)}"
                 step="${escapeHtml(numberStep)}"
                 type="number"
@@ -212,6 +281,8 @@ function renderEditableField(field) {
             ? `
               <input
                 class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+                data-row-editor-initial-value="${escapeHtml(field.value ?? "")}"
+                data-row-editor-timestamp-source
                 name="field:${escapeHtml(field.name)}"
                 data-row-editor-url-input
                 spellcheck="false"
@@ -225,11 +296,14 @@ function renderEditableField(field) {
                 class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container ${
                   jsonPreview ? "min-h-[14rem] font-mono leading-6" : "min-h-[56px]"
                 }"
+                data-row-editor-initial-value="${escapeHtml(field.value ?? "")}"
+                data-row-editor-timestamp-source
                 name="field:${escapeHtml(field.name)}"
                 spellcheck="false"
               >${escapeHtml(field.value ?? "")}</textarea>
             `
       }
+      ${renderTimestampPreview(field, tableMeta)}
     </div>
   `;
 }
@@ -274,11 +348,13 @@ export function renderRowEditorPanel({
   hiddenFields = [],
   editableFields = [],
   readonlyFields = [],
+  tableMeta = {},
   disabledMessage = "",
   saveError = null,
   saving = false,
   deleting = false,
   reloadAction = "",
+  jsonActionsEnabled = false,
   submitLabel = "Save",
   deleteAction = "",
   deleteRowIndex = null,
@@ -295,6 +371,18 @@ export function renderRowEditorPanel({
           '<button class="standard-button" data-action="',
           escapeHtml(reloadAction),
           '" type="button">Reload</button>',
+        ].join("")
+      : "",
+    jsonActionsEnabled
+      ? [
+          '<button class="standard-button" data-action="copy-row-editor-json" type="button">',
+          '<span class="material-symbols-outlined text-sm">content_copy</span>',
+          "Copy as JSON",
+          "</button>",
+          '<button class="standard-button" data-action="export-row-editor-json" type="button">',
+          '<span class="material-symbols-outlined text-sm">download</span>',
+          "Export as JSON",
+          "</button>",
         ].join("")
       : "",
     canSubmit
@@ -393,7 +481,7 @@ export function renderRowEditorPanel({
                       ? `
                           <div class="space-y-4">
                             ${editableFields
-                              .map((field) => renderEditableField(field))
+                              .map((field) => renderEditableField(field, tableMeta))
                               .join("")}
                           </div>
                         `
@@ -425,7 +513,7 @@ export function renderRowEditorPanel({
                   </div>
                   <div class="space-y-3">
                     ${readonlyFields
-                      .map((field) => renderReadonlyField(field.label ?? field.name, field.value))
+                      .map((field) => renderReadonlyField(field, tableMeta))
                       .join("")}
                   </div>
                 </div>

@@ -460,7 +460,7 @@ export function renderChartsDetail(state) {
                 type="button"
               >
                 <span class="material-symbols-outlined text-sm">${
-                  historyVisible ? 'visibility_off' : 'history'
+                  historyVisible ? 'visibility_off' : 'visibility'
                 }</span>
                 ${historyVisible ? 'Hide Query History' : 'Show Query History'}
               </button>

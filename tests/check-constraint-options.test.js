@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { getTableDetail } = require("../server/services/sqlite/introspection");
 const { SqlExecutor } = require("../server/services/sqlite/sqlExecutor");
+const { buildTableDesignerDraft } = require("../server/services/sqlite/tableDesigner/schemaMapping");
 
 test("table detail exposes string options from simple CHECK IN constraints", () => {
   const db = new Database(":memory:");
@@ -34,6 +35,7 @@ test("table detail exposes string options from simple CHECK IN constraints", () 
     `);
 
     const tableDetail = getTableDetail(db, "stream_company_mentions");
+    const designerDraft = buildTableDesignerDraft(tableDetail);
     const mentionTypeColumn = tableDetail.columns.find(
       (column) => column.name === "mention_type"
     );
@@ -70,6 +72,18 @@ test("table detail exposes string options from simple CHECK IN constraints", () 
     );
 
     assert.deepEqual(editableColumn.allowedValues, mentionTypeColumn.allowedValues);
+
+    assert.equal(designerDraft.designerVersion, 2);
+    assert.equal(designerDraft.checkConstraints.length, 1);
+    assert.match(designerDraft.checkConstraints[0].expression, /CHECK/i);
+    assert.equal(designerDraft.checkConstraints[0].originalExpression, designerDraft.checkConstraints[0].expression);
+    assert.equal(designerDraft.checkConstraints[0].editable, true);
+    assert.deepEqual(designerDraft.checkConstraints[0].columns, [
+      {
+        name: "mention_type",
+        allowedValues: mentionTypeColumn.allowedValues,
+      },
+    ]);
   } finally {
     db.close();
   }

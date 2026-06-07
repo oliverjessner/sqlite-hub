@@ -54,6 +54,7 @@ import {
     openCreateQueryChartModal,
     openCopyColumnModal,
     openEditQueryChartModal,
+    preserveCurrentDataRowSelectionForReload,
     openDataRowUpdatePreview,
     openEditorRowUpdatePreview,
     refreshCurrentRoute,
@@ -126,6 +127,7 @@ import {
     updateCurrentQueryChartDraftConfigField,
     updateCurrentQueryChartDraftField,
     updateCurrentTableDesignerColumnField,
+    updateCurrentTableDesignerConstraintField,
     updateCurrentTableDesignerField,
     addCurrentTableDesignerColumn,
     applyCurrentMediaTaggingSelection,
@@ -142,7 +144,19 @@ import { renderSettingsView } from './views/settings.js';
 import { renderStructureView } from './views/structure.js';
 import { renderTableDesignerView } from './views/tableDesigner.js';
 import { replaceChildrenFromRenderedMarkup, replaceElementFromRenderedMarkup } from './utils/dom.js';
+import {
+    buildCopyColumnText,
+    getCopyColumnExportMetadata,
+    isMarkdownTodoCopyColumnMode,
+    normalizeCopyColumnMode,
+} from './utils/copyColumnExport.js';
 import { formatNumber, highlightSql } from './utils/format.js';
+import {
+    buildDataRowEditorJsonObject,
+    buildEditorRowEditorJsonObject,
+    stringifyRowEditorJson,
+} from './utils/rowEditorJson.js';
+import { getTimestampPreviewForField } from './utils/timestampPreview.js';
 
 const appRoot = document.querySelector('#app');
 
@@ -1296,10 +1310,54 @@ function openRowEditorUrl(actionNode) {
     link.remove();
 }
 
+function syncRowEditorTimestampPreview(inputNode) {
+    const fieldNode = inputNode.closest('[data-row-editor-field]');
+    const previewNode = fieldNode?.querySelector('[data-row-editor-timestamp-preview]');
+
+    if (!fieldNode || !previewNode) {
+        return;
+    }
+
+    const columnName = fieldNode.dataset.rowEditorColumnName ?? '';
+    const protectedKeyColumn = fieldNode.dataset.rowEditorProtectedKey === 'true';
+    const tableMeta = {
+        columns: [
+            {
+                name: columnName,
+                primaryKeyPosition: protectedKeyColumn ? 1 : 0,
+                foreignKey: protectedKeyColumn,
+            },
+        ],
+        foreignKeys: [],
+    };
+    const preview = getTimestampPreviewForField({
+        columnName,
+        value: inputNode.value,
+        tableMeta,
+    });
+
+    if (preview.kind !== 'timestamp') {
+        previewNode.hidden = true;
+        previewNode.textContent = '';
+        return;
+    }
+
+    previewNode.hidden = false;
+    previewNode.textContent = `Interpretiert als Datum: ${preview.formatted}`;
+}
+
 function closeCopyColumnMenus(exceptMenu = null) {
     document.querySelectorAll('[data-copy-column-menu][open]').forEach(menu => {
         if (menu !== exceptMenu && menu instanceof HTMLDetailsElement) {
             menu.open = false;
+        }
+    });
+}
+
+function closeSidebarDatabasePickers(exceptPicker = null) {
+    document.querySelectorAll('.sidebar-db-picker[open]').forEach(picker => {
+        if (picker !== exceptPicker && picker instanceof HTMLDetailsElement) {
+            picker.open = false;
         }
     });
 }
@@ -1320,33 +1378,182 @@ function getCopyColumnResult(state, scope) {
     return scope === 'charts' ? state.charts.result : state.editor.result;
 }
 
-function normalizeCopyColumnMode(mode) {
-    return ['column', 'column-with-header', 'first-10'].includes(mode) ? mode : 'column';
+function slugifyExportFilenamePart(value, fallback = 'column') {
+    const slug = String(value ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+    return slug || fallback;
 }
 
-function formatCopyColumnValue(value, wrapper) {
-    const text = value === null || value === undefined ? '' : String(value);
-    const normalizedWrapper = String(wrapper ?? '');
+function buildCopyColumnExportFilename(columnName, copyMode) {
+    const metadata = getCopyColumnExportMetadata(copyMode);
+    const columnSlug = slugifyExportFilenamePart(columnName);
 
-    if (!normalizedWrapper) {
-        return text;
+    return `${columnSlug}-${metadata.suffix}.${metadata.extension}`;
+}
+
+function downloadTextFile({ text, filename, mimeType }) {
+    const blob = new Blob([text], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+function getSelectedDataBrowserRowForJson(state) {
+    if (state.dataBrowser.selectedRow) {
+        return state.dataBrowser.selectedRow;
     }
 
-    return `${normalizedWrapper}${text
-        .split(normalizedWrapper)
-        .join(`${normalizedWrapper}${normalizedWrapper}`)}${normalizedWrapper}`;
+    const rowIndex = state.dataBrowser.selectedRowIndex;
+
+    if (typeof rowIndex !== 'number') {
+        return null;
+    }
+
+    return state.dataBrowser.table?.rows?.[rowIndex] ?? null;
 }
 
-function buildCopyColumnText({ result, columnName, copyMode, separator, wrapper }) {
-    const rows = result?.rows ?? [];
-    const sourceRows = copyMode === 'first-10' ? rows.slice(0, 10) : rows;
-    const values = sourceRows.map(row => row?.[columnName]);
-    const outputValues = copyMode === 'column-with-header' ? [columnName, ...values] : values;
+function getSelectedEditorResultRowForJson(state) {
+    const rowIndex = state.editor.selectedRowIndex;
 
-    return {
-        text: outputValues.map(value => formatCopyColumnValue(value, wrapper)).join(separator),
-        valueCount: values.length,
-    };
+    if (typeof rowIndex !== 'number') {
+        return null;
+    }
+
+    return state.editor.result?.rows?.[rowIndex] ?? null;
+}
+
+function applyChangedRowEditorFormValues(rowObject) {
+    const form = shellRefs.panel.querySelector(
+        'form[data-form="save-data-row"], form[data-form="save-editor-row"]',
+    );
+
+    if (!form) {
+        return rowObject;
+    }
+
+    const nextRowObject = { ...rowObject };
+    const formData = new FormData(form);
+
+    for (const [key, value] of formData.entries()) {
+        if (!key.startsWith('field:')) {
+            continue;
+        }
+
+        const control = Array.from(form.elements).find(element => element.name === key);
+        const initialValue = control?.dataset?.rowEditorInitialValue;
+        const currentValue = String(value ?? '');
+
+        if (initialValue !== undefined && currentValue === initialValue) {
+            continue;
+        }
+
+        nextRowObject[key.slice('field:'.length)] = currentValue;
+    }
+
+    return nextRowObject;
+}
+
+function buildRowEditorJsonPayload(state) {
+    if (state.route.name === 'data') {
+        const row = getSelectedDataBrowserRowForJson(state);
+        const table = state.dataBrowser.table;
+        const tableName = table?.name ?? state.dataBrowser.selectedTable ?? 'row';
+
+        if (!row || !table) {
+            return null;
+        }
+
+        const rowObject = applyChangedRowEditorFormValues(
+            buildDataRowEditorJsonObject({
+                row,
+                columns: table.columns ?? table.columnMeta ?? [],
+            }),
+        );
+
+        return {
+            filename: `${slugifyExportFilenamePart(tableName, 'row')}-row.json`,
+            label: tableName,
+            text: stringifyRowEditorJson(rowObject),
+        };
+    }
+
+    if (state.route.name === 'editorResults') {
+        const row = getSelectedEditorResultRowForJson(state);
+        const result = state.editor.result;
+        const rowIndex = state.editor.selectedRowIndex;
+        const tableName = result?.editing?.tableName ?? 'query-result';
+
+        if (!row || !result) {
+            return null;
+        }
+
+        const rowObject = applyChangedRowEditorFormValues(
+            buildEditorRowEditorJsonObject({
+                row,
+                editingColumns: result.editing?.columns ?? [],
+                resultColumns: result.columns ?? [],
+            }),
+        );
+
+        return {
+            filename: `${slugifyExportFilenamePart(tableName, 'query-result')}-row-${Number(rowIndex) + 1}.json`,
+            label: tableName,
+            text: stringifyRowEditorJson(rowObject),
+        };
+    }
+
+    return null;
+}
+
+async function copyRowEditorJson() {
+    const payload = buildRowEditorJsonPayload(getState());
+
+    if (!payload) {
+        showToast('No row is selected.', 'alert');
+        return;
+    }
+
+    if (!navigator.clipboard?.writeText) {
+        showToast('Clipboard API is not available.', 'alert');
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(payload.text);
+        showToast(`Row from "${payload.label}" copied as JSON.`, 'success');
+    } catch (error) {
+        showToast('Row JSON could not be copied.', 'alert');
+    }
+}
+
+function exportRowEditorJson() {
+    const payload = buildRowEditorJsonPayload(getState());
+
+    if (!payload) {
+        showToast('No row is selected.', 'alert');
+        return;
+    }
+
+    downloadTextFile({
+        text: payload.text,
+        filename: payload.filename,
+        mimeType: 'application/json;charset=utf-8',
+    });
+    showToast(`Row from "${payload.label}" exported as JSON.`, 'success');
+}
+
+function preserveDataRowEditorSelectionForReload() {
+    preserveCurrentDataRowSelectionForReload();
 }
 
 async function submitCopyColumnModal(formData) {
@@ -1362,6 +1569,10 @@ async function submitCopyColumnModal(formData) {
     const copyMode = normalizeCopyColumnMode(String(formData.get('copyMode') ?? modal.copyMode ?? 'column'));
     const separator = String(formData.get('separator') ?? ',');
     const wrapper = String(formData.get('wrapper') ?? '');
+    const lineBreaks = formData.get('lineBreaks') === 'on';
+    const outputSeparator = lineBreaks ? '\n' : separator;
+    const intent = String(formData.get('intent') ?? 'copy');
+    const isExportIntent = intent === 'export';
     const result = getCopyColumnResult(state, scope);
     const hasColumn = (result?.columns ?? []).some(column => String(column) === columnName);
 
@@ -1374,18 +1585,38 @@ async function submitCopyColumnModal(formData) {
         return;
     }
 
-    storeCopyColumnPreferences({ separator, wrapper });
+    if (!isMarkdownTodoCopyColumnMode(copyMode)) {
+        storeCopyColumnPreferences({ separator, wrapper, lineBreaks });
+    }
     setCopyColumnModalSubmitting(true);
 
     const { text, valueCount } = buildCopyColumnText({
         result,
         columnName,
         copyMode,
-        separator,
+        separator: outputSeparator,
         wrapper,
     });
 
     try {
+        if (isExportIntent) {
+            const metadata = getCopyColumnExportMetadata(copyMode);
+
+            downloadTextFile({
+                text,
+                filename: buildCopyColumnExportFilename(columnName, copyMode),
+                mimeType: metadata.mimeType,
+            });
+            closeModal();
+            showToast(
+                `Column "${columnName}" exported as ${metadata.label} · ${formatNumber(valueCount)} ${
+                    valueCount === 1 ? 'value' : 'values'
+                }`,
+                'success',
+            );
+            return;
+        }
+
         if (!navigator.clipboard?.writeText) {
             throw new Error('Clipboard API is not available.');
         }
@@ -1398,10 +1629,10 @@ async function submitCopyColumnModal(formData) {
         );
     } catch (error) {
         setCopyColumnModalError({
-            code: 'CLIPBOARD_ACCESS_FAILED',
-            message: error?.message || 'Clipboard access failed.',
+            code: isExportIntent ? 'COPY_COLUMN_EXPORT_FAILED' : 'CLIPBOARD_ACCESS_FAILED',
+            message: error?.message || (isExportIntent ? 'Column export failed.' : 'Clipboard access failed.'),
         });
-        showToast('Clipboard access failed.', 'alert');
+        showToast(isExportIntent ? 'Column export failed.' : 'Clipboard access failed.', 'alert');
     }
 }
 
@@ -1418,8 +1649,17 @@ async function handleAction(actionNode) {
         case 'open-row-editor-url':
             openRowEditorUrl(actionNode);
             return;
+        case 'copy-row-editor-json':
+            await copyRowEditorJson();
+            return;
+        case 'export-row-editor-json':
+            exportRowEditorJson();
+            return;
         case 'open-modal':
-            openModal(actionNode.dataset.modal);
+            openModal(actionNode.dataset.modal, {
+                columnId: actionNode.dataset.columnId,
+                columnName: actionNode.dataset.columnName,
+            });
             return;
         case 'open-copy-column-modal':
             closeCopyColumnMenus();
@@ -1451,6 +1691,7 @@ async function handleAction(actionNode) {
             dismissToast(actionNode.dataset.toastId);
             return;
         case 'select-connection': {
+            closeSidebarDatabasePickers();
             resetStructureGraphForDatabaseChange();
             const next = await selectConnection(actionNode.dataset.connectionId);
             if (next) {
@@ -1837,6 +2078,7 @@ async function handleAction(actionNode) {
             }
             return;
         case 'reload-data-route':
+            preserveDataRowEditorSelectionForReload();
             await refreshCurrentRoute();
             return;
         default:
@@ -1871,6 +2113,18 @@ document.addEventListener('click', event => {
         window.requestAnimationFrame(() => {
             if (copyColumnMenu instanceof HTMLDetailsElement && copyColumnMenu.open) {
                 closeCopyColumnMenus(copyColumnMenu);
+            }
+        });
+    }
+
+    const sidebarDatabasePicker = target.closest('.sidebar-db-picker');
+
+    if (!sidebarDatabasePicker) {
+        closeSidebarDatabasePickers();
+    } else if (target.closest('.sidebar-footer-card')) {
+        window.requestAnimationFrame(() => {
+            if (sidebarDatabasePicker instanceof HTMLDetailsElement && sidebarDatabasePicker.open) {
+                closeSidebarDatabasePickers(sidebarDatabasePicker);
             }
         });
     }
@@ -1968,6 +2222,12 @@ document.addEventListener('keydown', event => {
         return;
     }
 
+    if (document.querySelector('.sidebar-db-picker[open]')) {
+        event.preventDefault();
+        closeSidebarDatabasePickers();
+        return;
+    }
+
     if (
         state.route.name === 'data' &&
         (typeof state.dataBrowser.selectedRowIndex === 'number' || Boolean(state.dataBrowser.selectedRow))
@@ -1984,6 +2244,13 @@ document.addEventListener('keydown', event => {
 });
 
 document.addEventListener('input', event => {
+    const target = event.target instanceof Element ? event.target : null;
+    const timestampInput = target?.closest('[data-row-editor-timestamp-source]');
+
+    if (timestampInput) {
+        syncRowEditorTimestampPreview(timestampInput);
+    }
+
     const bindNode = event.target.closest('[data-bind]');
 
     if (!bindNode) {
@@ -1991,7 +2258,10 @@ document.addEventListener('input', event => {
     }
 
     if (bindNode.dataset.bind === 'copy-column-format-field') {
-        updateCopyColumnModalFormatField(bindNode.dataset.field, bindNode.value);
+        updateCopyColumnModalFormatField(
+            bindNode.dataset.field,
+            bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox' ? bindNode.checked : bindNode.value,
+        );
         return;
     }
 
@@ -2036,7 +2306,12 @@ document.addEventListener('input', event => {
             return;
         }
 
-        updateCurrentTableDesignerField(bindNode.dataset.field, bindNode.value);
+        updateCurrentTableDesignerField(bindNode.dataset.field, bindNode.value, { notify: false });
+
+        if (!syncTableDesignerDraftUi(bindNode)) {
+            renderApp(getState());
+        }
+
         return;
     }
 
@@ -2045,7 +2320,14 @@ document.addEventListener('input', event => {
             return;
         }
 
-        updateCurrentTableDesignerColumnField(bindNode.dataset.columnId, bindNode.dataset.field, bindNode.value);
+        updateCurrentTableDesignerColumnField(bindNode.dataset.columnId, bindNode.dataset.field, bindNode.value, {
+            notify: false,
+        });
+
+        if (!syncTableDesignerDraftUi(bindNode)) {
+            renderApp(getState());
+        }
+
         return;
     }
 
@@ -2106,6 +2388,13 @@ document.addEventListener(
 );
 
 document.addEventListener('change', event => {
+    const target = event.target instanceof Element ? event.target : null;
+    const timestampInput = target?.closest('[data-row-editor-timestamp-source]');
+
+    if (timestampInput) {
+        syncRowEditorTimestampPreview(timestampInput);
+    }
+
     const bindNode = event.target.closest('[data-bind]');
 
     if (!bindNode) {
@@ -2164,7 +2453,12 @@ document.addEventListener('change', event => {
             return;
         }
 
-        updateCurrentTableDesignerField(bindNode.dataset.field, bindNode.value);
+        updateCurrentTableDesignerField(bindNode.dataset.field, bindNode.value, { notify: false });
+
+        if (!syncTableDesignerDraftUi(bindNode)) {
+            renderApp(getState());
+        }
+
         return;
     }
 
@@ -2181,12 +2475,29 @@ document.addEventListener('change', event => {
             return;
         }
 
-        updateCurrentTableDesignerColumnField(bindNode.dataset.columnId, bindNode.dataset.field, bindNode.value);
+        updateCurrentTableDesignerColumnField(bindNode.dataset.columnId, bindNode.dataset.field, bindNode.value, {
+            notify: false,
+        });
+
+        if (!syncTableDesignerDraftUi(bindNode)) {
+            renderApp(getState());
+        }
+
         return;
     }
 
     if (bindNode.dataset.bind === 'table-designer-column-flag') {
         updateCurrentTableDesignerColumnField(bindNode.dataset.columnId, bindNode.dataset.field, bindNode.checked);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'table-designer-constraint-field') {
+        updateCurrentTableDesignerConstraintField(
+            bindNode.dataset.constraintKind,
+            bindNode.dataset.constraintId,
+            bindNode.dataset.field,
+            bindNode.value,
+        );
         return;
     }
 
@@ -2220,7 +2531,8 @@ document.addEventListener('submit', async event => {
     }
 
     event.preventDefault();
-    const formData = new FormData(form);
+    const submitter = event.submitter instanceof HTMLElement ? event.submitter : null;
+    const formData = submitter ? new FormData(form, submitter) : new FormData(form);
 
     switch (form.dataset.form) {
         case 'open-connection': {

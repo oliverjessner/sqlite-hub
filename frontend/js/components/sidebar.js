@@ -1,4 +1,4 @@
-import { escapeHtml } from '../utils/format.js';
+import { escapeHtml, formatCompactDateTime, truncateMiddle } from '../utils/format.js';
 import { renderConnectionLogo } from './connectionLogo.js';
 
 const sidebarItems = [
@@ -37,9 +37,107 @@ function getActiveSidebarKey(routeName) {
     return routeName;
 }
 
+function getConnectionTimeValue(connection) {
+    const value = connection?.lastOpenedAt ?? connection?.lastModifiedAt ?? 0;
+    const time = new Date(value).getTime();
+    return Number.isFinite(time) ? time : 0;
+}
+
+function getQuickPickConnections(state) {
+    const byId = new Map();
+
+    [state.connections.active, ...(state.connections.recent ?? [])].forEach(connection => {
+        if (!connection?.id || byId.has(connection.id)) {
+            return;
+        }
+
+        byId.set(connection.id, connection);
+    });
+
+    return [...byId.values()]
+        .sort((left, right) => getConnectionTimeValue(right) - getConnectionTimeValue(left))
+        .slice(0, 5);
+}
+
+function renderQuickPickCard(connection, activeConnectionId) {
+    const isActive = connection.id === activeConnectionId;
+    const label = connection.label || 'Untitled database';
+    const path = connection.path || '';
+
+    return `
+      <button
+        class="sidebar-db-picker-card ${isActive ? 'is-active' : ''}"
+        data-action="select-connection"
+        data-connection-id="${escapeHtml(connection.id)}"
+        type="button"
+      >
+        ${renderConnectionLogo(connection, {
+            containerClass: 'sidebar-db-picker-card__mark overflow-hidden',
+            imageClassName: 'h-full w-full object-cover',
+            iconClassName: 'text-[15px]',
+            icon: 'database',
+        })}
+        <span class="sidebar-db-picker-card__body">
+          <span class="sidebar-db-picker-card__label" title="${escapeHtml(label)}">
+            ${escapeHtml(label)}
+          </span>
+          <span class="sidebar-db-picker-card__path" title="${escapeHtml(path)}">
+            ${escapeHtml(path ? truncateMiddle(path, 34) : 'path:n/a')}
+          </span>
+          <span class="sidebar-db-picker-card__meta">
+            ${isActive ? 'ACTIVE' : escapeHtml(formatCompactDateTime(connection.lastOpenedAt))}
+            ${connection.readOnly ? ' // READ_ONLY' : ''}
+          </span>
+        </span>
+      </button>
+    `;
+}
+
+function renderConnectionQuickPicker(state) {
+    const activeConnection = state.connections.active;
+    const quickPicks = getQuickPickConnections(state);
+    const hasQuickPicks = quickPicks.length > 0;
+
+    return `
+      <details class="sidebar-db-picker">
+        <summary class="sidebar-footer-card" title="Switch active database">
+          ${renderConnectionLogo(activeConnection, {
+              containerClass: 'sidebar-footer-mark overflow-hidden bg-primary-container text-on-primary',
+              imageClassName: 'h-full w-full object-cover',
+              iconClassName: 'text-[15px]',
+              icon: 'memory',
+          })}
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-[10px] font-bold text-on-surface">
+              ${escapeHtml(activeConnection?.label ?? 'NO_ACTIVE_DATABASE')}
+            </span>
+            <span class="block text-[8px] text-on-surface-variant/60">
+              ${activeConnection?.readOnly ? 'READ_ONLY' : activeConnection ? 'READ_WRITE' : 'SELECT_DATABASE'}
+            </span>
+          </span>
+          <span class="material-symbols-outlined sidebar-db-picker__chevron" aria-hidden="true">expand_less</span>
+        </summary>
+        <div class="sidebar-db-picker__panel">
+          <div class="sidebar-db-picker__header">
+            <span>Quick Picks</span>
+            <span>${escapeHtml(String(quickPicks.length))}/5</span>
+          </div>
+          ${
+              hasQuickPicks
+                  ? `<div class="sidebar-db-picker__list">
+                      ${quickPicks
+                          .map(connection => renderQuickPickCard(connection, activeConnection?.id))
+                          .join('')}
+                    </div>`
+                  : `<div class="sidebar-db-picker__empty">No recent databases</div>`
+          }
+        </div>
+      </details>
+    `;
+}
+
 export function renderSidebar(state) {
     const activeKey = getActiveSidebarKey(state.route.name);
-    const activeConnection = state.connections.active;
     const expandedKey = activeKey === 'mediaTagging' ? 'mediaTagging' : null;
 
     return `
@@ -86,22 +184,7 @@ export function renderSidebar(state) {
           .join('')}
     </nav>
     <div class="sidebar-footer">
-      <div class="sidebar-footer-card">
-        ${renderConnectionLogo(activeConnection, {
-            containerClass: 'sidebar-footer-mark overflow-hidden bg-primary-container text-on-primary',
-            imageClassName: 'h-full w-full object-cover',
-            iconClassName: 'text-[15px]',
-            icon: 'memory',
-        })}
-        <div class="min-w-0">
-          <p class="truncate text-[10px] font-bold text-on-surface">
-            ${escapeHtml(activeConnection?.label ?? 'NO_ACTIVE_DATABASE')}
-          </p>
-          <p class="text-[8px] text-on-surface-variant/60">
-            ${activeConnection?.readOnly ? 'READ_ONLY' : 'READ_WRITE'}
-          </p>
-        </div>
-      </div>
+      ${renderConnectionQuickPicker(state)}
     </div>
   `;
 }

@@ -143,6 +143,35 @@ function getUniqueResultColumns(columns = []) {
     return uniqueColumns;
 }
 
+function getEditorColumnTypeBadge(column) {
+    if (column.sourceColumn === 'rowid') {
+        return 'ROWID';
+    }
+
+    return String(column.declaredType || column.affinity || 'BLOB')
+        .trim()
+        .toUpperCase();
+}
+
+function getEditorColumnBadges(column) {
+    const badges = [{ label: getEditorColumnTypeBadge(column), tone: 'type' }];
+
+    if (Number(column.primaryKeyPosition ?? 0) > 0) {
+        badges.push({
+            label: Number(column.primaryKeyPosition) > 1 ? `PK ${column.primaryKeyPosition}` : 'PK',
+            tone: 'primary-key',
+        });
+    } else if (column.identity && column.sourceColumn === 'rowid') {
+        badges.push({ label: 'ROWID', tone: 'primary-key' });
+    }
+
+    if (column.foreignKey) {
+        badges.push({ label: 'FK', tone: 'foreign-key' });
+    }
+
+    return badges;
+}
+
 function renderEditorRowPanel(state) {
     const result = state.editor.result;
     const rowIndex = state.editor.selectedRowIndex;
@@ -153,6 +182,15 @@ function renderEditorRowPanel(state) {
     }
 
     const uniqueColumns = getUniqueResultColumns(result.editing?.columns ?? []);
+    const tableMeta =
+        result.editing?.tableMeta ?? {
+            columns: uniqueColumns.map(column => ({
+                name: column.sourceColumn,
+                primaryKeyPosition: Number(column.primaryKeyPosition ?? 0),
+                foreignKey: Boolean(column.foreignKey),
+            })),
+            foreignKeys: [],
+        };
     const editableColumns = uniqueColumns.filter(column => {
         if (column.identity || column.generated || !column.visible) {
             return false;
@@ -193,6 +231,7 @@ function renderEditorRowPanel(state) {
             return {
                 name: column.sourceColumn,
                 label: column.sourceColumn,
+                badges: getEditorColumnBadges(column),
                 allowedValues: column.allowedValues ?? [],
                 notNull: Boolean(column.notNull),
                 value: value === null || value === undefined ? '' : String(value),
@@ -200,15 +239,21 @@ function renderEditorRowPanel(state) {
         }),
         readonlyFields: readonlyColumns.map(column => ({
             name: column.sourceColumn,
-            label: column.sourceColumn,
+            label: {
+                label: column.sourceColumn,
+                badges: getEditorColumnBadges(column),
+            },
+            rawValue: row[column.resultName],
             value: formatCellValue(row[column.resultName]),
         })),
+        tableMeta,
         saveError: state.editor.saveError,
         saving: state.editor.saving,
         deleting: state.editor.deleting,
         deleteAction: 'delete-editor-row',
         deleteRowIndex: rowIndex,
         deleteEnabled: editingState.enabled && Boolean(row.__identity),
+        jsonActionsEnabled: true,
     });
 }
 

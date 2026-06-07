@@ -81,6 +81,54 @@ export function renderTableDesignerReferenceColumnOptions(
   ].join("");
 }
 
+function normalizeConstraintColumnName(name) {
+  return String(name ?? "").trim().toLowerCase();
+}
+
+function constraintIncludesColumn(constraint, columnName) {
+  const normalizedColumn = normalizeConstraintColumnName(columnName);
+
+  if (!normalizedColumn) {
+    return false;
+  }
+
+  return (constraint.columns ?? []).some(
+    (constraintColumn) => normalizeConstraintColumnName(constraintColumn.name) === normalizedColumn
+  );
+}
+
+function countColumnCheckConstraints(column, draft) {
+  if (draft.mode !== "edit") {
+    return 0;
+  }
+
+  return (draft.checkConstraints ?? []).filter((constraint) =>
+    constraintIncludesColumn(constraint, column.name)
+  ).length;
+}
+
+function renderColumnCheckAction(column, draft) {
+  const checkCount = countColumnCheckConstraints(column, draft);
+  const columnName = column.name || "Unnamed column";
+
+  return `
+    <button
+      aria-label="Checks for ${escapeHtml(columnName)}"
+      class="standard-button table-designer-row-check-button"
+      data-action="open-modal"
+      data-column-id="${escapeHtml(column.id)}"
+      data-column-name="${escapeHtml(column.name)}"
+      data-modal="table-designer-constraints"
+      title="Checks for ${escapeHtml(columnName)}"
+      type="button"
+    >
+      <span class="material-symbols-outlined text-base">fact_check</span>
+      <span>Checks</span>
+      ${checkCount ? `<span class="status-badge status-badge--muted">${escapeHtml(String(checkCount))}</span>` : ""}
+    </button>
+  `;
+}
+
 function renderColumnRow(column, draft, catalogTables) {
   const typeOptions = draft.supportedTypes
     .map((type) =>
@@ -162,9 +210,12 @@ function renderColumnRow(column, draft, catalogTables) {
     '" data-field="referencesColumn">',
     referenceColumnOptions,
     "</select>",
+    '<div class="table-designer-row-actions">',
+    renderColumnCheckAction(column, draft),
     '<button class="delete-button" data-action="remove-table-designer-column" data-column-id="',
     columnId,
     '" type="button"><span class="material-symbols-outlined text-base">delete</span><span>Remove</span></button>',
+    "</div>",
     "</div>",
   ].join("");
 }
@@ -183,7 +234,7 @@ function renderColumnGrid(draft, catalogTables) {
         <div>Default</div>
         <div>FK Table</div>
         <div>FK Column</div>
-        <div></div>
+        <div>Actions</div>
       </div>
       ${visibleColumns.map((column) => renderColumnRow(column, draft, catalogTables)).join("")}
     </div>
@@ -225,6 +276,10 @@ export function renderTableDesignerFeedback(draft, saveError) {
     title: message,
   }));
   const warningItems = draft?.warnings ?? [];
+  const schemaNotes = warningItems.filter(
+    (item) => item.tone === "muted" && item.code !== "COMPLEX_UNIQUE_CONSTRAINTS_PRESENT"
+  );
+  const alertWarnings = warningItems.filter((item) => item.tone !== "muted");
 
   return [
     saveError
@@ -233,10 +288,11 @@ export function renderTableDesignerFeedback(draft, saveError) {
                 <div class="table-designer-main__error-code">${escapeHtml(saveError.code)}</div>
                 <div class="table-designer-main__error-text">${escapeHtml(saveError.message)}</div>
               </div>
-            `
+    `
       : "",
     renderWarningList(validationItems, "table-designer-banner is-validation", "Validation", "alert"),
-    renderWarningList(warningItems, "table-designer-banner is-warning", "Warnings", "alert"),
+    renderWarningList(alertWarnings, "table-designer-banner is-warning", "Warnings", "alert"),
+    renderWarningList(schemaNotes, "table-designer-banner is-note", "Schema Notes", "muted"),
   ].join("");
 }
 
@@ -305,7 +361,7 @@ export function renderTableDesignerEditor(state) {
           <div class="table-designer-main__subtitle">
             ${escapeHtml(String(visibleColumns.length))} visible column${
               visibleColumns.length === 1 ? "" : "s"
-            } // SQLite-safe operations only
+            } // Table Designer v2 // SQLite-safe operations only
           </div>
         </div>
         <div class="table-designer-main__actions">
@@ -338,13 +394,15 @@ export function renderTableDesignerEditor(state) {
           <div>
             <div class="table-designer-main__section-title">Columns</div>
           </div>
-          <button
-            class="standard-button"
-            data-action="add-table-designer-column"
-            type="button"
-          >
-            + Add Column
-          </button>
+          <div class="table-designer-main__section-actions">
+            <button
+              class="standard-button"
+              data-action="add-table-designer-column"
+              type="button"
+            >
+              + Add Column
+            </button>
+          </div>
         </div>
         ${renderColumnGrid(draft, catalogTables)}
       </section>

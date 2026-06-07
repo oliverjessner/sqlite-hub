@@ -1,6 +1,5 @@
 .structure-graph {
     background: var(--color-surface-container);
-    border: 1px solid rgba(138, 123, 52, 0.26);
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -10,8 +9,6 @@
 
 .structure-graph__toolbar {
     align-items: center;
-    background: linear-gradient(to bottom, rgba(45, 43, 37, 0.97), rgba(23, 23, 20, 0.96));
-    border-bottom: 1px solid rgba(138, 123, 52, 0.24);
     display: flex;
     flex-wrap: wrap;
     gap: 1rem;

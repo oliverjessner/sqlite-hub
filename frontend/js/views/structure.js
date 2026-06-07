@@ -1,61 +1,57 @@
-import { clearInspector, renderDdlSection, renderInspector } from "../components/structureGraph.js";
-import { escapeHtml, formatNumber } from "../utils/format.js";
+import { clearInspector, renderDdlSection, renderInspector } from '../components/structureGraph.js';
+import { escapeHtml, formatNumber } from '../utils/format.js';
 
 function renderEntryGroup(title, entries, activeName, options = {}) {
-  const { compact = false, showMeta = true, emptyMessage = null } = options;
-  const entriesMarkup = entries.length
-    ? [
-        '<div class="space-y-2">',
-        entries
-          .map((entry) => {
-            const isActive = entry.name === activeName;
-            const entryAttributes =
-              entry.type === "table"
-                ? [
-                    'data-structure-entry-name="',
-                    escapeHtml(entry.name),
-                    '"',
-                  ].join("")
-                : "";
-            const metaMarkup = showMeta
-              ? [
-                  '<div class="mt-1 text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45">',
-                  escapeHtml(entry.tableName || entry.type),
-                  "</div>",
-                ].join("")
-              : "";
+    const { compact = false, showMeta = true, emptyMessage = null } = options;
+    const entriesMarkup = entries.length
+        ? [
+              '<div class="space-y-2">',
+              entries
+                  .map(entry => {
+                      const isActive = entry.name === activeName;
+                      const entryAttributes =
+                          entry.type === 'table'
+                              ? ['data-structure-entry-name="', escapeHtml(entry.name), '"'].join('')
+                              : '';
+                      const metaMarkup = showMeta
+                          ? [
+                                '<div class="mt-1 text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45">',
+                                escapeHtml(entry.tableName || entry.type),
+                                '</div>',
+                            ].join('')
+                          : '';
 
-            return [
-              '<button class="w-full border px-3 ',
-              compact ? "py-2.5" : "py-3",
-              " text-left transition-colors ",
-              isActive
-                ? "border-primary-container/30 bg-surface-container-high"
-                : "border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-high",
-              '" data-action="select-structure-entry" data-entry-name="',
-              escapeHtml(entry.name),
-              '" ',
-              entryAttributes,
-              ' type="button">',
-              '<div class="font-mono text-xs ',
-              isActive ? "text-primary-container" : "text-on-surface",
-              '">',
-              escapeHtml(entry.name),
-              "</div>",
-              metaMarkup,
-              "</button>",
-            ].join("");
-          })
-          .join(""),
-        "</div>",
-      ].join("")
-    : [
-        '<div class="text-sm text-on-surface-variant/45">No ',
-        emptyMessage ? escapeHtml(emptyMessage) : `${escapeHtml(title.toLowerCase())} found.`,
-        "</div>",
-      ].join("");
+                      return [
+                          '<button class="w-full border px-3 ',
+                          compact ? 'py-2.5' : 'py-3',
+                          ' text-left transition-colors ',
+                          isActive
+                              ? 'border-primary-container/30 bg-surface-container-high'
+                              : 'border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-high',
+                          '" data-action="select-structure-entry" data-entry-name="',
+                          escapeHtml(entry.name),
+                          '" ',
+                          entryAttributes,
+                          ' type="button">',
+                          '<div class="font-mono text-xs ',
+                          isActive ? 'text-primary-container' : 'text-on-surface',
+                          '">',
+                          escapeHtml(entry.name),
+                          '</div>',
+                          metaMarkup,
+                          '</button>',
+                      ].join('');
+                  })
+                  .join(''),
+              '</div>',
+          ].join('')
+        : [
+              '<div class="text-sm text-on-surface-variant/45">No ',
+              emptyMessage ? escapeHtml(emptyMessage) : `${escapeHtml(title.toLowerCase())} found.`,
+              '</div>',
+          ].join('');
 
-  return `
+    return `
     <section class="structure-sidebar__section">
       <div class="mb-4 shrink-0 text-[10px] font-bold uppercase tracking-[0.25em] text-primary-container">
         ${escapeHtml(title)}
@@ -66,19 +62,19 @@ function renderEntryGroup(title, entries, activeName, options = {}) {
 }
 
 function getFilteredTables(tables, searchQuery) {
-  const normalizedSearch = String(searchQuery ?? "")
-    .trim()
-    .toLowerCase();
+    const normalizedSearch = String(searchQuery ?? '')
+        .trim()
+        .toLowerCase();
 
-  if (!normalizedSearch) {
-    return tables;
-  }
+    if (!normalizedSearch) {
+        return tables;
+    }
 
-  return tables.filter((table) => table.name.toLowerCase().includes(normalizedSearch));
+    return tables.filter(table => table.name.toLowerCase().includes(normalizedSearch));
 }
 
 function renderStructureTableSearch(state) {
-  return `
+    return `
     <label class="table-designer-sidebar__search">
       <span class="material-symbols-outlined text-sm text-on-surface-variant/55">search</span>
       <input
@@ -87,14 +83,14 @@ function renderStructureTableSearch(state) {
         placeholder="Search tables..."
         spellcheck="false"
         type="search"
-        value="${escapeHtml(state.structure.tableSearchQuery ?? "")}"
+        value="${escapeHtml(state.structure.tableSearchQuery ?? '')}"
       />
     </label>
   `;
 }
 
 function renderLoadingInspector() {
-  return `
+    return `
     <div class="structure-graph__panel is-empty">
       <span class="material-symbols-outlined structure-graph__empty-icon">progress_activity</span>
       <div class="structure-graph__title">Loading</div>
@@ -106,31 +102,31 @@ function renderLoadingInspector() {
 }
 
 function renderObjectInspector(detail) {
-  if (!detail) {
-    return clearInspector();
-  }
+    if (!detail) {
+        return clearInspector();
+    }
 
-  const visibleColumns = (detail.columns ?? []).filter((column) => column.visible !== false);
-  const foreignKeyLinks = (detail.foreignKeys ?? []).reduce(
-    (count, foreignKey) => count + (foreignKey.mappings?.length ?? 0),
-    0
-  );
+    const visibleColumns = (detail.columns ?? []).filter(column => column.visible !== false);
+    const foreignKeyLinks = (detail.foreignKeys ?? []).reduce(
+        (count, foreignKey) => count + (foreignKey.mappings?.length ?? 0),
+        0,
+    );
 
-  return `
+    return `
     <div class="structure-graph__panel">
       <div class="space-y-3">
         <div class="structure-graph__eyebrow">Object Inspector</div>
         <div class="structure-graph__title">${escapeHtml(detail.name)}</div>
         <div class="flex flex-wrap items-center gap-3">
-          <div class="structure-graph__subtitle">${escapeHtml(detail.type ?? "object")}</div>
+          <div class="structure-graph__subtitle">${escapeHtml(detail.type ?? 'object')}</div>
           ${
-            detail.tableName
-              ? `
+              detail.tableName
+                  ? `
                   <div class="structure-graph__subtitle">
                     TABLE ${escapeHtml(detail.tableName)}
                   </div>
                 `
-              : ""
+                  : ''
           }
         </div>
       </div>
@@ -138,70 +134,60 @@ function renderObjectInspector(detail) {
       <div class="structure-graph__summary">
         <div class="structure-graph__summary-card">
           <div class="structure-graph__summary-label">Columns</div>
-          <div class="structure-graph__summary-value">${escapeHtml(
-            formatNumber(visibleColumns.length)
-          )}</div>
+          <div class="structure-graph__summary-value">${escapeHtml(formatNumber(visibleColumns.length))}</div>
         </div>
         <div class="structure-graph__summary-card">
           <div class="structure-graph__summary-label">FK Links</div>
-          <div class="structure-graph__summary-value">${escapeHtml(
-            formatNumber(foreignKeyLinks)
-          )}</div>
+          <div class="structure-graph__summary-value">${escapeHtml(formatNumber(foreignKeyLinks))}</div>
         </div>
         <div class="structure-graph__summary-card">
           <div class="structure-graph__summary-label">Indexes</div>
-          <div class="structure-graph__summary-value">${escapeHtml(
-            formatNumber(detail.indexes?.length ?? 0)
-          )}</div>
+          <div class="structure-graph__summary-value">${escapeHtml(formatNumber(detail.indexes?.length ?? 0))}</div>
         </div>
         <div class="structure-graph__summary-card">
           <div class="structure-graph__summary-label">Triggers</div>
-          <div class="structure-graph__summary-value">${escapeHtml(
-            formatNumber(detail.triggers?.length ?? 0)
-          )}</div>
+          <div class="structure-graph__summary-value">${escapeHtml(formatNumber(detail.triggers?.length ?? 0))}</div>
         </div>
       </div>
 
       ${
-        visibleColumns.length
-          ? `
+          visibleColumns.length
+              ? `
               <section class="structure-graph__section">
                 <div class="structure-graph__section-title">Columns</div>
                 <div class="structure-graph__column-list">
                   ${visibleColumns
-                    .map(
-                      (column) => `
+                      .map(
+                          column => `
                         <div class="structure-graph__column-row">
                           <div class="min-w-0 space-y-1">
-                            <div class="structure-graph__column-name">${escapeHtml(
-                              column.name
-                            )}</div>
+                            <div class="structure-graph__column-name">${escapeHtml(column.name)}</div>
                             <div class="structure-graph__column-type">${escapeHtml(
-                              column.declaredType || column.affinity || "BLOB"
+                                column.declaredType || column.affinity || 'BLOB',
                             )}</div>
                           </div>
                           <div class="structure-graph__column-flags">
                             ${
-                              column.primaryKeyPosition > 0
-                                ? `<span class="structure-graph__flag is-key">PK${
-                                    column.primaryKeyPosition > 1
-                                      ? ` ${escapeHtml(String(column.primaryKeyPosition))}`
-                                      : ""
-                                  }</span>`
-                                : ""
+                                column.primaryKeyPosition > 0
+                                    ? `<span class="structure-graph__flag is-key">PK${
+                                          column.primaryKeyPosition > 1
+                                              ? ` ${escapeHtml(String(column.primaryKeyPosition))}`
+                                              : ''
+                                      }</span>`
+                                    : ''
                             }
                             <span class="structure-graph__flag is-nullable">${
-                              column.notNull ? "NOT NULL" : "NULLABLE"
+                                column.notNull ? 'NOT NULL' : 'NULLABLE'
                             }</span>
                           </div>
                         </div>
-                      `
-                    )
-                    .join("")}
+                      `,
+                      )
+                      .join('')}
                 </div>
               </section>
             `
-          : ""
+              : ''
       }
 
       ${renderDdlSection(detail.ddl)}
@@ -210,19 +196,19 @@ function renderObjectInspector(detail) {
 }
 
 function renderGraphSurface(structure, selectedName, detail, detailLoading, tablesVisible = true) {
-  const graph = structure?.graph ?? { tables: [], relationshipCount: 0 };
-  const selectedGraphTable =
-    graph.tables?.find((table) => table.name === selectedName && table.type === "table") ?? null;
-  const toolbarButtonClass = "standard-button";
-  const inspectorMarkup = selectedGraphTable
-    ? renderInspector(selectedGraphTable)
-    : detailLoading
-      ? renderLoadingInspector()
-      : detail
-        ? renderObjectInspector(detail)
-        : clearInspector();
+    const graph = structure?.graph ?? { tables: [], relationshipCount: 0 };
+    const selectedGraphTable =
+        graph.tables?.find(table => table.name === selectedName && table.type === 'table') ?? null;
+    const toolbarButtonClass = 'standard-button';
+    const inspectorMarkup = selectedGraphTable
+        ? renderInspector(selectedGraphTable)
+        : detailLoading
+          ? renderLoadingInspector()
+          : detail
+            ? renderObjectInspector(detail)
+            : clearInspector();
 
-  return `
+    return `
     <section class="structure-graph" data-structure-graph-root>
       <div class="structure-graph__toolbar">
         <div class="structure-graph__toolbar-main">
@@ -231,10 +217,8 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
             data-action="toggle-structure-tables"
             type="button"
           >
-            <span class="material-symbols-outlined text-sm">${
-              tablesVisible ? "visibility_off" : "visibility"
-            }</span>
-            ${tablesVisible ? "Hide Tables" : "Show Tables"}
+            <span class="material-symbols-outlined text-sm">${tablesVisible ? 'visibility_off' : 'visibility'}</span>
+            ${tablesVisible ? 'Hide Tables' : 'Show Tables'}
           </button>
         </div>
         <div class="structure-graph__toolbar-actions">
@@ -288,7 +272,7 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
           <div
             class="structure-graph__empty"
             data-structure-graph-empty
-            ${graph.tables?.length ? "hidden" : ""}
+            ${graph.tables?.length ? 'hidden' : ''}
           >
             <span class="material-symbols-outlined structure-graph__empty-icon">account_tree</span>
             <div class="structure-graph__title">No Tables</div>
@@ -309,46 +293,20 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
   `;
 }
 
-function renderStructureWorkspaceHeader(structure, selectedName) {
-  const tableCount = structure?.grouped?.tables?.length ?? 0;
-  const viewCount = structure?.grouped?.views?.length ?? 0;
-
-  return `
-    <header class="structure-view__header">
-      <div class="structure-headline-container">
-        <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
-          Schema Graph
-        </div>
-        <h1 class="mt-2 font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
-          Structure
-        </h1>
-        <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-          ${
-            selectedName
-              ? `selected ${escapeHtml(selectedName)} // tables ${escapeHtml(formatNumber(tableCount))} // views ${escapeHtml(formatNumber(viewCount))}`
-              : `tables ${escapeHtml(formatNumber(tableCount))} // views ${escapeHtml(formatNumber(viewCount))}`
-          }
-        </div>
-      </div>
-    </header>
-  `;
-}
-
 export function renderStructureView(state) {
-  const structure = state.structure.data;
-  const filteredTables = structure
-    ? getFilteredTables(structure.grouped.tables ?? [], state.structure.tableSearchQuery)
-    : [];
-  const detail =
-    state.structure.detail?.name === state.structure.selectedName ? state.structure.detail : null;
-  const tablesVisible = state.structure.tablesVisible !== false;
+    const structure = state.structure.data;
+    const filteredTables = structure
+        ? getFilteredTables(structure.grouped.tables ?? [], state.structure.tableSearchQuery)
+        : [];
+    const detail = state.structure.detail?.name === state.structure.selectedName ? state.structure.detail : null;
+    const tablesVisible = state.structure.tablesVisible !== false;
 
-  return {
-    main: `
+    return {
+        main: `
       <section class="view-surface structure-view">
         ${
-          tablesVisible
-            ? `
+            tablesVisible
+                ? `
               <aside class="structure-view__sidebar">
                 <div class="structure-view__sidebar-header">
                   <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
@@ -356,62 +314,46 @@ export function renderStructureView(state) {
                   </div>
                   <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
                     total ${escapeHtml(
-                      formatNumber(
-                        (structure?.grouped?.tables?.length ?? 0) +
-                          (structure?.grouped?.views?.length ?? 0) +
-                          (structure?.grouped?.indexes?.length ?? 0) +
-                          (structure?.grouped?.triggers?.length ?? 0)
-                      )
+                        formatNumber(
+                            (structure?.grouped?.tables?.length ?? 0) +
+                                (structure?.grouped?.views?.length ?? 0) +
+                                (structure?.grouped?.indexes?.length ?? 0) +
+                                (structure?.grouped?.triggers?.length ?? 0),
+                        ),
                     )}
                   </div>
                 </div>
                 ${renderStructureTableSearch(state)}
                 <div class="structure-view__sidebar-body custom-scrollbar">
                   ${
-                    structure
-                      ? `
-                          ${renderEntryGroup(
-                            "Tables",
-                            filteredTables,
-                            state.structure.selectedName,
-                            {
+                      structure
+                          ? `
+                          ${renderEntryGroup('Tables', filteredTables, state.structure.selectedName, {
                               compact: true,
                               showMeta: false,
                               emptyMessage: state.structure.tableSearchQuery
-                                ? "tables match the current search."
-                                : null,
-                            }
-                          )}
-                          ${renderEntryGroup(
-                            "Views",
-                            structure.grouped.views,
-                            state.structure.selectedName
-                          )}
-                          ${renderEntryGroup(
-                            "Indexes",
-                            structure.grouped.indexes,
-                            state.structure.selectedName,
-                            { compact: true, showMeta: false }
-                          )}
-                          ${renderEntryGroup(
-                            "Triggers",
-                            structure.grouped.triggers,
-                            state.structure.selectedName
-                          )}
+                                  ? 'tables match the current search.'
+                                  : null,
+                          })}
+                          ${renderEntryGroup('Views', structure.grouped.views, state.structure.selectedName)}
+                          ${renderEntryGroup('Indexes', structure.grouped.indexes, state.structure.selectedName, {
+                              compact: true,
+                              showMeta: false,
+                          })}
+                          ${renderEntryGroup('Triggers', structure.grouped.triggers, state.structure.selectedName)}
                         `
-                      : ""
+                          : ''
                   }
                 </div>
               </aside>
             `
-            : ""
+                : ''
         }
 
         <section class="structure-view__detail">
-          ${renderStructureWorkspaceHeader(structure, state.structure.selectedName)}
           ${
-            state.structure.loading && !structure
-              ? `
+              state.structure.loading && !structure
+                  ? `
                 <div class="flex min-h-0 flex-1 items-center justify-center border-t border-outline-variant/10 bg-surface-container-low">
                   <div class="text-center text-on-surface-variant/40">
                     <span class="material-symbols-outlined mb-3 text-4xl">progress_activity</span>
@@ -419,8 +361,8 @@ export function renderStructureView(state) {
                   </div>
                 </div>
               `
-              : state.structure.error
-                ? `
+                  : state.structure.error
+                    ? `
                     <div class="min-h-0 flex-1 border-t border-error/20 bg-error-container/10 px-6 py-5 text-sm text-on-surface">
                       <div class="font-headline text-xs font-bold uppercase tracking-[0.18em] text-error">
                         ${escapeHtml(state.structure.error.code)}
@@ -428,23 +370,23 @@ export function renderStructureView(state) {
                       <div class="mt-2">${escapeHtml(state.structure.error.message)}</div>
                     </div>
                   `
-                : structure
-                  ? `
+                    : structure
+                      ? `
                       <div class="structure-view__graph-shell">
                         ${renderGraphSurface(
-                          structure,
-                          state.structure.selectedName,
-                          detail,
-                          state.structure.detailLoading,
-                          tablesVisible
+                            structure,
+                            state.structure.selectedName,
+                            detail,
+                            state.structure.detailLoading,
+                            tablesVisible,
                         )}
                       </div>
                     `
-                  : ""
+                      : ''
           }
         </section>
       </section>
     `,
-    panel: "",
-  };
+        panel: '',
+    };
 }

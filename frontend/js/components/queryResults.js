@@ -13,6 +13,7 @@ const COPY_COLUMN_ACTIONS = [
   { mode: "column", label: "Copy column" },
   { mode: "column-with-header", label: "Copy column with header" },
   { mode: "first-10", label: "Copy first 10" },
+  { mode: "markdown-todo", label: "Export as Markdown Todo" },
 ];
 
 function renderColumnActionMenu(columnName, resultScope) {

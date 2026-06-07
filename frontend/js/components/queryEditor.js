@@ -69,7 +69,7 @@ export function renderQueryEditor({
       data-next-value="${historyVisible ? "false" : "true"}"
       type="button"
     >
-      <span class="material-symbols-outlined text-sm">${historyVisible ? "visibility_off" : "history"}</span>
+      <span class="material-symbols-outlined text-sm">${historyVisible ? "visibility_off" : "visibility"}</span>
       ${historyVisible ? "Hide History" : "Show History"}
     </button>
     <button

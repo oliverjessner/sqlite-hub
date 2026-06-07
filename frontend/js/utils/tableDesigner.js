@@ -103,6 +103,52 @@ function normalizeDraft(rawDraft = {}) {
     columns: Array.isArray(rawDraft.columns)
       ? rawDraft.columns.map((column) => createEmptyTableDesignerColumn(column))
       : [],
+    uniqueConstraints: Array.isArray(rawDraft.uniqueConstraints)
+      ? rawDraft.uniqueConstraints.map((constraint, index) => ({
+          id: normalizeText(constraint.id ?? `unique:${index}`),
+          name: normalizeText(constraint.name ?? ""),
+          originalName: normalizeText(constraint.originalName ?? constraint.name ?? ""),
+          columns: Array.isArray(constraint.columns)
+            ? constraint.columns
+                .map((column) => ({
+                  name: normalizeText(column?.name ?? ""),
+                  descending: normalizeBoolean(column?.descending),
+                  collation: normalizeText(column?.collation ?? ""),
+                }))
+                .filter((column) => normalizeTrimmed(column.name))
+            : [],
+          partial: normalizeBoolean(constraint.partial),
+          origin: normalizeText(constraint.origin ?? ""),
+          sql: normalizeText(constraint.sql ?? ""),
+          originalSql: normalizeText(constraint.originalSql ?? constraint.sql ?? ""),
+          expression: normalizeText(constraint.expression ?? ""),
+          originalExpression: normalizeText(constraint.originalExpression ?? constraint.expression ?? constraint.sql ?? ""),
+          editable: normalizeBoolean(constraint.editable),
+          preserved: constraint.preserved === undefined ? true : normalizeBoolean(constraint.preserved),
+        }))
+      : [],
+    checkConstraints: Array.isArray(rawDraft.checkConstraints)
+      ? rawDraft.checkConstraints.map((constraint, index) => ({
+          id: normalizeText(constraint.id ?? `check:${index}`),
+          name: normalizeText(constraint.name ?? `CHECK ${index + 1}`),
+          originalName: normalizeText(constraint.originalName ?? constraint.name ?? `CHECK ${index + 1}`),
+          columns: Array.isArray(constraint.columns)
+            ? constraint.columns
+                .map((column) => ({
+                  name: normalizeText(column?.name ?? ""),
+                  allowedValues: Array.isArray(column?.allowedValues)
+                    ? column.allowedValues.map((value) => normalizeText(value))
+                    : [],
+                }))
+                .filter((column) => normalizeTrimmed(column.name))
+            : [],
+          expression: normalizeText(constraint.expression ?? ""),
+          originalExpression: normalizeText(constraint.originalExpression ?? constraint.expression ?? ""),
+          editable: normalizeBoolean(constraint.editable),
+          preserved: constraint.preserved === undefined ? true : normalizeBoolean(constraint.preserved),
+        }))
+      : [],
+    designerVersion: Number(rawDraft.designerVersion) || 1,
     schemaWarnings: Array.isArray(rawDraft.schemaWarnings) ? rawDraft.schemaWarnings : [],
     fillImportedRows: normalizeBoolean(rawDraft.fillImportedRows),
     importedCsvFileName: normalizeText(rawDraft.importedCsvFileName ?? ""),
@@ -164,7 +210,7 @@ function validatePrimaryKeys(draft) {
   }
 
   if (draft.mode !== "edit") {
-    return ["Table Designer v1 supports only one primary key column for new tables."];
+    return ["Table Designer v2 supports only one primary key column for new tables."];
   }
 
   const originalPrimaryKeyNames = new Set(
@@ -185,7 +231,7 @@ function validatePrimaryKeys(draft) {
 
   return isUnchangedCompositePrimaryKey
     ? []
-    : ["Composite primary keys can be preserved but not edited in Table Designer v1."];
+    : ["Composite primary keys can be preserved but not edited in Table Designer v2."];
 }
 
 function resolveReferencedTableColumns(draft, catalogTables, referencedTableName) {
@@ -330,6 +376,17 @@ function hasColumnChanged(originalColumn, draftColumn) {
   );
 }
 
+function hasConstraintChanged(constraint) {
+  return (
+    normalizeComparableValue(constraint.name) !==
+      normalizeComparableValue(constraint.originalName ?? constraint.name) ||
+    normalizeComparableValue(constraint.expression || constraint.sql) !==
+      normalizeComparableValue(
+        constraint.originalExpression ?? constraint.originalSql ?? constraint.expression ?? constraint.sql
+      )
+  );
+}
+
 function buildColumnDefinition(column) {
   const parts = [quoteIdentifier(column.name)];
   const type = normalizeComparableValue(column.type);
@@ -371,6 +428,24 @@ function buildCreateTableSql(draft) {
     .join(",\n");
 
   return `CREATE TABLE ${quoteIdentifier(draft.tableName)} (\n${columnSql}\n);`;
+}
+
+function getUniqueConstraintExpression(constraint) {
+  const expression = normalizeTrimmed(constraint.expression || constraint.sql);
+
+  if (expression) {
+    return expression;
+  }
+
+  const columnSql = (constraint.columns ?? [])
+    .map((column) => quoteIdentifier(column.name))
+    .join(", ");
+
+  return columnSql ? `UNIQUE (${columnSql})` : "UNIQUE constraint";
+}
+
+function getCheckConstraintExpression(constraint) {
+  return normalizeTrimmed(constraint.expression) || "CHECK constraint";
 }
 
 function buildAlterTableRenameSql(fromName, toName) {
@@ -484,7 +559,7 @@ function analyzeEditDraft(draft) {
           warnings.push(
             buildRiskyChangeWarning(
               "Column Rename Requires Rebuild",
-              `Renaming column ${originalColumn.name} to ${column.name} is intentionally blocked in Table Designer v1.`
+              `Renaming column ${originalColumn.name} to ${column.name} is intentionally blocked in Table Designer v2.`
             )
           );
         }
@@ -580,6 +655,19 @@ function analyzeEditDraft(draft) {
     );
   });
 
+  [...(draft.uniqueConstraints ?? []), ...(draft.checkConstraints ?? [])].forEach((constraint) => {
+    if (!hasConstraintChanged(constraint)) {
+      return;
+    }
+
+    warnings.push(
+      buildRiskyChangeWarning(
+        "Constraint Change Requires Rebuild",
+        `Changing ${constraint.originalName || constraint.name || "a table constraint"} requires a SQLite table rebuild.`
+      )
+    );
+  });
+
   return {
     dirty: Boolean(executableStatements.length || warnings.length),
     executable: warnings.length === 0,
@@ -611,10 +699,43 @@ function prefixSqlAsComment(sql) {
 }
 
 function buildPreviewSql({ draft, validationErrors, warnings, analysis, readOnly }) {
+  const preservedUniqueConstraints = draft.mode === "edit" ? draft.uniqueConstraints ?? [] : [];
+  const preservedCheckConstraints = draft.mode === "edit" ? draft.checkConstraints ?? [] : [];
+  const preservedUniqueConstraintComments = preservedUniqueConstraints.length
+    ? [
+        "-- Table Designer v2 preserves these UNIQUE constraints:",
+        ...preservedUniqueConstraints.map(
+          (constraint) => `-- - ${getUniqueConstraintExpression(constraint)}`
+        ),
+      ]
+    : [];
+  const preservedCheckConstraintComments = preservedCheckConstraints.length
+    ? [
+        "-- Table Designer v2 preserves these CHECK constraints:",
+        ...preservedCheckConstraints.map(
+          (constraint) => `-- - ${getCheckConstraintExpression(constraint)}`
+        ),
+      ]
+    : [];
+  const preservedConstraintComments = [
+    ...preservedUniqueConstraintComments,
+    ...(
+      preservedUniqueConstraintComments.length && preservedCheckConstraintComments.length
+        ? [""]
+        : []
+    ),
+    ...preservedCheckConstraintComments,
+  ];
+
   if (readOnly) {
     return [
       "-- This connection is opened READ ONLY.",
       "-- Table Designer preview is available, but schema changes cannot be saved.",
+      ...(
+        preservedConstraintComments.length
+          ? ["", ...preservedConstraintComments]
+          : []
+      ),
     ].join("\n");
   }
 
@@ -627,7 +748,7 @@ function buildPreviewSql({ draft, validationErrors, warnings, analysis, readOnly
 
   if (warnings.some((warning) => warning.blocking)) {
     const lines = [
-      "-- This draft is not executable in Table Designer v1.",
+      "-- This draft is not executable in Table Designer v2.",
       "-- SQLite would require a table rebuild for the requested changes:",
       ...warnings
         .filter((warning) => warning.blocking)
@@ -639,6 +760,10 @@ function buildPreviewSql({ draft, validationErrors, warnings, analysis, readOnly
       analysis.previewStatements.forEach((statement) => {
         lines.push(prefixSqlAsComment(statement));
       });
+    }
+
+    if (preservedConstraintComments.length) {
+      lines.push("", ...preservedConstraintComments);
     }
 
     lines.push(
@@ -656,10 +781,25 @@ function buildPreviewSql({ draft, validationErrors, warnings, analysis, readOnly
   }
 
   if (!analysis.dirty && draft.mode === "edit") {
-    return "-- No schema changes pending.";
+    return [
+      "-- No schema changes pending.",
+      ...(
+        preservedConstraintComments.length
+          ? ["", ...preservedConstraintComments]
+          : []
+      ),
+    ].join("\n");
   }
 
-  return [...analysis.statements, ...buildImportedInsertPreviewSql(draft)].join("\n\n");
+  return [
+    ...analysis.statements,
+    ...(
+      preservedConstraintComments.length
+        ? [preservedConstraintComments.join("\n")]
+        : []
+    ),
+    ...buildImportedInsertPreviewSql(draft),
+  ].join("\n\n");
 }
 
 function escapeSqlLiteral(value) {
@@ -1029,6 +1169,9 @@ export function createTableDesignerDraftFromCsvImport(
       originalTableName: "",
       tableName: suggestImportedTableName(fileName, catalogTables),
       columns,
+      uniqueConstraints: [],
+      checkConstraints: [],
+      designerVersion: 2,
       schemaWarnings: [],
       fillImportedRows: importedCsvRows.length > 0,
       importedCsvFileName: normalizeText(fileName),
@@ -1053,6 +1196,9 @@ export function createNewTableDesignerDraft() {
     originalTableName: "",
     tableName: "",
     columns: [createEmptyTableDesignerColumn()],
+    uniqueConstraints: [],
+    checkConstraints: [],
+    designerVersion: 2,
     dirty: false,
     schemaWarnings: [],
     fillImportedRows: false,
@@ -1145,6 +1291,32 @@ export function updateTableDesignerColumnField(draft, columnId, field, value, co
                   : value,
             }
           : column
+      ),
+    },
+    context
+  );
+}
+
+export function updateTableDesignerConstraintField(
+  draft,
+  constraintKind,
+  constraintId,
+  field,
+  value,
+  context = {}
+) {
+  const collectionKey = constraintKind === "check" ? "checkConstraints" : "uniqueConstraints";
+
+  return recalculateTableDesignerDraft(
+    {
+      ...draft,
+      [collectionKey]: (draft[collectionKey] ?? []).map((constraint) =>
+        constraint.id === constraintId
+          ? {
+              ...constraint,
+              [field]: value,
+            }
+          : constraint
       ),
     },
     context

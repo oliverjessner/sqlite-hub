@@ -1,4 +1,10 @@
 import { escapeHtml, formatNumber, highlightSql, truncateMiddle } from "../utils/format.js";
+import {
+  buildCopyColumnPreviewText,
+  getCopyColumnActionLabel,
+  getCopyColumnExportMetadata,
+  isMarkdownTodoCopyColumnMode,
+} from "../utils/copyColumnExport.js";
 import { renderConnectionLogo } from "./connectionLogo.js";
 import {
   analyzeQueryChartResult,
@@ -885,44 +891,24 @@ function renderDataExportModal(modal) {
   return renderTextExportModal(modal, "export-data-format");
 }
 
-function getCopyColumnActionLabel(copyMode) {
-  if (copyMode === "column-with-header") {
-    return "Copy column with header";
-  }
-
-  if (copyMode === "first-10") {
-    return "Copy first 10";
-  }
-
-  return "Copy column";
-}
-
 function getCopyColumnResult(state, modal) {
   return modal.scope === "charts" ? state.charts.result : state.editor.result;
 }
 
-function formatCopyColumnPreviewValue(value, wrapper) {
-  const text = value === null || value === undefined ? "" : String(value);
-  const normalizedWrapper = String(wrapper ?? "");
-
-  if (!normalizedWrapper) {
-    return text;
-  }
-
-  return `${normalizedWrapper}${text
-    .split(normalizedWrapper)
-    .join(`${normalizedWrapper}${normalizedWrapper}`)}${normalizedWrapper}`;
-}
-
 function renderCopyColumnPreview(modal, state) {
   const result = getCopyColumnResult(state, modal);
-  const rows = result?.rows ?? [];
-  const rowLimit = modal.copyMode === "first-10" ? 10 : rows.length;
-  const sampleValues = rows.slice(0, Math.min(rowLimit, 4)).map((row) => row?.[modal.columnName]);
-  const values = modal.copyMode === "column-with-header" ? [modal.columnName, ...sampleValues] : sampleValues;
-  const separator = String(modal.separator ?? ",");
+  const separator = Boolean(modal.lineBreaks) && !isMarkdownTodoCopyColumnMode(modal.copyMode)
+    ? "\n"
+    : String(modal.separator ?? ",");
   const wrapper = String(modal.wrapper ?? '"');
-  const preview = values.map((value) => formatCopyColumnPreviewValue(value, wrapper)).join(separator);
+  const preview = buildCopyColumnPreviewText({
+    result,
+    columnName: modal.columnName,
+    copyMode: modal.copyMode,
+    separator,
+    wrapper,
+    maxRows: isMarkdownTodoCopyColumnMode(modal.copyMode) ? 10 : 4,
+  });
 
   if (!preview) {
     return "";
@@ -935,6 +921,27 @@ function renderCopyColumnPreview(modal, state) {
       </div>
       <pre class="copy-column-preview custom-scrollbar">${escapeHtml(preview)}</pre>
     </div>
+  `;
+}
+
+function renderCopyColumnLineBreaksField({ checked = false, disabled = false } = {}) {
+  return `
+    <label class="block space-y-2">
+      <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+        Format
+      </span>
+      <span class="standard-checkbox ${disabled ? "is-disabled" : ""}">
+        <input
+          ${checked ? "checked" : ""}
+          ${disabled ? "disabled" : ""}
+          data-bind="copy-column-format-field"
+          data-field="lineBreaks"
+          name="lineBreaks"
+          type="checkbox"
+        />
+        <span>Line breaks</span>
+      </span>
+    </label>
   `;
 }
 
@@ -961,6 +968,31 @@ function renderCopyColumnModal(modal, state) {
   const rows = result?.rows ?? [];
   const valueCount = modal.copyMode === "first-10" ? Math.min(rows.length, 10) : rows.length;
   const disabledAttribute = modal.submitting ? 'disabled aria-disabled="true"' : "";
+  const exportMetadata = getCopyColumnExportMetadata(modal.copyMode);
+  const isMarkdownTodo = isMarkdownTodoCopyColumnMode(modal.copyMode);
+  const lineBreaks = isMarkdownTodo || Boolean(modal.lineBreaks);
+  const formatFieldsMarkup = isMarkdownTodo
+    ? renderCopyColumnLineBreaksField({
+        checked: true,
+        disabled: true,
+      })
+    : `
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        ${renderCopyColumnFormatField({
+          label: "Separator",
+          name: "separator",
+          value: modal.separator ?? ",",
+        })}
+        ${renderCopyColumnFormatField({
+          label: "Wrapper",
+          name: "wrapper",
+          value: modal.wrapper ?? '"',
+        })}
+        ${renderCopyColumnLineBreaksField({
+          checked: lineBreaks,
+        })}
+      </div>
+    `;
 
   return `
     <form class="space-y-5" data-form="copy-column">
@@ -980,21 +1012,10 @@ function renderCopyColumnModal(modal, state) {
           </span>
         </div>
       </div>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        ${renderCopyColumnFormatField({
-          label: "Separator",
-          name: "separator",
-          value: modal.separator ?? ",",
-        })}
-        ${renderCopyColumnFormatField({
-          label: "Wrapper",
-          name: "wrapper",
-          value: modal.wrapper ?? '"',
-        })}
-      </div>
+      ${formatFieldsMarkup}
       ${renderCopyColumnPreview(modal, state)}
       ${renderError(modal.error)}
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="flex flex-wrap items-center justify-end gap-3 pt-2">
         <button
           class="standard-button"
           data-action="close-modal"
@@ -1004,14 +1025,262 @@ function renderCopyColumnModal(modal, state) {
           Cancel
         </button>
         <button
-          class="signature-button"
+          class="standard-button"
+          name="intent"
           type="submit"
+          value="export"
           ${disabledAttribute}
         >
-          ${modal.submitting ? "Copying..." : "Copy"}
+          ${modal.submitting ? "Working..." : `Export as ${exportMetadata.extension.toUpperCase()}`}
+        </button>
+        <button
+          class="signature-button"
+          name="intent"
+          type="submit"
+          value="copy"
+          ${disabledAttribute}
+        >
+          ${modal.submitting ? "Working..." : "Copy"}
         </button>
       </div>
     </form>
+  `;
+}
+
+function getTableDesignerUniqueConstraintTypeLabel(constraint) {
+  if (constraint.partial) {
+    return "Partial unique index";
+  }
+
+  if ((constraint.columns?.length ?? 0) > 1) {
+    return "Multi-column unique";
+  }
+
+  return "Unique constraint";
+}
+
+function renderTableDesignerUniqueConstraintExpression(constraint) {
+  const expression = String(constraint.expression || constraint.sql || "").trim();
+
+  if (expression) {
+    return expression;
+  }
+
+  const columns = (constraint.columns ?? []).map((column) => column.name).filter(Boolean);
+  return columns.length ? `UNIQUE (${columns.join(", ")})` : "UNIQUE constraint";
+}
+
+function renderTableDesignerCheckConstraintExpression(constraint) {
+  return String(constraint.expression || "").trim() || "CHECK constraint";
+}
+
+function normalizeTableDesignerConstraintColumnName(name) {
+  return String(name ?? "").trim().toLowerCase();
+}
+
+function tableDesignerConstraintIncludesColumn(constraint, columnName) {
+  const normalizedColumn = normalizeTableDesignerConstraintColumnName(columnName);
+
+  if (!normalizedColumn) {
+    return false;
+  }
+
+  return (constraint.columns ?? []).some(
+    (constraintColumn) =>
+      normalizeTableDesignerConstraintColumnName(constraintColumn.name) === normalizedColumn
+  );
+}
+
+function renderTableDesignerUniqueConstraintEditor(constraint) {
+  const columns = (constraint.columns ?? []).map((column) => column.name).filter(Boolean);
+
+  return `
+    <article class="table-designer-constraint-editor">
+      <div class="table-designer-constraint-editor__header">
+        <div class="min-w-0">
+          <div class="table-designer-constraint-editor__type">
+            ${escapeHtml(getTableDesignerUniqueConstraintTypeLabel(constraint))}
+            ${constraint.origin ? ` // origin ${escapeHtml(constraint.origin)}` : ""}
+          </div>
+          <input
+            class="table-designer-field table-designer-constraint-editor__name"
+            data-bind="table-designer-constraint-field"
+            data-constraint-id="${escapeHtml(constraint.id)}"
+            data-constraint-kind="unique"
+            data-field="name"
+            spellcheck="false"
+            type="text"
+            value="${escapeHtml(constraint.name || "UNIQUE constraint")}"
+          />
+        </div>
+        <div class="status-badge status-badge--muted">Rebuild</div>
+      </div>
+      ${
+        columns.length
+          ? `
+            <div class="table-designer-constraint__columns">
+              ${columns.map((column) => `<span>${escapeHtml(column)}</span>`).join("")}
+            </div>
+          `
+          : ""
+      }
+      <textarea
+        class="table-designer-constraint-editor__sql custom-scrollbar"
+        data-bind="table-designer-constraint-field"
+        data-constraint-id="${escapeHtml(constraint.id)}"
+        data-constraint-kind="unique"
+        data-field="expression"
+        spellcheck="false"
+      >${escapeHtml(renderTableDesignerUniqueConstraintExpression(constraint))}</textarea>
+    </article>
+  `;
+}
+
+function renderTableDesignerCheckConstraintEditor(constraint) {
+  const columns = constraint.columns ?? [];
+  const allowedValues = columns.flatMap((column) =>
+    (column.allowedValues ?? []).map((value) => ({
+      columnName: column.name,
+      value,
+    }))
+  );
+
+  return `
+    <article class="table-designer-constraint-editor">
+      <div class="table-designer-constraint-editor__header">
+        <div class="min-w-0">
+          <div class="table-designer-constraint-editor__type">
+            ${columns.length ? escapeHtml(columns.map((column) => column.name).join(", ")) : "Table check"}
+          </div>
+          <input
+            class="table-designer-field table-designer-constraint-editor__name"
+            data-bind="table-designer-constraint-field"
+            data-constraint-id="${escapeHtml(constraint.id)}"
+            data-constraint-kind="check"
+            data-field="name"
+            spellcheck="false"
+            type="text"
+            value="${escapeHtml(constraint.name || "CHECK constraint")}"
+          />
+        </div>
+        <div class="status-badge status-badge--muted">Rebuild</div>
+      </div>
+      ${
+        allowedValues.length
+          ? `
+            <div class="table-designer-constraint__values custom-scrollbar">
+              ${allowedValues
+                .map(
+                  (entry) => `
+                    <span title="${escapeHtml(entry.columnName)}">${escapeHtml(entry.value)}</span>
+                  `
+                )
+                .join("")}
+            </div>
+          `
+          : ""
+      }
+      <textarea
+        class="table-designer-constraint-editor__sql custom-scrollbar"
+        data-bind="table-designer-constraint-field"
+        data-constraint-id="${escapeHtml(constraint.id)}"
+        data-constraint-kind="check"
+        data-field="expression"
+        spellcheck="false"
+      >${escapeHtml(renderTableDesignerCheckConstraintExpression(constraint))}</textarea>
+    </article>
+  `;
+}
+
+function renderTableDesignerConstraintSection({ title, count, emptyText, body }) {
+  return `
+    <section class="table-designer-constraints-modal__section">
+      <div class="table-designer-constraints-modal__section-header">
+        <div class="table-designer-constraints-modal__section-title">${escapeHtml(title)}</div>
+        <div class="status-badge status-badge--muted">${formatNumber(count)}</div>
+      </div>
+      ${
+        count
+          ? `<div class="table-designer-constraints__list">${body}</div>`
+          : `<div class="table-designer-constraints-modal__empty">${escapeHtml(emptyText)}</div>`
+      }
+    </section>
+  `;
+}
+
+function renderTableDesignerConstraintsModal(modal, state) {
+  const draft = state.tableDesigner?.draft;
+
+  if (!draft) {
+    return `
+      <div class="table-designer-constraints-modal__empty">
+        No active table designer draft.
+      </div>
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button class="standard-button" data-action="close-modal" type="button">Close</button>
+      </div>
+    `;
+  }
+
+  const selectedColumn = modal.columnId
+    ? (draft.columns ?? []).find((column) => column.id === modal.columnId)
+    : null;
+  const selectedColumnName = String(modal.columnName ?? selectedColumn?.name ?? "").trim();
+  const hasSelectedColumn = Boolean(modal.columnId || selectedColumnName);
+  const selectedColumnLabel = selectedColumnName || "Unnamed column";
+  const allUniqueConstraints = draft.mode === "edit" ? draft.uniqueConstraints ?? [] : [];
+  const allCheckConstraints = draft.mode === "edit" ? draft.checkConstraints ?? [] : [];
+  const uniqueConstraints = hasSelectedColumn
+    ? allUniqueConstraints.filter((constraint) =>
+        tableDesignerConstraintIncludesColumn(constraint, selectedColumnName)
+      )
+    : allUniqueConstraints;
+  const checkConstraints = hasSelectedColumn
+    ? allCheckConstraints.filter((constraint) =>
+        tableDesignerConstraintIncludesColumn(constraint, selectedColumnName)
+      )
+    : allCheckConstraints;
+  const totalCount = uniqueConstraints.length + checkConstraints.length;
+
+  return `
+    <div class="table-designer-constraints-modal">
+      <div class="table-designer-constraints-modal__summary">
+        <div class="min-w-0">
+          <div class="table-designer-constraints-modal__label">Table</div>
+          <code title="${escapeHtml(draft.tableName ?? "")}">${escapeHtml(draft.tableName ?? "")}</code>
+        </div>
+        ${
+          hasSelectedColumn
+            ? `
+              <div class="min-w-0">
+                <div class="table-designer-constraints-modal__label">Column</div>
+                <code title="${escapeHtml(selectedColumnLabel)}">${escapeHtml(selectedColumnLabel)}</code>
+              </div>
+            `
+            : ""
+        }
+        <div class="status-badge status-badge--primary">V2 · ${formatNumber(totalCount)}</div>
+      </div>
+      ${renderTableDesignerConstraintSection({
+        title: "Check constraints",
+        count: checkConstraints.length,
+        emptyText: hasSelectedColumn
+          ? "No check constraints detected for this column."
+          : "No check constraints detected.",
+        body: checkConstraints.map(renderTableDesignerCheckConstraintEditor).join(""),
+      })}
+      ${renderTableDesignerConstraintSection({
+        title: hasSelectedColumn ? "Related unique constraints" : "Unique constraints",
+        count: uniqueConstraints.length,
+        emptyText: hasSelectedColumn
+          ? "No related multi-column or partial unique constraints detected."
+          : "No multi-column or partial unique constraints detected.",
+        body: uniqueConstraints.map(renderTableDesignerUniqueConstraintEditor).join(""),
+      })}
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button class="standard-button" data-action="close-modal" type="button">Close</button>
+      </div>
+    </div>
   `;
 }
 
@@ -1207,9 +1476,14 @@ export function renderModal(state) {
       body: renderDataExportModal(modal),
     },
     "copy-column": {
-      eyebrow: "Results // Copy column values",
-      title: "Copy column",
+      eyebrow: "Results // Copy or export column values",
+      title: isMarkdownTodoCopyColumnMode(modal.copyMode) ? "Export Markdown Todo" : "Copy column",
       body: renderCopyColumnModal(modal, state),
+    },
+    "table-designer-constraints": {
+      eyebrow: "Table Designer // Constraints",
+      title: "Checks",
+      body: renderTableDesignerConstraintsModal(modal, state),
     },
     "create-media-tagging-tag-table": {
       eyebrow: "Media Tagging // Create default tag table",
@@ -1231,7 +1505,13 @@ export function renderModal(state) {
 
   return `
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-4 backdrop-blur-sm">
-      <div class="w-full ${modal.kind === "chart-editor" || modal.kind === "row-update-preview" ? "max-w-3xl" : "max-w-xl"} border border-outline-variant/20 bg-surface-container shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+      <div class="w-full ${
+        modal.kind === "chart-editor" ||
+        modal.kind === "row-update-preview" ||
+        modal.kind === "table-designer-constraints"
+          ? "max-w-3xl"
+          : "max-w-xl"
+      } border border-outline-variant/20 bg-surface-container shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
         <div class="flex items-start justify-between gap-4 border-b border-outline-variant/10 bg-surface-container-low px-6 py-5">
           <div>
             <div class="text-[10px] font-mono uppercase tracking-[0.26em] text-primary-container/70">

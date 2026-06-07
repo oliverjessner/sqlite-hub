@@ -138,7 +138,11 @@ function renderWorkspaceHeader(state) {
                     data-action="toggle-data-tables"
                     type="button"
                   >
-                    ${tablesVisible ? '<span class="material-symbols-outlined text-sm">visibility_off</span> Hide Tables' : 'Show Tables'}
+                    ${
+                        tablesVisible
+                            ? '<span class="material-symbols-outlined text-sm">visibility_off</span> Hide Tables'
+                            : '<span class="material-symbols-outlined text-sm">visibility</span> Show Tables'
+                    }
                   </button>
                   <button
                     class="standard-button"
@@ -586,8 +590,13 @@ export function renderDataRowEditorPanel(state) {
                 label: column.name,
                 badges: getColumnBadges(column),
             },
+            rawValue: row[column.name],
             value: formatCellValue(row[column.name]),
         })),
+        tableMeta: {
+            columns: table.columnMeta ?? [],
+            foreignKeys: table.foreignKeys ?? [],
+        },
         saveError: state.dataBrowser.saveError,
         saving: state.dataBrowser.saving,
         deleting: state.dataBrowser.deleting,
@@ -595,6 +604,7 @@ export function renderDataRowEditorPanel(state) {
         deleteRowIndex: isIndexedRow ? rowIndex : null,
         deleteEnabled: Boolean(row.__identity),
         reloadAction: 'reload-data-route',
+        jsonActionsEnabled: true,
     });
 }
 

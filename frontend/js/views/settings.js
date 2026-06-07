@@ -39,9 +39,6 @@ function renderSettingsContent(state) {
             <div class="mt-2 font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
               v${escapeHtml(state.settings.appVersion ?? '0.0.0')}
             </div>
-            <div class="mt-2 text-sm text-on-surface-variant/70">
-              Read directly from <code>package.json</code>.
-            </div>
           </div>
         </div>
       </section>
