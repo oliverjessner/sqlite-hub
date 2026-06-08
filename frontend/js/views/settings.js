@@ -24,6 +24,9 @@ function renderSettingsContent(state) {
     `;
     }
 
+    const appVersion = escapeHtml(state.settings.appVersion ?? '0.0.0');
+    const sqliteVersion = escapeHtml(state.settings.sqliteVersion ?? 'unknown');
+
     return `
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
       <section class="shell-section overflow-hidden">
@@ -32,13 +35,46 @@ function renderSettingsContent(state) {
           <span class="material-symbols-outlined text-xs text-primary-container">deployed_code</span>
         </div>
         <div class="space-y-5 p-6">
+          <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div>
+              <div class="text-[10px] font-mono uppercase tracking-[0.2em] text-on-surface-variant/60">
+                Current_Version
+              </div>
+              <div class="mt-2 font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
+                v${appVersion}
+              </div>
+            </div>
+            <div>
+              <div class="text-[10px] font-mono uppercase tracking-[0.2em] text-on-surface-variant/60">
+                SQLite_Runtime
+              </div>
+              <div class="mt-2 font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
+                ${sqliteVersion}
+              </div>
+            </div>
+          </div>
+          <div class="border-t border-outline-variant/10 py-4 text-sm leading-6 text-on-surface-variant">
+            SQL functions and syntax are evaluated with this SQLite runtime.
+          </div>
+        </div>
+      </section>
+
+      <section class="shell-section overflow-hidden">
+        <div class="flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-highest px-4 py-2">
+          <span class="text-[10px] font-bold uppercase tracking-[0.25em]">CLI</span>
+          <span class="material-symbols-outlined text-xs text-primary-container">terminal</span>
+        </div>
+        <div class="space-y-4 p-6">
           <div>
             <div class="text-[10px] font-mono uppercase tracking-[0.2em] text-on-surface-variant/60">
-              Current_Version
+              Custom_Port
             </div>
-            <div class="mt-2 font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
-              v${escapeHtml(state.settings.appVersion ?? '0.0.0')}
+            <div class="mt-3 border border-outline-variant/10 bg-surface-container-high px-4 py-3 font-mono text-sm text-primary-container">
+              sqlite-hub --port:PORT
             </div>
+          </div>
+          <div class="text-sm leading-6 text-on-surface-variant">
+            Start SQLite Hub with a different local port when the default port is already in use.
           </div>
         </div>
       </section>

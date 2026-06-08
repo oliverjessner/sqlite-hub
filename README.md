@@ -123,6 +123,8 @@ SQLite Hub ships with a built-in CLI that lets you start the app or query inform
 ```bash
 sqlite-hub                  # start on default port 4173
 sqlite-hub --port:4174      # start on a custom port
+sqlite-hub --open           # open SQLite Hub in the browser
+sqlite-hub --config         # show port, URL, app version, and SQLite version
 sqlite-hub --help           # show help text
 sqlite-hub --version        # show version number
 ```
@@ -147,49 +149,91 @@ Shows an overview of all databases that have been opened in SQLite Hub, includin
 Retrieve details about a single database by its name (case-insensitive):
 
 ```bash
-sqlite-hub --database-path:Billly     # get the file path
-sqlite-hub --database-size:Billly     # get the file size (human-readable)
-sqlite-hub --database-lastopened:Billly  # get last opened timestamp
+sqlite-hub --database:Billly --path        # get the file path
+sqlite-hub --database:Billly --size        # get the file size
+sqlite-hub --database:Billly --lastopened  # get last opened timestamp
 ```
 
 ### List all tables in a database
 
 ```bash
-sqlite-hub --database-tables:Billly
+sqlite-hub --database:Billly --tables
 ```
 
 Opens the database in read-only mode and prints all table names, sorted alphabetically.
+
+### Inspect a table
+
+```bash
+sqlite-hub --database:Billly --table:companies
+```
+
+Prints table metadata such as columns, primary keys, foreign keys, indexes, row count, and row identity strategy.
 
 ### SQL Editor - Saved Queries
 
 List all saved queries for a database:
 
 ```bash
-sqlite-hub --database:Unit-00 --sqleditor
+sqlite-hub --database:Unit-00 --queries
 ```
 
 Execute a specific saved query by name:
 
 ```bash
-sqlite-hub --database:Unit-00 --sqleditor:"15min Posting Buckets without id 96"
+sqlite-hub --database:Unit-00 --execute:"15min Posting Buckets without id 96"
 ```
 
 This searches the query history for the given database, finds the matching saved query by title, executes it, and returns all results with metadata (row count, columns, timing, and data).
 
+Show the saved query SQL without executing it:
+
+```bash
+sqlite-hub --database:Unit-00 --query:"Stock Winners"
+```
+
+Export a saved query using the same CSV, TSV, and Markdown export logic as the SQL Editor:
+
+```bash
+sqlite-hub --database:Unit-00 --export:"Stock Winners" --format:csv
+sqlite-hub --database:Unit-00 --export:"Stock Winners" --format:tsv
+sqlite-hub --database:Unit-00 --export:"Stock Winners" --format:md
+```
+
+The export is written to the current working directory using the generated query export filename.
+
+### Row JSON export
+
+Export a single row as JSON by primary key or rowid, using the same row-shaping logic as the Row Editor:
+
+```bash
+sqlite-hub --database:Unit-00 --table:companies --export:0a754aba373d34972998792a0be4333c
+```
+
 ### Available flags
 
-| Flag                                  | Description                           |
-| ------------------------------------- | ------------------------------------- |
-| `--help`, `-h`                        | Show help text                        |
-| `--version`, `-v`                     | Show version number                   |
-| `--port:PORT`                         | Start the server on a custom port     |
-| `--database`, `-d`                    | List all imported databases           |
-| `--database-path:name`                | Get the file path of a database       |
-| `--database-size:name`                | Get the size of a database            |
-| `--database-lastopened:name`          | Get the last opened timestamp         |
-| `--database-tables:name`              | Get all table names from a database   |
-| `--database:name --sqleditor`         | List all saved queries for a database |
-| `--database:name --sqleditor:"query"` | Execute a saved query by name         |
+| Flag                                      | Description                                      |
+| ----------------------------------------- | ------------------------------------------------ |
+| `--help`, `-h`                            | Show help text                                   |
+| `--version`, `-v`                         | Show version number                              |
+| `--config`                                | Show port, URL, app version, and SQLite version  |
+| `--open`                                  | Open SQLite Hub in the browser                   |
+| `--port:PORT`                             | Start the server on a custom port                |
+| `--database`, `-d`                        | List all imported databases                      |
+| `--database:name`                         | Select a database by name or id                  |
+| `--database:name --path`                  | Get the file path of a database                  |
+| `--database:name --size`                  | Get the size of a database                       |
+| `--database:name --lastopened`            | Get the last opened timestamp                    |
+| `--database:name --tables`                | Get all table names from a database              |
+| `--database:name --queries`               | List saved queries for a database                |
+| `--database:name --execute:"query"`       | Execute a saved query by name                    |
+| `--database:name --query:"query"`         | Print a saved query by name                      |
+| `--database:name --export:"query"`        | Export a saved query                             |
+| `--format:csv\|tsv\|md`                   | Set query export format                          |
+| `--database:name --table:"table"`         | Print table metadata                             |
+| `--database:name --table:"table" --export:"pk"` | Export one row as JSON                    |
+
+Legacy aliases such as `--database-path:name`, `--database-size:name`, `--database-lastopened:name`, `--database-tables:name`, and `--database:name --sqleditor:"query"` still work.
 
 ### SQL editor CLI example
 
@@ -198,7 +242,7 @@ This searches the query history for the given database, finds the matching saved
 In the screenshot above, you can see a saved query from the SQL editor. You can create these queries using the graphical interface and execute them via the CLI if you want. To execute one, you would run:
 
 ```bash
-sqlite-hub --database:Unit-00 --sqleditor:"Group by creation Year"
+sqlite-hub --database:Unit-00 --execute:"Group by creation Year"
 ```
 
 Example output:

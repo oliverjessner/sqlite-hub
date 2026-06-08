@@ -252,6 +252,7 @@ const state = {
         loading: false,
         error: null,
         appVersion: null,
+        sqliteVersion: null,
     },
     overview: {
         data: null,
@@ -1210,6 +1211,7 @@ async function refreshSettingsState() {
             ...(response.data ?? {}),
         };
         state.settings.appVersion = response.metadata?.appVersion ?? null;
+        state.settings.sqliteVersion = response.metadata?.sqliteVersion ?? null;
     } catch (error) {
         state.settings.error = normalizeError(error);
     } finally {
