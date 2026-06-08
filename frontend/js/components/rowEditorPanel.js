@@ -8,6 +8,10 @@ import {
   getTimestampPreviewForField,
   isProtectedKeyColumn,
 } from "../utils/timestampPreview.js";
+import {
+  formatTextCellCharacterCount,
+  getTextCellCharacterCount,
+} from "../utils/textCellStats.js";
 
 const URL_PATTERN = /^https?:\/\/[^\s<>"']+$/i;
 
@@ -154,6 +158,7 @@ function renderAllowedValuesSelect(field, allowedValues) {
     <select
       class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
       data-row-editor-initial-value="${escapeHtml(currentValue)}"
+      data-row-editor-text-source
       data-row-editor-timestamp-source
       name="field:${escapeHtml(field.name)}"
     >
@@ -200,6 +205,20 @@ function renderTimestampPreview(field = {}, tableMeta = {}) {
           ? `Interpretiert als Datum: ${escapeHtml(preview.formatted)}`
           : ""
       }
+    </div>
+  `;
+}
+
+function renderTextCharacterCount(value) {
+  const count = getTextCellCharacterCount(value);
+
+  return `
+    <div
+      class="text-[11px] text-on-surface-variant/55"
+      data-row-editor-char-count
+      ${count === null ? "hidden" : ""}
+    >
+      ${count === null ? "" : escapeHtml(formatTextCellCharacterCount(count))}
     </div>
   `;
 }
@@ -293,6 +312,7 @@ function renderReadonlyField(field = {}, tableMeta = {}) {
           : `<div class="mt-2 text-sm text-on-surface">${escapeHtml(value)}</div>`
       }
       ${renderTimestampPreview({ ...field, rawValue }, tableMeta)}
+      ${renderTextCharacterCount(rawValue)}
       ${renderFilePathPreview({ ...field, rawValue }, tableMeta)}
       ${renderOpenUrlButton(url)}
     </div>
@@ -348,6 +368,7 @@ function renderEditableField(field, tableMeta = {}) {
               <input
                 class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
                 data-row-editor-initial-value="${escapeHtml(field.value ?? "")}"
+                data-row-editor-text-source
                 data-row-editor-timestamp-source
                 name="field:${escapeHtml(field.name)}"
                 data-row-editor-url-input
@@ -363,6 +384,7 @@ function renderEditableField(field, tableMeta = {}) {
                   jsonPreview ? "min-h-[14rem] font-mono leading-6" : "min-h-[56px]"
                 }"
                 data-row-editor-initial-value="${escapeHtml(field.value ?? "")}"
+                data-row-editor-text-source
                 data-row-editor-timestamp-source
                 name="field:${escapeHtml(field.name)}"
                 spellcheck="false"
@@ -370,6 +392,7 @@ function renderEditableField(field, tableMeta = {}) {
             `
       }
       ${renderTimestampPreview(field, tableMeta)}
+      ${renderTextCharacterCount(inputType === "number" ? null : field.value ?? "")}
       ${renderFilePathPreview(field, tableMeta)}
     </div>
   `;

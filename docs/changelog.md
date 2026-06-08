@@ -18,6 +18,7 @@
 - quick picks for database
 - export row as json
 - row editor shows urls and opens in browser, path detection, timestamp detection
+- format button in SQLEditor
 
 # v0.9.3
 

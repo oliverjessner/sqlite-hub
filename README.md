@@ -20,7 +20,7 @@ SQLite Hub keeps that workflow sharp:
 - copy result columns with formatting, headers, first-10 previews, TXT export, and Markdown todo export
 - switch between recent databases with sidebar quick picks
 - create simple local backups of the active database
-- run SQL in a syntax-highlighted editor with history, messages, and performance metrics
+- run and format SQL in a syntax-highlighted editor with history, messages, and performance metrics
 - turn query-history results into local charts
 - create and edit tables with a live SQL preview
 - stay local and move fast
@@ -49,7 +49,7 @@ Open one record, edit it in place, preview the SQL diff, then commit. SQLite Hub
 
 ![](./frontend/assets/mockups/sql_editor.png)
 
-Write queries in a syntax-highlighted editor, inspect results in the same workflow, and export result sets as CSV, TSV, Markdown, or duplicate them as a table. Query drafts survive reloads, query history can be searched and saved, and direct single-table `SELECT` results can be edited from the result grid.
+Write queries in a syntax-highlighted editor, format SQL with the editor Format button, inspect results in the same workflow, and export result sets as CSV, TSV, Markdown, or duplicate them as a table. Query drafts survive reloads, query history can be searched and saved, and direct single-table `SELECT` results can be edited from the result grid.
 
 Result column menus include copy actions for a full column, a column with header, or the first 10 values. The same modal can preview the output, copy it, export it as TXT, or turn a column into Markdown todo items.
 

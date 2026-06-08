@@ -156,12 +156,17 @@ import {
     detectFilePathValue,
     getPathTypeLabel,
 } from './utils/filePathPreview.js';
+import { formatSqlQuery } from './utils/sqlFormatter.js';
 import {
     buildDataRowEditorJsonObject,
     buildEditorRowEditorJsonObject,
     stringifyRowEditorJson,
 } from './utils/rowEditorJson.js';
 import { getTimestampPreviewForField } from './utils/timestampPreview.js';
+import {
+    formatTextCellCharacterCount,
+    getTextCellCharacterCount,
+} from './utils/textCellStats.js';
 
 const appRoot = document.querySelector('#app');
 
@@ -1278,6 +1283,39 @@ async function executeEditorQueryAndNavigate() {
     router.navigate(success && activeTab === 'results' ? '/editor/results' : '/editor');
 }
 
+function formatCurrentQuery() {
+    const currentQuery = getState().editor.sqlText ?? '';
+    const formattedQuery = formatSqlQuery(currentQuery);
+
+    if (!formattedQuery) {
+        showToast('No SQL query to format.', 'alert');
+        return;
+    }
+
+    if (formattedQuery === currentQuery) {
+        focusQueryEditorInput();
+        showToast('SQL query is already formatted.', 'muted');
+        return;
+    }
+
+    invalidateMainRenderCache();
+    setCurrentQuery(formattedQuery);
+
+    const input = document.querySelector('[data-bind="current-query"]');
+
+    if (input instanceof HTMLTextAreaElement) {
+        input.value = formattedQuery;
+        syncQueryEditorHighlight(input);
+        syncQueryEditorScroll(input);
+        input.focus({ preventScroll: true });
+        input.setSelectionRange(input.value.length, input.value.length);
+    } else {
+        pendingQueryEditorFocus = true;
+    }
+
+    showToast('SQL query formatted.', 'success');
+}
+
 const OPENABLE_URL_PATTERN = /^https?:\/\/[^\s<>"']+$/i;
 
 function getOpenableUrl(value) {
@@ -1349,6 +1387,26 @@ function syncRowEditorTimestampPreview(inputNode) {
 
     previewNode.hidden = false;
     previewNode.textContent = `Interpretiert als Datum: ${preview.formatted}`;
+}
+
+function syncRowEditorCharacterCount(inputNode) {
+    const fieldNode = inputNode.closest('[data-row-editor-field]');
+    const countNode = fieldNode?.querySelector('[data-row-editor-char-count]');
+
+    if (!fieldNode || !countNode) {
+        return;
+    }
+
+    const count = getTextCellCharacterCount(inputNode.value);
+
+    if (count === null) {
+        countNode.hidden = true;
+        countNode.textContent = '';
+        return;
+    }
+
+    countNode.hidden = false;
+    countNode.textContent = formatTextCellCharacterCount(count);
 }
 
 function syncRowEditorFilePathPreview(inputNode) {
@@ -1809,6 +1867,9 @@ async function handleAction(actionNode) {
             await executeEditorQueryAndNavigate();
             return;
         }
+        case 'format-current-query':
+            formatCurrentQuery();
+            return;
         case 'delete-data-row':
             openDeleteDataRowModal(actionNode.dataset.rowIndex);
             return;
@@ -2308,10 +2369,15 @@ document.addEventListener('keydown', event => {
 document.addEventListener('input', event => {
     const target = event.target instanceof Element ? event.target : null;
     const timestampInput = target?.closest('[data-row-editor-timestamp-source]');
+    const textCellInput = target?.closest('[data-row-editor-text-source]');
 
     if (timestampInput) {
         syncRowEditorTimestampPreview(timestampInput);
         syncRowEditorFilePathPreview(timestampInput);
+    }
+
+    if (textCellInput) {
+        syncRowEditorCharacterCount(textCellInput);
     }
 
     const bindNode = event.target.closest('[data-bind]');
@@ -2453,10 +2519,15 @@ document.addEventListener(
 document.addEventListener('change', event => {
     const target = event.target instanceof Element ? event.target : null;
     const timestampInput = target?.closest('[data-row-editor-timestamp-source]');
+    const textCellInput = target?.closest('[data-row-editor-text-source]');
 
     if (timestampInput) {
         syncRowEditorTimestampPreview(timestampInput);
         syncRowEditorFilePathPreview(timestampInput);
+    }
+
+    if (textCellInput) {
+        syncRowEditorCharacterCount(textCellInput);
     }
 
     const bindNode = event.target.closest('[data-bind]');

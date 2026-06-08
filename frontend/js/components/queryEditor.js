@@ -74,6 +74,14 @@ export function renderQueryEditor({
     </button>
     <button
       class="${secondaryButtonClass}"
+      data-action="format-current-query"
+      type="button"
+    >
+      <span class="material-symbols-outlined text-sm">format_align_left</span>
+      Format
+    </button>
+    <button
+      class="${secondaryButtonClass}"
       data-action="clear-query"
       type="button"
     >
