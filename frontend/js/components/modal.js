@@ -835,7 +835,21 @@ function renderTextExportModal(modal, action) {
   const disabledAttribute = modal.submitting ? 'disabled aria-disabled="true"' : "";
 
   return `
-    <div class="space-y-5">
+    <div class="space-y-5" data-export-modal>
+      <label class="block space-y-2">
+        <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          Filename
+        </span>
+        <input
+          autocomplete="off"
+          class="control-input w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+          name="filename"
+          spellcheck="false"
+          type="text"
+          value="${escapeHtml(modal.filename ?? "")}"
+          ${disabledAttribute}
+        />
+      </label>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         ${getExportOptions()
           .map(

@@ -1353,6 +1353,11 @@ function openRowEditorUrl(actionNode) {
     link.remove();
 }
 
+function getExportFilenameFromAction(actionNode) {
+    const input = actionNode.closest('[data-export-modal]')?.querySelector('input[name="filename"]');
+    return input instanceof HTMLInputElement ? input.value : '';
+}
+
 function syncRowEditorTimestampPreview(inputNode) {
     const fieldNode = inputNode.closest('[data-row-editor-field]');
     const previewNode = fieldNode?.querySelector('[data-row-editor-timestamp-preview]');
@@ -1993,9 +1998,10 @@ async function handleAction(actionNode) {
             return;
         case 'export-query-format': {
             const format = actionNode.dataset.exportFormat;
+            const filename = getExportFilenameFromAction(actionNode);
 
             if (format === 'table') {
-                const imported = await duplicateCurrentQueryAsTable();
+                const imported = await duplicateCurrentQueryAsTable(filename);
 
                 if (imported) {
                     router.navigate('/table-designer/new');
@@ -2004,7 +2010,7 @@ async function handleAction(actionNode) {
                 return;
             }
 
-            await exportCurrentQueryFormat(format);
+            await exportCurrentQueryFormat(format, filename);
             return;
         }
         case 'open-data-export-modal':
@@ -2012,9 +2018,10 @@ async function handleAction(actionNode) {
             return;
         case 'export-data-format': {
             const format = actionNode.dataset.exportFormat;
+            const filename = getExportFilenameFromAction(actionNode);
 
             if (format === 'table') {
-                const imported = await duplicateCurrentDataTableAsTable();
+                const imported = await duplicateCurrentDataTableAsTable(filename);
 
                 if (imported) {
                     router.navigate('/table-designer/new');
@@ -2023,7 +2030,7 @@ async function handleAction(actionNode) {
                 return;
             }
 
-            await exportCurrentDataTableFormat(format);
+            await exportCurrentDataTableFormat(format, filename);
             return;
         }
         case 'toggle-data-tables':

@@ -23,6 +23,7 @@ import {
     MEDIA_TAGGING_DEFAULT_MAPPING_TABLE,
     MEDIA_TAGGING_DEFAULT_TAG_TABLE,
 } from './lib/mediaTaggingDefaults.js';
+import { buildTextExportFilename } from './utils/exportFilenames.js';
 
 const listeners = new Set();
 const DEFAULT_SETTINGS = {
@@ -87,6 +88,34 @@ function storeDataPageSize(pageSize) {
     } catch {
         // Ignore unavailable browser storage; the in-memory setting still applies.
     }
+}
+
+function findQueryHistoryItemBySql(sql, snapshot = state) {
+    const normalizedSql = String(sql ?? '').trim();
+
+    if (!normalizedSql) {
+        return null;
+    }
+
+    if (String(snapshot.editor.historyDetail?.rawSql ?? '').trim() === normalizedSql) {
+        return snapshot.editor.historyDetail;
+    }
+
+    return snapshot.editor.history.find(entry => String(entry.rawSql ?? '').trim() === normalizedSql) ?? null;
+}
+
+function getCurrentQueryExportFilename(format = 'csv', filename = '') {
+    const queryText = String(state.editor.sqlText ?? '');
+    const historyItem = findQueryHistoryItemBySql(queryText);
+    const fallback = historyItem?.displayTitle || 'query-results';
+
+    return buildTextExportFilename(filename || fallback, { format, fallback });
+}
+
+function getCurrentDataTableExportFilename(format = 'csv', filename = '') {
+    const fallback = state.dataBrowser.selectedTable || 'table';
+
+    return buildTextExportFilename(filename || fallback, { format, fallback });
 }
 
 function readStoredBoolean(key, fallback) {
@@ -2309,6 +2338,7 @@ export function openQueryExportModal() {
 
     state.modal = {
         kind: 'query-export',
+        filename: getCurrentQueryExportFilename('csv'),
         error: null,
         submitting: false,
     };
@@ -2323,6 +2353,7 @@ export function openDataExportModal() {
 
     state.modal = {
         kind: 'data-export',
+        filename: getCurrentDataTableExportFilename('csv'),
         error: null,
         submitting: false,
     };
@@ -4370,14 +4401,19 @@ function finishCurrentQueryExport() {
     emitChange();
 }
 
-export async function exportCurrentQueryFormat(format = 'csv') {
+export async function exportCurrentQueryFormat(format = 'csv', filename = '') {
     const normalizedFormat = String(format ?? 'csv').toLowerCase();
     const label = TEXT_EXPORT_FORMAT_LABELS[normalizedFormat] ?? TEXT_EXPORT_FORMAT_LABELS.csv;
+    const exportFilename = getCurrentQueryExportFilename(normalizedFormat, filename || state.modal?.filename);
+
+    if (state.modal?.kind === 'query-export') {
+        state.modal.filename = exportFilename;
+    }
 
     beginCurrentQueryExport();
 
     try {
-        await api.downloadQueryExport(state.editor.sqlText, normalizedFormat);
+        await api.downloadQueryExport(state.editor.sqlText, normalizedFormat, { filename: exportFilename });
         closeModalInternal();
         pushToast(`${label} export started.`, 'success');
         return true;
@@ -4389,14 +4425,20 @@ export async function exportCurrentQueryFormat(format = 'csv') {
     }
 }
 
-export async function duplicateCurrentQueryAsTable() {
+export async function duplicateCurrentQueryAsTable(filename = '') {
+    const exportFilename = getCurrentQueryExportFilename('csv', filename || state.modal?.filename);
+
+    if (state.modal?.kind === 'query-export') {
+        state.modal.filename = exportFilename;
+    }
+
     beginCurrentQueryExport();
 
     try {
         const response = await api.getQueryExport(state.editor.sqlText, 'csv');
         const exportData = response?.data ?? {};
         const imported = queueTableDesignerCsvImport(
-            exportData.filename || 'query-results.csv',
+            exportFilename || getCurrentQueryExportFilename('csv', exportData.filename),
             exportData.content || '',
             { throwOnError: true },
         );
@@ -4463,7 +4505,7 @@ function finishCurrentDataTableExport() {
     emitChange();
 }
 
-export async function exportCurrentDataTableFormat(format = 'csv') {
+export async function exportCurrentDataTableFormat(format = 'csv', filename = '') {
     const tableName = state.dataBrowser.selectedTable;
 
     if (!tableName) {
@@ -4473,11 +4515,19 @@ export async function exportCurrentDataTableFormat(format = 'csv') {
 
     const normalizedFormat = String(format ?? 'csv').toLowerCase();
     const label = TEXT_EXPORT_FORMAT_LABELS[normalizedFormat] ?? TEXT_EXPORT_FORMAT_LABELS.csv;
+    const exportFilename = getCurrentDataTableExportFilename(normalizedFormat, filename || state.modal?.filename);
+
+    if (state.modal?.kind === 'data-export') {
+        state.modal.filename = exportFilename;
+    }
 
     beginCurrentDataTableExport();
 
     try {
-        await api.downloadTableExport(tableName, getCurrentDataTableExportOptions(normalizedFormat));
+        await api.downloadTableExport(tableName, {
+            ...getCurrentDataTableExportOptions(normalizedFormat),
+            filename: exportFilename,
+        });
         closeModalInternal();
         pushToast(`${label} export started for ${tableName}.`, 'success');
         return true;
@@ -4489,12 +4539,18 @@ export async function exportCurrentDataTableFormat(format = 'csv') {
     }
 }
 
-export async function duplicateCurrentDataTableAsTable() {
+export async function duplicateCurrentDataTableAsTable(filename = '') {
     const tableName = state.dataBrowser.selectedTable;
 
     if (!tableName) {
         pushToast('No table selected for export.', 'alert');
         return null;
+    }
+
+    const exportFilename = getCurrentDataTableExportFilename('csv', filename || state.modal?.filename);
+
+    if (state.modal?.kind === 'data-export') {
+        state.modal.filename = exportFilename;
     }
 
     beginCurrentDataTableExport();
@@ -4503,7 +4559,7 @@ export async function duplicateCurrentDataTableAsTable() {
         const response = await api.getTableExport(tableName, getCurrentDataTableExportOptions('csv'));
         const exportData = response?.data ?? {};
         const imported = queueTableDesignerCsvImport(
-            exportData.filename || `${tableName}.csv`,
+            exportFilename || getCurrentDataTableExportFilename('csv', exportData.filename),
             exportData.content || '',
             {
                 throwOnError: true,

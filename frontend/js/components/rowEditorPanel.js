@@ -209,18 +209,28 @@ function renderTimestampPreview(field = {}, tableMeta = {}) {
   `;
 }
 
-function renderTextCharacterCount(value) {
+function renderTextCharacterCountBadge(value) {
   const count = getTextCellCharacterCount(value);
 
   return `
-    <div
-      class="text-[11px] text-on-surface-variant/55"
+    <span
+      class="border px-2 py-1 text-[9px] ${getFieldBadgeClassName("char-count")}"
       data-row-editor-char-count
       ${count === null ? "hidden" : ""}
     >
       ${count === null ? "" : escapeHtml(formatTextCellCharacterCount(count))}
-    </div>
+    </span>
   `;
+}
+
+function renderFieldBadgesWithCharacterCount(badges = [], value) {
+  const [typeBadge, ...remainingBadges] = badges;
+
+  return [
+    typeBadge ? renderFieldBadge(typeBadge) : "",
+    renderTextCharacterCountBadge(value),
+    ...remainingBadges.map((badge) => renderFieldBadge(badge)),
+  ].join("");
 }
 
 function getFieldFilePathPreview(field = {}, tableMeta = {}) {
@@ -304,7 +314,7 @@ function renderReadonlyField(field = {}, tableMeta = {}) {
     }>
       <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
         <span>${escapeHtml(displayLabel)}</span>
-        ${badges.map((badge) => renderFieldBadge(badge)).join("")}
+        ${renderFieldBadgesWithCharacterCount(badges, rawValue)}
       </div>
       ${
         jsonPreview
@@ -312,7 +322,6 @@ function renderReadonlyField(field = {}, tableMeta = {}) {
           : `<div class="mt-2 text-sm text-on-surface">${escapeHtml(value)}</div>`
       }
       ${renderTimestampPreview({ ...field, rawValue }, tableMeta)}
-      ${renderTextCharacterCount(rawValue)}
       ${renderFilePathPreview({ ...field, rawValue }, tableMeta)}
       ${renderOpenUrlButton(url)}
     </div>
@@ -341,7 +350,7 @@ function renderEditableField(field, tableMeta = {}) {
     >
       <span class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
         <span>${escapeHtml(field.label ?? field.name)}</span>
-        ${badges.map((badge) => renderFieldBadge(badge)).join("")}
+        ${renderFieldBadgesWithCharacterCount(badges, inputType === "number" ? null : field.value ?? "")}
       </span>
       ${
         jsonPreview
@@ -392,7 +401,6 @@ function renderEditableField(field, tableMeta = {}) {
             `
       }
       ${renderTimestampPreview(field, tableMeta)}
-      ${renderTextCharacterCount(inputType === "number" ? null : field.value ?? "")}
       ${renderFilePathPreview(field, tableMeta)}
     </div>
   `;
@@ -417,6 +425,10 @@ function getFieldBadgeClassName(tone) {
 
   if (tone === "filepath") {
     return "border-outline-variant/30 bg-surface-container-high text-on-surface";
+  }
+
+  if (tone === "char-count") {
+    return "border-outline-variant/25 bg-surface-container text-on-surface-variant";
   }
 
   return "border-outline-variant/20 bg-surface-container text-on-surface-variant";

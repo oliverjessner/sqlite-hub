@@ -46,7 +46,7 @@ async function download(path, options = {}) {
   const blob = await response.blob();
   const disposition = response.headers.get("content-disposition") ?? "";
   const match = disposition.match(/filename="([^"]+)"/i);
-  const filename = match?.[1] ?? options.fallbackFilename ?? "export.csv";
+  const filename = String(options.filename ?? "").trim() || match?.[1] || options.fallbackFilename || "export.csv";
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
@@ -440,7 +440,7 @@ export function getQueryExport(sql, format = "csv") {
   });
 }
 
-export function downloadQueryExport(sql, format = "csv") {
+export function downloadQueryExport(sql, format = "csv", options = {}) {
   const normalizedFormat = normalizeTextExportFormat(format);
   const extension = TEXT_EXPORT_EXTENSIONS[normalizedFormat];
 
@@ -448,6 +448,7 @@ export function downloadQueryExport(sql, format = "csv") {
     method: "POST",
     body: { sql },
     fallbackFilename: `query-results.${extension}`,
+    filename: options.filename,
   });
 }
 
@@ -482,6 +483,7 @@ export function downloadTableExport(tableName, options = {}) {
     method: "POST",
     body: buildTableExportBody(tableName, { ...options, format: normalizedFormat }),
     fallbackFilename: `${tableName || "table"}.${extension}`,
+    filename: options.filename,
   });
 }
 
