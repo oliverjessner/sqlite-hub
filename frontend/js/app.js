@@ -100,6 +100,7 @@ import {
     setQueryHistorySearchInput,
     setQueryHistoryTab,
     setCopyColumnModalError,
+    setCopyColumnModalEditedText,
     setCopyColumnModalSubmitting,
     setRoute,
     saveQueryHistoryNotes,
@@ -1520,6 +1521,14 @@ function buildCopyColumnExportFilename(columnName, copyMode) {
     return `${columnSlug}-${metadata.suffix}.${metadata.extension}`;
 }
 
+function countEditedMarkdownTodoItems(text) {
+    const lines = String(text ?? '')
+        .split(/\r\n|\r|\n/g)
+        .filter(line => line.trim());
+
+    return lines.length;
+}
+
 function downloadTextFile({ text, filename, mimeType }) {
     const blob = new Blob([text], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -1698,6 +1707,8 @@ async function submitCopyColumnModal(formData) {
     const outputSeparator = lineBreaks ? '\n' : separator;
     const intent = String(formData.get('intent') ?? 'copy');
     const isExportIntent = intent === 'export';
+    const isMarkdownTodo = isMarkdownTodoCopyColumnMode(copyMode);
+    const editedText = formData.has('editedText') ? String(formData.get('editedText') ?? '') : null;
     const result = getCopyColumnResult(state, scope);
     const hasColumn = (result?.columns ?? []).some(column => String(column) === columnName);
 
@@ -1710,18 +1721,24 @@ async function submitCopyColumnModal(formData) {
         return;
     }
 
-    if (!isMarkdownTodoCopyColumnMode(copyMode)) {
+    if (!isMarkdownTodo) {
         storeCopyColumnPreferences({ separator, wrapper, lineBreaks });
+    } else if (editedText !== null) {
+        setCopyColumnModalEditedText(editedText);
     }
     setCopyColumnModalSubmitting(true);
 
-    const { text, valueCount } = buildCopyColumnText({
+    const generatedOutput = buildCopyColumnText({
         result,
         columnName,
         copyMode,
         separator: outputSeparator,
         wrapper,
     });
+    const text = isMarkdownTodo && editedText !== null ? editedText : generatedOutput.text;
+    const valueCount = isMarkdownTodo && editedText !== null
+        ? countEditedMarkdownTodoItems(editedText)
+        : generatedOutput.valueCount;
 
     try {
         if (isExportIntent) {

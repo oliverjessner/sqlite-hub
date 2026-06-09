@@ -1,5 +1,6 @@
 import { escapeHtml, formatNumber, highlightSql, truncateMiddle } from "../utils/format.js";
 import {
+  buildCopyColumnText,
   buildCopyColumnPreviewText,
   getCopyColumnActionLabel,
   getCopyColumnExportMetadata,
@@ -170,7 +171,7 @@ function renderOpenConnectionForm(modal) {
         text: "Open read-only",
       })}
       ${renderError(modal.error)}
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="flex items-center justify-between gap-3 pt-2">
         <button
           class="standard-button"
           data-action="close-modal"
@@ -244,7 +245,7 @@ function renderEditConnectionForm(modal) {
         text: "Open read-only",
       })}
       ${renderError(modal.error)}
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="flex items-center justify-between gap-3 pt-2">
         <button
           class="standard-button"
           data-action="close-modal"
@@ -277,7 +278,7 @@ function renderCreateDatabaseForm(modal) {
         placeholder: "Optional display name",
       })}
       ${renderError(modal.error)}
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="flex items-center justify-between gap-3 pt-2">
         <button
           class="standard-button"
           data-action="close-modal"
@@ -363,7 +364,7 @@ function renderImportSqlForm(modal, state) {
         explicit path instead of file upload.
       </p>
       ${renderError(modal.error)}
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="flex items-center justify-between gap-3 pt-2">
         <button
           class="standard-button"
           data-action="close-modal"
@@ -423,7 +424,7 @@ function renderDeleteRowConfirmForm(modal) {
     rowPreviewMarkup,
     "</div>",
     renderError(modal.error),
-    '<div class="flex items-center justify-end gap-3 pt-2">',
+    '<div class="flex items-center justify-between gap-3 pt-2">',
     '<button class="standard-button" data-action="close-modal" type="button">Cancel</button>',
     '<button class="delete-button" type="submit">',
     modal.submitting ? "Deleting..." : "Delete Row",
@@ -513,7 +514,7 @@ function renderRowUpdatePreviewForm(modal) {
       </div>
       ${paramsMarkup}
       ${renderError(modal.error)}
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="flex items-center justify-between gap-3 pt-2">
         <button class="standard-button" data-action="close-modal" type="button">Cancel</button>
         <button class="signature-button" type="submit">
           ${modal.submitting ? 'Applying...' : 'Apply Changes'}
@@ -753,7 +754,7 @@ function renderChartEditorForm(modal, state) {
           : ""
       }
       ${renderError(modal.error)}
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="flex items-center justify-between gap-3 pt-2">
         <button
           class="standard-button"
           data-action="close-modal"
@@ -781,7 +782,7 @@ function renderDeleteChartForm(modal) {
     '<p class="text-sm leading-7 text-on-surface-variant/65">The linked query-history entry stays intact. Only this chart definition is removed.</p>',
     "</div>",
     renderError(modal.error),
-    '<div class="flex items-center justify-end gap-3 pt-2">',
+    '<div class="flex items-center justify-between gap-3 pt-2">',
     '<button class="standard-button" data-action="close-modal" type="button">Cancel</button>',
     '<button class="delete-button" type="submit">',
     modal.submitting ? "Deleting..." : "Delete Chart",
@@ -798,7 +799,7 @@ function renderDeleteQueryHistoryForm(modal) {
     '<p class="text-sm leading-7 text-on-surface-variant/65">This removes the query-history entry and all recorded runs linked to it.</p>',
     "</div>",
     renderError(modal.error),
-    '<div class="flex items-center justify-end gap-3 pt-2">',
+    '<div class="flex items-center justify-between gap-3 pt-2">',
     '<button class="standard-button" data-action="close-modal" type="button">Cancel</button>',
     '<button class="delete-button" type="submit">',
     modal.submitting ? "Deleting..." : "Delete Query",
@@ -888,7 +889,7 @@ function renderTextExportModal(modal, action) {
           .join("")}
       </div>
       ${renderError(modal.error)}
-      <div class="flex justify-end">
+      <div class="flex justify-start">
         <button class="standard-button" data-action="close-modal" type="button">
           Cancel
         </button>
@@ -911,21 +912,45 @@ function getCopyColumnResult(state, modal) {
 
 function renderCopyColumnPreview(modal, state) {
   const result = getCopyColumnResult(state, modal);
+  const isMarkdownTodo = isMarkdownTodoCopyColumnMode(modal.copyMode);
   const separator = Boolean(modal.lineBreaks) && !isMarkdownTodoCopyColumnMode(modal.copyMode)
     ? "\n"
     : String(modal.separator ?? ",");
   const wrapper = String(modal.wrapper ?? '"');
-  const preview = buildCopyColumnPreviewText({
-    result,
-    columnName: modal.columnName,
-    copyMode: modal.copyMode,
-    separator,
-    wrapper,
-    maxRows: isMarkdownTodoCopyColumnMode(modal.copyMode) ? 10 : 4,
-  });
+  const preview = isMarkdownTodo
+    ? modal.editedText ?? buildCopyColumnText({
+        result,
+        columnName: modal.columnName,
+        copyMode: modal.copyMode,
+        separator: "\n",
+        wrapper,
+      }).text
+    : buildCopyColumnPreviewText({
+        result,
+        columnName: modal.columnName,
+        copyMode: modal.copyMode,
+        separator,
+        wrapper,
+        maxRows: 4,
+      });
 
-  if (!preview) {
+  if (!preview && !isMarkdownTodo) {
     return "";
+  }
+
+  if (isMarkdownTodo) {
+    return `
+      <label class="block space-y-2">
+        <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          Editable Preview
+        </span>
+        <textarea
+          class="copy-column-preview copy-column-preview--editable custom-scrollbar"
+          name="editedText"
+          spellcheck="true"
+        >${escapeHtml(preview)}</textarea>
+      </label>
+    `;
   }
 
   return `
@@ -977,7 +1002,7 @@ function renderCopyColumnFormatField({ label, name, value = "" }) {
   `;
 }
 
-function renderCopyColumnModal(modal, state) {
+export function renderCopyColumnModal(modal, state) {
   const result = getCopyColumnResult(state, modal);
   const rows = result?.rows ?? [];
   const valueCount = modal.copyMode === "first-10" ? Math.min(rows.length, 10) : rows.length;
@@ -1029,7 +1054,7 @@ function renderCopyColumnModal(modal, state) {
       ${formatFieldsMarkup}
       ${renderCopyColumnPreview(modal, state)}
       ${renderError(modal.error)}
-      <div class="flex flex-wrap items-center justify-end gap-3 pt-2">
+      <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
         <button
           class="standard-button"
           data-action="close-modal"
@@ -1038,24 +1063,26 @@ function renderCopyColumnModal(modal, state) {
         >
           Cancel
         </button>
-        <button
-          class="standard-button"
-          name="intent"
-          type="submit"
-          value="export"
-          ${disabledAttribute}
-        >
-          ${modal.submitting ? "Working..." : `Export as ${exportMetadata.extension.toUpperCase()}`}
-        </button>
-        <button
-          class="signature-button"
-          name="intent"
-          type="submit"
-          value="copy"
-          ${disabledAttribute}
-        >
-          ${modal.submitting ? "Working..." : "Copy"}
-        </button>
+        <div class="flex flex-wrap items-center justify-end gap-3">
+          <button
+            class="standard-button"
+            name="intent"
+            type="submit"
+            value="export"
+            ${disabledAttribute}
+          >
+            ${modal.submitting ? "Working..." : `Export as ${exportMetadata.extension.toUpperCase()}`}
+          </button>
+          <button
+            class="signature-button"
+            name="intent"
+            type="submit"
+            value="copy"
+            ${disabledAttribute}
+          >
+            ${modal.submitting ? "Working..." : "Copy"}
+          </button>
+        </div>
       </div>
     </form>
   `;
@@ -1230,7 +1257,7 @@ function renderTableDesignerConstraintsModal(modal, state) {
       <div class="table-designer-constraints-modal__empty">
         No active table designer draft.
       </div>
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="flex items-center justify-between gap-3 pt-2">
         <button class="standard-button" data-action="close-modal" type="button">Close</button>
       </div>
     `;
@@ -1291,7 +1318,7 @@ function renderTableDesignerConstraintsModal(modal, state) {
           : "No multi-column or partial unique constraints detected.",
         body: uniqueConstraints.map(renderTableDesignerUniqueConstraintEditor).join(""),
       })}
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="flex items-center justify-between gap-3 pt-2">
         <button class="standard-button" data-action="close-modal" type="button">Close</button>
       </div>
     </div>
@@ -1336,7 +1363,7 @@ function renderCreateMediaTaggingMappingTableForm(modal, state) {
         ${renderSqlPreviewField(MEDIA_TAGGING_DEFAULT_MAPPING_TABLE_SQL)}
       </div>
       ${renderError(modal.error)}
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="flex items-center justify-between gap-3 pt-2">
         <button
           class="standard-button"
           data-action="close-modal"
@@ -1400,7 +1427,7 @@ function renderCreateMediaTaggingTagTableForm(modal, state) {
         ${renderSqlPreviewField(MEDIA_TAGGING_DEFAULT_TAG_TABLE_SQL)}
       </div>
       ${renderError(modal.error)}
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="flex items-center justify-between gap-3 pt-2">
         <button
           class="standard-button"
           data-action="close-modal"

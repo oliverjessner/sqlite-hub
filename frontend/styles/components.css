@@ -588,6 +588,19 @@
     white-space: pre-wrap;
 }
 
+.copy-column-preview--editable {
+    display: block;
+    min-height: 10rem;
+    outline: none;
+    resize: vertical;
+    width: 100%;
+}
+
+.copy-column-preview--editable:focus {
+    border-color: rgb(var(--rgb-primary) / 0.55);
+    color: rgb(var(--rgb-on-surface) / 0.9);
+}
+
 .metric-card {
     background: var(--color-surface-low);
     display: flex;

@@ -2383,6 +2383,7 @@ export function openCopyColumnModal({ scope = 'editor', columnName = '', mode = 
         separator: preferences.separator,
         wrapper: preferences.wrapper,
         lineBreaks: preferences.lineBreaks,
+        editedText: null,
         error: null,
         submitting: false,
     };
@@ -2425,6 +2426,14 @@ export function updateCopyColumnModalFormatField(field, value) {
         );
     }
     emitChange();
+}
+
+export function setCopyColumnModalEditedText(text) {
+    if (state.modal?.kind !== 'copy-column') {
+        return;
+    }
+
+    state.modal.editedText = String(text ?? '');
 }
 
 export function setCopyColumnModalSubmitting(submitting) {
