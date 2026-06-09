@@ -16,6 +16,7 @@ Usage:
   sqlite-hub --database:"name" --tables
   sqlite-hub --database:"name" --execute:"Saved Query"
   sqlite-hub --database:"name" --query:"Saved Query"
+  sqlite-hub --database:"name" --notes:"Saved Query"
   sqlite-hub --database:"name" --export:"Saved Query" --format:csv
   sqlite-hub --database:"name" --table:"table_name"
   sqlite-hub --database:"name" --table:"table_name" --export:"primary-key"
@@ -35,6 +36,7 @@ Options:
   --queries                          List saved SQL Editor queries for the selected database.
   --execute:"query"                  Execute a saved SQL Editor query by name.
   --query:"query"                    Print a saved SQL Editor query by name.
+  --notes:"query"                    Print notes for a saved SQL Editor query by name.
   --export:"query"                   Export a saved query when --table is not set.
   --format:csv|tsv|md                Export format for query exports. Defaults to csv.
   --table:"table"                    Print table metadata.
@@ -156,6 +158,7 @@ function parseCliArguments(argv) {
         queries: false,
         executeQuery: null,
         showQuery: null,
+        showNotes: null,
         exportTarget: null,
         exportFormat: 'csv',
         tableName: null,
@@ -289,6 +292,13 @@ function parseCliArguments(argv) {
             continue;
         }
 
+        if (flag === '--notes') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.showNotes = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
         if (flag === '--export') {
             const parsed = takeFlagValue(flag, value, argv, index);
             options.exportTarget = parsed.value;
@@ -325,6 +335,7 @@ function hasDatabaseOperation(options) {
             options.queries ||
             options.executeQuery ||
             options.showQuery ||
+            options.showNotes ||
             options.exportTarget ||
             options.tableName,
     );
@@ -624,6 +635,18 @@ function showSavedQuery({ appStateStore, conn, queryName }) {
     console.log(matchingQuery.rawSql);
 }
 
+function showSavedQueryNotes({ appStateStore, conn, queryName }) {
+    const matchingQuery = requireMatchingQuery(appStateStore, conn, queryName);
+    const notes = String(matchingQuery.notes ?? '').trim();
+
+    if (notes) {
+        console.log(notes);
+        return;
+    }
+
+    console.log(`No notes saved for: ${getQueryTitle(matchingQuery)}`);
+}
+
 function exportSavedQuery({ appStateStore, conn, exportService, queryName, format }) {
     const matchingQuery = requireMatchingQuery(appStateStore, conn, queryName);
     const result = exportService.exportQuery(matchingQuery.rawSql, { format });
@@ -899,7 +922,7 @@ async function main() {
             process.exit(1);
         }
 
-        if (options.tableName || options.tables || options.queries || options.executeQuery || options.showQuery || options.exportTarget) {
+        if (options.tableName || options.tables || options.queries || options.executeQuery || options.showQuery || options.showNotes || options.exportTarget) {
             const runtime = createReadOnlyRuntime(conn, appStateStore);
 
             try {
@@ -943,6 +966,11 @@ async function main() {
 
                 if (options.showQuery) {
                     showSavedQuery({ appStateStore, conn, queryName: options.showQuery });
+                    return;
+                }
+
+                if (options.showNotes) {
+                    showSavedQueryNotes({ appStateStore, conn, queryName: options.showNotes });
                     return;
                 }
 

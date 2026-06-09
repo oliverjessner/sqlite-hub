@@ -192,6 +192,12 @@ Show the saved query SQL without executing it:
 sqlite-hub --database:Unit-00 --query:"Stock Winners"
 ```
 
+Show the saved notes for a query:
+
+```bash
+sqlite-hub --database:Unit-00 --notes:"TOP25 Loser and Winner EOD, T1, T3, T5"
+```
+
 Export a saved query using the same CSV, TSV, and Markdown export logic as the SQL Editor:
 
 ```bash
@@ -228,6 +234,7 @@ sqlite-hub --database:Unit-00 --table:companies --export:0a754aba373d34972998792
 | `--database:name --queries`               | List saved queries for a database                |
 | `--database:name --execute:"query"`       | Execute a saved query by name                    |
 | `--database:name --query:"query"`         | Print a saved query by name                      |
+| `--database:name --notes:"query"`         | Print saved notes for a query                    |
 | `--database:name --export:"query"`        | Export a saved query                             |
 | `--format:csv\|tsv\|md`                   | Set query export format                          |
 | `--database:name --table:"table"`         | Print table metadata                             |

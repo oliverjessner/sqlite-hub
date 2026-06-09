@@ -52,6 +52,7 @@ test("keeps old database detail aliases working", () => {
 
 test("parses query display and export commands", () => {
   const showOptions = parseCliArguments(["--database:db", "--query:Stock Winners"]);
+  const notesOptions = parseCliArguments(["--database:db", "--notes:Stock Winners"]);
   const exportOptions = parseCliArguments([
     "--database:db",
     "--export:Stock Winners",
@@ -59,6 +60,7 @@ test("parses query display and export commands", () => {
   ]);
 
   assert.equal(showOptions.showQuery, "Stock Winners");
+  assert.equal(notesOptions.showNotes, "Stock Winners");
   assert.equal(exportOptions.exportTarget, "Stock Winners");
   assert.equal(exportOptions.exportFormat, "md");
 });
