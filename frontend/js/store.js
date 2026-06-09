@@ -24,6 +24,7 @@ import {
     MEDIA_TAGGING_DEFAULT_TAG_TABLE,
 } from './lib/mediaTaggingDefaults.js';
 import { buildTextExportFilename } from './utils/exportFilenames.js';
+import { toggleMarkdownTodoLine } from './utils/markdownDocuments.js';
 
 const listeners = new Set();
 const DEFAULT_SETTINGS = {
@@ -50,6 +51,8 @@ const UI_PREFERENCE_STORAGE_KEYS = {
     chartsHistoryVisible: 'sqlite_hub_charts_history_visible',
     chartsResultsVisible: 'sqlite_hub_charts_results_visible',
     tableDesignerSqlPreviewVisible: 'sqlite_hub_table_designer_sql_preview_visible',
+    documentsEditorVisible: 'sqlite_hub_documents_editor_visible',
+    documentsPreviewVisible: 'sqlite_hub_documents_preview_visible',
 };
 const QUERY_HISTORY_PAGE_SIZE = 30;
 const QUERY_HISTORY_RUN_LIMIT = 8;
@@ -73,6 +76,7 @@ let queryHistorySearchTimer = null;
 let chartsLoadVersion = 0;
 let chartsDetailLoadVersion = 0;
 let mediaTaggingPreviewVersion = 0;
+let documentsLoadVersion = 0;
 
 function readStoredDataPageSize(fallback = DEFAULT_DATA_PAGE_SIZE) {
     try {
@@ -334,6 +338,22 @@ const state = {
         resultLoading: false,
         resultError: null,
     },
+    documents: {
+        items: [],
+        selectedId: null,
+        selected: null,
+        draftFilename: '',
+        draftContent: '',
+        dirty: false,
+        editorVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.documentsEditorVisible, true),
+        previewVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.documentsPreviewVisible, true),
+        loading: false,
+        detailLoading: false,
+        saving: false,
+        deleting: false,
+        error: null,
+        saveError: null,
+    },
     tableDesigner: {
         tables: [],
         selectedTableName: null,
@@ -539,6 +559,7 @@ function requiresActiveDatabase(routeName) {
         'editor',
         'editorResults',
         'charts',
+        'documents',
         'structure',
         'tableDesigner',
         'mediaTaggingSetup',
@@ -916,6 +937,74 @@ function resetChartsState() {
     state.charts.resultError = null;
 }
 
+function resetDocumentsState() {
+    documentsLoadVersion += 1;
+    state.documents.items = [];
+    state.documents.selectedId = null;
+    state.documents.selected = null;
+    state.documents.draftFilename = '';
+    state.documents.draftContent = '';
+    state.documents.dirty = false;
+    state.documents.loading = false;
+    state.documents.detailLoading = false;
+    state.documents.saving = false;
+    state.documents.deleting = false;
+    state.documents.error = null;
+    state.documents.saveError = null;
+}
+
+function applyCurrentDocument(document) {
+    state.documents.selectedId = document?.id ?? null;
+    state.documents.selected = document ?? null;
+    state.documents.draftFilename = document?.filename ?? '';
+    state.documents.draftContent = document?.content ?? '';
+    state.documents.dirty = false;
+    state.documents.saveError = null;
+}
+
+function upsertDocumentSummary(document) {
+    if (!document?.id) {
+        return;
+    }
+
+    const summary = {
+        id: document.id,
+        databaseKey: document.databaseKey,
+        title: document.title,
+        filename: document.filename,
+        contentLength: document.contentLength,
+        createdAt: document.createdAt,
+        updatedAt: document.updatedAt,
+    };
+    const existingIndex = state.documents.items.findIndex(item => item.id === document.id);
+
+    if (existingIndex >= 0) {
+        state.documents.items.splice(existingIndex, 1, summary);
+    } else {
+        state.documents.items.unshift(summary);
+    }
+
+    state.documents.items.sort((left, right) => {
+        const leftTime = Date.parse(left.updatedAt ?? '') || 0;
+        const rightTime = Date.parse(right.updatedAt ?? '') || 0;
+        return rightTime - leftTime || String(left.id).localeCompare(String(right.id));
+    });
+}
+
+function resolveDocumentSelection(route) {
+    const requestedId = String(route.params?.documentId ?? '').trim();
+
+    if (requestedId && state.documents.items.some(item => String(item.id) === requestedId)) {
+        return requestedId;
+    }
+
+    if (state.documents.selectedId && state.documents.items.some(item => item.id === state.documents.selectedId)) {
+        return state.documents.selectedId;
+    }
+
+    return state.documents.items[0]?.id ?? null;
+}
+
 function normalizeChartsHeightPreset(value) {
     const normalizedValue = String(value ?? '')
         .trim()
@@ -1044,6 +1133,8 @@ function clearRouteSlices() {
     state.tableDesigner.saveError = null;
     state.structure.error = null;
     state.mediaTagging.error = null;
+    state.documents.error = null;
+    state.documents.saveError = null;
 }
 
 function setMissingDatabaseState() {
@@ -1127,6 +1218,9 @@ function setMissingDatabaseState() {
     resetChartsState();
     state.charts.error = error;
 
+    resetDocumentsState();
+    state.documents.error = error;
+
     resetQueryHistoryState({ preserveSearch: false });
 }
 
@@ -1170,6 +1264,10 @@ function syncRouteContext() {
 
     if (route.name !== 'tableDesigner') {
         state.tableDesigner.saveError = null;
+    }
+
+    if (route.name !== 'documents') {
+        state.documents.saveError = null;
     }
 
     if (route.name !== 'mediaTaggingSetup' && route.name !== 'mediaTaggingQueue') {
@@ -1497,6 +1595,75 @@ async function loadCharts(version, route, options = {}) {
     }
 
     await loadChartsDetail(resolveLoadableChartsHistoryId(route));
+}
+
+async function loadDocumentDetail(version, documentId) {
+    if (!documentId) {
+        applyCurrentDocument(null);
+        return;
+    }
+
+    state.documents.detailLoading = true;
+    state.documents.saveError = null;
+    emitChange();
+
+    try {
+        const response = await api.getDocument(documentId);
+
+        if (version !== routeLoadVersion) {
+            return;
+        }
+
+        const document = response.data ?? null;
+        applyCurrentDocument(document);
+        upsertDocumentSummary(document);
+    } catch (error) {
+        if (version !== routeLoadVersion) {
+            return;
+        }
+
+        applyCurrentDocument(null);
+        state.documents.error = normalizeError(error);
+    } finally {
+        if (version === routeLoadVersion) {
+            state.documents.detailLoading = false;
+            emitChange();
+        }
+    }
+}
+
+async function loadDocuments(version, route) {
+    const requestVersion = ++documentsLoadVersion;
+
+    state.documents.loading = true;
+    state.documents.error = null;
+    emitChange();
+
+    try {
+        const response = await api.getDocuments();
+
+        if (version !== routeLoadVersion || requestVersion !== documentsLoadVersion) {
+            return;
+        }
+
+        state.documents.items = response.data?.items ?? [];
+        state.documents.error = null;
+
+        await loadDocumentDetail(version, resolveDocumentSelection(route));
+    } catch (error) {
+        if (version !== routeLoadVersion || requestVersion !== documentsLoadVersion) {
+            return;
+        }
+
+        state.documents.items = [];
+        applyCurrentDocument(null);
+        state.documents.error = normalizeError(error);
+    } finally {
+        if (version === routeLoadVersion && requestVersion === documentsLoadVersion) {
+            state.documents.loading = false;
+            emitChange();
+        }
+    }
 }
 
 async function loadOverview(version) {
@@ -2084,6 +2251,7 @@ function invalidateDatabaseCaches(options = {}) {
     state.structure.detail = null;
     state.structure.tablesVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.structureTablesVisible, true);
     state.structure.tableSearchQuery = '';
+    resetDocumentsState();
     state.mediaTagging.loading = false;
     state.mediaTagging.previewLoading = false;
     state.mediaTagging.saving = false;
@@ -2149,6 +2317,9 @@ async function loadRouteData(route, options = {}) {
             return;
         case 'charts':
             await loadCharts(version, route, options);
+            return;
+        case 'documents':
+            await loadDocuments(version, route);
             return;
         case 'editor':
         case 'editorResults':
@@ -2454,6 +2625,196 @@ export function setCopyColumnModalError(error) {
     }
 
     withModalError(error);
+}
+
+export function updateCurrentDocumentDraftField(field, value) {
+    if (state.route.name !== 'documents') {
+        return;
+    }
+
+    const normalizedField = String(field ?? '').trim();
+
+    if (normalizedField === 'filename') {
+        state.documents.draftFilename = String(value ?? '');
+    } else if (normalizedField === 'content') {
+        state.documents.draftContent = String(value ?? '');
+    } else {
+        return;
+    }
+
+    state.documents.dirty = true;
+    state.documents.saveError = null;
+    emitChange();
+}
+
+export function setDocumentsPaneVisibility(pane, visible) {
+    const normalizedPane = String(pane ?? '').trim();
+    const nextVisible = Boolean(visible);
+
+    if (normalizedPane !== 'editor' && normalizedPane !== 'preview') {
+        return;
+    }
+
+    if (normalizedPane === 'editor') {
+        state.documents.editorVisible = nextVisible;
+
+        if (!state.documents.editorVisible && !state.documents.previewVisible) {
+            state.documents.previewVisible = true;
+        }
+    } else {
+        state.documents.previewVisible = nextVisible;
+
+        if (!state.documents.editorVisible && !state.documents.previewVisible) {
+            state.documents.editorVisible = true;
+        }
+    }
+
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.documentsEditorVisible, state.documents.editorVisible);
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.documentsPreviewVisible, state.documents.previewVisible);
+    emitChange();
+}
+
+export function toggleDocumentsPane(pane) {
+    const normalizedPane = String(pane ?? '').trim();
+
+    if (normalizedPane === 'editor') {
+        setDocumentsPaneVisibility('editor', !state.documents.editorVisible);
+    } else if (normalizedPane === 'preview') {
+        setDocumentsPaneVisibility('preview', !state.documents.previewVisible);
+    }
+}
+
+export async function createDocument(options = {}) {
+    state.documents.saving = true;
+    state.documents.saveError = null;
+    emitChange();
+
+    try {
+        const response = await api.createDocument({
+            title: options.title,
+            filename: options.filename,
+            content: options.content,
+        });
+        const document = response.data ?? null;
+
+        if (document) {
+            upsertDocumentSummary(document);
+            applyCurrentDocument(document);
+        }
+
+        if (options.toast !== false) {
+            pushToast(`Document "${document?.filename ?? 'Untitled.md'}" created.`, 'success');
+        }
+
+        return document;
+    } catch (error) {
+        state.documents.saveError = normalizeError(error);
+        if (options.toast !== false) {
+            pushToast(state.documents.saveError.message || 'Document could not be created.', 'alert');
+        }
+        return null;
+    } finally {
+        state.documents.saving = false;
+        emitChange();
+    }
+}
+
+export async function saveCurrentDocument(options = {}) {
+    const documentId = state.documents.selectedId;
+
+    if (!documentId) {
+        return null;
+    }
+
+    state.documents.saving = true;
+    state.documents.saveError = null;
+    emitChange();
+
+    try {
+        const response = await api.updateDocument(documentId, {
+            filename: state.documents.draftFilename,
+            content: state.documents.draftContent,
+        });
+        const document = response.data ?? null;
+
+        if (document) {
+            upsertDocumentSummary(document);
+            applyCurrentDocument(document);
+        }
+
+        if (options.toast !== false) {
+            pushToast(`Document "${document?.filename ?? 'document'}" saved.`, 'success');
+        }
+
+        return document;
+    } catch (error) {
+        state.documents.saveError = normalizeError(error);
+        if (options.toast !== false) {
+            pushToast(state.documents.saveError.message || 'Document could not be saved.', 'alert');
+        }
+        return null;
+    } finally {
+        state.documents.saving = false;
+        emitChange();
+    }
+}
+
+export async function deleteCurrentDocument() {
+    const documentId = state.documents.selectedId;
+
+    if (!documentId) {
+        return null;
+    }
+
+    const deletedIndex = state.documents.items.findIndex(item => item.id === documentId);
+
+    state.documents.deleting = true;
+    state.documents.saveError = null;
+    emitChange();
+
+    try {
+        await api.deleteDocument(documentId);
+        state.documents.items = state.documents.items.filter(item => item.id !== documentId);
+        const nextDocument = state.documents.items[Math.max(0, Math.min(deletedIndex, state.documents.items.length - 1))] ?? null;
+        applyCurrentDocument(null);
+        pushToast('Document deleted.', 'success');
+        return nextDocument?.id ?? null;
+    } catch (error) {
+        state.documents.saveError = normalizeError(error);
+        pushToast(state.documents.saveError.message || 'Document could not be deleted.', 'alert');
+        return null;
+    } finally {
+        state.documents.deleting = false;
+        emitChange();
+    }
+}
+
+export async function toggleCurrentDocumentTodo(lineIndex) {
+    if (!state.documents.selectedId) {
+        return null;
+    }
+
+    const nextContent = toggleMarkdownTodoLine(state.documents.draftContent, lineIndex);
+
+    if (nextContent === state.documents.draftContent) {
+        return state.documents.selected;
+    }
+
+    state.documents.draftContent = nextContent;
+    state.documents.dirty = true;
+    state.documents.saveError = null;
+    emitChange();
+
+    return saveCurrentDocument({ toast: false });
+}
+
+export async function createDocumentFromMarkdownExport({ filename, content, title } = {}) {
+    return createDocument({
+        title,
+        filename,
+        content,
+        toast: false,
+    });
 }
 
 export function openEditConnectionModal(id) {

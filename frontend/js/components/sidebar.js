@@ -8,6 +8,7 @@ const sidebarItems = [
     { label: 'Structure', href: '#/structure', key: 'structure', icon: 'account_tree' },
     { label: 'SQL_Editor', href: '#/editor', key: 'editor', icon: 'terminal' },
     { label: 'Charts', href: '#/charts', key: 'charts', icon: 'bar_chart' },
+    { label: 'Documents', href: '#/documents', key: 'documents', icon: 'description' },
     { label: 'Table_Designer', href: '#/table-designer', key: 'tableDesigner', icon: 'table_chart' },
     {
         label: 'MEDIA_TAGGING',

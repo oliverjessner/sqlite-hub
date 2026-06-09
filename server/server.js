@@ -25,6 +25,7 @@ const { createTableDesignerRouter } = require("./routes/tableDesigner");
 const { createMediaTaggingRouter } = require("./routes/mediaTagging");
 const { createSettingsRouter } = require("./routes/settings");
 const { createExportRouter } = require("./routes/export");
+const { createDocumentsRouter } = require("./routes/documents");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const FRONTEND_ROOT = path.join(PACKAGE_ROOT, "frontend");
@@ -107,6 +108,7 @@ app.use("/api/table-designer", createTableDesignerRouter({ tableDesignerService 
 app.use("/api/media-tagging", createMediaTaggingRouter({ mediaTaggingService }));
 app.use("/api/settings", createSettingsRouter({ appStateStore }));
 app.use("/api/export", createExportRouter({ exportService }));
+app.use("/api/documents", createDocumentsRouter({ appStateStore, connectionManager }));
 
 // auth: public favicon response; it exposes no application data.
 app.get("/favicon.ico", (req, res) => {
@@ -142,6 +144,10 @@ app.use(
 app.use(
   "/vendor/material-symbols",
   express.static(path.resolve(__dirname, "..", "node_modules", "material-symbols"))
+);
+app.use(
+  "/vendor/marked",
+  express.static(path.resolve(__dirname, "..", "node_modules", "marked"))
 );
 app.use(express.static(FRONTEND_ROOT));
 app.use("/db_logos", express.static(path.join(APP_STATE_DIRECTORY, "db_logos")));

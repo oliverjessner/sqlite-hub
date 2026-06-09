@@ -24,12 +24,15 @@ import { renderTopNav } from './components/topNav.js';
 import { createRouter } from './router.js';
 import {
     createActiveConnectionBackup,
+    createDocument,
+    createDocumentFromMarkdownExport,
     clearCurrentQuery,
     clearDataRowSelection,
     clearEditorRowSelection,
     clearEditorResults,
     clearQueryHistorySelection,
     closeModal,
+    deleteCurrentDocument,
     dismissMediaTaggingIssue,
     dismissToast,
     executeCurrentQuery,
@@ -66,6 +69,7 @@ import {
     runQueryHistoryItem,
     skipCurrentMediaTaggingItem,
     saveCurrentQueryChartDraft,
+    saveCurrentDocument,
     saveCurrentMediaTaggingConfig,
     selectDataRow,
     selectEditorRow,
@@ -108,6 +112,8 @@ import {
     saveCurrentTableDesignerDraft,
     toggleChartsResultsPanel,
     toggleChartsSqlPanel,
+    toggleCurrentDocumentTodo,
+    toggleDocumentsPane,
     setMediaTaggingWorkflowMediaDetailsVisible,
     setMediaTaggingWorkflowMediaRotationDegrees,
     queueTableDesignerCsvImport,
@@ -125,6 +131,7 @@ import {
     updateCurrentMediaTaggingField,
     updateCurrentMediaTaggingTagFormField,
     updateCopyColumnModalFormatField,
+    updateCurrentDocumentDraftField,
     updateCurrentQueryChartDraftConfigField,
     updateCurrentQueryChartDraftField,
     updateCurrentTableDesignerColumnField,
@@ -137,6 +144,7 @@ import {
 import { renderChartsDetail, renderChartsView } from './views/charts.js';
 import { renderConnectionsView } from './views/connections.js';
 import { renderDataRowEditorPanel, renderDataView } from './views/data.js';
+import { renderDocumentsView } from './views/documents.js';
 import { renderEditorView } from './views/editor.js';
 import { renderLandingView } from './views/landing.js';
 import { renderMediaTaggingView } from './views/mediaTagging.js';
@@ -208,6 +216,7 @@ const ROUTE_TITLE_SEGMENTS = {
     editor: 'SQL Editor',
     editorResults: 'SQL Editor',
     charts: 'Charts',
+    documents: 'Documents',
     tableDesigner: 'Table Designer',
     mediaTaggingSetup: 'Media Tagging',
     mediaTaggingQueue: 'Tagging Queue',
@@ -853,6 +862,8 @@ function resolveView(state) {
             return renderOverviewView(state);
         case 'charts':
             return renderChartsView(state);
+        case 'documents':
+            return renderDocumentsView(state);
         case 'data':
             return renderDataView(state);
         case 'editor':
@@ -1521,12 +1532,82 @@ function buildCopyColumnExportFilename(columnName, copyMode) {
     return `${columnSlug}-${metadata.suffix}.${metadata.extension}`;
 }
 
+function normalizeMarkdownDownloadFilename(value) {
+    let filename = String(value ?? '')
+        .trim()
+        .replace(/[\u0000-\u001f\u007f]/g, ' ')
+        .replace(/[\\/]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/^\.+/, '')
+        .trim();
+
+    if (!filename) {
+        filename = 'document.md';
+    }
+
+    if (!/\.md$/i.test(filename)) {
+        filename = `${filename}.md`;
+    }
+
+    return filename;
+}
+
 function countEditedMarkdownTodoItems(text) {
     const lines = String(text ?? '')
         .split(/\r\n|\r|\n/g)
         .filter(line => line.trim());
 
     return lines.length;
+}
+
+function buildDocumentTimestampSlug(date = new Date()) {
+    const pad = value => String(value).padStart(2, '0');
+
+    return [
+        date.getFullYear(),
+        pad(date.getMonth() + 1),
+        pad(date.getDate()),
+        pad(date.getHours()),
+        pad(date.getMinutes()),
+    ].join('-');
+}
+
+function renderMarkdownFence(language, value) {
+    const text = String(value ?? '').trim();
+    const fence = text.includes('```') ? '````' : '```';
+
+    return `${fence}${language ? language : ''}\n${text}\n${fence}`;
+}
+
+function buildCopyColumnDocumentFilename(columnName) {
+    const columnSlug = slugifyExportFilenamePart(columnName);
+
+    return `${columnSlug}-todos-${buildDocumentTimestampSlug()}.md`;
+}
+
+function buildCopyColumnDocumentContent({ state, scope, columnName, text, valueCount }) {
+    const activeConnection = state.connections.active;
+    const query =
+        scope === 'charts'
+            ? state.charts.detail?.item?.rawSql || state.charts.result?.sql || ''
+            : state.editor.lastExecutedSql || state.editor.sqlText || '';
+    const lines = [
+        `# ${columnName || 'Column'} todos`,
+        '',
+        `- Database: ${activeConnection?.label || 'Active database'}`,
+        `- Column: ${columnName || 'N/A'}`,
+        `- Items: ${valueCount}`,
+        `- Generated: ${new Date().toLocaleString()}`,
+        '',
+    ];
+
+    if (query.trim()) {
+        lines.push('## Query', '', renderMarkdownFence('sql', query), '');
+    }
+
+    lines.push('## Todos', '', String(text ?? '').trim(), '');
+
+    return lines.join('\n');
 }
 
 function downloadTextFile({ text, filename, mimeType }) {
@@ -1686,6 +1767,24 @@ function exportRowEditorJson() {
     showToast(`Row from "${payload.label}" exported as JSON.`, 'success');
 }
 
+function exportCurrentDocumentMarkdown() {
+    const documents = getState().documents;
+
+    if (!documents.selectedId) {
+        showToast('No document is selected.', 'alert');
+        return;
+    }
+
+    const filename = normalizeMarkdownDownloadFilename(documents.draftFilename || documents.selected?.filename);
+
+    downloadTextFile({
+        text: documents.draftContent ?? '',
+        filename,
+        mimeType: 'text/markdown;charset=utf-8',
+    });
+    showToast(`Document "${filename}" exported.`, 'success');
+}
+
 function preserveDataRowEditorSelectionForReload() {
     preserveCurrentDataRowSelectionForReload();
 }
@@ -1707,6 +1806,7 @@ async function submitCopyColumnModal(formData) {
     const outputSeparator = lineBreaks ? '\n' : separator;
     const intent = String(formData.get('intent') ?? 'copy');
     const isExportIntent = intent === 'export';
+    const isDocumentIntent = intent === 'document';
     const isMarkdownTodo = isMarkdownTodoCopyColumnMode(copyMode);
     const editedText = formData.has('editedText') ? String(formData.get('editedText') ?? '') : null;
     const result = getCopyColumnResult(state, scope);
@@ -1741,6 +1841,38 @@ async function submitCopyColumnModal(formData) {
         : generatedOutput.valueCount;
 
     try {
+        if (isDocumentIntent) {
+            if (!isMarkdownTodo) {
+                throw new Error('Document export is only available for Markdown Todo columns.');
+            }
+
+            const document = await createDocumentFromMarkdownExport({
+                filename: buildCopyColumnDocumentFilename(columnName),
+                title: `${columnName || 'Column'} todos`,
+                content: buildCopyColumnDocumentContent({
+                    state,
+                    scope,
+                    columnName,
+                    text,
+                    valueCount,
+                }),
+            });
+
+            if (!document) {
+                throw new Error('Document could not be created.');
+            }
+
+            closeModal();
+            showToast(
+                `Document "${document.filename}" created · ${formatNumber(valueCount)} ${
+                    valueCount === 1 ? 'item' : 'items'
+                }`,
+                'success',
+            );
+            router.navigate(`/documents/${encodeURIComponent(document.id)}`);
+            return;
+        }
+
         if (isExportIntent) {
             const metadata = getCopyColumnExportMetadata(copyMode);
 
@@ -1771,10 +1903,23 @@ async function submitCopyColumnModal(formData) {
         );
     } catch (error) {
         setCopyColumnModalError({
-            code: isExportIntent ? 'COPY_COLUMN_EXPORT_FAILED' : 'CLIPBOARD_ACCESS_FAILED',
-            message: error?.message || (isExportIntent ? 'Column export failed.' : 'Clipboard access failed.'),
+            code: isDocumentIntent
+                ? 'COPY_COLUMN_DOCUMENT_EXPORT_FAILED'
+                : isExportIntent
+                  ? 'COPY_COLUMN_EXPORT_FAILED'
+                  : 'CLIPBOARD_ACCESS_FAILED',
+            message:
+                error?.message ||
+                (isDocumentIntent
+                    ? 'Document export failed.'
+                    : isExportIntent
+                      ? 'Column export failed.'
+                      : 'Clipboard access failed.'),
         });
-        showToast(isExportIntent ? 'Column export failed.' : 'Clipboard access failed.', 'alert');
+        showToast(
+            isDocumentIntent ? 'Document export failed.' : isExportIntent ? 'Column export failed.' : 'Clipboard access failed.',
+            'alert',
+        );
     }
 }
 
@@ -1810,6 +1955,46 @@ async function handleAction(actionNode) {
                 columnName: actionNode.dataset.columnName ?? '',
                 mode: actionNode.dataset.copyMode,
             });
+            return;
+        case 'create-document': {
+            const document = await createDocument();
+
+            if (document?.id) {
+                router.navigate(`/documents/${encodeURIComponent(document.id)}`);
+            }
+            return;
+        }
+        case 'select-document': {
+            const documentId = String(actionNode.dataset.documentId ?? '').trim();
+
+            if (documentId) {
+                router.navigate(`/documents/${encodeURIComponent(documentId)}`);
+            }
+            return;
+        }
+        case 'save-document':
+            await saveCurrentDocument();
+            return;
+        case 'export-document-markdown':
+            exportCurrentDocumentMarkdown();
+            return;
+        case 'delete-document': {
+            const currentDocument = getState().documents.selected;
+            const confirmed = window.confirm(`Delete "${currentDocument?.filename ?? 'document'}"?`);
+
+            if (!confirmed) {
+                return;
+            }
+
+            const nextDocumentId = await deleteCurrentDocument();
+            router.navigate(nextDocumentId ? `/documents/${encodeURIComponent(nextDocumentId)}` : '/documents');
+            return;
+        }
+        case 'toggle-document-pane':
+            toggleDocumentsPane(actionNode.dataset.pane);
+            return;
+        case 'toggle-document-todo':
+            await toggleCurrentDocumentTodo(actionNode.dataset.lineIndex);
             return;
         case 'open-create-query-chart-modal':
             openCreateQueryChartModal();
@@ -2301,6 +2486,19 @@ document.addEventListener('keydown', event => {
     const target = event.target;
     const state = getState();
 
+    if (
+        (event.key === 's' || event.key === 'S') &&
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        !event.defaultPrevented &&
+        state.route.name === 'documents'
+    ) {
+        event.preventDefault();
+        void saveCurrentDocument();
+        return;
+    }
+
     // Handle Enter key in tag form fields to trigger create tag
     if (
         event.key === 'Enter' &&
@@ -2423,6 +2621,11 @@ document.addEventListener('input', event => {
         syncQueryEditorHighlight(bindNode);
         syncQueryEditorScroll(bindNode);
         setCurrentQuery(bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'document-field') {
+        updateCurrentDocumentDraftField(bindNode.dataset.field, bindNode.value);
         return;
     }
 

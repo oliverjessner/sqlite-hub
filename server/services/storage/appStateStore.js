@@ -1,4 +1,5 @@
 const fs = require("node:fs");
+const crypto = require("node:crypto");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const Database = require("better-sqlite3");
@@ -41,11 +42,110 @@ const CONNECTION_LOGO_DIRECTORY = "db_logos";
 const LEGACY_STATE_FILENAME = "app-state.json";
 const STATE_DATABASE_FILENAME = "sqlite-hub-state.db";
 const MAX_CONNECTION_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_DOCUMENT_CONTENT_BYTES = 5 * 1024 * 1024;
+const MAX_DOCUMENT_FILENAME_LENGTH = 160;
 const CONNECTION_LOGO_EXTENSION_BY_MIME_TYPE = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
 };
+
+function normalizeDocumentDatabaseKey(databaseKey) {
+  const normalizedDatabaseKey = String(databaseKey ?? "").trim();
+
+  if (!normalizedDatabaseKey) {
+    throw new ValidationError("Database key is required.");
+  }
+
+  return normalizedDatabaseKey;
+}
+
+function normalizeDocumentId(documentId) {
+  const normalizedDocumentId = String(documentId ?? "").trim();
+
+  if (!normalizedDocumentId) {
+    throw new ValidationError("Document id is required.");
+  }
+
+  return normalizedDocumentId;
+}
+
+function splitMarkdownFilename(filename) {
+  const normalizedFilename = String(filename ?? "");
+  const extensionMatch = normalizedFilename.match(/\.md$/i);
+
+  if (!extensionMatch) {
+    return {
+      baseName: normalizedFilename,
+      extension: ".md",
+    };
+  }
+
+  return {
+    baseName: normalizedFilename.slice(0, -extensionMatch[0].length),
+    extension: normalizedFilename.slice(-extensionMatch[0].length),
+  };
+}
+
+function normalizeDocumentFilename(value, fallback = "Untitled.md") {
+  let filename = String(value ?? "").trim();
+
+  if (!filename) {
+    filename = fallback;
+  }
+
+  filename = filename
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/[\\/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^\.+/, "")
+    .trim();
+
+  if (!filename) {
+    filename = fallback;
+  }
+
+  if (!/\.md$/i.test(filename)) {
+    filename = `${filename}.md`;
+  }
+
+  if (filename.length > MAX_DOCUMENT_FILENAME_LENGTH) {
+    const { baseName, extension } = splitMarkdownFilename(filename);
+    filename = `${baseName.slice(0, MAX_DOCUMENT_FILENAME_LENGTH - extension.length)}${extension}`;
+  }
+
+  return filename;
+}
+
+function buildDocumentTitleFromFilename(filename) {
+  const { baseName } = splitMarkdownFilename(filename);
+  const title = baseName.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+
+  return title || "Untitled";
+}
+
+function normalizeDocumentTitle(value, filename) {
+  const title = String(value ?? "").trim();
+
+  return title || buildDocumentTitleFromFilename(filename);
+}
+
+function normalizeDocumentContent(value) {
+  const content = String(value ?? "");
+  const byteLength = Buffer.byteLength(content, "utf8");
+
+  if (byteLength > MAX_DOCUMENT_CONTENT_BYTES) {
+    throw new ValidationError("Document content is too large.", {
+      details: {
+        maxBytes: MAX_DOCUMENT_CONTENT_BYTES,
+        actualBytes: byteLength,
+      },
+    });
+  }
+
+  return content;
+}
 const CONNECTION_LOGO_EXTENSION_BY_FILE_EXTENSION = {
   ".jpeg": "jpg",
   ".jpg": "jpg",
@@ -343,6 +443,20 @@ class AppStateStore {
         mapping_table TEXT NOT NULL DEFAULT '',
         updated_at TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS database_documents (
+        id TEXT PRIMARY KEY,
+        database_key TEXT NOT NULL,
+        title TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(database_key, filename)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_database_documents_database_updated
+      ON database_documents(database_key, updated_at DESC, id ASC);
     `);
 
     const recentConnectionColumns = new Set(
@@ -2219,6 +2333,205 @@ class AppStateStore {
     })();
 
     return this.getSettings();
+  }
+
+  decorateDatabaseDocumentRow(row = {}) {
+    return {
+      id: String(row.id ?? ""),
+      databaseKey: row.database_key ?? row.databaseKey ?? "",
+      title: String(row.title ?? ""),
+      filename: String(row.filename ?? ""),
+      content: row.content === undefined ? undefined : String(row.content ?? ""),
+      contentLength: Number(row.content_length ?? row.contentLength ?? 0),
+      createdAt: row.created_at ?? row.createdAt ?? null,
+      updatedAt: row.updated_at ?? row.updatedAt ?? null,
+    };
+  }
+
+  documentFilenameExists(databaseKey, filename, ignoredDocumentId = null) {
+    const row = this.db
+      .prepare(
+        `
+          SELECT id
+          FROM database_documents
+          WHERE database_key = ?
+            AND filename = ?
+            AND (? IS NULL OR id != ?)
+          LIMIT 1
+        `
+      )
+      .get(databaseKey, filename, ignoredDocumentId, ignoredDocumentId);
+
+    return Boolean(row);
+  }
+
+  resolveUniqueDocumentFilename(databaseKey, desiredFilename, ignoredDocumentId = null) {
+    const normalizedFilename = normalizeDocumentFilename(desiredFilename);
+
+    if (!this.documentFilenameExists(databaseKey, normalizedFilename, ignoredDocumentId)) {
+      return normalizedFilename;
+    }
+
+    const { baseName, extension } = splitMarkdownFilename(normalizedFilename);
+
+    for (let index = 2; index < 1000; index += 1) {
+      const suffix = ` ${index}`;
+      const maxBaseLength = MAX_DOCUMENT_FILENAME_LENGTH - extension.length - suffix.length;
+      const candidate = `${baseName.slice(0, Math.max(1, maxBaseLength))}${suffix}${extension}`;
+
+      if (!this.documentFilenameExists(databaseKey, candidate, ignoredDocumentId)) {
+        return candidate;
+      }
+    }
+
+    throw new ConflictError("Could not create a unique document filename.");
+  }
+
+  listDatabaseDocuments(databaseKey) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+
+    return this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            database_key,
+            title,
+            filename,
+            LENGTH(content) AS content_length,
+            created_at,
+            updated_at
+          FROM database_documents
+          WHERE database_key = ?
+          ORDER BY updated_at DESC, id ASC
+        `
+      )
+      .all(normalizedDatabaseKey)
+      .map((row) => this.decorateDatabaseDocumentRow(row));
+  }
+
+  getDatabaseDocument(databaseKey, documentId) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+    const normalizedDocumentId = normalizeDocumentId(documentId);
+    const row = this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            database_key,
+            title,
+            filename,
+            content,
+            LENGTH(content) AS content_length,
+            created_at,
+            updated_at
+          FROM database_documents
+          WHERE database_key = ?
+            AND id = ?
+        `
+      )
+      .get(normalizedDatabaseKey, normalizedDocumentId);
+
+    if (!row) {
+      throw new NotFoundError("Document was not found.");
+    }
+
+    return this.decorateDatabaseDocumentRow(row);
+  }
+
+  createDatabaseDocument(databaseKey, document = {}) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+    const filename = this.resolveUniqueDocumentFilename(
+      normalizedDatabaseKey,
+      normalizeDocumentFilename(document.filename)
+    );
+    const title = normalizeDocumentTitle(document.title, filename);
+    const content = normalizeDocumentContent(document.content);
+    const now = new Date().toISOString();
+    const id = crypto.randomUUID();
+
+    this.db
+      .prepare(
+        `
+          INSERT INTO database_documents (
+            id,
+            database_key,
+            title,
+            filename,
+            content,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      .run(id, normalizedDatabaseKey, title, filename, content, now, now);
+
+    return this.getDatabaseDocument(normalizedDatabaseKey, id);
+  }
+
+  updateDatabaseDocument(databaseKey, documentId, patch = {}) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+    const existingDocument = this.getDatabaseDocument(normalizedDatabaseKey, documentId);
+    const hasFilename = Object.prototype.hasOwnProperty.call(patch, "filename");
+    const hasTitle = Object.prototype.hasOwnProperty.call(patch, "title");
+    const hasContent = Object.prototype.hasOwnProperty.call(patch, "content");
+    const filename = hasFilename
+      ? this.resolveUniqueDocumentFilename(
+          normalizedDatabaseKey,
+          normalizeDocumentFilename(patch.filename, existingDocument.filename),
+          existingDocument.id
+        )
+      : existingDocument.filename;
+    const title = hasTitle
+      ? normalizeDocumentTitle(patch.title, filename)
+      : hasFilename
+        ? buildDocumentTitleFromFilename(filename)
+        : existingDocument.title;
+    const content = hasContent
+      ? normalizeDocumentContent(patch.content)
+      : existingDocument.content;
+    const updatedAt = new Date().toISOString();
+
+    this.db
+      .prepare(
+        `
+          UPDATE database_documents
+          SET
+            title = ?,
+            filename = ?,
+            content = ?,
+            updated_at = ?
+          WHERE database_key = ?
+            AND id = ?
+        `
+      )
+      .run(title, filename, content, updatedAt, normalizedDatabaseKey, existingDocument.id);
+
+    return this.getDatabaseDocument(normalizedDatabaseKey, existingDocument.id);
+  }
+
+  deleteDatabaseDocument(databaseKey, documentId) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+    const normalizedDocumentId = normalizeDocumentId(documentId);
+    const result = this.db
+      .prepare(
+        `
+          DELETE FROM database_documents
+          WHERE database_key = ?
+            AND id = ?
+        `
+      )
+      .run(normalizedDatabaseKey, normalizedDocumentId);
+
+    if (result.changes < 1) {
+      throw new NotFoundError("Document was not found.");
+    }
+
+    return {
+      id: normalizedDocumentId,
+      deleted: true,
+    };
   }
 
   getMediaTaggingConfig(databaseKey) {

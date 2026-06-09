@@ -1,6 +1,6 @@
 {
     "name": "sqlite-hub",
-    "version": "0.16.0",
+    "version": "0.17.0",
     "description": "SQLite-only local management app backend and SPA shell",
     "main": "server/server.js",
     "bin": {
@@ -26,6 +26,7 @@
         "express": "^5.2.1",
         "express-rate-limit": "^8.5.2",
         "helmet": "^8.2.0",
+        "marked": "^18.0.5",
         "material-symbols": "^0.44.9"
     },
     "devDependencies": {

@@ -21,6 +21,14 @@ export function parseHash(hash = window.location.hash) {
                     historyId: segments[1] ? decodeURIComponent(segments[1]) : null,
                 },
             };
+        case 'documents':
+            return {
+                name: 'documents',
+                path: cleanPath,
+                params: {
+                    documentId: segments[1] ? decodeURIComponent(segments[1]) : null,
+                },
+            };
         case 'editor':
             if (segments[1] === 'results') {
                 return { name: 'editorResults', path: '/editor/results', params: {} };

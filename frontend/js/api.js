@@ -490,3 +490,31 @@ export function downloadTableExport(tableName, options = {}) {
 export function downloadTableCsv(tableName, options = {}) {
   return downloadTableExport(tableName, { ...options, format: "csv" });
 }
+
+export function getDocuments() {
+  return request("/api/documents");
+}
+
+export function createDocument(payload = {}) {
+  return request("/api/documents", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function getDocument(documentId) {
+  return request(`/api/documents/${encodeURIComponent(documentId)}`);
+}
+
+export function updateDocument(documentId, payload = {}) {
+  return request(`/api/documents/${encodeURIComponent(documentId)}`, {
+    method: "PATCH",
+    body: payload,
+  });
+}
+
+export function deleteDocument(documentId) {
+  return request(`/api/documents/${encodeURIComponent(documentId)}`, {
+    method: "DELETE",
+  });
+}

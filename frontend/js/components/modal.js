@@ -1073,6 +1073,21 @@ export function renderCopyColumnModal(modal, state) {
           >
             ${modal.submitting ? "Working..." : `Export as ${exportMetadata.extension.toUpperCase()}`}
           </button>
+          ${
+            isMarkdownTodo
+              ? `
+          <button
+            class="standard-button"
+            name="intent"
+            type="submit"
+            value="document"
+            ${disabledAttribute}
+          >
+            ${modal.submitting ? "Working..." : "Export to document folder"}
+          </button>
+          `
+              : ""
+          }
           <button
             class="signature-button"
             name="intent"

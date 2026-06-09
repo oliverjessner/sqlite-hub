@@ -54,6 +54,7 @@ test("markdown todo column export renders an editable preview textarea", async (
   assert.match(html, /<textarea[^>]+name="editedText"/);
   assert.match(html, /- \[ \] item1/);
   assert.match(html, /- \[ \] item2/);
+  assert.match(html, /Export to document folder/);
 });
 
 test("regular copy column preview stays read-only", async () => {
