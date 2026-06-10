@@ -35,6 +35,22 @@ test("markdown todo toggle updates only real task lines", async () => {
   assert.equal(toggleMarkdownTodoLine(markdown, 4).split("\n")[4], "- [ ] item2");
 });
 
+test("markdown preview fallback renders unordered and ordered lists", async () => {
+  const { renderMarkdownPreview } = await loadMarkdownModule();
+  const previousMarked = globalThis.marked;
+
+  globalThis.marked = undefined;
+
+  try {
+    const html = renderMarkdownPreview(["- alpha", "- beta", "", "1. first", "2. second"].join("\n"));
+
+    assert.match(html, /<ul><li>alpha<\/li><li>beta<\/li><\/ul>/);
+    assert.match(html, /<ol><li>first<\/li><li>second<\/li><\/ol>/);
+  } finally {
+    globalThis.marked = previousMarked;
+  }
+});
+
 test("markdown preview escapes raw html content", async () => {
   const { renderMarkdownPreview } = await loadMarkdownModule();
   const html = renderMarkdownPreview('<img src=x onerror="alert(1)">\n- [ ] <script>alert(1)</script>');

@@ -76,6 +76,23 @@ test("parses row json export command", () => {
   assert.equal(options.exportTarget, "0a754aba373d34972998792a0be4333c");
 });
 
+test("parses document commands", () => {
+  const listOptions = parseCliArguments(["--database:db", "--documents"]);
+  const showOptions = parseCliArguments(["--database:db", "--documents:Research Note"]);
+  const exportOptions = parseCliArguments(["--database:db", "--documents:Research Note", "--export"]);
+  const compactExportOptions = parseCliArguments(["--database:db", "--documents:Research Note--export"]);
+
+  assert.equal(listOptions.documents, true);
+  assert.equal(listOptions.documentName, null);
+  assert.equal(showOptions.documents, true);
+  assert.equal(showOptions.documentName, "Research Note");
+  assert.equal(showOptions.documentExport, false);
+  assert.equal(exportOptions.documentName, "Research Note");
+  assert.equal(exportOptions.documentExport, true);
+  assert.equal(compactExportOptions.documentName, "Research Note");
+  assert.equal(compactExportOptions.documentExport, true);
+});
+
 test("validates export formats", () => {
   assert.equal(normalizeExportFormat("csv"), "csv");
   assert.equal(normalizeExportFormat("TSV"), "tsv");

@@ -18,6 +18,7 @@ SQLite Hub keeps that workflow sharp:
 - edit records in place with an SQL diff preview before saving
 - export tables and query results as CSV, TSV, Markdown, or duplicate them as a table
 - copy result columns with formatting, headers, first-10 previews, TXT export, and Markdown todo export
+- keep database-scoped Markdown documents with previews, autosave, imports, exports, and saved-query inserts
 - switch between recent databases with sidebar quick picks
 - create simple local backups of the active database
 - run and format SQL in a syntax-highlighted editor with history, messages, and performance metrics
@@ -64,6 +65,16 @@ Potentially destructive statements are tracked in query history, and SQLite Hub 
 ### Query history
 
 SQLite Hub stores query history per database. You can search SQL, titles, and notes; mark useful queries as saved; re-run previous queries; and execute saved queries from the CLI.
+
+### Documents
+
+Documents are local Markdown notes scoped to the active database. SQLite Hub creates a document folder per database, keeps the sidebar fixed while the editor and preview panes scroll independently, and autosaves changes after a short debounce. You can create, rename, delete, import `.md` files, export the current document as Markdown, and toggle the editor or preview pane as needed.
+
+The preview supports regular Markdown, ordered and unordered lists, tables, code blocks, links, and clickable task-list checkboxes. Documents can also pull context from saved SQL Editor queries:
+
+- Insert Table opens a saved-query picker and inserts that query's result using the same Markdown table export logic as the SQL Editor.
+- Insert Note opens saved queries that have notes and inserts the selected note directly into the document.
+- Markdown Todo column exports from query results can create a new document without embedding the original SQL query.
 
 ### Charts
 
@@ -208,6 +219,29 @@ sqlite-hub --database:Unit-00 --export:"Stock Winners" --format:md
 
 The export is written to the current working directory using the generated query export filename.
 
+### Documents CLI
+
+List all Markdown documents stored for a database:
+
+```bash
+sqlite-hub --database:Unit-00 --documents
+```
+
+Print one document's Markdown content:
+
+```bash
+sqlite-hub --database:Unit-00 --documents:"Research Notes"
+```
+
+Export one document as a `.md` file into the current working directory:
+
+```bash
+sqlite-hub --database:Unit-00 --documents:"Research Notes" --export
+sqlite-hub --database:Unit-00 --documents:"Research Notes--export"
+```
+
+Documents can be matched by id, filename, title, or a partial filename/title match.
+
 ### Row JSON export
 
 Export a single row as JSON by primary key or rowid, using the same row-shaping logic as the Row Editor:
@@ -236,6 +270,9 @@ sqlite-hub --database:Unit-00 --table:companies --export:0a754aba373d34972998792
 | `--database:name --query:"query"`                        | Print a saved query by name                     |
 | `--database:name --notes:"query"`                        | Print saved notes for a query                   |
 | `--database:name --export:"query" --format:csv\|tsv\|md` | Set query export format                         |
+| `--database:name --documents`                            | List Markdown documents for a database          |
+| `--database:name --documents:"document"`                 | Print a document's Markdown content             |
+| `--database:name --documents:"document" --export`        | Export a document as Markdown                   |
 | `--database:name --table:"table"`                        | Print table metadata                            |
 | `--database:name --table:"table" --export:"pk"`          | Export one row as JSON                          |
 

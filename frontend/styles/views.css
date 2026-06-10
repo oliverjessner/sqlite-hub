@@ -237,6 +237,7 @@
     border: 1px solid var(--border-medium);
     display: flex;
     flex: 1;
+    height: 100%;
     min-height: 0;
     overflow: hidden;
 }
@@ -247,7 +248,8 @@
     display: flex;
     flex: 0 0 clamp(17rem, 23vw, 21rem);
     flex-direction: column;
-    min-height: 0;
+    min-height: 100%;
+    overflow: hidden;
     width: clamp(17rem, 23vw, 21rem);
 }
 
@@ -265,7 +267,7 @@
     flex-direction: column;
     gap: var(--spacing-2);
     min-height: 0;
-    overflow-y: auto;
+    overflow: hidden;
     padding: var(--spacing-3);
 }
 
@@ -336,6 +338,7 @@
     flex-direction: column;
     min-height: 0;
     min-width: 0;
+    overflow: hidden;
 }
 
 .documents-toolbar {
@@ -395,6 +398,7 @@
     flex: 1;
     grid-template-columns: 1fr;
     min-height: 0;
+    overflow: hidden;
 }
 
 .documents-workspace--split {
@@ -406,6 +410,7 @@
     flex-direction: column;
     min-height: 0;
     min-width: 0;
+    overflow: hidden;
 }
 
 .documents-pane + .documents-pane {
@@ -434,9 +439,11 @@
     flex: 1;
     font-family: var(--font-family-mono);
     font-size: 0.875rem;
+    height: 100%;
     line-height: 1.7;
     min-height: 0;
     outline: none;
+    overflow-y: auto;
     padding: var(--spacing-5);
     resize: none;
 }
@@ -533,6 +540,18 @@
     padding-left: 1.5rem;
 }
 
+.document-markdown-preview ul {
+    list-style: disc outside;
+}
+
+.document-markdown-preview ol {
+    list-style: decimal outside;
+}
+
+.document-markdown-preview li + li {
+    margin-top: 0.35rem;
+}
+
 .document-markdown-task-list {
     display: flex;
     flex-direction: column;
@@ -606,6 +625,7 @@
         border-right: 0;
         flex: 0 0 auto;
         max-height: 18rem;
+        min-height: 18rem;
         width: 100%;
     }
 

@@ -2684,6 +2684,217 @@ export function toggleDocumentsPane(pane) {
     }
 }
 
+function normalizeDocumentInsertionRange(range = null) {
+    const contentLength = String(state.documents.draftContent ?? '').length;
+    const start = Number(range?.start);
+    const end = Number(range?.end);
+    const normalizedStart = Number.isInteger(start) ? Math.max(0, Math.min(contentLength, start)) : contentLength;
+    const normalizedEnd = Number.isInteger(end) ? Math.max(normalizedStart, Math.min(contentLength, end)) : normalizedStart;
+
+    return {
+        start: normalizedStart,
+        end: normalizedEnd,
+    };
+}
+
+function buildDocumentMarkdownInsertion(currentContent, insertion, range = null) {
+    const content = String(currentContent ?? '');
+    const text = String(insertion ?? '').trim();
+
+    if (!text) {
+        return content;
+    }
+
+    const normalizedRange = normalizeDocumentInsertionRange(range);
+    const before = content.slice(0, normalizedRange.start);
+    const after = content.slice(normalizedRange.end);
+    const prefix = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+    const suffix = after && !after.startsWith('\n\n') ? (after.startsWith('\n') ? '\n' : '\n\n') : '';
+
+    return `${before}${prefix}${text}${suffix}${after}`;
+}
+
+function insertMarkdownIntoCurrentDocumentDraft(markdown, range = null) {
+    if (!state.documents.selectedId) {
+        return false;
+    }
+
+    const nextContent = buildDocumentMarkdownInsertion(state.documents.draftContent, markdown, range);
+
+    if (nextContent === state.documents.draftContent) {
+        return false;
+    }
+
+    state.documents.draftContent = nextContent;
+    state.documents.dirty = true;
+    state.documents.saveError = null;
+    emitChange();
+    return true;
+}
+
+function getDocumentInsertQueryTitle(query) {
+    return query?.displayTitle || query?.title || query?.previewSql || query?.rawSql || 'Saved query';
+}
+
+async function openDocumentInsertModal(kind, insertionRange = null) {
+    if (!state.documents.selectedId) {
+        pushToast('Select a document before inserting Markdown.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind,
+        documentId: state.documents.selectedId,
+        insertionRange: normalizeDocumentInsertionRange(insertionRange),
+        queries: [],
+        selectedHistoryId: '',
+        loading: true,
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+
+    try {
+        const response = await api.getQueryHistory({
+            tab: 'saved',
+            onlySaved: true,
+            limit: 100,
+        });
+        const loadedQueries = response.data?.items ?? [];
+        const queries =
+            kind === 'document-insert-note'
+                ? loadedQueries.filter(query => String(query.notes ?? '').trim())
+                : loadedQueries;
+
+        if (state.modal?.kind !== kind) {
+            return;
+        }
+
+        state.modal.queries = queries;
+        state.modal.selectedHistoryId = String(queries[0]?.id ?? '');
+        state.modal.loading = false;
+        state.modal.error = null;
+        emitChange();
+    } catch (error) {
+        if (state.modal?.kind !== kind) {
+            return;
+        }
+
+        state.modal.loading = false;
+        state.modal.error = normalizeError(error);
+        emitChange();
+    }
+}
+
+export function updateDocumentInsertQuerySelection(historyId) {
+    if (state.modal?.kind !== 'document-insert-table' && state.modal?.kind !== 'document-insert-note') {
+        return;
+    }
+
+    state.modal.selectedHistoryId = String(historyId ?? '');
+    state.modal.error = null;
+    emitChange();
+}
+
+function getSelectedDocumentInsertQuery(modal) {
+    const selectedHistoryId = String(modal?.selectedHistoryId ?? '');
+
+    return (modal?.queries ?? []).find(query => String(query.id) === selectedHistoryId) ?? null;
+}
+
+function setDocumentInsertModalError(message, code = 'DOCUMENT_INSERT_UNAVAILABLE') {
+    if (!state.modal) {
+        return;
+    }
+
+    state.modal.error = { code, message };
+    state.modal.submitting = false;
+    emitChange();
+}
+
+function canSubmitDocumentInsertModal(modal, kind) {
+    if (modal?.kind !== kind) {
+        return false;
+    }
+
+    if (String(modal.documentId ?? '') !== String(state.documents.selectedId ?? '')) {
+        setDocumentInsertModalError('The selected document changed while the dialog was open.');
+        return false;
+    }
+
+    return true;
+}
+
+export async function openDocumentInsertTableModal(insertionRange = null) {
+    await openDocumentInsertModal('document-insert-table', insertionRange);
+}
+
+export async function openDocumentInsertNoteModal(insertionRange = null) {
+    await openDocumentInsertModal('document-insert-note', insertionRange);
+}
+
+export async function submitDocumentInsertTable() {
+    const modal = state.modal;
+
+    if (!canSubmitDocumentInsertModal(modal, 'document-insert-table')) {
+        return false;
+    }
+
+    const query = getSelectedDocumentInsertQuery(modal);
+
+    if (!query) {
+        setDocumentInsertModalError('Select a saved query before inserting a table.');
+        return false;
+    }
+
+    startModalSubmission();
+
+    try {
+        const response = await api.getQueryExport(query.rawSql, 'md');
+        const markdownTable = String(response.data?.content ?? '').trim();
+
+        if (!markdownTable) {
+            throw new Error('The selected query returned no Markdown table content.');
+        }
+
+        const inserted = insertMarkdownIntoCurrentDocumentDraft(markdownTable, modal.insertionRange);
+
+        closeModalInternal();
+        if (inserted) {
+            pushToast(`Inserted table from "${getDocumentInsertQueryTitle(query)}".`, 'success');
+        }
+        return inserted;
+    } catch (error) {
+        withModalError(error);
+        return false;
+    }
+}
+
+export function submitDocumentInsertNote() {
+    const modal = state.modal;
+
+    if (!canSubmitDocumentInsertModal(modal, 'document-insert-note')) {
+        return false;
+    }
+
+    const query = getSelectedDocumentInsertQuery(modal);
+    const note = String(query?.notes ?? '').trim();
+
+    if (!query || !note) {
+        setDocumentInsertModalError('Select a saved query with notes before inserting.');
+        return false;
+    }
+
+    startModalSubmission();
+    const inserted = insertMarkdownIntoCurrentDocumentDraft(note, modal.insertionRange);
+
+    closeModalInternal();
+    if (inserted) {
+        pushToast(`Inserted note from "${getDocumentInsertQueryTitle(query)}".`, 'success');
+    }
+    return inserted;
+}
+
 export async function createDocument(options = {}) {
     state.documents.saving = true;
     state.documents.saveError = null;
@@ -2726,20 +2937,30 @@ export async function saveCurrentDocument(options = {}) {
         return null;
     }
 
+    const submittedFilename = state.documents.draftFilename;
+    const submittedContent = state.documents.draftContent;
+
     state.documents.saving = true;
     state.documents.saveError = null;
     emitChange();
 
     try {
         const response = await api.updateDocument(documentId, {
-            filename: state.documents.draftFilename,
-            content: state.documents.draftContent,
+            filename: submittedFilename,
+            content: submittedContent,
         });
         const document = response.data ?? null;
 
         if (document) {
+            const draftUnchanged =
+                String(state.documents.selectedId ?? '') === String(documentId) &&
+                state.documents.draftFilename === submittedFilename &&
+                state.documents.draftContent === submittedContent;
+
             upsertDocumentSummary(document);
-            applyCurrentDocument(document);
+            if (draftUnchanged) {
+                applyCurrentDocument(document);
+            }
         }
 
         if (options.toast !== false) {
@@ -2759,14 +2980,16 @@ export async function saveCurrentDocument(options = {}) {
     }
 }
 
-export async function deleteCurrentDocument() {
-    const documentId = state.documents.selectedId;
+export async function deleteCurrentDocument(options = {}) {
+    const documentId = options.documentId ?? state.documents.selectedId;
+    const reportErrorToModal = Boolean(options.reportErrorToModal);
 
     if (!documentId) {
-        return null;
+        return { deleted: false, nextDocumentId: null };
     }
 
     const deletedIndex = state.documents.items.findIndex(item => item.id === documentId);
+    const isSelectedDocument = String(state.documents.selectedId ?? '') === String(documentId);
 
     state.documents.deleting = true;
     state.documents.saveError = null;
@@ -2776,13 +2999,19 @@ export async function deleteCurrentDocument() {
         await api.deleteDocument(documentId);
         state.documents.items = state.documents.items.filter(item => item.id !== documentId);
         const nextDocument = state.documents.items[Math.max(0, Math.min(deletedIndex, state.documents.items.length - 1))] ?? null;
-        applyCurrentDocument(null);
+        if (isSelectedDocument) {
+            applyCurrentDocument(null);
+        }
         pushToast('Document deleted.', 'success');
-        return nextDocument?.id ?? null;
+        return { deleted: true, nextDocumentId: nextDocument?.id ?? null };
     } catch (error) {
         state.documents.saveError = normalizeError(error);
-        pushToast(state.documents.saveError.message || 'Document could not be deleted.', 'alert');
-        return null;
+        if (reportErrorToModal) {
+            withModalError(error);
+        } else {
+            pushToast(state.documents.saveError.message || 'Document could not be deleted.', 'alert');
+        }
+        return { deleted: false, nextDocumentId: null };
     } finally {
         state.documents.deleting = false;
         emitChange();
@@ -2815,6 +3044,26 @@ export async function createDocumentFromMarkdownExport({ filename, content, titl
         content,
         toast: false,
     });
+}
+
+export async function submitDeleteDocumentConfirmation() {
+    const modal = state.modal;
+
+    if (modal?.kind !== 'delete-document') {
+        return { deleted: false, nextDocumentId: null };
+    }
+
+    startModalSubmission();
+    const result = await deleteCurrentDocument({
+        documentId: modal.documentId,
+        reportErrorToModal: true,
+    });
+
+    if (result.deleted) {
+        closeModalInternal();
+    }
+
+    return result;
 }
 
 export function openEditConnectionModal(id) {
@@ -2977,6 +3226,26 @@ export function openDeleteQueryHistoryModal(historyId) {
         kind: 'delete-query-history',
         historyId: queryItem.id,
         queryTitle: queryItem.displayTitle,
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+export function openDeleteDocumentModal() {
+    const documentId = state.documents.selectedId;
+    const document = state.documents.selected;
+
+    if (!documentId || !document) {
+        pushToast('The selected document could not be loaded.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind: 'delete-document',
+        documentId,
+        filename: document.filename,
+        contentLength: document.contentLength ?? String(document.content ?? '').length,
         error: null,
         submitting: false,
     };

@@ -94,6 +94,12 @@ function renderDocumentToolbar(documents) {
           />
         </label>
         <div class="documents-toolbar__actions">
+          <input
+            accept=".md,.markdown,text/markdown,text/plain"
+            data-bind="document-import-file"
+            hidden
+            type="file"
+          />
           <button
             class="standard-button"
             data-action="toggle-document-pane"
@@ -120,6 +126,33 @@ function renderDocumentToolbar(documents) {
           >
             <span class="material-symbols-outlined">download</span>
             Export .md
+          </button>
+          <button
+            class="standard-button"
+            data-action="open-document-insert-table-modal"
+            type="button"
+            ${disabled ? 'disabled aria-disabled="true"' : ''}
+          >
+            <span class="material-symbols-outlined">table_chart</span>
+            Insert Table
+          </button>
+          <button
+            class="standard-button"
+            data-action="open-document-insert-note-modal"
+            type="button"
+            ${disabled ? 'disabled aria-disabled="true"' : ''}
+          >
+            <span class="material-symbols-outlined">note_add</span>
+            Insert Note
+          </button>
+          <button
+            class="standard-button"
+            data-action="import-document-markdown"
+            type="button"
+            ${documents.saving ? 'disabled aria-disabled="true"' : ''}
+          >
+            <span class="material-symbols-outlined">upload_file</span>
+            Import .md
           </button>
           <button
             class="standard-button"

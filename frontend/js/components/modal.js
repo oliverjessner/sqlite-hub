@@ -807,6 +807,147 @@ function renderDeleteQueryHistoryForm(modal) {
   ].join("");
 }
 
+function renderDeleteDocumentForm(modal) {
+  return [
+    '<form class="space-y-5" data-form="delete-document-confirm"><div class="space-y-3">',
+    '<p class="text-sm leading-7 text-on-surface">Delete document <span class="font-bold text-primary-container">',
+    escapeHtml(modal.filename ?? "document"),
+    "</span>?</p>",
+    '<p class="text-sm leading-7 text-on-surface-variant/65">This removes the Markdown document from the active database document folder.</p>',
+    '<div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">',
+    formatNumber(modal.contentLength ?? 0),
+    " chars</div>",
+    "</div>",
+    renderError(modal.error),
+    '<div class="flex items-center justify-between gap-3 pt-2">',
+    '<button class="standard-button" data-action="close-modal" type="button">Cancel</button>',
+    '<button class="delete-button" type="submit">',
+    modal.submitting ? "Deleting..." : "Delete Document",
+    "</button></div></form>",
+  ].join("");
+}
+
+function getDocumentInsertQueryTitle(query) {
+  return query?.displayTitle || query?.title || query?.previewSql || query?.rawSql || "Saved query";
+}
+
+function getSelectedDocumentInsertQuery(modal) {
+  const selectedHistoryId = String(modal.selectedHistoryId ?? "");
+
+  return (modal.queries ?? []).find((query) => String(query.id) === selectedHistoryId) ?? null;
+}
+
+function renderDocumentInsertQuerySelect(modal, emptyText) {
+  const queries = modal.queries ?? [];
+
+  if (modal.loading) {
+    return '<div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface-variant/65">Loading saved queries...</div>';
+  }
+
+  if (!queries.length) {
+    return `<div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface-variant/65">${escapeHtml(emptyText)}</div>`;
+  }
+
+  return `
+    <label class="block space-y-2">
+      <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+        Saved Query
+      </span>
+      <select
+        class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+        data-bind="document-insert-query-select"
+        name="historyId"
+      >
+        ${queries
+          .map(
+            (query) => `
+              <option
+                value="${escapeHtml(query.id)}"
+                ${String(query.id) === String(modal.selectedHistoryId) ? "selected" : ""}
+              >
+                ${escapeHtml(getDocumentInsertQueryTitle(query))}
+              </option>
+            `
+          )
+          .join("")}
+      </select>
+    </label>
+  `;
+}
+
+function renderDocumentInsertQueryPreview(query) {
+  if (!query) {
+    return "";
+  }
+
+  return `
+    <div class="space-y-2">
+      <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+        Query Preview
+      </div>
+      <pre class="max-h-44 overflow-auto border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 font-mono text-xs leading-6 text-on-surface-variant/75 custom-scrollbar">${escapeHtml(
+        query.rawSql || query.previewSql || ""
+      )}</pre>
+    </div>
+  `;
+}
+
+function renderDocumentInsertTableForm(modal) {
+  const selectedQuery = getSelectedDocumentInsertQuery(modal);
+  const disabledAttribute = modal.loading || modal.submitting || !(modal.queries ?? []).length
+    ? 'disabled aria-disabled="true"'
+    : "";
+
+  return `
+    <form class="space-y-5" data-form="document-insert-table">
+      ${renderDocumentInsertQuerySelect(modal, "No saved queries are available for this database.")}
+      ${renderDocumentInsertQueryPreview(selectedQuery)}
+      ${renderError(modal.error)}
+      <div class="flex items-center justify-between gap-3 pt-2">
+        <button class="standard-button" data-action="close-modal" type="button">Cancel</button>
+        <button class="signature-button" type="submit" ${disabledAttribute}>
+          ${modal.submitting ? "Inserting..." : "Insert Table"}
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+function renderDocumentInsertNoteForm(modal) {
+  const selectedQuery = getSelectedDocumentInsertQuery(modal);
+  const note = String(selectedQuery?.notes ?? "").trim();
+  const disabledAttribute = modal.loading || modal.submitting || !(modal.queries ?? []).length
+    ? 'disabled aria-disabled="true"'
+    : "";
+
+  return `
+    <form class="space-y-5" data-form="document-insert-note">
+      ${renderDocumentInsertQuerySelect(modal, "No saved queries with notes are available for this database.")}
+      ${
+        note
+          ? `
+            <div class="space-y-2">
+              <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+                Note Preview
+              </div>
+              <pre class="max-h-64 overflow-auto whitespace-pre-wrap border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-sm leading-6 text-on-surface custom-scrollbar">${escapeHtml(
+                note
+              )}</pre>
+            </div>
+          `
+          : ""
+      }
+      ${renderError(modal.error)}
+      <div class="flex items-center justify-between gap-3 pt-2">
+        <button class="standard-button" data-action="close-modal" type="button">Cancel</button>
+        <button class="signature-button" type="submit" ${disabledAttribute}>
+          ${modal.submitting ? "Inserting..." : "Insert Note"}
+        </button>
+      </div>
+    </form>
+  `;
+}
+
 function renderQueryExportPreview(lines = []) {
   return lines.map((line) => `<span class="block whitespace-pre">${escapeHtml(line)}</span>`).join("");
 }
@@ -1521,6 +1662,21 @@ export function renderModal(state) {
       title: "Delete Query",
       body: renderDeleteQueryHistoryForm(modal),
     },
+    "delete-document": {
+      eyebrow: "Documents // Confirm deletion",
+      title: "Delete Document",
+      body: renderDeleteDocumentForm(modal),
+    },
+    "document-insert-table": {
+      eyebrow: "Documents // Saved query output",
+      title: "Insert Table",
+      body: renderDocumentInsertTableForm(modal),
+    },
+    "document-insert-note": {
+      eyebrow: "Documents // Saved query notes",
+      title: "Insert Note",
+      body: renderDocumentInsertNoteForm(modal),
+    },
     "query-export": {
       eyebrow: "SQL Editor // Export query result",
       title: "Export Query",
@@ -1563,6 +1719,8 @@ export function renderModal(state) {
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-4 backdrop-blur-sm">
       <div class="w-full ${
         modal.kind === "chart-editor" ||
+        modal.kind === "document-insert-table" ||
+        modal.kind === "document-insert-note" ||
         modal.kind === "row-update-preview" ||
         modal.kind === "table-designer-constraints"
           ? "max-w-3xl"

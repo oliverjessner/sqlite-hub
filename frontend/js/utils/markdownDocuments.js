@@ -30,19 +30,22 @@ function renderFallbackMarkdown(markdown = '') {
     const lines = String(markdown).split(/\r?\n/);
     const html = [];
     let listItems = [];
+    let listTag = 'ul';
 
     const flushList = () => {
         if (!listItems.length) {
             return;
         }
 
-        html.push(`<ul>${listItems.map(item => `<li>${item}</li>`).join('')}</ul>`);
+        html.push(`<${listTag}>${listItems.map(item => `<li>${item}</li>`).join('')}</${listTag}>`);
         listItems = [];
+        listTag = 'ul';
     };
 
     for (const line of lines) {
         const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
         const unorderedMatch = line.match(/^\s*[-*+]\s+(.+)$/);
+        const orderedMatch = line.match(/^\s*\d+[.)]\s+(.+)$/);
 
         if (headingMatch) {
             flushList();
@@ -52,7 +55,20 @@ function renderFallbackMarkdown(markdown = '') {
         }
 
         if (unorderedMatch) {
+            if (listItems.length && listTag !== 'ul') {
+                flushList();
+            }
+            listTag = 'ul';
             listItems.push(escapeHtml(unorderedMatch[1]));
+            continue;
+        }
+
+        if (orderedMatch) {
+            if (listItems.length && listTag !== 'ol') {
+                flushList();
+            }
+            listTag = 'ol';
+            listItems.push(escapeHtml(orderedMatch[1]));
             continue;
         }
 

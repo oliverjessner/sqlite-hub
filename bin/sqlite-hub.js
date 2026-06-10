@@ -18,6 +18,9 @@ Usage:
   sqlite-hub --database:"name" --query:"Saved Query"
   sqlite-hub --database:"name" --notes:"Saved Query"
   sqlite-hub --database:"name" --export:"Saved Query" --format:csv
+  sqlite-hub --database:"name" --documents
+  sqlite-hub --database:"name" --documents:"Document Name"
+  sqlite-hub --database:"name" --documents:"Document Name" --export
   sqlite-hub --database:"name" --table:"table_name"
   sqlite-hub --database:"name" --table:"table_name" --export:"primary-key"
 
@@ -39,6 +42,9 @@ Options:
   --notes:"query"                    Print notes for a saved SQL Editor query by name.
   --export:"query"                   Export a saved query when --table is not set.
   --format:csv|tsv|md                Export format for query exports. Defaults to csv.
+  --documents                        List Markdown documents for the selected database.
+  --documents:"name"                 Print a document's Markdown content.
+  --documents:"name" --export        Export a document as a Markdown file.
   --table:"table"                    Print table metadata.
   --table:"table" --export:"pk"      Export one row as JSON by primary key or rowid.
 
@@ -161,6 +167,9 @@ function parseCliArguments(argv) {
         showNotes: null,
         exportTarget: null,
         exportFormat: 'csv',
+        documents: false,
+        documentName: null,
+        documentExport: false,
         tableName: null,
     };
 
@@ -299,7 +308,44 @@ function parseCliArguments(argv) {
             continue;
         }
 
+        if (flag === '--documents') {
+            const parsed = takeOptionalFlagValue(value, argv, index);
+
+            options.documents = true;
+            if (parsed.hasValue) {
+                const rawDocumentName = String(parsed.value ?? '');
+
+                if (rawDocumentName.endsWith('--export')) {
+                    options.documentName = rawDocumentName.slice(0, -'--export'.length);
+                    options.documentExport = true;
+                } else {
+                    options.documentName = rawDocumentName;
+                }
+            }
+
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--documents-export') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.documents = true;
+            options.documentName = parsed.value;
+            options.documentExport = true;
+            index = parsed.nextIndex;
+            continue;
+        }
+
         if (flag === '--export') {
+            if (options.documents && options.documentName && value === undefined) {
+                const nextValue = argv[index + 1];
+
+                if (nextValue === undefined || nextValue.startsWith('--')) {
+                    options.documentExport = true;
+                    continue;
+                }
+            }
+
             const parsed = takeFlagValue(flag, value, argv, index);
             options.exportTarget = parsed.value;
             index = parsed.nextIndex;
@@ -336,6 +382,9 @@ function hasDatabaseOperation(options) {
             options.executeQuery ||
             options.showQuery ||
             options.showNotes ||
+            options.documents ||
+            options.documentName ||
+            options.documentExport ||
             options.exportTarget ||
             options.tableName,
     );
@@ -660,6 +709,126 @@ function exportSavedQuery({ appStateStore, conn, exportService, queryName, forma
     console.log(`File: ${outputPath}`);
 }
 
+function getDocumentTitle(document) {
+    return document?.filename || document?.title || document?.id || '(untitled document)';
+}
+
+function printAvailableDocuments(appStateStore, conn) {
+    const documents = appStateStore.listDatabaseDocuments(conn.id);
+
+    console.error('\nAvailable documents:');
+
+    if (documents.length > 0) {
+        documents.forEach(document => {
+            console.error(`  - ${getDocumentTitle(document)}`);
+        });
+        return;
+    }
+
+    console.error('  (none)');
+}
+
+function findDocumentByName(appStateStore, conn, documentName) {
+    const normalizedDocumentName = String(documentName ?? '').trim().toLowerCase();
+
+    if (!normalizedDocumentName) {
+        throw new Error('Document name is required.');
+    }
+
+    const documents = appStateStore.listDatabaseDocuments(conn.id);
+    const exactMatch = documents.find(document => {
+        const candidates = [document.id, document.filename, document.title].filter(Boolean);
+
+        return candidates.some(candidate => String(candidate).toLowerCase() === normalizedDocumentName);
+    });
+
+    if (exactMatch) {
+        return appStateStore.getDatabaseDocument(conn.id, exactMatch.id);
+    }
+
+    const partialMatch = documents.find(document => {
+        const candidates = [document.filename, document.title].filter(Boolean);
+
+        return candidates.some(candidate => String(candidate).toLowerCase().includes(normalizedDocumentName));
+    });
+
+    return partialMatch ? appStateStore.getDatabaseDocument(conn.id, partialMatch.id) : null;
+}
+
+function requireMatchingDocument(appStateStore, conn, documentName) {
+    const matchingDocument = findDocumentByName(appStateStore, conn, documentName);
+
+    if (!matchingDocument) {
+        console.error(`Document not found: ${documentName}`);
+        printAvailableDocuments(appStateStore, conn);
+        process.exit(1);
+    }
+
+    return matchingDocument;
+}
+
+function listDocuments(appStateStore, conn) {
+    const documents = appStateStore.listDatabaseDocuments(conn.id);
+
+    if (documents.length === 0) {
+        console.log(`No documents found for ${conn.label}.`);
+        return;
+    }
+
+    console.log(`\nDocuments for ${conn.label} (${documents.length}):`);
+    console.log('─'.repeat(60));
+
+    documents.forEach((document, index) => {
+        console.log(`${index + 1}. ${document.filename}`);
+        console.log(`   Updated: ${document.updatedAt}`);
+        console.log(`   Characters: ${document.contentLength}`);
+    });
+
+    console.log('');
+}
+
+function showDocumentMarkdown({ appStateStore, conn, documentName }) {
+    const matchingDocument = requireMatchingDocument(appStateStore, conn, documentName);
+
+    console.log(matchingDocument.content ?? '');
+}
+
+function normalizeMarkdownExportFilename(filename, fallback = 'document.md') {
+    let normalizedFilename = String(filename ?? '')
+        .replace(/[\u0000-\u001f\u007f]/g, ' ')
+        .replace(/[<>:"/\\|?*]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/^\.+/, '')
+        .replace(/[. ]+$/g, '');
+
+    if (!normalizedFilename) {
+        normalizedFilename = fallback;
+    }
+
+    if (!/\.md$/i.test(normalizedFilename)) {
+        normalizedFilename = `${normalizedFilename}.md`;
+    }
+
+    if (normalizedFilename.length > 160) {
+        normalizedFilename = `${normalizedFilename.slice(0, 157)}.md`;
+    }
+
+    return normalizedFilename;
+}
+
+function exportDocumentMarkdown({ appStateStore, conn, documentName }) {
+    const matchingDocument = requireMatchingDocument(appStateStore, conn, documentName);
+    const filename = normalizeMarkdownExportFilename(matchingDocument.filename, `${matchingDocument.title || 'document'}.md`);
+    const outputPath = path.resolve(process.cwd(), filename);
+
+    fs.writeFileSync(outputPath, matchingDocument.content ?? '', 'utf8');
+
+    console.log(`Exported document: ${matchingDocument.filename}`);
+    console.log(`Characters: ${matchingDocument.contentLength}`);
+    console.log(`File: ${outputPath}`);
+}
+
 function coerceIdentityValue(column, value) {
     const text = String(value ?? '');
     const affinity = String(column?.affinity ?? '').toUpperCase();
@@ -920,6 +1089,28 @@ async function main() {
         if (!conn) {
             console.error(`Database not found: ${dbName}`);
             process.exit(1);
+        }
+
+        if (options.documents) {
+            if (options.documentName) {
+                if (options.documentExport) {
+                    exportDocumentMarkdown({
+                        appStateStore,
+                        conn,
+                        documentName: options.documentName,
+                    });
+                } else {
+                    showDocumentMarkdown({
+                        appStateStore,
+                        conn,
+                        documentName: options.documentName,
+                    });
+                }
+                return;
+            }
+
+            listDocuments(appStateStore, conn);
+            return;
         }
 
         if (options.tableName || options.tables || options.queries || options.executeQuery || options.showQuery || options.showNotes || options.exportTarget) {

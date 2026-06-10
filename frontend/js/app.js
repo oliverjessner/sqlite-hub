@@ -32,7 +32,6 @@ import {
     clearEditorResults,
     clearQueryHistorySelection,
     closeModal,
-    deleteCurrentDocument,
     dismissMediaTaggingIssue,
     dismissToast,
     executeCurrentQuery,
@@ -51,12 +50,15 @@ import {
     openDeleteQueryHistoryModal,
     openDeleteQueryChartModal,
     openDataExportModal,
+    openDeleteDocumentModal,
     openQueryExportModal,
     openDataRowByIdentity,
     openEditConnectionModal,
     openCreateQueryChartModal,
     openCopyColumnModal,
     openEditQueryChartModal,
+    openDocumentInsertNoteModal,
+    openDocumentInsertTableModal,
     preserveCurrentDataRowSelectionForReload,
     openDataRowUpdatePreview,
     openEditorRowUpdatePreview,
@@ -94,6 +96,9 @@ import {
     setEditorPanelVisibility,
     setEditorTab,
     submitDeleteChartConfirmation,
+    submitDeleteDocumentConfirmation,
+    submitDocumentInsertNote,
+    submitDocumentInsertTable,
     submitCreateMediaTaggingTagTable,
     submitCreateMediaTaggingMappingTable,
     submitDeleteQueryHistoryConfirmation,
@@ -132,6 +137,7 @@ import {
     updateCurrentMediaTaggingTagFormField,
     updateCopyColumnModalFormatField,
     updateCurrentDocumentDraftField,
+    updateDocumentInsertQuerySelection,
     updateCurrentQueryChartDraftConfigField,
     updateCurrentQueryChartDraftField,
     updateCurrentTableDesignerColumnField,
@@ -206,6 +212,10 @@ let lastRenderedLockedRoute = false;
 let pendingNewTableDesignerAutofocus = false;
 let pendingQueryEditorFocus = false;
 let pendingMediaTaggingTagSearchFocus = false;
+let documentAutosaveTimer = null;
+let pendingDocumentAutosaveId = null;
+
+const DOCUMENT_AUTOSAVE_DELAY_MS = 5000;
 
 const APP_TITLE = 'SQLite Hub';
 const ROUTE_TITLE_SEGMENTS = {
@@ -807,11 +817,56 @@ function readFileAsText(file) {
             resolve(String(reader.result ?? ''));
         };
         reader.onerror = () => {
-            reject(reader.error ?? new Error('The selected CSV file could not be read.'));
+            reject(reader.error ?? new Error('The selected file could not be read.'));
         };
 
         reader.readAsText(file);
     });
+}
+
+function clearDocumentAutosaveTimer() {
+    if (documentAutosaveTimer !== null) {
+        window.clearTimeout(documentAutosaveTimer);
+    }
+
+    documentAutosaveTimer = null;
+    pendingDocumentAutosaveId = null;
+}
+
+function scheduleDocumentAutosave(documentId) {
+    clearDocumentAutosaveTimer();
+
+    if (!documentId) {
+        return;
+    }
+
+    pendingDocumentAutosaveId = String(documentId);
+    documentAutosaveTimer = window.setTimeout(async () => {
+        const state = getState();
+        const scheduledDocumentId = pendingDocumentAutosaveId;
+
+        documentAutosaveTimer = null;
+        pendingDocumentAutosaveId = null;
+
+        if (
+            state.route.name !== 'documents' ||
+            String(state.documents.selectedId ?? '') !== scheduledDocumentId ||
+            !state.documents.dirty
+        ) {
+            return;
+        }
+
+        if (state.documents.saving) {
+            scheduleDocumentAutosave(scheduledDocumentId);
+            return;
+        }
+
+        if (state.documents.deleting) {
+            return;
+        }
+
+        await saveCurrentDocument({ toast: false });
+    }, DOCUMENT_AUTOSAVE_DELAY_MS);
 }
 
 async function buildConnectionLogoUpload(file) {
@@ -1113,6 +1168,39 @@ async function handleTableDesignerCsvImport(fileInput) {
     }
 }
 
+async function handleDocumentMarkdownImport(fileInput) {
+    if (!(fileInput instanceof HTMLInputElement)) {
+        return;
+    }
+
+    const file = fileInput.files?.[0];
+
+    if (!(file instanceof File)) {
+        return;
+    }
+
+    try {
+        const content = await readFileAsText(file);
+        const document = await createDocumentFromMarkdownExport({
+            filename: file.name,
+            content,
+        });
+
+        if (!document?.id) {
+            showToast('Markdown document could not be imported.', 'alert');
+            return;
+        }
+
+        clearDocumentAutosaveTimer();
+        showToast(`Document "${document.filename}" imported.`, 'success');
+        router.navigate(`/documents/${encodeURIComponent(document.id)}`);
+    } catch (error) {
+        showToast(error?.message || 'Markdown import failed.', 'alert');
+    } finally {
+        fileInput.value = '';
+    }
+}
+
 function renderApp(state) {
     syncDocumentTitle(state);
 
@@ -1130,6 +1218,7 @@ function renderApp(state) {
         'editorResults',
         'data',
         'charts',
+        'documents',
         'structure',
         'tableDesigner',
         'mediaTaggingSetup',
@@ -1572,25 +1661,14 @@ function buildDocumentTimestampSlug(date = new Date()) {
     ].join('-');
 }
 
-function renderMarkdownFence(language, value) {
-    const text = String(value ?? '').trim();
-    const fence = text.includes('```') ? '````' : '```';
-
-    return `${fence}${language ? language : ''}\n${text}\n${fence}`;
-}
-
 function buildCopyColumnDocumentFilename(columnName) {
     const columnSlug = slugifyExportFilenamePart(columnName);
 
     return `${columnSlug}-todos-${buildDocumentTimestampSlug()}.md`;
 }
 
-function buildCopyColumnDocumentContent({ state, scope, columnName, text, valueCount }) {
+function buildCopyColumnDocumentContent({ state, columnName, text, valueCount }) {
     const activeConnection = state.connections.active;
-    const query =
-        scope === 'charts'
-            ? state.charts.detail?.item?.rawSql || state.charts.result?.sql || ''
-            : state.editor.lastExecutedSql || state.editor.sqlText || '';
     const lines = [
         `# ${columnName || 'Column'} todos`,
         '',
@@ -1600,10 +1678,6 @@ function buildCopyColumnDocumentContent({ state, scope, columnName, text, valueC
         `- Generated: ${new Date().toLocaleString()}`,
         '',
     ];
-
-    if (query.trim()) {
-        lines.push('## Query', '', renderMarkdownFence('sql', query), '');
-    }
 
     lines.push('## Todos', '', String(text ?? '').trim(), '');
 
@@ -1785,6 +1859,19 @@ function exportCurrentDocumentMarkdown() {
     showToast(`Document "${filename}" exported.`, 'success');
 }
 
+function getCurrentDocumentEditorInsertionRange() {
+    const textarea = document.querySelector('.documents-editor-input');
+
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+        return null;
+    }
+
+    return {
+        start: textarea.selectionStart,
+        end: textarea.selectionEnd,
+    };
+}
+
 function preserveDataRowEditorSelectionForReload() {
     preserveCurrentDataRowSelectionForReload();
 }
@@ -1851,7 +1938,6 @@ async function submitCopyColumnModal(formData) {
                 title: `${columnName || 'Column'} todos`,
                 content: buildCopyColumnDocumentContent({
                     state,
-                    scope,
                     columnName,
                     text,
                     valueCount,
@@ -1968,32 +2054,44 @@ async function handleAction(actionNode) {
             const documentId = String(actionNode.dataset.documentId ?? '').trim();
 
             if (documentId) {
+                clearDocumentAutosaveTimer();
                 router.navigate(`/documents/${encodeURIComponent(documentId)}`);
             }
             return;
         }
         case 'save-document':
+            clearDocumentAutosaveTimer();
             await saveCurrentDocument();
             return;
         case 'export-document-markdown':
             exportCurrentDocumentMarkdown();
             return;
-        case 'delete-document': {
-            const currentDocument = getState().documents.selected;
-            const confirmed = window.confirm(`Delete "${currentDocument?.filename ?? 'document'}"?`);
+        case 'open-document-insert-table-modal':
+            await openDocumentInsertTableModal(getCurrentDocumentEditorInsertionRange());
+            return;
+        case 'open-document-insert-note-modal':
+            await openDocumentInsertNoteModal(getCurrentDocumentEditorInsertionRange());
+            return;
+        case 'import-document-markdown': {
+            const fileInput = document.querySelector('[data-bind="document-import-file"]');
 
-            if (!confirmed) {
+            if (!(fileInput instanceof HTMLInputElement)) {
                 return;
             }
 
-            const nextDocumentId = await deleteCurrentDocument();
-            router.navigate(nextDocumentId ? `/documents/${encodeURIComponent(nextDocumentId)}` : '/documents');
+            fileInput.value = '';
+            fileInput.click();
             return;
         }
+        case 'delete-document':
+            clearDocumentAutosaveTimer();
+            openDeleteDocumentModal();
+            return;
         case 'toggle-document-pane':
             toggleDocumentsPane(actionNode.dataset.pane);
             return;
         case 'toggle-document-todo':
+            clearDocumentAutosaveTimer();
             await toggleCurrentDocumentTodo(actionNode.dataset.lineIndex);
             return;
         case 'open-create-query-chart-modal':
@@ -2495,6 +2593,7 @@ document.addEventListener('keydown', event => {
         state.route.name === 'documents'
     ) {
         event.preventDefault();
+        clearDocumentAutosaveTimer();
         void saveCurrentDocument();
         return;
     }
@@ -2626,6 +2725,7 @@ document.addEventListener('input', event => {
 
     if (bindNode.dataset.bind === 'document-field') {
         updateCurrentDocumentDraftField(bindNode.dataset.field, bindNode.value);
+        scheduleDocumentAutosave(getState().documents.selectedId);
         return;
     }
 
@@ -2796,6 +2896,16 @@ document.addEventListener('change', event => {
 
     if (bindNode.dataset.bind === 'table-designer-import-file') {
         void handleTableDesignerCsvImport(bindNode);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'document-import-file') {
+        void handleDocumentMarkdownImport(bindNode);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'document-insert-query-select') {
+        updateDocumentInsertQuerySelection(bindNode.value);
         return;
     }
 
@@ -2977,6 +3087,32 @@ document.addEventListener('submit', async event => {
         case 'delete-query-history-confirm':
             await submitDeleteQueryHistoryConfirmation();
             return;
+        case 'delete-document-confirm': {
+            const result = await submitDeleteDocumentConfirmation();
+
+            if (result.deleted) {
+                router.navigate(
+                    result.nextDocumentId ? `/documents/${encodeURIComponent(result.nextDocumentId)}` : '/documents',
+                );
+            }
+            return;
+        }
+        case 'document-insert-table': {
+            const inserted = await submitDocumentInsertTable();
+
+            if (inserted) {
+                scheduleDocumentAutosave(getState().documents.selectedId);
+            }
+            return;
+        }
+        case 'document-insert-note': {
+            const inserted = submitDocumentInsertNote();
+
+            if (inserted) {
+                scheduleDocumentAutosave(getState().documents.selectedId);
+            }
+            return;
+        }
         case 'apply-row-update-preview':
             await submitRowUpdatePreviewConfirmation();
             return;
