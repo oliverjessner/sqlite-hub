@@ -353,9 +353,9 @@
 
 .documents-filename-field {
     display: flex;
-    flex: 1 1 18rem;
     flex-direction: column;
-    gap: var(--spacing-2);
+    padding: var(--spacing-4);
+    padding-bottom: 0;
     max-width: 32rem;
     min-width: min(100%, 14rem);
 }

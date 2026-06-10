@@ -78,10 +78,7 @@ function renderDocumentsSidebar(documents) {
 function renderDocumentToolbar(documents) {
     const disabled = documents.saving || documents.detailLoading || !documents.selectedId;
 
-    return `
-      <div class="documents-toolbar">
-        <label class="documents-filename-field">
-          <span>Filename</span>
+    return `       <label class="documents-filename-field">
           <input
             class="control-input"
             data-bind="document-field"
@@ -93,13 +90,11 @@ function renderDocumentToolbar(documents) {
             ${!documents.selectedId ? 'disabled' : ''}
           />
         </label>
+      <div class="documents-toolbar">
+   
+ 
+       
         <div class="documents-toolbar__actions">
-          <input
-            accept=".md,.markdown,text/markdown,text/plain"
-            data-bind="document-import-file"
-            hidden
-            type="file"
-          />
           <button
             class="standard-button"
             data-action="toggle-document-pane"
@@ -118,15 +113,14 @@ function renderDocumentToolbar(documents) {
             <span class="material-symbols-outlined">${documents.previewVisible ? 'visibility_off' : 'visibility'}</span>
             ${documents.previewVisible ? 'Hide Preview' : 'Show Preview'}
           </button>
-          <button
-            class="standard-button"
-            data-action="export-document-markdown"
-            type="button"
-            ${disabled ? 'disabled aria-disabled="true"' : ''}
-          >
-            <span class="material-symbols-outlined">download</span>
-            Export .md
-          </button>
+          <input
+            accept=".md,.markdown,text/markdown,text/plain"
+            data-bind="document-import-file"
+            hidden
+            type="file"
+          />
+          </div>
+        <div class="documents-toolbar__actions">
           <button
             class="standard-button"
             data-action="open-document-insert-table-modal"
@@ -147,6 +141,15 @@ function renderDocumentToolbar(documents) {
           </button>
           <button
             class="standard-button"
+            data-action="export-document-markdown"
+            type="button"
+            ${disabled ? 'disabled aria-disabled="true"' : ''}
+          >
+            <span class="material-symbols-outlined">download</span>
+            Export .md
+          </button>
+          <button
+            class="standard-button"
             data-action="import-document-markdown"
             type="button"
             ${documents.saving ? 'disabled aria-disabled="true"' : ''}
@@ -154,6 +157,8 @@ function renderDocumentToolbar(documents) {
             <span class="material-symbols-outlined">upload_file</span>
             Import .md
           </button>
+        </div>
+          <div class="documents-toolbar__actions">
           <button
             class="standard-button"
             data-action="delete-document"
