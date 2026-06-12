@@ -588,6 +588,12 @@
     white-space: pre-wrap;
 }
 
+.row-editor-json-preview {
+    overflow-wrap: normal;
+    tab-size: 2;
+    white-space: pre;
+}
+
 .copy-column-preview--editable {
     display: block;
     min-height: 10rem;

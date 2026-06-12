@@ -95,6 +95,7 @@ export function renderQueryResultsPane(
     sortDirection = null,
     resultScope = "editor",
     sortAction = "sort-editor-results-column",
+    scrollKey = "",
   } = {}
 ) {
   if (!result) {
@@ -124,7 +125,14 @@ export function renderQueryResultsPane(
 
   return `
     <div class="relative flex h-full min-h-0 flex-col overflow-hidden bg-surface-container">
-      <div class="custom-scrollbar min-h-0 flex-1 overflow-auto bg-surface-container-lowest">
+      <div
+        class="custom-scrollbar min-h-0 flex-1 overflow-auto bg-surface-container-lowest"
+        ${
+          scrollKey
+            ? `data-table-horizontal-scroll data-table-scroll-key="${escapeHtml(scrollKey)}"`
+            : ""
+        }
+      >
         ${
           result.columns?.length
               ? renderDataGrid({

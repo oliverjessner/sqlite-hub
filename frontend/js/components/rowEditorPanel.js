@@ -12,36 +12,9 @@ import {
   formatTextCellCharacterCount,
   getTextCellCharacterCount,
 } from "../utils/textCellStats.js";
+import { formatJsonPreview } from "../utils/jsonPreview.js";
 
 const URL_PATTERN = /^https?:\/\/[^\s<>"']+$/i;
-
-function getJsonPreview(value) {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  if (typeof value === "object") {
-    return JSON.stringify(value, null, 2);
-  }
-
-  const text = String(value).trim();
-
-  if (!text || !["{", "["].includes(text[0])) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(text);
-
-    if (!parsed || typeof parsed !== "object") {
-      return null;
-    }
-
-    return JSON.stringify(parsed, null, 2);
-  } catch (error) {
-    return null;
-  }
-}
 
 function getUrlValue(value) {
   const text = String(value ?? "").trim();
@@ -284,7 +257,7 @@ function renderJsonViewer(prettyJson, title = "JSON Viewer") {
       <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/75">
         ${escapeHtml(title)}
       </div>
-      <pre class="custom-scrollbar mt-3 max-h-[18rem] overflow-auto whitespace-pre-wrap break-words border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 font-mono text-xs leading-6 text-on-surface">${escapeHtml(
+      <pre class="row-editor-json-preview custom-scrollbar mt-3 max-h-[18rem] overflow-auto border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 font-mono text-xs leading-6 text-on-surface">${escapeHtml(
         prettyJson
       )}</pre>
     </div>
@@ -301,7 +274,7 @@ function renderReadonlyField(field = {}, tableMeta = {}) {
   const url = getUrlValue(value);
   const badges = withFilePathBadge(withUrlBadge(Array.isArray(label?.badges) ? label.badges : [], url), filePathPreview);
   const displayLabel = typeof label === "object" ? label.label : label;
-  const jsonPreview = getJsonPreview(value);
+  const jsonPreview = formatJsonPreview(value);
 
   return `
     <div
@@ -336,7 +309,7 @@ function renderEditableField(field, tableMeta = {}) {
   const filePathPreview = getFieldFilePathPreview(field, tableMeta);
   const baseBadges = withCheckBadge(Array.isArray(field.badges) ? field.badges : [], allowedValues);
   const badges = withFilePathBadge(withUrlBadge(baseBadges, url), filePathPreview);
-  const jsonPreview = getJsonPreview(field.value);
+  const jsonPreview = formatJsonPreview(field.value);
   const inputType = field.inputType === "number" ? "number" : "text";
   const numberStep = field.numberStep === "1" ? "1" : "any";
 

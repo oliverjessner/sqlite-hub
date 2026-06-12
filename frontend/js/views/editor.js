@@ -280,6 +280,7 @@ function renderResultsSurface(state, isResultsRoute) {
                   sortDirection: state.editor.resultSortDirection,
                   resultScope: 'editor',
                   sortAction: 'sort-editor-results-column',
+                  scrollKey: `editor:${state.editor.result?.historyId ?? 'current'}`,
               })
             : renderMissingDatabase();
     }

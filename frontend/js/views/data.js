@@ -461,7 +461,9 @@ function renderTableSurface(state) {
     return [
         '<div class="flex flex-1 min-h-0 flex-col bg-surface-container-lowest">',
         renderTableFilterBar(table, state, activeColumn),
-        '<div class="custom-scrollbar flex-1 overflow-auto">',
+        '<div class="custom-scrollbar flex-1 overflow-auto" data-table-horizontal-scroll data-table-scroll-key="data:',
+        escapeHtml(table.name),
+        '">',
         gridMarkup,
         emptyMarkup,
         '</div>',

@@ -182,6 +182,10 @@ import {
     formatTextCellCharacterCount,
     getTextCellCharacterCount,
 } from './utils/textCellStats.js';
+import {
+    captureTableHorizontalScrollState,
+    restoreTableHorizontalScrollState,
+} from './utils/tableScrollState.js';
 
 const appRoot = document.querySelector('#app');
 
@@ -1257,6 +1261,10 @@ function renderApp(state) {
 
     const focusedInput = captureFocusedInputState();
     const queryHistoryScrollState = captureQueryHistoryScrollState();
+    const tableHorizontalScrollState = captureTableHorizontalScrollState({
+        routeName: lastRenderedRouteName,
+        scrollNodes: shellRefs.view.querySelectorAll('[data-table-horizontal-scroll]'),
+    });
     const isEnteringNewTableDesignerRoute =
         state.route.name === 'tableDesigner' && state.route.params?.isNew && previousRoutePath !== state.route.path;
 
@@ -1327,6 +1335,14 @@ function renderApp(state) {
 
     if (shouldRestoreQueryHistoryScroll(queryHistoryScrollState, state)) {
         restoreQueryHistoryScrollState(queryHistoryScrollState);
+    }
+
+    if (mainChanged && !mainPatched) {
+        restoreTableHorizontalScrollState({
+            snapshot: tableHorizontalScrollState,
+            routeName: state.route.name,
+            scrollNodes: shellRefs.view.querySelectorAll('[data-table-horizontal-scroll]'),
+        });
     }
 
     if (pendingQueryEditorFocus && (state.route.name === 'editor' || state.route.name === 'editorResults')) {
