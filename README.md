@@ -13,44 +13,80 @@ Many database tools are powerful, but feel oversized when all you want is to ins
 SQLite Hub keeps that workflow sharp:
 
 - browse tables and rows
+- open existing databases or create new SQLite files with a native save dialog
+- manage recent connections with labels, custom icons, and read-only mode
+- inspect database health, storage metrics, and schema connectivity from one overview
 - filter, sort, page through, and export table data
 - inspect schema, structure, and relationships
-- edit records in place with an SQL diff preview before saving
+- edit records in place with typed value previews and an SQL diff preview before saving
 - export tables and query results as CSV, TSV, Markdown, or duplicate them as a table
 - copy result columns with formatting, headers, first-10 previews, TXT export, and Markdown todo export
 - keep database-scoped Markdown documents with previews, autosave, imports, exports, and saved-query inserts
 - switch between recent databases with sidebar quick picks
 - create simple local backups of the active database
 - run and format SQL in a syntax-highlighted editor with history, messages, and performance metrics
+- keep large interactive query results bounded while full exports remain available
 - turn query-history results into local charts
 - create and edit tables with a live SQL preview
 - stay local and move fast
 
 ## Features
 
+### Connections
+
+Open an existing SQLite file by absolute path or create a new database from the Connections view. New databases can be placed with a native save dialog, while manual path entry remains available as a fallback.
+
+Recent connections show file size, modification time, last-opened time, and access mode. Connections can be activated, relabeled, moved to another path, opened read-only, assigned a PNG/JPG/WEBP icon, reset to the default icon, or removed from the recent-connections registry without deleting the database file.
+
+### Overview
+
+The database overview combines operational and schema information for the active database:
+
+- file size, page count, table/view counts, index/trigger counts, journal mode, and foreign-key status
+- largest tables by row count and estimated size
+- database path, modification time, SQLite version, page size, freelist count, and encoding
+- schema-map statistics for foreign-key links, connected clusters, and isolated tables
+- integrity and quick-check results, access mode, user version, and schema version
+- shortcuts to the SQL Editor, Structure view, and the database location in Finder
+
 ### Structure view
 
 ![](./frontend/assets/mockups/structure.png)
 
-Inspect tables, columns, types, indexes, foreign keys, and schema details without losing pace. The graph view visualizes relationships, the table list is searchable, and SQLite Hub remembers the last selected table while you move between views.
+Inspect tables, views, indexes, triggers, columns, declared types, primary keys, nullability, foreign keys, and DDL without losing pace. The searchable object list and relationship graph support fit, relayout, selection clearing, direct navigation to table data, and a hideable inspector/sidebar. SQLite Hub remembers the last selected table while you move between views, and DDL can be copied directly from the inspector.
 
 ### Data browser
 
 ![](./frontend/assets/mockups/data.png)
 
-Scan rows, sort fast, move through local data quickly, and export full tables as CSV, TSV, or Markdown. The Data browser also supports duplicating exports as a new table, table search, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching.
+Scan rows, sort columns, move through local data quickly, and export full tables as CSV, TSV, or Markdown. The Data browser also supports duplicating exports as a new table, searchable and hideable table navigation, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching.
+
+Wide tables keep their horizontal scroll position when sorting causes the grid to re-render. Cells use compact previews for long values, BLOBs, and detected file paths, while exports retain complete BLOB content.
 
 ### Row editing
 
 ![](./frontend/assets/mockups/data_row_editor.png)
 
-Open one record, edit it in place, preview the SQL diff, then commit. SQLite Hub only enables row edits when it can target a stable row identity safely.
+Open one record, edit it in place, preview the generated SQL and changed values, then commit or delete the row with confirmation. SQLite Hub only enables row edits when it can target a stable primary-key or rowid identity safely.
+
+The Row Editor adds contextual previews without changing the stored raw value:
+
+- visible `NULL`, `EMPTY STRING`, and `VALUE` states, with untouched `NULL` values preserved on save
+- formatted JSON object and array previews with indentation and line breaks
+- full-row JSON preview with copy and `.json` export actions
+- clickable HTTP/HTTPS URL detection
+- file-path detection with filename, directory, extension, and path type
+- timestamp interpretation for plausible numeric, ISO, and SQLite datetime values while protecting key columns
+- character counts for non-empty text values
+- select controls for simple string `CHECK (... IN (...))` constraints
 
 ### SQL editor
 
 ![](./frontend/assets/mockups/sql_editor.png)
 
-Write queries in a syntax-highlighted editor, format SQL with the editor Format button, inspect results in the same workflow, and export result sets as CSV, TSV, Markdown, or duplicate them as a table. Query drafts survive reloads, query history can be searched and saved, and direct single-table `SELECT` results can be edited from the result grid.
+Write queries in a syntax-highlighted editor, execute them with the Run button or `Shift + Enter`, format SQL with the editor Format button, inspect results in the same workflow, and export result sets as CSV, TSV, Markdown, or duplicate them as a table. Query drafts survive reloads, query history can be searched and saved, and direct single-table `SELECT` results can be edited or deleted from the result grid when a stable row identity is available.
+
+Interactive result sets are limited to the first 5,000 rows to keep the application responsive. A visible notice and Messages entry indicate truncation; CSV, TSV, Markdown, and duplicate-table exports execute without that interactive row limit and include complete BLOB values. Sorting wide results preserves the horizontal scroll position.
 
 Result column menus include copy actions for a full column, a column with header, or the first 10 values. The same modal can preview the output, copy it, export it as TXT, or turn a column into Markdown todo items.
 
@@ -60,11 +96,11 @@ The bottom panel keeps separate tabs for:
 - Performance, including execution time, statement count, returned rows, affected rows, and serialized result memory size
 - Messages, including the executed query and statement updates/errors
 
-Potentially destructive statements are tracked in query history, and SQLite Hub keeps the active result tab instead of forcing you back to Results after every execution.
+Potentially destructive statements are tracked in query history, and SQLite Hub keeps the active result tab instead of forcing you back to Results after every execution. Multi-statement SQL is reported statement by statement, including returned rows, affected rows, truncation warnings, executed SQL, errors, timing, and serialized result size.
 
 ### Query history
 
-SQLite Hub stores query history per database. You can search SQL, titles, and notes; mark useful queries as saved; re-run previous queries; and execute saved queries from the CLI.
+SQLite Hub stores query history per database. You can browse recent and saved tabs, search SQL, titles, and notes, assign titles and notes, mark useful queries as saved, delete history entries, load older entries, re-run previous queries, reopen them in the editor, and execute saved queries from the CLI.
 
 ### Documents
 
@@ -78,19 +114,27 @@ The preview supports regular Markdown, ordered and unordered lists, tables, code
 
 ### Charts
 
-Create charts from chartable `SELECT` query-history entries. Charts can be saved per query, reopened later, and rendered from live query results.
+Create bar, line, pie/donut, and scatter charts from chartable `SELECT` query-history entries. Charts can be saved per query, edited, deleted, resized, reopened later, rendered from live query results, and exported as PNG. Chart configuration supports compatible column selection, sorting, labels, legends, line smoothing, scatter series, and optional scatter point sizing.
 
 ### Table Designer
 
-Create and edit SQLite tables from the UI. The Table Designer includes a searchable table list, column controls, CSV import drafting, and a live SQL preview that can be hidden or shown.
+Create and edit SQLite tables from the UI. The Table Designer includes a searchable table list, validation and migration warnings, and controls for column names, SQLite types, `NOT NULL`, `UNIQUE`, primary keys, SQL defaults, foreign-key tables/columns, and check constraints. Existing composite unique constraints are surfaced as schema metadata.
+
+CSV files can seed a new table draft and optionally fill the created table with imported rows. Every change produces a copyable live SQL preview that can be hidden or shown before the schema operation is applied.
 
 ### Media Tagging
 
-Configure a media table, tag table, and mapping table, then work through a tagging queue for image, video, and audio assets. The workflow supports preview controls, skipped items, parent tags, and applying selected tags to the current media row.
+Configure a media table, path/status columns, tag table, mapping table, and the SQL queries that drive tagged and untagged queues. SQLite Hub can create the default tag and mapping tables, validate the setup, reset default queries, and preview image, video, and audio assets from paths scoped to the active database directory.
+
+The queue supports tag search, tag creation/removal, parent tags, copying tags from the previous item, applying selected tags, skipping items, resetting skipped items, rotating visual media, hiding/showing media details, and opening the current row in Data or Structure. `Shift + Enter` applies the selected tags and advances to the next item.
 
 ### UI preferences
 
 SQLite Hub remembers common workspace preferences in local storage, including hidden panels, selected editor tabs, query drafts, chart panels, table row size, and Table Designer preview visibility.
+
+### Settings
+
+The Settings view reports the installed SQLite Hub version and the actual SQLite runtime version used to execute queries. It also keeps the custom-port CLI command, project website, and source repository available in the application.
 
 ### Database quick picks
 
@@ -102,7 +146,7 @@ Create timestamped local backups of the active SQLite database in one click. Bac
 
 ### Local-first
 
-Built around local SQLite files, not hosted dashboards or team complexity.
+Built around local SQLite files, not hosted dashboards or team complexity. The server binds explicitly to the IPv4 loopback interface, and API middleware rejects foreign hosts and cross-origin mutations while still allowing same-origin browser and local CLI requests.
 
 ## Install
 
