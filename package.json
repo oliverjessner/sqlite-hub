@@ -17,8 +17,8 @@
         "publish": "bash scripts/publish_brew.sh && sleep 10 && npm login --auth-type=web && bash scripts/publish_npm.sh"
     },
     "dependencies": {
-        "better-sqlite3": "^12.10.0",
-        "cytoscape": "^3.33.4",
+        "better-sqlite3": "^12.10.1",
+        "cytoscape": "^3.34.0",
         "cytoscape-elk": "^2.3.0",
         "dotenv": "^17.4.2",
         "echarts": "^6.1.0",
@@ -27,12 +27,12 @@
         "express-rate-limit": "^8.5.2",
         "helmet": "^8.2.0",
         "marked": "^18.0.5",
-        "material-symbols": "^0.44.9"
+        "material-symbols": "^0.45.1"
     },
     "devDependencies": {
-        "@tailwindcss/cli": "^4.3.0",
+        "@tailwindcss/cli": "^4.3.1",
         "@tailwindcss/container-queries": "^0.1.1",
         "@tailwindcss/forms": "^0.5.11",
-        "tailwindcss": "^4.3.0"
+        "tailwindcss": "^4.3.1"
     }
 }
