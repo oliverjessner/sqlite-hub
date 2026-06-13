@@ -1,6 +1,6 @@
 # sqlite-hub ⚡️
 
-![](./frontend/assets/mockups/home.png)
+[![SQLite Hub database overview](./frontend/assets/mockups/overview_1200.webp)](./frontend/assets/mockups/overview_1200.webp)
 
 A focused local-first app for browsing, editing, and querying SQLite databases.
 
@@ -34,6 +34,8 @@ SQLite Hub keeps that workflow sharp:
 
 ### Connections
 
+[![SQLite Hub connections](./frontend/assets/mockups/connections_1200.webp)](./frontend/assets/mockups/connections_1200.webp)
+
 Open an existing SQLite file by absolute path or create a new database from the Connections view. New databases can be placed with a native save dialog, while manual path entry remains available as a fallback.
 
 Recent connections show file size, modification time, last-opened time, and access mode. Connections can be activated, relabeled, moved to another path, opened read-only, assigned a PNG/JPG/WEBP icon, reset to the default icon, or removed from the recent-connections registry without deleting the database file.
@@ -51,13 +53,16 @@ The database overview combines operational and schema information for the active
 
 ### Structure view
 
-![](./frontend/assets/mockups/structure.png)
+<p>
+  <a href="./frontend/assets/mockups/structure_1_1200.webp"><img src="./frontend/assets/mockups/structure_1_1200.webp" alt="SQLite Hub relationship graph" width="49%"></a>
+  <a href="./frontend/assets/mockups/structure_2_inspector_1200.webp"><img src="./frontend/assets/mockups/structure_2_inspector_1200.webp" alt="SQLite Hub structure inspector" width="49%"></a>
+</p>
 
 Inspect tables, views, indexes, triggers, columns, declared types, primary keys, nullability, foreign keys, and DDL without losing pace. The searchable object list and relationship graph support fit, relayout, selection clearing, direct navigation to table data, and a hideable inspector/sidebar. SQLite Hub remembers the last selected table while you move between views, and DDL can be copied directly from the inspector.
 
 ### Data browser
 
-![](./frontend/assets/mockups/data.png)
+[![SQLite Hub data browser](./frontend/assets/mockups/data_1_1200.webp)](./frontend/assets/mockups/data_1_1200.webp)
 
 Scan rows, sort columns, move through local data quickly, and export full tables as CSV, TSV, or Markdown. The Data browser also supports duplicating exports as a new table, searchable and hideable table navigation, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching.
 
@@ -65,7 +70,7 @@ Wide tables keep their horizontal scroll position when sorting causes the grid t
 
 ### Row editing
 
-![](./frontend/assets/mockups/data_row_editor.png)
+[![SQLite Hub row editor](./frontend/assets/mockups/data_2_row_editor_1200.webp)](./frontend/assets/mockups/data_2_row_editor_1200.webp)
 
 Open one record, edit it in place, preview the generated SQL and changed values, then commit or delete the row with confirmation. SQLite Hub only enables row edits when it can target a stable primary-key or rowid identity safely.
 
@@ -82,13 +87,20 @@ The Row Editor adds contextual previews without changing the stored raw value:
 
 ### SQL editor
 
-![](./frontend/assets/mockups/sql_editor.png)
+[![SQLite Hub SQL editor](./frontend/assets/mockups/sql_editor_1_1200.webp)](./frontend/assets/mockups/sql_editor_1_1200.webp)
 
 Write queries in a syntax-highlighted editor, execute them with the Run button or `Shift + Enter`, format SQL with the editor Format button, inspect results in the same workflow, and export result sets as CSV, TSV, Markdown, or duplicate them as a table. Query drafts survive reloads, query history can be searched and saved, and direct single-table `SELECT` results can be edited or deleted from the result grid when a stable row identity is available.
 
 Interactive result sets are limited to the first 5,000 rows to keep the application responsive. A visible notice and Messages entry indicate truncation; CSV, TSV, Markdown, and duplicate-table exports execute without that interactive row limit and include complete BLOB values. Sorting wide results preserves the horizontal scroll position.
 
+[![SQLite Hub query export](./frontend/assets/mockups/sql_editor_5_export_query_result_1200.webp)](./frontend/assets/mockups/sql_editor_5_export_query_result_1200.webp)
+
 Result column menus include copy actions for a full column, a column with header, or the first 10 values. The same modal can preview the output, copy it, export it as TXT, or turn a column into Markdown todo items.
+
+<p>
+  <a href="./frontend/assets/mockups/sql_editor_3_export_column_1200.webp"><img src="./frontend/assets/mockups/sql_editor_3_export_column_1200.webp" alt="SQLite Hub copy column dialog" width="49%"></a>
+  <a href="./frontend/assets/mockups/sql_editor_4_export_column_as_markdown_1200.webp"><img src="./frontend/assets/mockups/sql_editor_4_export_column_as_markdown_1200.webp" alt="SQLite Hub Markdown todo export" width="49%"></a>
+</p>
 
 The bottom panel keeps separate tabs for:
 
@@ -100,9 +112,13 @@ Potentially destructive statements are tracked in query history, and SQLite Hub 
 
 ### Query history
 
+[![SQLite Hub query history details](./frontend/assets/mockups/sql_editor_2_query_details_1200.webp)](./frontend/assets/mockups/sql_editor_2_query_details_1200.webp)
+
 SQLite Hub stores query history per database. You can browse recent and saved tabs, search SQL, titles, and notes, assign titles and notes, mark useful queries as saved, delete history entries, load older entries, re-run previous queries, reopen them in the editor, and execute saved queries from the CLI.
 
 ### Documents
+
+[![SQLite Hub Markdown documents](./frontend/assets/mockups/documents_1200.webp)](./frontend/assets/mockups/documents_1200.webp)
 
 Documents are local Markdown notes scoped to the active database. SQLite Hub creates a document folder per database, keeps the sidebar fixed while the editor and preview panes scroll independently, and autosaves changes after a short debounce. You can create, rename, delete, import `.md` files, export the current document as Markdown, and toggle the editor or preview pane as needed.
 
@@ -114,25 +130,45 @@ The preview supports regular Markdown, ordered and unordered lists, tables, code
 
 ### Charts
 
+[![SQLite Hub bar chart](./frontend/assets/mockups/charts_1_bars_1200.webp)](./frontend/assets/mockups/charts_1_bars_1200.webp)
+
 Create bar, line, pie/donut, and scatter charts from chartable `SELECT` query-history entries. Charts can be saved per query, edited, deleted, resized, reopened later, rendered from live query results, and exported as PNG. Chart configuration supports compatible column selection, sorting, labels, legends, line smoothing, scatter series, and optional scatter point sizing.
 
+<p>
+  <a href="./frontend/assets/mockups/charts_2_pie_1200.webp"><img src="./frontend/assets/mockups/charts_2_pie_1200.webp" alt="SQLite Hub pie chart" width="49%"></a>
+  <a href="./frontend/assets/mockups/charts_3_scatter_plot_1200.webp"><img src="./frontend/assets/mockups/charts_3_scatter_plot_1200.webp" alt="SQLite Hub scatter plot" width="49%"></a>
+</p>
+
 ### Table Designer
+
+[![SQLite Hub Table Designer](./frontend/assets/mockups/table_designer_1_1200.webp)](./frontend/assets/mockups/table_designer_1_1200.webp)
 
 Create and edit SQLite tables from the UI. The Table Designer includes a searchable table list, validation and migration warnings, and controls for column names, SQLite types, `NOT NULL`, `UNIQUE`, primary keys, SQL defaults, foreign-key tables/columns, and check constraints. Existing composite unique constraints are surfaced as schema metadata.
 
 CSV files can seed a new table draft and optionally fill the created table with imported rows. Every change produces a copyable live SQL preview that can be hidden or shown before the schema operation is applied.
 
+[![SQLite Hub Table Designer checks](./frontend/assets/mockups/table_designer_2_checks_1200.webp)](./frontend/assets/mockups/table_designer_2_checks_1200.webp)
+
 ### Media Tagging
+
+[![SQLite Hub Media Tagging setup](./frontend/assets/mockups/media_tagging_1_setup_1200.webp)](./frontend/assets/mockups/media_tagging_1_setup_1200.webp)
 
 Configure a media table, path/status columns, tag table, mapping table, and the SQL queries that drive tagged and untagged queues. SQLite Hub can create the default tag and mapping tables, validate the setup, reset default queries, and preview image, video, and audio assets from paths scoped to the active database directory.
 
 The queue supports tag search, tag creation/removal, parent tags, copying tags from the previous item, applying selected tags, skipping items, resetting skipped items, rotating visual media, hiding/showing media details, and opening the current row in Data or Structure. `Shift + Enter` applies the selected tags and advances to the next item.
+
+<p>
+  <a href="./frontend/assets/mockups/media_tagging_2_tagging_queue_1200.webp"><img src="./frontend/assets/mockups/media_tagging_2_tagging_queue_1200.webp" alt="SQLite Hub tagging queue" width="49%"></a>
+  <a href="./frontend/assets/mockups/media_tagging_3_media_viewer_1200.webp"><img src="./frontend/assets/mockups/media_tagging_3_media_viewer_1200.webp" alt="SQLite Hub media viewer" width="49%"></a>
+</p>
 
 ### UI preferences
 
 SQLite Hub remembers common workspace preferences in local storage, including hidden panels, selected editor tabs, query drafts, chart panels, table row size, and Table Designer preview visibility.
 
 ### Settings
+
+[![SQLite Hub settings](./frontend/assets/mockups/settings_1200.webp)](./frontend/assets/mockups/settings_1200.webp)
 
 The Settings view reports the installed SQLite Hub version and the actual SQLite runtime version used to execute queries. It also keeps the custom-port CLI command, project website, and source repository available in the application.
 
@@ -324,9 +360,7 @@ Legacy aliases such as `--database-path:name`, `--database-size:name`, `--databa
 
 ### SQL editor CLI example
 
-![](/frontend/assets/mockups/sql_editor_croped.png)
-
-In the screenshot above, you can see a saved query from the SQL editor. You can create these queries using the graphical interface and execute them via the CLI if you want. To execute one, you would run:
+Saved queries created in the graphical SQL Editor can also be executed through the CLI. To execute one, run:
 
 ```bash
 sqlite-hub --database:Unit-00 --execute:"Group by creation Year"
