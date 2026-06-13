@@ -74,10 +74,6 @@ function formatPreviewValue(value) {
 }
 
 function isUnchangedSubmittedValue(currentValue, submittedValue) {
-  if (currentValue === null && submittedValue === "") {
-    return true;
-  }
-
   return formatPreviewValue(currentValue) === formatPreviewValue(submittedValue);
 }
 

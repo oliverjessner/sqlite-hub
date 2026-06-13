@@ -605,6 +605,7 @@ export function renderDataRowEditorPanel(state) {
                 ...getColumnNumberInputMeta(column),
                 allowedValues: column.allowedValues ?? [],
                 notNull: Boolean(column.notNull),
+                rawValue: value,
                 value: value === null || value === undefined ? '' : String(value),
             };
         }),

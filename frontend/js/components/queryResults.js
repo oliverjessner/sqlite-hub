@@ -125,6 +125,15 @@ export function renderQueryResultsPane(
 
   return `
     <div class="relative flex h-full min-h-0 flex-col overflow-hidden bg-surface-container">
+      ${
+        result.truncated
+          ? `
+              <div class="border-b border-primary-container/20 bg-primary-container/10 px-4 py-2 text-xs text-on-surface">
+                Showing the first ${escapeHtml(String(result.rowLimit ?? result.rows?.length ?? 0))} rows. Refine the query or export it to process the complete result set.
+              </div>
+            `
+          : ""
+      }
       <div
         class="custom-scrollbar min-h-0 flex-1 overflow-auto bg-surface-container-lowest"
         ${

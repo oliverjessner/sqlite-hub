@@ -3,6 +3,11 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const path = require("node:path");
 const { errorMiddleware } = require("./utils/errors");
+const {
+  LOOPBACK_HOST,
+  listenOnLoopback,
+  localRequestSecurity,
+} = require("./middleware/localRequestSecurity");
 const { resolveAppStatePaths } = require("./utils/appPaths");
 const { AppStateStore } = require("./services/storage/appStateStore");
 const { ConnectionManager } = require("./services/sqlite/connectionManager");
@@ -10,6 +15,7 @@ const { OverviewService } = require("./services/sqlite/overviewService");
 const { SqlExecutor } = require("./services/sqlite/sqlExecutor");
 const { ImportService } = require("./services/sqlite/importService");
 const { BackupService } = require("./services/sqlite/backupService");
+const { NativeFileDialogService } = require("./services/nativeFileDialogService");
 const { ExportService } = require("./services/sqlite/exportService");
 const { StructureService } = require("./services/sqlite/structureService");
 const { DataBrowserService } = require("./services/sqlite/dataBrowserService");
@@ -37,6 +43,7 @@ const {
   legacyDatabasePaths: LEGACY_DATABASE_PATHS,
 } = resolveAppStatePaths(PACKAGE_ROOT);
 const DEFAULT_PORT = 4173;
+const DEFAULT_HOST = LOOPBACK_HOST;
 
 const appStateStore = new AppStateStore(APP_STATE_DB_PATH, {
   legacyFilePath: LEGACY_STATE_PATH,
@@ -47,6 +54,7 @@ const overviewService = new OverviewService({ connectionManager });
 const sqlExecutor = new SqlExecutor({ connectionManager, appStateStore });
 const importService = new ImportService({ connectionManager });
 const backupService = new BackupService({ connectionManager });
+const nativeFileDialogService = new NativeFileDialogService();
 const exportService = new ExportService({
   appStateStore,
   connectionManager,
@@ -66,6 +74,7 @@ app.use(
     contentSecurityPolicy: false,
   })
 );
+app.use("/api", localRequestSecurity);
 app.use(
   "/api",
   rateLimit({
@@ -97,6 +106,7 @@ app.use(
     connectionManager,
     importService,
     backupService,
+    nativeFileDialogService,
   })
 );
 app.use("/api/db", createOverviewRouter({ overviewService }));
@@ -191,7 +201,7 @@ function startServer({ port } = {}) {
   const resolvedPort = resolvePort(port);
 
   return new Promise((resolve, reject) => {
-    const server = app.listen(resolvedPort);
+    const server = listenOnLoopback(app, resolvedPort);
 
     server.once("error", reject);
     server.once("listening", () => {
@@ -218,6 +228,7 @@ module.exports = {
   app,
   appStateStore,
   connectionManager,
+  DEFAULT_HOST,
   DEFAULT_PORT,
   parsePortArgument,
   resolvePort,

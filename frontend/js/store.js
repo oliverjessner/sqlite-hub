@@ -3490,6 +3490,16 @@ export async function submitCreateConnection(payload) {
     }
 }
 
+export async function chooseCreateDatabasePath() {
+    try {
+        const response = await api.chooseCreateDatabasePath();
+        return response.data?.path ?? null;
+    } catch (error) {
+        pushToast(normalizeError(error).message || 'Native file dialog could not be opened.', 'alert');
+        return null;
+    }
+}
+
 export async function submitImportSql(payload) {
     startModalSubmission();
 
@@ -5303,11 +5313,13 @@ export function getQueryMessages(snapshot = state) {
 
     return [
         ...snapshot.editor.result.statements.map(statement => ({
-            tone: statement.kind === 'resultSet' ? 'success' : inferStatusTone(statement.keyword),
+            tone: statement.kind === 'resultSet' && statement.truncated ? 'warning' : statement.kind === 'resultSet' ? 'success' : inferStatusTone(statement.keyword),
             label: `${statement.keyword} #${statement.index + 1}`,
             value:
                 statement.kind === 'resultSet'
-                    ? `${statement.rowCount} row(s) returned.`
+                    ? statement.truncated
+                        ? `Showing the first ${statement.rowCount} row(s); the result was limited to ${statement.rowLimit}.`
+                        : `${statement.rowCount} row(s) returned.`
                     : `${statement.changes} row(s) affected.`,
         })),
         ...queryMessages,

@@ -91,6 +91,8 @@ class ExportService {
         })
     );
     const result = this.sqlExecutor.execute(sql, {
+      blobMode: "full",
+      maxRows: null,
       persistHistory: false,
       requireReader: true,
     });
@@ -132,7 +134,9 @@ class ExportService {
         .filter(Boolean)
         .join(" ")
     );
-    const rows = serializeRows(statement.all(...(filter?.params ?? [])));
+    const rows = serializeRows(statement.all(...(filter?.params ?? [])), {
+      blobMode: "full",
+    });
     const columns = statement.columns().map((column) => column.name);
     const content = renderExportContent({
       columns,

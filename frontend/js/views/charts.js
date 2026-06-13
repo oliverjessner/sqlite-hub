@@ -220,6 +220,14 @@ function renderQueryResultState(state, result) {
     `;
     }
 
+    if (result.truncated) {
+        return `
+      <div class="border-b border-primary-container/20 bg-primary-container/10 px-4 py-3 text-sm text-on-surface">
+        Charts use the first ${escapeHtml(String(result.rowLimit ?? result.rows?.length ?? 0))} rows. Refine the query for a complete visualization.
+      </div>
+    `;
+    }
+
     return '';
 }
 

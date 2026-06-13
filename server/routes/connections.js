@@ -1,7 +1,7 @@
 const express = require("express");
 const { route, successResponse } = require("../utils/errors");
 
-function createConnectionsRouter({ connectionManager, importService, backupService }) {
+function createConnectionsRouter({ connectionManager, importService, backupService, nativeFileDialogService }) {
   const router = express.Router();
 
   router.post(
@@ -37,6 +37,23 @@ function createConnectionsRouter({ connectionManager, importService, backupServi
           message: "SQLite database created successfully.",
           data: connection,
           readOnly: connection.readOnly,
+        })
+      );
+    })
+  );
+
+  router.post(
+    "/choose-create-path",
+    route(async (req, res) => {
+      const selectedPath = await nativeFileDialogService.chooseCreateDatabasePath();
+
+      res.json(
+        successResponse({
+          message: selectedPath ? "Database path selected." : "File selection cancelled.",
+          data: {
+            cancelled: !selectedPath,
+            path: selectedPath,
+          },
         })
       );
     })

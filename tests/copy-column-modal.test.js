@@ -81,3 +81,17 @@ test("modal footer close buttons are not right-aligned", () => {
     /'<div class="[^']*justify-end[^']*pt-2[^']*>'[\s\S]{0,500}?data-action="close-modal"/
   );
 });
+
+test("create database modal offers a native path picker and manual fallback", async () => {
+  const { renderCreateDatabaseForm } = await loadModalModule();
+  const html = renderCreateDatabaseForm({
+    kind: "create-connection",
+    error: null,
+    submitting: false,
+  });
+
+  assert.match(html, /data-action="choose-create-database-path"/);
+  assert.match(html, /data-create-database-path/);
+  assert.match(html, /name="path"/);
+  assert.match(html, /enter an absolute path manually/);
+});

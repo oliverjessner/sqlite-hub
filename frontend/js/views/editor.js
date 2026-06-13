@@ -234,6 +234,7 @@ function renderEditorRowPanel(state) {
                 badges: getEditorColumnBadges(column),
                 allowedValues: column.allowedValues ?? [],
                 notNull: Boolean(column.notNull),
+                rawValue: value,
                 value: value === null || value === undefined ? '' : String(value),
             };
         }),

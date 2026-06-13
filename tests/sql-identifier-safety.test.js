@@ -114,7 +114,8 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
         "UPDATE",
         quoteIdentifier(tableName),
         "SET",
-        quoteIdentifier(valueColumn) + " = ?",
+        quoteIdentifier(valueColumn) + " = ?,",
+        quoteIdentifier(noteColumn) + " = ?",
         "WHERE",
         "rowid IS ?",
       ].join(" ")
@@ -124,6 +125,11 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
         column: valueColumn,
         oldValue: "before",
         newValue: "after",
+      },
+      {
+        column: noteColumn,
+        oldValue: "NULL",
+        newValue: "",
       },
     ]);
 
@@ -136,7 +142,7 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
     });
 
     assert.equal(updated.row[valueColumn], "after");
-    assert.equal(updated.row[noteColumn], null);
+    assert.equal(updated.row[noteColumn], "");
     const persistedRow = db.prepare(
       [
         "SELECT",
@@ -148,7 +154,7 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
     ).get();
 
     assert.equal(persistedRow[valueColumn], "after");
-    assert.equal(persistedRow[noteColumn], null);
+    assert.equal(persistedRow[noteColumn], "");
 
     const deleted = service.deleteTableRow(tableName, {
       identity: updated.row.__identity,

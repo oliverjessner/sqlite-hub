@@ -2,6 +2,45 @@ const { ValidationError, mapSqliteError } = require("../../utils/errors");
 const { serializeRows } = require("../../utils/sqliteTypes");
 const { getTableDetail } = require("./introspection");
 
+const DEFAULT_RESULT_ROW_LIMIT = 5000;
+
+function normalizeResultRowLimit(value) {
+  if (value === null || value === false) {
+    return null;
+  }
+
+  const normalized = value === undefined ? DEFAULT_RESULT_ROW_LIMIT : Number(value);
+
+  if (!Number.isInteger(normalized) || normalized < 1) {
+    throw new ValidationError("SQL result row limit must be a positive integer or null.");
+  }
+
+  return normalized;
+}
+
+function readResultRows(prepared, rowLimit) {
+  if (rowLimit === null) {
+    return {
+      rows: prepared.all(),
+      truncated: false,
+    };
+  }
+
+  const rows = [];
+  let truncated = false;
+
+  for (const row of prepared.iterate()) {
+    if (rows.length >= rowLimit) {
+      truncated = true;
+      break;
+    }
+
+    rows.push(row);
+  }
+
+  return { rows, truncated };
+}
+
 function getSerializedMemoryBytes(value) {
   try {
     return Buffer.byteLength(JSON.stringify(value ?? null), "utf8");
@@ -365,6 +404,7 @@ class SqlExecutor {
     const db = this.connectionManager.getActiveDatabase();
     const connection = this.connectionManager.getActiveConnection();
     const statements = splitSqlStatements(sql);
+    const rowLimit = normalizeResultRowLimit(options.maxRows);
 
     if (statements.length === 0) {
       throw new ValidationError("No executable SQL statements were found.");
@@ -386,9 +426,11 @@ class SqlExecutor {
         }
 
         if (prepared.reader) {
-          const rows = prepared.all();
+          const { rows, truncated } = readResultRows(prepared, rowLimit);
           const columnDefinitions = prepared.columns();
-          const serializedRows = serializeRows(rows);
+          const serializedRows = serializeRows(rows, {
+            blobMode: options.blobMode,
+          });
           const editableResult = resolveEditableResult(db, columnDefinitions, serializedRows);
           const columns = columnDefinitions.map((column) => column.name);
           const result = {
@@ -397,6 +439,8 @@ class SqlExecutor {
             keyword,
             kind: "resultSet",
             rowCount: serializedRows.length,
+            truncated,
+            rowLimit,
             columns,
             rows: editableResult?.rows ?? serializedRows,
             editing: editableResult
@@ -463,6 +507,8 @@ class SqlExecutor {
       rows: lastResultSet?.rows ?? [],
       columns: lastResultSet?.columns ?? [],
       editing: lastResultSet?.editing ?? null,
+      truncated: Boolean(lastResultSet?.truncated),
+      rowLimit: lastResultSet ? lastResultSet.rowLimit : null,
       affectedRowCount: totalChanges,
       resultKind: lastResultSet ? "resultSet" : results.at(-1)?.kind ?? "unknown",
     };
@@ -490,6 +536,9 @@ class SqlExecutor {
 }
 
 module.exports = {
+  DEFAULT_RESULT_ROW_LIMIT,
   SqlExecutor,
+  normalizeResultRowLimit,
+  readResultRows,
   splitSqlStatements,
 };

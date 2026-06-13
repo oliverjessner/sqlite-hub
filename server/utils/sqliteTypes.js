@@ -37,7 +37,16 @@ function normalizeDeclaredType(type) {
   return { declaredType, affinity: "NUMERIC" };
 }
 
-function serializeBlob(buffer) {
+function serializeBlob(buffer, options = {}) {
+  if (options.blobMode === "full") {
+    return {
+      __type: "blob",
+      sizeBytes: buffer.length,
+      encoding: "base64",
+      data: buffer.toString("base64"),
+    };
+  }
+
   return {
     __type: "blob",
     sizeBytes: buffer.length,
@@ -46,26 +55,26 @@ function serializeBlob(buffer) {
   };
 }
 
-function serializeSqliteValue(value) {
+function serializeSqliteValue(value, options = {}) {
   if (Buffer.isBuffer(value)) {
-    return serializeBlob(value);
+    return serializeBlob(value, options);
   }
 
   if (value instanceof Uint8Array) {
-    return serializeBlob(Buffer.from(value));
+    return serializeBlob(Buffer.from(value), options);
   }
 
   return value;
 }
 
-function serializeRow(row) {
+function serializeRow(row, options = {}) {
   return Object.fromEntries(
-    Object.entries(row).map(([key, value]) => [key, serializeSqliteValue(value)])
+    Object.entries(row).map(([key, value]) => [key, serializeSqliteValue(value, options)])
   );
 }
 
-function serializeRows(rows) {
-  return rows.map((row) => serializeRow(row));
+function serializeRows(rows, options = {}) {
+  return rows.map((row) => serializeRow(row, options));
 }
 
 function decodeBlobPayload(payload) {

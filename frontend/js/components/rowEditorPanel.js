@@ -13,6 +13,10 @@ import {
   getTextCellCharacterCount,
 } from "../utils/textCellStats.js";
 import { formatJsonPreview } from "../utils/jsonPreview.js";
+import {
+  getRowEditorValueState,
+  getRowEditorValueStateLabel,
+} from "../utils/rowEditorValues.js";
 
 const URL_PATTERN = /^https?:\/\/[^\s<>"']+$/i;
 
@@ -92,7 +96,7 @@ function renderOpenUrlButton(url) {
   }
 
   return `
-    <div class="mt-2">
+    <div class="mt-2" data-row-editor-url-action>
       <button
         class="standard-button"
         data-action="open-row-editor-url"
@@ -114,7 +118,7 @@ function renderAllowedValuesSelect(field, allowedValues) {
     currentValue !== "" && !hasCurrentAllowedValue;
   const options = [
     shouldRenderEmptyOption
-      ? `<option value="" ${currentValue === "" ? "selected" : ""}>NULL / empty</option>`
+      ? `<option value="" ${currentValue === "" ? "selected" : ""}>Empty string</option>`
       : "",
     shouldRenderCurrentOption
       ? `<option value="${escapeHtml(currentValue)}" selected>${escapeHtml(currentValue)}</option>`
@@ -133,6 +137,7 @@ function renderAllowedValuesSelect(field, allowedValues) {
       data-row-editor-initial-value="${escapeHtml(currentValue)}"
       data-row-editor-text-source
       data-row-editor-timestamp-source
+      data-row-editor-value-source
       name="field:${escapeHtml(field.name)}"
     >
       ${options}
@@ -275,6 +280,7 @@ function renderReadonlyField(field = {}, tableMeta = {}) {
   const badges = withFilePathBadge(withUrlBadge(Array.isArray(label?.badges) ? label.badges : [], url), filePathPreview);
   const displayLabel = typeof label === "object" ? label.label : label;
   const jsonPreview = formatJsonPreview(value);
+  const valueState = getRowEditorValueState(rawValue);
 
   return `
     <div
@@ -288,6 +294,7 @@ function renderReadonlyField(field = {}, tableMeta = {}) {
       <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
         <span>${escapeHtml(displayLabel)}</span>
         ${renderFieldBadgesWithCharacterCount(badges, rawValue)}
+        ${renderValueStateBadge(valueState)}
       </div>
       ${
         jsonPreview
@@ -298,6 +305,28 @@ function renderReadonlyField(field = {}, tableMeta = {}) {
       ${renderFilePathPreview({ ...field, rawValue }, tableMeta)}
       ${renderOpenUrlButton(url)}
     </div>
+  `;
+}
+
+function getValueStateBadgeClassName(state) {
+  if (state === "null") {
+    return "border-primary-container/35 bg-primary-container/15 text-primary-container";
+  }
+
+  if (state === "empty") {
+    return "border-outline-variant/35 bg-surface-container-high text-on-surface-variant";
+  }
+
+  return "border-outline-variant/20 bg-surface-container text-on-surface-variant";
+}
+
+function renderValueStateBadge(state) {
+  return `
+    <span
+      class="border px-2 py-1 text-[9px] ${getValueStateBadgeClassName(state)}"
+      data-row-editor-value-state
+      data-value-state="${escapeHtml(state)}"
+    >${escapeHtml(getRowEditorValueStateLabel(state))}</span>
   `;
 }
 
@@ -312,22 +341,25 @@ function renderEditableField(field, tableMeta = {}) {
   const jsonPreview = formatJsonPreview(field.value);
   const inputType = field.inputType === "number" ? "number" : "text";
   const numberStep = field.numberStep === "1" ? "1" : "any";
+  const valueState = getRowEditorValueState(getFieldRawValue(field));
 
   return `
     <div
       class="block space-y-2"
       data-row-editor-column-name="${escapeHtml(columnName)}"
       data-row-editor-field
+      data-row-editor-initial-state="${escapeHtml(valueState)}"
       data-row-editor-protected-key="${protectedKeyColumn ? "true" : "false"}"
       ${url ? "data-row-editor-url-field" : ""}
     >
       <span class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
         <span>${escapeHtml(field.label ?? field.name)}</span>
         ${renderFieldBadgesWithCharacterCount(badges, inputType === "number" ? null : field.value ?? "")}
+        ${renderValueStateBadge(valueState)}
       </span>
       ${
         jsonPreview
-          ? renderJsonViewer(jsonPreview, "JSON Preview")
+          ? `<div data-row-editor-json-preview-container>${renderJsonViewer(jsonPreview, "JSON Preview")}</div>`
           : ""
       }
       ${
@@ -339,6 +371,7 @@ function renderEditableField(field, tableMeta = {}) {
                 class="w-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
                 data-row-editor-initial-value="${escapeHtml(field.value ?? "")}"
                 data-row-editor-timestamp-source
+                data-row-editor-value-source
                 name="field:${escapeHtml(field.name)}"
                 step="${escapeHtml(numberStep)}"
                 type="number"
@@ -352,6 +385,7 @@ function renderEditableField(field, tableMeta = {}) {
                 data-row-editor-initial-value="${escapeHtml(field.value ?? "")}"
                 data-row-editor-text-source
                 data-row-editor-timestamp-source
+                data-row-editor-value-source
                 name="field:${escapeHtml(field.name)}"
                 data-row-editor-url-input
                 spellcheck="false"
@@ -368,6 +402,7 @@ function renderEditableField(field, tableMeta = {}) {
                 data-row-editor-initial-value="${escapeHtml(field.value ?? "")}"
                 data-row-editor-text-source
                 data-row-editor-timestamp-source
+                data-row-editor-value-source
                 name="field:${escapeHtml(field.name)}"
                 spellcheck="false"
               >${escapeHtml(field.value ?? "")}</textarea>

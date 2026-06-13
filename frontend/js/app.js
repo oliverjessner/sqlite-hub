@@ -24,6 +24,7 @@ import { renderTopNav } from './components/topNav.js';
 import { createRouter } from './router.js';
 import {
     createActiveConnectionBackup,
+    chooseCreateDatabasePath,
     createDocument,
     createDocumentFromMarkdownExport,
     clearCurrentQuery,
@@ -178,6 +179,11 @@ import {
     stringifyRowEditorJson,
 } from './utils/rowEditorJson.js';
 import { getTimestampPreviewForField } from './utils/timestampPreview.js';
+import {
+    buildRowEditorSubmittedValues,
+    getRowEditorValueState,
+    getRowEditorValueStateLabel,
+} from './utils/rowEditorValues.js';
 import {
     formatTextCellCharacterCount,
     getTextCellCharacterCount,
@@ -1588,6 +1594,53 @@ function syncRowEditorFilePathPreview(inputNode) {
     previewNode.hidden = false;
 }
 
+function getRowEditorValueStateClassName(state) {
+    if (state === 'null') {
+        return 'border px-2 py-1 text-[9px] border-primary-container/35 bg-primary-container/15 text-primary-container';
+    }
+
+    if (state === 'empty') {
+        return 'border px-2 py-1 text-[9px] border-outline-variant/35 bg-surface-container-high text-on-surface-variant';
+    }
+
+    return 'border px-2 py-1 text-[9px] border-outline-variant/20 bg-surface-container text-on-surface-variant';
+}
+
+function syncRowEditorValueState(controlNode) {
+    const fieldNode = controlNode.closest('[data-row-editor-field]');
+    const valueInput = fieldNode?.querySelector('[data-row-editor-value-source]');
+    const stateBadge = fieldNode?.querySelector('[data-row-editor-value-state]');
+
+    if (!fieldNode || !valueInput || !stateBadge) {
+        return;
+    }
+
+    const valueState = getRowEditorValueState(valueInput.value);
+
+    valueInput.dataset.rowEditorDirty = 'true';
+    stateBadge.dataset.valueState = valueState;
+    stateBadge.className = getRowEditorValueStateClassName(valueState);
+    stateBadge.textContent = getRowEditorValueStateLabel(valueState);
+
+    syncRowEditorTimestampPreview(valueInput);
+    syncRowEditorFilePathPreview(valueInput);
+    syncRowEditorCharacterCount(valueInput);
+}
+
+function getRowEditorFieldMetadata(form) {
+    return Object.fromEntries(
+        Array.from(form.elements)
+            .filter(element => element.name?.startsWith('field:'))
+            .map(element => [
+                element.name.slice('field:'.length),
+                {
+                    initialState: element.closest('[data-row-editor-field]')?.dataset?.rowEditorInitialState,
+                    dirty: element.dataset.rowEditorDirty === 'true',
+                },
+            ]),
+    );
+}
+
 function closeCopyColumnMenus(exceptMenu = null) {
     document.querySelectorAll('[data-copy-column-menu][open]').forEach(menu => {
         if (menu !== exceptMenu && menu instanceof HTMLDetailsElement) {
@@ -1748,21 +1801,24 @@ function applyChangedRowEditorFormValues(rowObject) {
 
     const nextRowObject = { ...rowObject };
     const formData = new FormData(form);
+    const submittedValues = buildRowEditorSubmittedValues(formData, getRowEditorFieldMetadata(form));
 
-    for (const [key, value] of formData.entries()) {
-        if (!key.startsWith('field:')) {
-            continue;
-        }
-
+    for (const [fieldName, value] of Object.entries(submittedValues)) {
+        const key = `field:${fieldName}`;
         const control = Array.from(form.elements).find(element => element.name === key);
         const initialValue = control?.dataset?.rowEditorInitialValue;
-        const currentValue = String(value ?? '');
+        const initialState = control?.closest('[data-row-editor-field]')?.dataset?.rowEditorInitialState;
+        const currentState = getRowEditorValueState(value);
+        const currentValue = value === null ? null : String(value);
 
-        if (initialValue !== undefined && currentValue === initialValue) {
+        if (
+            initialState === currentState &&
+            (currentState === 'null' || (initialValue !== undefined && currentValue === initialValue))
+        ) {
             continue;
         }
 
-        nextRowObject[key.slice('field:'.length)] = currentValue;
+        nextRowObject[fieldName] = currentValue;
     }
 
     return nextRowObject;
@@ -2125,6 +2181,33 @@ async function handleAction(actionNode) {
         case 'edit-connection':
             openEditConnectionModal(actionNode.dataset.connectionId);
             return;
+        case 'choose-create-database-path': {
+            const labelNode = actionNode.querySelector('[data-create-database-path-button-label]');
+
+            actionNode.setAttribute('disabled', '');
+            if (labelNode) {
+                labelNode.textContent = 'Choosing...';
+            }
+
+            const selectedPath = await chooseCreateDatabasePath();
+            const pathInput = document.querySelector(
+                '[data-form="create-connection"] [data-create-database-path]',
+            );
+
+            if (selectedPath && pathInput instanceof HTMLInputElement) {
+                pathInput.value = selectedPath;
+                pathInput.focus({ preventScroll: true });
+                pathInput.setSelectionRange(pathInput.value.length, pathInput.value.length);
+            }
+
+            if (actionNode.isConnected) {
+                actionNode.removeAttribute('disabled');
+                if (labelNode) {
+                    labelNode.textContent = 'Browse...';
+                }
+            }
+            return;
+        }
         case 'close-modal':
             closeModal();
             return;
@@ -2705,6 +2788,7 @@ document.addEventListener('keydown', event => {
 
 document.addEventListener('input', event => {
     const target = event.target instanceof Element ? event.target : null;
+    const valueInput = target?.closest('[data-row-editor-value-source]');
     const timestampInput = target?.closest('[data-row-editor-timestamp-source]');
     const textCellInput = target?.closest('[data-row-editor-text-source]');
 
@@ -2715,6 +2799,10 @@ document.addEventListener('input', event => {
 
     if (textCellInput) {
         syncRowEditorCharacterCount(textCellInput);
+    }
+
+    if (valueInput) {
+        syncRowEditorValueState(valueInput);
     }
 
     const bindNode = event.target.closest('[data-bind]');
@@ -2861,6 +2949,7 @@ document.addEventListener(
 
 document.addEventListener('change', event => {
     const target = event.target instanceof Element ? event.target : null;
+    const valueControl = target?.closest('[data-row-editor-value-source]');
     const timestampInput = target?.closest('[data-row-editor-timestamp-source]');
     const textCellInput = target?.closest('[data-row-editor-text-source]');
 
@@ -2871,6 +2960,10 @@ document.addEventListener('change', event => {
 
     if (textCellInput) {
         syncRowEditorCharacterCount(textCellInput);
+    }
+
+    if (valueControl) {
+        syncRowEditorValueState(valueControl);
     }
 
     const bindNode = event.target.closest('[data-bind]');
@@ -3142,15 +3235,7 @@ document.addEventListener('submit', async event => {
             await submitCopyColumnModal(formData);
             return;
         case 'save-data-row': {
-            const values = {};
-
-            for (const [key, value] of formData.entries()) {
-                if (!key.startsWith('field:')) {
-                    continue;
-                }
-
-                values[key.slice('field:'.length)] = String(value ?? '');
-            }
+            const values = buildRowEditorSubmittedValues(formData, getRowEditorFieldMetadata(form));
 
             let rowIdentity = null;
             const rawRowIdentity = String(formData.get('rowIdentity') ?? '').trim();
@@ -3167,15 +3252,7 @@ document.addEventListener('submit', async event => {
             return;
         }
         case 'save-editor-row': {
-            const values = {};
-
-            for (const [key, value] of formData.entries()) {
-                if (!key.startsWith('field:')) {
-                    continue;
-                }
-
-                values[key.slice('field:'.length)] = String(value ?? '');
-            }
+            const values = buildRowEditorSubmittedValues(formData, getRowEditorFieldMetadata(form));
 
             await openEditorRowUpdatePreview(String(formData.get('rowIndex') ?? ''), values);
             return;

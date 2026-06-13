@@ -86,6 +86,12 @@ export function createConnection(payload) {
   });
 }
 
+export function chooseCreateDatabasePath() {
+  return request("/api/connections/choose-create-path", {
+    method: "POST",
+  });
+}
+
 export function importSql(payload) {
   return request("/api/connections/import-sql", {
     method: "POST",
