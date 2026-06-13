@@ -86,6 +86,12 @@ export function createConnection(payload) {
   });
 }
 
+export function chooseOpenDatabasePath() {
+  return request("/api/connections/choose-open-path", {
+    method: "POST",
+  });
+}
+
 export function chooseCreateDatabasePath() {
   return request("/api/connections/choose-create-path", {
     method: "POST",

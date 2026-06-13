@@ -95,3 +95,17 @@ test("create database modal offers a native path picker and manual fallback", as
   assert.match(html, /name="path"/);
   assert.match(html, /enter an absolute path manually/);
 });
+
+test("open database modal offers a native file picker and manual fallback", async () => {
+  const { renderOpenConnectionForm } = await loadModalModule();
+  const html = renderOpenConnectionForm({
+    kind: "open-connection",
+    error: null,
+    submitting: false,
+  });
+
+  assert.match(html, /data-action="choose-open-database-path"/);
+  assert.match(html, /data-open-database-path/);
+  assert.match(html, /name="path"/);
+  assert.match(html, /enter an absolute path manually/);
+});

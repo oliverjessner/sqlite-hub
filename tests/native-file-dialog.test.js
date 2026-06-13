@@ -3,6 +3,8 @@ const test = require("node:test");
 const {
   NativeFileDialogService,
   buildDialogAttempts,
+  buildOpenDialogAttempts,
+  normalizeOpenedDatabasePath,
   normalizeSelectedDatabasePath,
 } = require("../server/services/nativeFileDialogService");
 
@@ -22,6 +24,21 @@ test("native database dialog builds platform-specific save commands", () => {
   assert.equal(windowsAttempt.command, "powershell.exe");
   assert.match(windowsAttempt.args.at(-1), /SaveFileDialog/);
   assert.deepEqual(linuxAttempts.map((attempt) => attempt.command), ["zenity", "kdialog"]);
+});
+
+test("native database dialog builds platform-specific open commands", () => {
+  const macAttempt = buildOpenDialogAttempts({ platform: "darwin", homeDirectory: "/Users/test" })[0];
+  const windowsAttempt = buildOpenDialogAttempts({ platform: "win32", homeDirectory: "C:\\Users\\test" })[0];
+  const linuxAttempts = buildOpenDialogAttempts({ platform: "linux", homeDirectory: "/home/test" });
+
+  assert.match(macAttempt.args.join(" "), /choose file with prompt/);
+  assert.match(windowsAttempt.args.at(-1), /OpenFileDialog/);
+  assert.deepEqual(linuxAttempts.map((attempt) => attempt.command), ["zenity", "kdialog"]);
+});
+
+test("open database dialog preserves the selected filename", () => {
+  assert.equal(normalizeOpenedDatabasePath("/tmp/catalog\n"), "/tmp/catalog");
+  assert.equal(normalizeOpenedDatabasePath(""), null);
 });
 
 test("native database dialog returns null when the user cancels", async () => {
@@ -75,4 +92,14 @@ test("native database dialog falls back from zenity to kdialog", async () => {
 
   assert.equal(await service.chooseCreateDatabasePath(), "/home/test/catalog.sqlite3");
   assert.deepEqual(commands, ["zenity", "kdialog"]);
+});
+
+test("native open database dialog returns the selected existing path", async () => {
+  const service = new NativeFileDialogService({
+    platform: "linux",
+    homeDirectory: "/home/test",
+    executeFile: async () => ({ stdout: "/home/test/catalog.db\n" }),
+  });
+
+  assert.equal(await service.chooseOpenDatabasePath(), "/home/test/catalog.db");
 });

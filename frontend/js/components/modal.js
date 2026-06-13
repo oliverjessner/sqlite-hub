@@ -152,14 +152,34 @@ function renderError(error) {
   `;
 }
 
-function renderOpenConnectionForm(modal) {
+export function renderOpenConnectionForm(modal) {
   return `
     <form class="space-y-5" data-form="open-connection">
-      ${renderField({
-        label: "SQLite File Path",
-        name: "path",
-        placeholder: "/absolute/path/to/database.sqlite",
-      })}
+      <label class="block space-y-2">
+        <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          SQLite File Path
+        </span>
+        <span class="flex items-stretch gap-2">
+          <input
+            class="control-input min-w-0 flex-1 border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+            data-open-database-path
+            name="path"
+            placeholder="/absolute/path/to/database.sqlite"
+            type="text"
+          />
+          <button
+            class="standard-button flex-none"
+            data-action="choose-open-database-path"
+            type="button"
+          >
+            <span class="material-symbols-outlined text-sm">folder_open</span>
+            <span data-open-database-path-button-label>Browse...</span>
+          </button>
+        </span>
+        <span class="block text-[11px] leading-5 text-on-surface-variant/60">
+          Choose an existing SQLite file, or enter an absolute path manually.
+        </span>
+      </label>
       ${renderField({
         label: "Label",
         name: "label",

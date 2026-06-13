@@ -36,7 +36,7 @@ SQLite Hub keeps that workflow sharp:
 
 [![SQLite Hub connections](./frontend/assets/mockups/connections_1200.webp)](./frontend/assets/mockups/connections_1200.webp)
 
-Open an existing SQLite file by absolute path or create a new database from the Connections view. New databases can be placed with a native save dialog, while manual path entry remains available as a fallback.
+Open an existing SQLite file with a native file picker or create a new database with a native save dialog from the Connections view. Manual absolute-path entry remains available as a fallback for both actions.
 
 Recent connections show file size, modification time, last-opened time, and access mode. Connections can be activated, relabeled, moved to another path, opened read-only, assigned a PNG/JPG/WEBP icon, reset to the default icon, or removed from the recent-connections registry without deleting the database file.
 

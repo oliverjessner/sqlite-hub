@@ -3490,6 +3490,16 @@ export async function submitCreateConnection(payload) {
     }
 }
 
+export async function chooseOpenDatabasePath() {
+    try {
+        const response = await api.chooseOpenDatabasePath();
+        return response.data?.path ?? null;
+    } catch (error) {
+        pushToast(normalizeError(error).message || 'Native file dialog could not be opened.', 'alert');
+        return null;
+    }
+}
+
 export async function chooseCreateDatabasePath() {
     try {
         const response = await api.chooseCreateDatabasePath();

@@ -90,6 +90,79 @@ function buildDialogAttempts({ platform = process.platform, homeDirectory = os.h
   ];
 }
 
+function buildOpenDialogAttempts({ platform = process.platform, homeDirectory = os.homedir() } = {}) {
+  if (platform === "darwin") {
+    return [
+      {
+        command: "osascript",
+        args: [
+          "-e",
+          "on run argv",
+          "-e",
+          'set selectedFile to choose file with prompt "Open SQLite Database" default location POSIX file (item 1 of argv)',
+          "-e",
+          "return POSIX path of selectedFile",
+          "-e",
+          "end run",
+          homeDirectory,
+        ],
+        cancelledExitCodes: new Set([1]),
+        cancelledErrorPattern: /user canceled|-128/i,
+      },
+    ];
+  }
+
+  if (platform === "win32") {
+    const initialDirectory = escapePowerShellSingleQuotedString(homeDirectory);
+    const script = [
+      "Add-Type -AssemblyName System.Windows.Forms",
+      "$dialog = New-Object System.Windows.Forms.OpenFileDialog",
+      "$dialog.Title = 'Open SQLite Database'",
+      "$dialog.Filter = 'SQLite databases (*.db;*.sqlite;*.sqlite3)|*.db;*.sqlite;*.sqlite3|All files (*.*)|*.*'",
+      "$dialog.CheckFileExists = $true",
+      `$dialog.InitialDirectory = '${initialDirectory}'`,
+      "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {",
+      "  [Console]::Out.Write($dialog.FileName)",
+      "} else {",
+      "  exit 2",
+      "}",
+    ].join("; ");
+
+    return [
+      {
+        command: "powershell.exe",
+        args: ["-NoProfile", "-STA", "-Command", script],
+        cancelledExitCodes: new Set([2]),
+      },
+    ];
+  }
+
+  return [
+    {
+      command: "zenity",
+      args: [
+        "--file-selection",
+        "--title=Open SQLite Database",
+        `--filename=${homeDirectory}${path.sep}`,
+        "--file-filter=SQLite databases | *.db *.sqlite *.sqlite3",
+        "--file-filter=All files | *",
+      ],
+      cancelledExitCodes: new Set([1]),
+    },
+    {
+      command: "kdialog",
+      args: [
+        "--getopenfilename",
+        homeDirectory,
+        "SQLite databases (*.db *.sqlite *.sqlite3);;All files (*)",
+        "--title",
+        "Open SQLite Database",
+      ],
+      cancelledExitCodes: new Set([1]),
+    },
+  ];
+}
+
 function normalizeSelectedDatabasePath(value) {
   const selectedPath = String(value ?? "").trim();
 
@@ -98,6 +171,10 @@ function normalizeSelectedDatabasePath(value) {
   }
 
   return path.extname(selectedPath) ? selectedPath : `${selectedPath}.sqlite`;
+}
+
+function normalizeOpenedDatabasePath(value) {
+  return String(value ?? "").trim() || null;
 }
 
 function isMissingDialogCommand(error) {
@@ -129,6 +206,19 @@ class NativeFileDialogService {
       homeDirectory: this.homeDirectory,
     });
 
+    return this.runDialogAttempts(attempts, normalizeSelectedDatabasePath);
+  }
+
+  async chooseOpenDatabasePath() {
+    const attempts = buildOpenDialogAttempts({
+      platform: this.platform,
+      homeDirectory: this.homeDirectory,
+    });
+
+    return this.runDialogAttempts(attempts, normalizeOpenedDatabasePath);
+  }
+
+  async runDialogAttempts(attempts, normalizePath) {
     for (const attempt of attempts) {
       try {
         const result = await this.executeFile(attempt.command, attempt.args, {
@@ -136,7 +226,7 @@ class NativeFileDialogService {
           windowsHide: true,
         });
 
-        return normalizeSelectedDatabasePath(result?.stdout);
+        return normalizePath(result?.stdout);
       } catch (error) {
         if (isCancelledDialog(error, attempt)) {
           return null;
@@ -164,5 +254,7 @@ module.exports = {
   DEFAULT_DATABASE_FILENAME,
   NativeFileDialogService,
   buildDialogAttempts,
+  buildOpenDialogAttempts,
+  normalizeOpenedDatabasePath,
   normalizeSelectedDatabasePath,
 };

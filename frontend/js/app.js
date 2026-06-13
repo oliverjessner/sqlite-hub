@@ -24,6 +24,7 @@ import { renderTopNav } from './components/topNav.js';
 import { createRouter } from './router.js';
 import {
     createActiveConnectionBackup,
+    chooseOpenDatabasePath,
     chooseCreateDatabasePath,
     createDocument,
     createDocumentFromMarkdownExport,
@@ -2181,6 +2182,33 @@ async function handleAction(actionNode) {
         case 'edit-connection':
             openEditConnectionModal(actionNode.dataset.connectionId);
             return;
+        case 'choose-open-database-path': {
+            const labelNode = actionNode.querySelector('[data-open-database-path-button-label]');
+
+            actionNode.setAttribute('disabled', '');
+            if (labelNode) {
+                labelNode.textContent = 'Choosing...';
+            }
+
+            const selectedPath = await chooseOpenDatabasePath();
+            const pathInput = document.querySelector(
+                '[data-form="open-connection"] [data-open-database-path]',
+            );
+
+            if (selectedPath && pathInput instanceof HTMLInputElement) {
+                pathInput.value = selectedPath;
+                pathInput.focus({ preventScroll: true });
+                pathInput.setSelectionRange(pathInput.value.length, pathInput.value.length);
+            }
+
+            if (actionNode.isConnected) {
+                actionNode.removeAttribute('disabled');
+                if (labelNode) {
+                    labelNode.textContent = 'Browse...';
+                }
+            }
+            return;
+        }
         case 'choose-create-database-path': {
             const labelNode = actionNode.querySelector('[data-create-database-path-button-label]');
 

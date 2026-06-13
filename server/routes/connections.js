@@ -43,6 +43,23 @@ function createConnectionsRouter({ connectionManager, importService, backupServi
   );
 
   router.post(
+    "/choose-open-path",
+    route(async (req, res) => {
+      const selectedPath = await nativeFileDialogService.chooseOpenDatabasePath();
+
+      res.json(
+        successResponse({
+          message: selectedPath ? "Database path selected." : "File selection cancelled.",
+          data: {
+            cancelled: !selectedPath,
+            path: selectedPath,
+          },
+        })
+      );
+    })
+  );
+
+  router.post(
     "/choose-create-path",
     route(async (req, res) => {
       const selectedPath = await nativeFileDialogService.chooseCreateDatabasePath();
