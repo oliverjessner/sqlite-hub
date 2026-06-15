@@ -109,3 +109,23 @@ test("open database modal offers a native file picker and manual fallback", asyn
   assert.match(html, /name="path"/);
   assert.match(html, /enter an absolute path manually/);
 });
+
+test("API token deletion uses the shared confirmation modal", async () => {
+  const { renderDeleteApiTokenForm } = await loadModalModule();
+  const html = renderDeleteApiTokenForm({
+    kind: "delete-api-token",
+    tokenId: "token-one",
+    tokenName: "Automation",
+    tokenPrefix: "shub_example",
+    databaseLabel: "Database One",
+    error: null,
+    submitting: false,
+  });
+
+  assert.match(html, /Delete API token/);
+  assert.match(html, /Automation/);
+  assert.match(html, /Database One/);
+  assert.match(html, /shub_example\.\.\./);
+  assert.match(html, /data-form="delete-api-token-confirm"/);
+  assert.match(html, /Delete Token/);
+});

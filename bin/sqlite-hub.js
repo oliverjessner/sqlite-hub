@@ -3,6 +3,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const {
+    DatabaseCommandService,
+    getQueryTitle,
+} = require('../server/services/databaseCommandService');
 
 const DEFAULT_PORT = 4173;
 const EXPORT_FORMATS = new Set(['csv', 'tsv', 'md']);
@@ -421,33 +425,11 @@ function openInDefaultBrowser(url) {
     child.unref();
 }
 
-function findDatabaseByName(connections, name) {
-    const normalizedName = String(name ?? '').toLowerCase();
-
-    return connections.find(
-        conn => conn.label.toLowerCase() === normalizedName || conn.id.toLowerCase() === normalizedName,
-    );
-}
-
 function formatSize(bytes) {
     if (!bytes) return 'N/A';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function sanitizeFilenameBase(value, fallback = 'export') {
-    const sanitized = String(value ?? '')
-        .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .replace(/[. ]+$/g, '');
-
-    if (!sanitized) {
-        return fallback;
-    }
-
-    return sanitized.slice(0, 120);
 }
 
 function createAppStateStore() {
@@ -457,39 +439,6 @@ function createAppStateStore() {
     const { appStateDbPath } = resolveAppStatePaths(packageRoot);
 
     return new AppStateStore(appStateDbPath);
-}
-
-function createReadOnlyRuntime(conn, appStateStore) {
-    const { ConnectionManager } = require('../server/services/sqlite/connectionManager');
-    const { DataBrowserService } = require('../server/services/sqlite/dataBrowserService');
-    const { ExportService } = require('../server/services/sqlite/exportService');
-    const { SqlExecutor } = require('../server/services/sqlite/sqlExecutor');
-
-    const connectionManager = new ConnectionManager({ appStateStore });
-
-    connectionManager.openConnection({
-        filePath: conn.path,
-        label: conn.label,
-        id: conn.id,
-        logoPath: conn.logoPath ?? null,
-        makeActive: false,
-        readOnly: true,
-    });
-
-    const sqlExecutor = new SqlExecutor({ connectionManager, appStateStore });
-    const exportService = new ExportService({ appStateStore, connectionManager, sqlExecutor });
-    const dataBrowserService = new DataBrowserService({ connectionManager });
-
-    return {
-        connectionManager,
-        db: connectionManager.getActiveDatabase(),
-        dataBrowserService,
-        exportService,
-        sqlExecutor,
-        close() {
-            connectionManager.closeCurrent();
-        },
-    };
 }
 
 function printDatabaseList(connections) {
@@ -538,72 +487,8 @@ function printTables(conn, tables) {
     console.log('');
 }
 
-function getQueryTitle(item) {
-    return item?.title || item?.displayTitle || item?.previewSql || item?.rawSql || '(untitled query)';
-}
-
-function findQueryByName(appStateStore, conn, queryName) {
-    const normalizedQueryName = String(queryName ?? '').trim().toLowerCase();
-
-    if (!normalizedQueryName) {
-        throw new Error('Query name is required.');
-    }
-
-    const collection = appStateStore.buildQueryHistoryCollection({
-        databaseKey: conn.id,
-        search: queryName,
-        onlySaved: false,
-        limit: 100,
-    });
-
-    return (
-        collection.items.find(item => {
-            const candidates = [item.id, item.title, item.displayTitle].filter(Boolean);
-
-            return candidates.some(candidate => String(candidate).toLowerCase() === normalizedQueryName);
-        }) ||
-        collection.items.find(item => String(item.rawSql ?? '').toLowerCase().includes(normalizedQueryName)) ||
-        null
-    );
-}
-
-function getSavedQueries(appStateStore, conn, limit = 100) {
-    return appStateStore.buildQueryHistoryCollection({
-        databaseKey: conn.id,
-        onlySaved: true,
-        limit,
-    });
-}
-
-function printAvailableQueries(appStateStore, conn) {
-    const allQueries = getSavedQueries(appStateStore, conn);
-
-    console.error('\nAvailable saved queries:');
-
-    if (allQueries.items.length > 0) {
-        allQueries.items.forEach(query => {
-            console.error(`  - ${getQueryTitle(query)}`);
-        });
-        return;
-    }
-
-    console.error('  (none)');
-}
-
-function requireMatchingQuery(appStateStore, conn, queryName) {
-    const matchingQuery = findQueryByName(appStateStore, conn, queryName);
-
-    if (!matchingQuery) {
-        console.error(`Saved query not found: ${queryName}`);
-        printAvailableQueries(appStateStore, conn);
-        process.exit(1);
-    }
-
-    return matchingQuery;
-}
-
-function listSavedQueries(appStateStore, conn) {
-    const savedQueries = getSavedQueries(appStateStore, conn);
+function listSavedQueries(databaseService, conn) {
+    const savedQueries = databaseService.listSavedQueries(conn.id);
 
     if (savedQueries.items.length === 0) {
         console.log(`No saved queries found for ${conn.label}.`);
@@ -664,28 +549,24 @@ function printExecutionResult(result) {
     });
 }
 
-function executeSavedQuery({ appStateStore, conn, sqlExecutor, queryName }) {
-    const matchingQuery = requireMatchingQuery(appStateStore, conn, queryName);
+function executeSavedQuery({ databaseService, conn, queryName }) {
+    const { query: matchingQuery, result } = databaseService.executeSavedQuery(conn.id, queryName);
 
     console.log(`\nExecuting: ${getQueryTitle(matchingQuery)}`);
     console.log(`SQL: ${matchingQuery.previewSql || matchingQuery.rawSql}`);
     console.log('─'.repeat(60));
 
-    const result = sqlExecutor.execute(matchingQuery.rawSql, {
-        persistHistory: false,
-    });
-
     printExecutionResult(result);
 }
 
-function showSavedQuery({ appStateStore, conn, queryName }) {
-    const matchingQuery = requireMatchingQuery(appStateStore, conn, queryName);
+function showSavedQuery({ databaseService, conn, queryName }) {
+    const matchingQuery = databaseService.getSavedQuery(conn.id, queryName);
 
     console.log(matchingQuery.rawSql);
 }
 
-function showSavedQueryNotes({ appStateStore, conn, queryName }) {
-    const matchingQuery = requireMatchingQuery(appStateStore, conn, queryName);
+function showSavedQueryNotes({ databaseService, conn, queryName }) {
+    const matchingQuery = databaseService.getSavedQuery(conn.id, queryName);
     const notes = String(matchingQuery.notes ?? '').trim();
 
     if (notes) {
@@ -696,9 +577,8 @@ function showSavedQueryNotes({ appStateStore, conn, queryName }) {
     console.log(`No notes saved for: ${getQueryTitle(matchingQuery)}`);
 }
 
-function exportSavedQuery({ appStateStore, conn, exportService, queryName, format }) {
-    const matchingQuery = requireMatchingQuery(appStateStore, conn, queryName);
-    const result = exportService.exportQuery(matchingQuery.rawSql, { format });
+function exportSavedQuery({ databaseService, conn, queryName, format }) {
+    const { query: matchingQuery, result } = databaseService.exportSavedQuery(conn.id, queryName, format);
     const outputPath = path.resolve(process.cwd(), result.filename);
 
     fs.writeFileSync(outputPath, result.content, 'utf8');
@@ -709,66 +589,8 @@ function exportSavedQuery({ appStateStore, conn, exportService, queryName, forma
     console.log(`File: ${outputPath}`);
 }
 
-function getDocumentTitle(document) {
-    return document?.filename || document?.title || document?.id || '(untitled document)';
-}
-
-function printAvailableDocuments(appStateStore, conn) {
-    const documents = appStateStore.listDatabaseDocuments(conn.id);
-
-    console.error('\nAvailable documents:');
-
-    if (documents.length > 0) {
-        documents.forEach(document => {
-            console.error(`  - ${getDocumentTitle(document)}`);
-        });
-        return;
-    }
-
-    console.error('  (none)');
-}
-
-function findDocumentByName(appStateStore, conn, documentName) {
-    const normalizedDocumentName = String(documentName ?? '').trim().toLowerCase();
-
-    if (!normalizedDocumentName) {
-        throw new Error('Document name is required.');
-    }
-
-    const documents = appStateStore.listDatabaseDocuments(conn.id);
-    const exactMatch = documents.find(document => {
-        const candidates = [document.id, document.filename, document.title].filter(Boolean);
-
-        return candidates.some(candidate => String(candidate).toLowerCase() === normalizedDocumentName);
-    });
-
-    if (exactMatch) {
-        return appStateStore.getDatabaseDocument(conn.id, exactMatch.id);
-    }
-
-    const partialMatch = documents.find(document => {
-        const candidates = [document.filename, document.title].filter(Boolean);
-
-        return candidates.some(candidate => String(candidate).toLowerCase().includes(normalizedDocumentName));
-    });
-
-    return partialMatch ? appStateStore.getDatabaseDocument(conn.id, partialMatch.id) : null;
-}
-
-function requireMatchingDocument(appStateStore, conn, documentName) {
-    const matchingDocument = findDocumentByName(appStateStore, conn, documentName);
-
-    if (!matchingDocument) {
-        console.error(`Document not found: ${documentName}`);
-        printAvailableDocuments(appStateStore, conn);
-        process.exit(1);
-    }
-
-    return matchingDocument;
-}
-
-function listDocuments(appStateStore, conn) {
-    const documents = appStateStore.listDatabaseDocuments(conn.id);
+function listDocuments(databaseService, conn) {
+    const documents = databaseService.listDocuments(conn.id);
 
     if (documents.length === 0) {
         console.log(`No documents found for ${conn.label}.`);
@@ -787,156 +609,27 @@ function listDocuments(appStateStore, conn) {
     console.log('');
 }
 
-function showDocumentMarkdown({ appStateStore, conn, documentName }) {
-    const matchingDocument = requireMatchingDocument(appStateStore, conn, documentName);
+function showDocumentMarkdown({ databaseService, conn, documentName }) {
+    const matchingDocument = databaseService.getDocument(conn.id, documentName);
 
     console.log(matchingDocument.content ?? '');
 }
 
-function normalizeMarkdownExportFilename(filename, fallback = 'document.md') {
-    let normalizedFilename = String(filename ?? '')
-        .replace(/[\u0000-\u001f\u007f]/g, ' ')
-        .replace(/[<>:"/\\|?*]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .replace(/^\.+/, '')
-        .replace(/[. ]+$/g, '');
+function exportDocumentMarkdown({ databaseService, conn, documentName }) {
+    const result = databaseService.exportDocument(conn.id, documentName);
+    const outputPath = path.resolve(process.cwd(), result.filename);
 
-    if (!normalizedFilename) {
-        normalizedFilename = fallback;
-    }
+    fs.writeFileSync(outputPath, result.content, 'utf8');
 
-    if (!/\.md$/i.test(normalizedFilename)) {
-        normalizedFilename = `${normalizedFilename}.md`;
-    }
-
-    if (normalizedFilename.length > 160) {
-        normalizedFilename = `${normalizedFilename.slice(0, 157)}.md`;
-    }
-
-    return normalizedFilename;
-}
-
-function exportDocumentMarkdown({ appStateStore, conn, documentName }) {
-    const matchingDocument = requireMatchingDocument(appStateStore, conn, documentName);
-    const filename = normalizeMarkdownExportFilename(matchingDocument.filename, `${matchingDocument.title || 'document'}.md`);
-    const outputPath = path.resolve(process.cwd(), filename);
-
-    fs.writeFileSync(outputPath, matchingDocument.content ?? '', 'utf8');
-
-    console.log(`Exported document: ${matchingDocument.filename}`);
-    console.log(`Characters: ${matchingDocument.contentLength}`);
+    console.log(`Exported document: ${result.document.filename}`);
+    console.log(`Characters: ${result.document.contentLength}`);
     console.log(`File: ${outputPath}`);
 }
+function exportTableRowAsJson({ databaseService, conn, tableName, exportTarget }) {
+    const result = databaseService.getTableRow(conn.id, tableName, exportTarget);
+    const outputPath = path.resolve(process.cwd(), result.filename);
 
-function coerceIdentityValue(column, value) {
-    const text = String(value ?? '');
-    const affinity = String(column?.affinity ?? '').toUpperCase();
-
-    if ((affinity === 'INTEGER' || affinity === 'REAL' || affinity === 'NUMERIC') && text.trim() !== '') {
-        const numberValue = Number(text);
-
-        if (Number.isFinite(numberValue)) {
-            return numberValue;
-        }
-    }
-
-    return value;
-}
-
-function parseCompositePrimaryKeyValue(rawValue) {
-    try {
-        const parsed = JSON.parse(rawValue);
-
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            return parsed;
-        }
-    } catch (error) {
-        // Fall through to the clearer error below.
-    }
-
-    throw new Error('Composite primary key export requires a JSON object, for example --export:\'{"id":1,"locale":"en"}\'.');
-}
-
-function buildIdentityFromExportTarget(tableDetail, exportTarget) {
-    if (tableDetail.identityStrategy?.type === 'rowid') {
-        const numberValue = Number(exportTarget);
-        const rowid = Number.isInteger(numberValue) ? numberValue : exportTarget;
-
-        return {
-            kind: 'rowid',
-            values: {
-                rowid,
-            },
-        };
-    }
-
-    if (tableDetail.identityStrategy?.type === 'primaryKey') {
-        const columns = tableDetail.identityStrategy.columns ?? [];
-
-        if (columns.length === 1) {
-            const columnName = columns[0];
-            const column = tableDetail.columns.find(candidate => candidate.name === columnName);
-
-            return {
-                kind: 'primaryKey',
-                columns,
-                values: {
-                    [columnName]: coerceIdentityValue(column, exportTarget),
-                },
-            };
-        }
-
-        const parsed = parseCompositePrimaryKeyValue(exportTarget);
-
-        return {
-            kind: 'primaryKey',
-            columns,
-            values: Object.fromEntries(
-                columns.map(columnName => {
-                    if (!Object.prototype.hasOwnProperty.call(parsed, columnName)) {
-                        throw new Error(`Missing primary key value for ${columnName}.`);
-                    }
-
-                    const column = tableDetail.columns.find(candidate => candidate.name === columnName);
-
-                    return [columnName, coerceIdentityValue(column, parsed[columnName])];
-                }),
-            ),
-        };
-    }
-
-    throw new Error(`Table ${tableDetail.name} has no stable row identity.`);
-}
-
-function buildDataRowEditorJsonObject({ row, columns = [] } = {}) {
-    const names = columns
-        .map(column => String(typeof column === 'object' ? column?.name : column ?? '').trim())
-        .filter(name => name && name !== '__identity');
-    const sourceNames = names.length
-        ? names
-        : Object.keys(row ?? {}).filter(name => name !== '__identity');
-
-    return Object.fromEntries(
-        sourceNames
-            .map(name => [name, Object.prototype.hasOwnProperty.call(row ?? {}, name) ? row[name] : undefined])
-            .filter(([, value]) => value !== undefined),
-    );
-}
-
-function exportTableRowAsJson({ dataBrowserService, db, tableName, exportTarget }) {
-    const { getTableDetail } = require('../server/services/sqlite/introspection');
-    const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
-    const identity = buildIdentityFromExportTarget(tableDetail, exportTarget);
-    const { row } = dataBrowserService.getTableRow(tableName, { identity });
-    const rowObject = buildDataRowEditorJsonObject({
-        row,
-        columns: tableDetail.columns.filter(column => column.visible),
-    });
-    const filenameBase = sanitizeFilenameBase(`${tableName}-${exportTarget}`, `${tableName}-row`);
-    const outputPath = path.resolve(process.cwd(), `${filenameBase}.json`);
-
-    fs.writeFileSync(outputPath, `${JSON.stringify(rowObject, null, 2)}\n`, 'utf8');
+    fs.writeFileSync(outputPath, `${JSON.stringify(result.data, null, 2)}\n`, 'utf8');
 
     console.log(`Exported row: ${tableName}`);
     console.log(`Key: ${exportTarget}`);
@@ -1049,8 +742,8 @@ function requireDatabaseName(options) {
     return options.databaseName;
 }
 
-async function main() {
-    const options = parseCliArguments(process.argv.slice(2));
+async function main(argv = process.argv.slice(2), dependencies = {}) {
+    const options = parseCliArguments(argv);
     const port = options.port ?? DEFAULT_PORT;
 
     if (options.help) {
@@ -1074,8 +767,12 @@ async function main() {
         return;
     }
 
-    const appStateStore = createAppStateStore();
-    const connections = appStateStore.getRecentConnections();
+    const databaseService =
+        dependencies.databaseService ??
+        new DatabaseCommandService({
+            appStateStore: dependencies.appStateStore ?? createAppStateStore(),
+        });
+    const connections = databaseService.listDatabases();
 
     if (options.databaseList && !options.databaseName && !hasDatabaseOperation(options)) {
         printDatabaseList(connections);
@@ -1084,24 +781,19 @@ async function main() {
 
     if (options.databaseName || hasDatabaseOperation(options)) {
         const dbName = requireDatabaseName(options);
-        const conn = findDatabaseByName(connections, dbName);
-
-        if (!conn) {
-            console.error(`Database not found: ${dbName}`);
-            process.exit(1);
-        }
+        const conn = databaseService.getDatabase(dbName);
 
         if (options.documents) {
             if (options.documentName) {
                 if (options.documentExport) {
                     exportDocumentMarkdown({
-                        appStateStore,
+                        databaseService,
                         conn,
                         documentName: options.documentName,
                     });
                 } else {
                     showDocumentMarkdown({
-                        appStateStore,
+                        databaseService,
                         conn,
                         documentName: options.documentName,
                     });
@@ -1109,73 +801,63 @@ async function main() {
                 return;
             }
 
-            listDocuments(appStateStore, conn);
+            listDocuments(databaseService, conn);
             return;
         }
 
         if (options.tableName || options.tables || options.queries || options.executeQuery || options.showQuery || options.showNotes || options.exportTarget) {
-            const runtime = createReadOnlyRuntime(conn, appStateStore);
-
-            try {
-                if (options.tableName) {
-                    const { getTableDetail } = require('../server/services/sqlite/introspection');
-
-                    if (options.exportTarget) {
-                        exportTableRowAsJson({
-                            dataBrowserService: runtime.dataBrowserService,
-                            db: runtime.db,
-                            tableName: options.tableName,
-                            exportTarget: options.exportTarget,
-                        });
-                    } else {
-                        printTableInfo(getTableDetail(runtime.db, options.tableName));
-                    }
-
-                    return;
-                }
-
+            if (options.tableName) {
                 if (options.exportTarget) {
-                    exportSavedQuery({
-                        appStateStore,
+                    exportTableRowAsJson({
+                        databaseService,
                         conn,
-                        exportService: runtime.exportService,
-                        queryName: options.exportTarget,
-                        format: options.exportFormat,
+                        tableName: options.tableName,
+                        exportTarget: options.exportTarget,
                     });
-                    return;
+                } else {
+                    printTableInfo(databaseService.getTable(conn.id, options.tableName));
                 }
 
-                if (options.executeQuery) {
-                    executeSavedQuery({
-                        appStateStore,
-                        conn,
-                        sqlExecutor: runtime.sqlExecutor,
-                        queryName: options.executeQuery,
-                    });
-                    return;
-                }
+                return;
+            }
 
-                if (options.showQuery) {
-                    showSavedQuery({ appStateStore, conn, queryName: options.showQuery });
-                    return;
-                }
+            if (options.exportTarget) {
+                exportSavedQuery({
+                    databaseService,
+                    conn,
+                    queryName: options.exportTarget,
+                    format: options.exportFormat,
+                });
+                return;
+            }
 
-                if (options.showNotes) {
-                    showSavedQueryNotes({ appStateStore, conn, queryName: options.showNotes });
-                    return;
-                }
+            if (options.executeQuery) {
+                executeSavedQuery({
+                    databaseService,
+                    conn,
+                    queryName: options.executeQuery,
+                });
+                return;
+            }
 
-                if (options.queries) {
-                    listSavedQueries(appStateStore, conn);
-                    return;
-                }
+            if (options.showQuery) {
+                showSavedQuery({ databaseService, conn, queryName: options.showQuery });
+                return;
+            }
 
-                if (options.tables) {
-                    printTables(conn, runtime.dataBrowserService.listTables());
-                    return;
-                }
-            } finally {
-                runtime.close();
+            if (options.showNotes) {
+                showSavedQueryNotes({ databaseService, conn, queryName: options.showNotes });
+                return;
+            }
+
+            if (options.queries) {
+                listSavedQueries(databaseService, conn);
+                return;
+            }
+
+            if (options.tables) {
+                printTables(conn, databaseService.listTables(conn.id));
+                return;
             }
         }
 

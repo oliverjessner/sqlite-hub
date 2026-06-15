@@ -21,6 +21,8 @@ const { StructureService } = require("./services/sqlite/structureService");
 const { DataBrowserService } = require("./services/sqlite/dataBrowserService");
 const { TableDesignerService } = require("./services/sqlite/tableDesignerService");
 const { MediaTaggingService } = require("./services/sqlite/mediaTaggingService");
+const { ApiTokenService } = require("./services/apiTokenService");
+const { DatabaseCommandService } = require("./services/databaseCommandService");
 const { createConnectionsRouter } = require("./routes/connections");
 const { createOverviewRouter } = require("./routes/overview");
 const { createSqlRouter } = require("./routes/sql");
@@ -32,6 +34,7 @@ const { createMediaTaggingRouter } = require("./routes/mediaTagging");
 const { createSettingsRouter } = require("./routes/settings");
 const { createExportRouter } = require("./routes/export");
 const { createDocumentsRouter } = require("./routes/documents");
+const { createExternalApiRouter } = require("./routes/externalApi");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const FRONTEND_ROOT = path.join(PACKAGE_ROOT, "frontend");
@@ -64,6 +67,8 @@ const structureService = new StructureService({ connectionManager, appStateStore
 const dataBrowserService = new DataBrowserService({ connectionManager });
 const tableDesignerService = new TableDesignerService({ connectionManager });
 const mediaTaggingService = new MediaTaggingService({ connectionManager, appStateStore });
+const apiTokenService = new ApiTokenService({ appStateStore });
+const databaseCommandService = new DatabaseCommandService({ appStateStore });
 
 connectionManager.initialize();
 
@@ -116,9 +121,23 @@ app.use("/api/structure", createStructureRouter({ structureService }));
 app.use("/api/data", createDataRouter({ dataBrowserService }));
 app.use("/api/table-designer", createTableDesignerRouter({ tableDesignerService }));
 app.use("/api/media-tagging", createMediaTaggingRouter({ mediaTaggingService }));
-app.use("/api/settings", createSettingsRouter({ appStateStore }));
+app.use(
+  "/api/settings",
+  createSettingsRouter({
+    appStateStore,
+    connectionManager,
+    tokenService: apiTokenService,
+  })
+);
 app.use("/api/export", createExportRouter({ exportService }));
 app.use("/api/documents", createDocumentsRouter({ appStateStore, connectionManager }));
+app.use(
+  "/api/v1",
+  createExternalApiRouter({
+    databaseService: databaseCommandService,
+    tokenService: apiTokenService,
+  })
+);
 
 // auth: public favicon response; it exposes no application data.
 app.get("/favicon.ico", (req, res) => {
@@ -227,7 +246,9 @@ if (require.main === module) {
 module.exports = {
   app,
   appStateStore,
+  apiTokenService,
   connectionManager,
+  databaseCommandService,
   DEFAULT_HOST,
   DEFAULT_PORT,
   parsePortArgument,

@@ -19,6 +19,7 @@
 - export row as json
 - row editor shows urls and opens in browser, path detection, timestamp detection
 - format button in SQLEditor
+- API
 
 # v0.9.3
 

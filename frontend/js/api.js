@@ -431,6 +431,19 @@ export function patchSettings(settings) {
   });
 }
 
+export function createApiToken(name) {
+  return request("/api/settings/api-tokens", {
+    method: "POST",
+    body: { name },
+  });
+}
+
+export function deleteApiToken(tokenId) {
+  return request(`/api/settings/api-tokens/${encodeURIComponent(tokenId)}`, {
+    method: "DELETE",
+  });
+}
+
 const TEXT_EXPORT_EXTENSIONS = {
   csv: "csv",
   tsv: "tsv",

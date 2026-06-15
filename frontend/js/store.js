@@ -253,6 +253,11 @@ const state = {
     },
     settings: {
         data: { ...DEFAULT_SETTINGS },
+        section: 'information',
+        apiTokens: [],
+        tokenDatabase: null,
+        createdApiToken: null,
+        tokenSaving: false,
         loading: false,
         error: null,
         appVersion: null,
@@ -1310,12 +1315,112 @@ async function refreshSettingsState() {
         };
         state.settings.appVersion = response.metadata?.appVersion ?? null;
         state.settings.sqliteVersion = response.metadata?.sqliteVersion ?? null;
+        state.settings.apiTokens = response.metadata?.apiTokens ?? [];
+        state.settings.tokenDatabase = response.metadata?.activeDatabase ?? null;
+        state.settings.createdApiToken = null;
     } catch (error) {
         state.settings.error = normalizeError(error);
     } finally {
         state.settings.loading = false;
         emitChange();
     }
+}
+
+export async function createSettingsApiToken(name) {
+    state.settings.tokenSaving = true;
+    state.settings.error = null;
+    emitChange();
+
+    try {
+        const response = await api.createApiToken(name);
+        state.settings.apiTokens = response.metadata?.apiTokens ?? state.settings.apiTokens;
+        state.settings.tokenDatabase = response.metadata?.activeDatabase ?? state.settings.tokenDatabase;
+        state.settings.createdApiToken = response.data ?? null;
+        pushToast('API token created. Store it now; it will not be shown again.', 'success');
+        return response.data ?? null;
+    } catch (error) {
+        state.settings.error = normalizeError(error);
+        return null;
+    } finally {
+        state.settings.tokenSaving = false;
+        emitChange();
+    }
+}
+
+export function setSettingsSection(section) {
+    const normalizedSection = section === 'api-tokens' ? 'api-tokens' : 'information';
+
+    if (state.settings.section === normalizedSection) {
+        return;
+    }
+
+    state.settings.section = normalizedSection;
+    emitChange();
+}
+
+export async function deleteSettingsApiToken(tokenId) {
+    state.settings.tokenSaving = true;
+    state.settings.error = null;
+    emitChange();
+
+    try {
+        const response = await api.deleteApiToken(tokenId);
+        state.settings.apiTokens = response.metadata?.apiTokens ?? [];
+        state.settings.tokenDatabase = response.metadata?.activeDatabase ?? state.settings.tokenDatabase;
+
+        if (state.settings.createdApiToken?.id === tokenId) {
+            state.settings.createdApiToken = null;
+        }
+
+        pushToast('API token deleted.', 'success');
+        return true;
+    } catch (error) {
+        if (state.modal?.kind === 'delete-api-token') {
+            withModalError(error);
+        } else {
+            state.settings.error = normalizeError(error);
+        }
+        return false;
+    } finally {
+        state.settings.tokenSaving = false;
+        emitChange();
+    }
+}
+
+export function openDeleteSettingsApiTokenModal(tokenId) {
+    const token = state.settings.apiTokens.find(candidate => candidate.id === tokenId);
+
+    if (!token) {
+        pushToast('The selected API token could not be loaded.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind: 'delete-api-token',
+        tokenId: token.id,
+        tokenName: token.name,
+        tokenPrefix: token.tokenPrefix,
+        databaseLabel: state.settings.tokenDatabase?.label ?? 'active database',
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+export async function submitDeleteSettingsApiTokenConfirmation() {
+    if (state.modal?.kind !== 'delete-api-token') {
+        return false;
+    }
+
+    const tokenId = state.modal.tokenId;
+    startModalSubmission();
+    const deleted = await deleteSettingsApiToken(tokenId);
+
+    if (deleted) {
+        closeModalInternal();
+    }
+
+    return deleted;
 }
 
 async function loadQueryHistoryDetail(historyId, options = {}) {

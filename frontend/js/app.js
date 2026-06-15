@@ -24,6 +24,7 @@ import { renderTopNav } from './components/topNav.js';
 import { createRouter } from './router.js';
 import {
     createActiveConnectionBackup,
+    createSettingsApiToken,
     chooseOpenDatabasePath,
     chooseCreateDatabasePath,
     createDocument,
@@ -50,6 +51,7 @@ import {
     openDeleteDataRowModal,
     openDeleteEditorRowModal,
     openDeleteQueryHistoryModal,
+    openDeleteSettingsApiTokenModal,
     openDeleteQueryChartModal,
     openDataExportModal,
     openDeleteDocumentModal,
@@ -104,6 +106,7 @@ import {
     submitCreateMediaTaggingTagTable,
     submitCreateMediaTaggingMappingTable,
     submitDeleteQueryHistoryConfirmation,
+    submitDeleteSettingsApiTokenConfirmation,
     submitRowUpdatePreviewConfirmation,
     setQueryHistoryPanelVisibility,
     sortDataTableByColumn,
@@ -114,6 +117,7 @@ import {
     setCopyColumnModalEditedText,
     setCopyColumnModalSubmitting,
     setRoute,
+    setSettingsSection,
     saveQueryHistoryNotes,
     saveQueryHistoryTitle,
     saveCurrentTableDesignerDraft,
@@ -2092,6 +2096,32 @@ async function handleAction(actionNode) {
         case 'refresh-view':
             await refreshCurrentRoute();
             return;
+        case 'set-settings-section':
+            setSettingsSection(actionNode.dataset.section);
+            return;
+        case 'open-delete-api-token-modal':
+            openDeleteSettingsApiTokenModal(actionNode.dataset.tokenId);
+            return;
+        case 'copy-created-api-token': {
+            const tokenInput = document.querySelector('[data-created-api-token]');
+            const token = tokenInput instanceof HTMLInputElement ? tokenInput.value : '';
+
+            if (token && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(token);
+                showToast('API token copied.', 'success');
+            }
+            return;
+        }
+        case 'copy-database-id': {
+            const databaseIdNode = document.querySelector('[data-database-id]');
+            const databaseId = databaseIdNode?.textContent?.trim() ?? '';
+
+            if (databaseId && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(databaseId);
+                showToast('Database ID copied.', 'success');
+            }
+            return;
+        }
         case 'open-row-editor-url':
             openRowEditorUrl(actionNode);
             return;
@@ -3144,6 +3174,9 @@ document.addEventListener('submit', async event => {
     const formData = submitter ? new FormData(form, submitter) : new FormData(form);
 
     switch (form.dataset.form) {
+        case 'create-api-token':
+            await createSettingsApiToken(String(formData.get('name') ?? ''));
+            return;
         case 'open-connection': {
             resetStructureGraphForDatabaseChange();
             const connection = await submitOpenConnection({
@@ -3234,6 +3267,9 @@ document.addEventListener('submit', async event => {
             }
             return;
         }
+        case 'delete-api-token-confirm':
+            await submitDeleteSettingsApiTokenConfirmation();
+            return;
         case 'document-insert-table': {
             const inserted = await submitDocumentInsertTable();
 

@@ -7,6 +7,7 @@ import {
   isMarkdownTodoCopyColumnMode,
 } from "../utils/copyColumnExport.js";
 import { renderConnectionLogo } from "./connectionLogo.js";
+import { renderTextInput } from "./formControls.js";
 import {
   analyzeQueryChartResult,
   getQueryChartTypeLabel,
@@ -27,13 +28,7 @@ function renderField({ label, name, type = "text", placeholder = "", value = "" 
       <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
         ${escapeHtml(label)}
       </span>
-      <input
-        class="control-input w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
-        name="${escapeHtml(name)}"
-        placeholder="${escapeHtml(placeholder)}"
-        type="${escapeHtml(type)}"
-        value="${escapeHtml(value)}"
-      />
+      ${renderTextInput({ name, placeholder, type, value })}
     </label>
   `;
 }
@@ -160,13 +155,12 @@ export function renderOpenConnectionForm(modal) {
           SQLite File Path
         </span>
         <span class="flex items-stretch gap-2">
-          <input
-            class="control-input min-w-0 flex-1 border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
-            data-open-database-path
-            name="path"
-            placeholder="/absolute/path/to/database.sqlite"
-            type="text"
-          />
+          ${renderTextInput({
+            className: "min-w-0 flex-1",
+            dataAttributes: { openDatabasePath: true },
+            name: "path",
+            placeholder: "/absolute/path/to/database.sqlite",
+          })}
           <button
             class="standard-button flex-none"
             data-action="choose-open-database-path"
@@ -292,13 +286,12 @@ export function renderCreateDatabaseForm(modal) {
           New SQLite File Path
         </span>
         <span class="flex items-stretch gap-2">
-          <input
-            class="control-input min-w-0 flex-1 border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
-            data-create-database-path
-            name="path"
-            placeholder="/absolute/path/to/new-database.sqlite"
-            type="text"
-          />
+          ${renderTextInput({
+            className: "min-w-0 flex-1",
+            dataAttributes: { createDatabasePath: true },
+            name: "path",
+            placeholder: "/absolute/path/to/new-database.sqlite",
+          })}
           <button
             class="standard-button flex-none"
             data-action="choose-create-database-path"
@@ -863,6 +856,28 @@ function renderDeleteDocumentForm(modal) {
     '<button class="standard-button" data-action="close-modal" type="button">Cancel</button>',
     '<button class="delete-button" type="submit">',
     modal.submitting ? "Deleting..." : "Delete Document",
+    "</button></div></form>",
+  ].join("");
+}
+
+export function renderDeleteApiTokenForm(modal) {
+  return [
+    '<form class="space-y-5" data-form="delete-api-token-confirm"><div class="space-y-3">',
+    '<p class="text-sm leading-7 text-on-surface">Delete API token <span class="font-bold text-primary-container">',
+    escapeHtml(modal.tokenName ?? "API token"),
+    "</span>?</p>",
+    '<p class="text-sm leading-7 text-on-surface-variant/65">Requests using this token will immediately lose access to <span class="font-semibold text-on-surface">',
+    escapeHtml(modal.databaseLabel ?? "the active database"),
+    ".</span></p>",
+    '<div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 font-mono text-[10px] text-on-surface-variant/55">',
+    escapeHtml(modal.tokenPrefix ?? ""),
+    "...</div>",
+    "</div>",
+    renderError(modal.error),
+    '<div class="flex items-center justify-between gap-3 pt-2">',
+    '<button class="standard-button" data-action="close-modal" type="button">Cancel</button>',
+    '<button class="delete-button" type="submit">',
+    modal.submitting ? "Deleting..." : "Delete Token",
     "</button></div></form>",
   ].join("");
 }
@@ -1706,6 +1721,11 @@ export function renderModal(state) {
       eyebrow: "Documents // Confirm deletion",
       title: "Delete Document",
       body: renderDeleteDocumentForm(modal),
+    },
+    "delete-api-token": {
+      eyebrow: "Settings // Confirm token deletion",
+      title: "Delete API Token",
+      body: renderDeleteApiTokenForm(modal),
     },
     "document-insert-table": {
       eyebrow: "Documents // Saved query output",

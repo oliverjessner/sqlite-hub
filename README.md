@@ -386,6 +386,10 @@ Results:
   [2] 2026 | 40
 ```
 
+## API
+
+SQLite Hub also provides a local JSON API for database metadata, tables, saved queries, exports, and documents. Access is protected by database-specific API tokens created in Settings. See the [API documentation](./docs/API.md) for authentication, endpoints, and examples.
+
 ## Changelog
 
 [Changelog](./docs/changelog.md)

@@ -457,6 +457,19 @@ class AppStateStore {
 
       CREATE INDEX IF NOT EXISTS idx_database_documents_database_updated
       ON database_documents(database_key, updated_at DESC, id ASC);
+
+      CREATE TABLE IF NOT EXISTS api_tokens (
+        id TEXT PRIMARY KEY,
+        database_key TEXT NOT NULL,
+        name TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        token_prefix TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        last_used_at TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_api_tokens_database_created
+      ON api_tokens(database_key, created_at DESC, id ASC);
     `);
 
     const recentConnectionColumns = new Set(
@@ -2333,6 +2346,106 @@ class AppStateStore {
     })();
 
     return this.getSettings();
+  }
+
+  decorateApiTokenRow(row = {}) {
+    return {
+      id: String(row.id ?? ""),
+      databaseKey: String(row.database_key ?? row.databaseKey ?? ""),
+      name: String(row.name ?? ""),
+      tokenPrefix: String(row.token_prefix ?? row.tokenPrefix ?? ""),
+      createdAt: row.created_at ?? row.createdAt ?? null,
+      lastUsedAt: row.last_used_at ?? row.lastUsedAt ?? null,
+    };
+  }
+
+  listApiTokens(databaseKey) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+
+    return this.db
+      .prepare(
+        `
+          SELECT id, database_key, name, token_prefix, created_at, last_used_at
+          FROM api_tokens
+          WHERE database_key = ?
+          ORDER BY created_at DESC, id ASC
+        `
+      )
+      .all(normalizedDatabaseKey)
+      .map((row) => this.decorateApiTokenRow(row));
+  }
+
+  createApiToken({ databaseKey, name, tokenHash, tokenPrefix }) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+
+    this.db
+      .prepare(
+        `
+          INSERT INTO api_tokens (
+            id,
+            database_key,
+            name,
+            token_hash,
+            token_prefix,
+            created_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?)
+        `
+      )
+      .run(id, normalizedDatabaseKey, name, tokenHash, tokenPrefix, createdAt);
+
+    return this.listApiTokens(normalizedDatabaseKey).find((token) => token.id === id);
+  }
+
+  findApiTokenByHash(tokenHash) {
+    const normalizedTokenHash = String(tokenHash ?? "").trim();
+
+    if (!normalizedTokenHash) {
+      return null;
+    }
+
+    const row = this.db
+      .prepare(
+        `
+          SELECT id, database_key, name, token_prefix, created_at, last_used_at
+          FROM api_tokens
+          WHERE token_hash = ?
+          LIMIT 1
+        `
+      )
+      .get(normalizedTokenHash);
+
+    return row ? this.decorateApiTokenRow(row) : null;
+  }
+
+  touchApiToken(tokenId) {
+    this.db
+      .prepare("UPDATE api_tokens SET last_used_at = ? WHERE id = ?")
+      .run(new Date().toISOString(), String(tokenId ?? "").trim());
+  }
+
+  deleteApiToken(databaseKey, tokenId) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+    const normalizedTokenId = String(tokenId ?? "").trim();
+
+    if (!normalizedTokenId) {
+      throw new ValidationError("Token id is required.");
+    }
+
+    const result = this.db
+      .prepare("DELETE FROM api_tokens WHERE database_key = ? AND id = ?")
+      .run(normalizedDatabaseKey, normalizedTokenId);
+
+    if (result.changes < 1) {
+      throw new NotFoundError("API token was not found.");
+    }
+
+    return {
+      id: normalizedTokenId,
+      deleted: true,
+    };
   }
 
   decorateDatabaseDocumentRow(row = {}) {

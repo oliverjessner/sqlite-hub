@@ -29,6 +29,12 @@ class ConflictError extends AppError {
   }
 }
 
+class AuthenticationError extends AppError {
+  constructor(message = "Authentication required.", options = {}) {
+    super(message, 401, { code: "AUTHENTICATION_REQUIRED", ...options });
+  }
+}
+
 class BusyError extends AppError {
   constructor(message, options = {}) {
     super(message, 423, { code: "SQLITE_BUSY", ...options });
@@ -161,6 +167,7 @@ function errorMiddleware(error, req, res, next) {
 
 module.exports = {
   AppError,
+  AuthenticationError,
   BusyError,
   ConflictError,
   DatabaseRequiredError,
