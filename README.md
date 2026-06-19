@@ -19,7 +19,7 @@ SQLite Hub keeps that workflow sharp:
 - filter, sort, page through, and export table data
 - inspect schema, structure, and relationships
 - edit records in place with typed value previews and an SQL diff preview before saving
-- export tables and query results as CSV, TSV, Markdown, or duplicate them as a table
+- export tables and query results as CSV, TSV, Markdown, JSON, or duplicate them as a table
 - copy result columns with formatting, headers, first-10 previews, TXT export, and Markdown todo export
 - keep database-scoped Markdown documents with previews, autosave, imports, exports, and saved-query inserts
 - switch between recent databases with sidebar quick picks
@@ -64,7 +64,7 @@ Inspect tables, views, indexes, triggers, columns, declared types, primary keys,
 
 [![SQLite Hub data browser](./frontend/assets/mockups/data_1_1200.webp)](./frontend/assets/mockups/data_1_1200.webp)
 
-Scan rows, sort columns, move through local data quickly, and export full tables as CSV, TSV, or Markdown. The Data browser also supports duplicating exports as a new table, searchable and hideable table navigation, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching.
+Scan rows, sort columns, move through local data quickly, and export full tables as CSV, TSV, Markdown, or JSON. The Data browser also supports duplicating exports as a new table, searchable and hideable table navigation, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching.
 
 Wide tables keep their horizontal scroll position when sorting causes the grid to re-render. Cells use compact previews for long values, BLOBs, and detected file paths, while exports retain complete BLOB content.
 
@@ -89,9 +89,9 @@ The Row Editor adds contextual previews without changing the stored raw value:
 
 [![SQLite Hub SQL editor](./frontend/assets/mockups/sql_editor_1_1200.webp)](./frontend/assets/mockups/sql_editor_1_1200.webp)
 
-Write queries in a syntax-highlighted editor, execute them with the Run button or `Shift + Enter`, format SQL with the editor Format button, inspect results in the same workflow, and export result sets as CSV, TSV, Markdown, or duplicate them as a table. Query drafts survive reloads, query history can be searched and saved, and direct single-table `SELECT` results can be edited or deleted from the result grid when a stable row identity is available.
+Write queries in a syntax-highlighted editor, execute them with the Run button or `Shift + Enter`, format SQL with the editor Format button, inspect results in the same workflow, and export result sets as CSV, TSV, Markdown, JSON, or duplicate them as a table. Query drafts survive reloads, query history can be searched and saved, and direct single-table `SELECT` results can be edited or deleted from the result grid when a stable row identity is available.
 
-Interactive result sets are limited to the first 5,000 rows to keep the application responsive. A visible notice and Messages entry indicate truncation; CSV, TSV, Markdown, and duplicate-table exports execute without that interactive row limit and include complete BLOB values. Sorting wide results preserves the horizontal scroll position.
+Interactive result sets are limited to the first 5,000 rows to keep the application responsive. A visible notice and Messages entry indicate truncation; CSV, TSV, Markdown, JSON, and duplicate-table exports execute without that interactive row limit and include complete BLOB values. Sorting wide results preserves the horizontal scroll position.
 
 [![SQLite Hub query export](./frontend/assets/mockups/sql_editor_5_export_query_result_1200.webp)](./frontend/assets/mockups/sql_editor_5_export_query_result_1200.webp)
 
