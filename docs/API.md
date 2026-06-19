@@ -34,7 +34,7 @@ POST /api/v1/databases/:databaseId/tables/:tableName/row
 GET  /api/v1/databases/:databaseId/queries
 GET  /api/v1/databases/:databaseId/queries/:queryName
 GET  /api/v1/databases/:databaseId/queries/:queryName/notes
-GET  /api/v1/databases/:databaseId/queries/:queryName/export?format=csv|tsv|md
+GET  /api/v1/databases/:databaseId/queries/:queryName/export?format=csv|tsv|md|json
 POST /api/v1/databases/:databaseId/queries/:queryName/execute
 
 GET  /api/v1/databases/:databaseId/documents

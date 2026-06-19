@@ -35,7 +35,20 @@ test("settings routes create and delete tokens for the active database", async (
   app.use(express.json());
   app.use(
     "/api/settings",
-    createSettingsRouter({ appStateStore: store, connectionManager, tokenService })
+    createSettingsRouter({
+      appStateStore: store,
+      connectionManager,
+      tokenService,
+      versionCheckService: async () => ({
+        packageName: "sqlite-hub",
+        currentVersion: "1.0.1",
+        latestVersion: "1.1.0",
+        updateAvailable: true,
+        checkedAt: "2026-06-19T20:00:00.000Z",
+        source: "npm",
+        releaseUrl: "https://www.npmjs.com/package/sqlite-hub/v/1.1.0",
+      }),
+    })
   );
   app.use(errorMiddleware);
 
@@ -73,4 +86,12 @@ test("settings routes create and delete tokens for the active database", async (
   assert.equal(deleteResponse.status, 200);
   assert.deepEqual(deleted.data, { id: created.data.id, deleted: true });
   assert.equal(deleted.metadata.apiTokens.length, 0);
+
+  const versionResponse = await fetch(`${baseUrl}/version-check`);
+  const versionCheck = await versionResponse.json();
+
+  assert.equal(versionResponse.status, 200);
+  assert.equal(versionCheck.data.latestVersion, "1.1.0");
+  assert.equal(versionCheck.data.updateAvailable, true);
+  assert.equal(versionCheck.metadata.appVersion, require("../package.json").version);
 });

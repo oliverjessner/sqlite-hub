@@ -431,6 +431,10 @@ export function patchSettings(settings) {
   });
 }
 
+export function checkAppVersion() {
+  return request("/api/settings/version-check");
+}
+
 export function createApiToken(name) {
   return request("/api/settings/api-tokens", {
     method: "POST",
@@ -448,6 +452,7 @@ const TEXT_EXPORT_EXTENSIONS = {
   csv: "csv",
   tsv: "tsv",
   md: "md",
+  json: "json",
 };
 
 function normalizeTextExportFormat(format) {

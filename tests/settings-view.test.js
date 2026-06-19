@@ -29,9 +29,37 @@ test("settings view shows SQLite runtime version and custom port command", async
   assert.match(rendered.main, /SQLite_Runtime/);
   assert.match(rendered.main, /3\.53\.1/);
   assert.match(rendered.main, /sqlite-hub --port:PORT/);
+  assert.match(rendered.main, /Version_Check/);
+  assert.match(rendered.main, /data-action="check-app-version"/);
+  assert.match(rendered.main, /Check Updates/);
+  assert.match(rendered.main, /No version check has been run yet\./);
   assert.match(rendered.main, /data-section="information"/);
   assert.match(rendered.main, /data-section="api-tokens"/);
   assert.doesNotMatch(rendered.main, /data-form="create-api-token"/);
+});
+
+test("settings view shows available app updates", async () => {
+  const { renderSettingsView } = await loadSettingsViewModule();
+  const rendered = renderSettingsView({
+    settings: {
+      loading: false,
+      error: null,
+      appVersion: "1.0.1",
+      sqliteVersion: "3.53.1",
+      versionCheckLoading: false,
+      versionCheckError: null,
+      versionCheck: {
+        currentVersion: "1.0.1",
+        latestVersion: "1.1.0",
+        updateAvailable: true,
+        releaseUrl: "https://www.npmjs.com/package/sqlite-hub/v/1.1.0",
+      },
+    },
+  });
+
+  assert.match(rendered.main, /New Version Available/);
+  assert.match(rendered.main, /Current v1\.0\.1 · Latest v1\.1\.0/);
+  assert.match(rendered.main, /Open Release/);
 });
 
 test("settings view scopes API token controls to the active database", async () => {

@@ -96,5 +96,6 @@ test("parses document commands", () => {
 test("validates export formats", () => {
   assert.equal(normalizeExportFormat("csv"), "csv");
   assert.equal(normalizeExportFormat("TSV"), "tsv");
-  assert.throws(() => normalizeExportFormat("json"), /Unsupported export format/);
+  assert.equal(normalizeExportFormat("json"), "json");
+  assert.throws(() => normalizeExportFormat("xlsx"), /Unsupported export format/);
 });

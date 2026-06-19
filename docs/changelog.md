@@ -2,6 +2,9 @@
 
 - structure overhaul, better UI
 - store last position of structure
+- join preview in structure
+- export JSON for Data
+- check updates for new versions in settings
 
 # v1.0.0
 

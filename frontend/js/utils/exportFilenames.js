@@ -2,6 +2,7 @@ export const TEXT_EXPORT_EXTENSIONS = {
   csv: "csv",
   tsv: "tsv",
   md: "md",
+  json: "json",
 };
 
 export function normalizeTextExportFormat(format = "csv") {
@@ -10,7 +11,7 @@ export function normalizeTextExportFormat(format = "csv") {
 }
 
 function stripKnownTextExportExtension(value = "") {
-  return String(value).replace(/\.(csv|tsv|md)$/i, "");
+  return String(value).replace(/\.(csv|tsv|md|json)$/i, "");
 }
 
 export function sanitizeExportFilenameBase(value, fallback = "export") {

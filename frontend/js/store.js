@@ -63,6 +63,7 @@ const TEXT_EXPORT_FORMAT_LABELS = {
     csv: 'CSV',
     tsv: 'TSV',
     md: 'Markdown',
+    json: 'JSON',
 };
 const MISSING_DATABASE_ERROR = {
     code: 'ACTIVE_DATABASE_REQUIRED',
@@ -262,6 +263,9 @@ const state = {
         error: null,
         appVersion: null,
         sqliteVersion: null,
+        versionCheck: null,
+        versionCheckLoading: false,
+        versionCheckError: null,
     },
     overview: {
         data: null,
@@ -1356,6 +1360,33 @@ export function setSettingsSection(section) {
 
     state.settings.section = normalizedSection;
     emitChange();
+}
+
+export async function checkSettingsAppVersion() {
+    state.settings.versionCheckLoading = true;
+    state.settings.versionCheckError = null;
+    emitChange();
+
+    try {
+        const response = await api.checkAppVersion();
+        const result = response.data ?? null;
+
+        state.settings.versionCheck = result;
+        pushToast(
+            result?.updateAvailable
+                ? `SQLite Hub v${result.latestVersion} is available.`
+                : 'SQLite Hub is up to date.',
+            'success',
+        );
+        return result;
+    } catch (error) {
+        state.settings.versionCheckError = normalizeError(error);
+        pushToast('Version check failed.', 'alert');
+        return null;
+    } finally {
+        state.settings.versionCheckLoading = false;
+        emitChange();
+    }
 }
 
 export async function deleteSettingsApiToken(tokenId) {

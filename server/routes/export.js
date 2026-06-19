@@ -77,6 +77,13 @@ function createExportRouter({ exportService }) {
   );
 
   router.post(
+    "/query.json",
+    route((req, res) => {
+      sendQueryExport(res, req.body?.sql, "json");
+    })
+  );
+
+  router.post(
     "/table",
     route((req, res) => {
       const result = exportTableFromBody(req.body, req.body?.format || "csv");
@@ -117,10 +124,27 @@ function createExportRouter({ exportService }) {
     })
   );
 
+  router.post(
+    "/table.json",
+    route((req, res) => {
+      sendTableExport(res, req.body, "json");
+    })
+  );
+
   router.get(
     "/table/:tableName.csv",
     route((req, res) => {
       const result = exportService.exportTable(req.params.tableName);
+      sendExport(res, result);
+    })
+  );
+
+  router.get(
+    "/table/:tableName.json",
+    route((req, res) => {
+      const result = exportService.exportTable(req.params.tableName, {
+        format: "json",
+      });
       sendExport(res, result);
     })
   );

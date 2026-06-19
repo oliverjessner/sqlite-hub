@@ -41,6 +41,10 @@ const EXPORT_FORMATS = {
     extension: "md",
     mimeType: "text/markdown; charset=utf-8",
   },
+  json: {
+    extension: "json",
+    mimeType: "application/json; charset=utf-8",
+  },
 };
 
 function normalizeExportFormat(format) {
@@ -54,6 +58,16 @@ function normalizeExportFormat(format) {
 }
 
 function renderExportContent({ columns, rows, format, csvDelimiter }) {
+  if (format === "json") {
+    return JSON.stringify(
+      rows.map((row) =>
+        Object.fromEntries(columns.map((column) => [column, row[column]]))
+      ),
+      null,
+      2
+    );
+  }
+
   if (format === "tsv") {
     return rowsToDelimitedText({ columns, rows, delimiter: "\t" });
   }

@@ -58,7 +58,7 @@ The database overview combines operational and schema information for the active
   <a href="./frontend/assets/mockups/structure_2_inspector_1200.webp"><img src="./frontend/assets/mockups/structure_2_inspector_1200.webp" alt="SQLite Hub structure inspector" width="49%"></a>
 </p>
 
-Inspect tables, views, indexes, triggers, columns, declared types, primary keys, nullability, foreign keys, and DDL without losing pace. The searchable object list and relationship graph support fit, relayout, selection clearing, direct navigation to table data, and a hideable inspector/sidebar. SQLite Hub remembers the last selected table while you move between views, and DDL can be copied directly from the inspector.
+Inspect tables, views, indexes, triggers, columns, declared types, primary keys, nullability, foreign keys, and DDL without losing pace. The searchable object list and relationship graph support fit, relayout, selection clearing, direct navigation to table data, and a hideable inspector/sidebar. Clicking a relationship edge opens a join preview with the mapped columns and a copyable SQL `JOIN` snippet. SQLite Hub remembers the last selected table while you move between views, and DDL can be copied directly from the inspector.
 
 ### Data browser
 
@@ -289,12 +289,13 @@ Show the saved notes for a query:
 sqlite-hub --database:Unit-00 --notes:"TOP25 Loser and Winner EOD, T1, T3, T5"
 ```
 
-Export a saved query using the same CSV, TSV, and Markdown export logic as the SQL Editor:
+Export a saved query using the same CSV, TSV, Markdown, and JSON export logic as the SQL Editor:
 
 ```bash
 sqlite-hub --database:Unit-00 --export:"Stock Winners" --format:csv
 sqlite-hub --database:Unit-00 --export:"Stock Winners" --format:tsv
 sqlite-hub --database:Unit-00 --export:"Stock Winners" --format:md
+sqlite-hub --database:Unit-00 --export:"Stock Winners" --format:json
 ```
 
 The export is written to the current working directory using the generated query export filename.
@@ -332,29 +333,29 @@ sqlite-hub --database:Unit-00 --table:companies --export:0a754aba373d34972998792
 
 ### Available flags
 
-| Flag                                                     | Description                                     |
-| -------------------------------------------------------- | ----------------------------------------------- |
-| `--help`, `-h`                                           | Show help text                                  |
-| `--version`, `-v`                                        | Show version number                             |
-| `--config`                                               | Show port, URL, app version, and SQLite version |
-| `--open`                                                 | Open SQLite Hub in the browser                  |
-| `--port:PORT`                                            | Start the server on a custom port               |
-| `--database`, `-d`                                       | List all imported databases                     |
-| `--database:name`                                        | Select a database by name or id                 |
-| `--database:name --path`                                 | Get the file path of a database                 |
-| `--database:name --size`                                 | Get the size of a database                      |
-| `--database:name --lastopened`                           | Get the last opened timestamp                   |
-| `--database:name --tables`                               | Get all table names from a database             |
-| `--database:name --queries`                              | List saved queries for a database               |
-| `--database:name --execute:"query"`                      | Execute a saved query by name                   |
-| `--database:name --query:"query"`                        | Print a saved query by name                     |
-| `--database:name --notes:"query"`                        | Print saved notes for a query                   |
-| `--database:name --export:"query" --format:csv\|tsv\|md` | Set query export format                         |
-| `--database:name --documents`                            | List Markdown documents for a database          |
-| `--database:name --documents:"document"`                 | Print a document's Markdown content             |
-| `--database:name --documents:"document" --export`        | Export a document as Markdown                   |
-| `--database:name --table:"table"`                        | Print table metadata                            |
-| `--database:name --table:"table" --export:"pk"`          | Export one row as JSON                          |
+| Flag                                                            | Description                                     |
+| --------------------------------------------------------------- | ----------------------------------------------- |
+| `--help`, `-h`                                                  | Show help text                                  |
+| `--version`, `-v`                                               | Show version number                             |
+| `--config`                                                      | Show port, URL, app version, and SQLite version |
+| `--open`                                                        | Open SQLite Hub in the browser                  |
+| `--port:PORT`                                                   | Start the server on a custom port               |
+| `--database`, `-d`                                              | List all imported databases                     |
+| `--database:name`                                               | Select a database by name or id                 |
+| `--database:name --path`                                        | Get the file path of a database                 |
+| `--database:name --size`                                        | Get the size of a database                      |
+| `--database:name --lastopened`                                  | Get the last opened timestamp                   |
+| `--database:name --tables`                                      | Get all table names from a database             |
+| `--database:name --queries`                                     | List saved queries for a database               |
+| `--database:name --execute:"query"`                             | Execute a saved query by name                   |
+| `--database:name --query:"query"`                               | Print a saved query by name                     |
+| `--database:name --notes:"query"`                               | Print saved notes for a query                   |
+| `--database:name --export:"query" --format:csv\|tsv\|md\|json` | Set query export format                         |
+| `--database:name --documents`                                   | List Markdown documents for a database          |
+| `--database:name --documents:"document"`                        | Print a document's Markdown content             |
+| `--database:name --documents:"document" --export`               | Export a document as Markdown                   |
+| `--database:name --table:"table"`                               | Print table metadata                            |
+| `--database:name --table:"table" --export:"pk"`                 | Export one row as JSON                          |
 
 Legacy aliases such as `--database-path:name`, `--database-size:name`, `--database-lastopened:name`, `--database-tables:name`, and `--database:name --sqleditor:"query"` still work.
 

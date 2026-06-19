@@ -9,7 +9,7 @@ const {
 } = require('../server/services/databaseCommandService');
 
 const DEFAULT_PORT = 4173;
-const EXPORT_FORMATS = new Set(['csv', 'tsv', 'md']);
+const EXPORT_FORMATS = new Set(['csv', 'tsv', 'md', 'json']);
 
 function printHelp() {
     console.log(`SQLite Hub CLI
@@ -45,7 +45,7 @@ Options:
   --query:"query"                    Print a saved SQL Editor query by name.
   --notes:"query"                    Print notes for a saved SQL Editor query by name.
   --export:"query"                   Export a saved query when --table is not set.
-  --format:csv|tsv|md                Export format for query exports. Defaults to csv.
+  --format:csv|tsv|md|json           Export format for query exports. Defaults to csv.
   --documents                        List Markdown documents for the selected database.
   --documents:"name"                 Print a document's Markdown content.
   --documents:"name" --export        Export a document as a Markdown file.
@@ -146,7 +146,7 @@ function normalizeExportFormat(format) {
     const normalized = String(format ?? 'csv').toLowerCase();
 
     if (!EXPORT_FORMATS.has(normalized)) {
-        throw new Error(`Unsupported export format: ${format}. Use csv, tsv, or md.`);
+        throw new Error(`Unsupported export format: ${format}. Use csv, tsv, md, or json.`);
     }
 
     return normalized;

@@ -237,6 +237,126 @@ function createColumnFlags(column, foreignKeyColumns) {
     return flags.join('');
 }
 
+function quoteSqlIdentifier(identifier) {
+    return `"${String(identifier ?? '').replaceAll('"', '""')}"`;
+}
+
+function qualifySqlIdentifier(tableName, columnName) {
+    return `${quoteSqlIdentifier(tableName)}.${quoteSqlIdentifier(columnName)}`;
+}
+
+function getJoinConditions(edgeData) {
+    const conditions = Array.isArray(edgeData?.joinConditions) ? edgeData.joinConditions : [];
+
+    if (conditions.length) {
+        return conditions
+            .map(condition => ({
+                sourceTable: condition.sourceTable || edgeData.sourceTable || '',
+                targetTable: condition.targetTable || edgeData.targetTable || '',
+                sourceColumn: condition.sourceColumn || '',
+                targetColumn: condition.targetColumn || 'rowid',
+            }))
+            .filter(condition => condition.sourceTable && condition.targetTable && condition.sourceColumn);
+    }
+
+    return [
+        {
+            sourceTable: edgeData?.sourceTable || '',
+            targetTable: edgeData?.targetTable || '',
+            sourceColumn: edgeData?.sourceColumn || '',
+            targetColumn: edgeData?.targetColumn || 'rowid',
+        },
+    ].filter(condition => condition.sourceTable && condition.targetTable && condition.sourceColumn);
+}
+
+function buildJoinSql(edgeData) {
+    const sourceTable = edgeData?.sourceTable || '';
+    const targetTable = edgeData?.targetTable || '';
+    const conditions = getJoinConditions(edgeData);
+
+    if (!sourceTable || !targetTable || !conditions.length) {
+        return '-- Join preview is unavailable for this relationship.';
+    }
+
+    const joinLines = conditions.map((condition, index) => {
+        const prefix = index === 0 ? '  ON ' : ' AND ';
+
+        return [
+            prefix,
+            qualifySqlIdentifier(condition.sourceTable, condition.sourceColumn),
+            ' = ',
+            qualifySqlIdentifier(condition.targetTable, condition.targetColumn),
+        ].join('');
+    });
+
+    return [
+        'SELECT *',
+        `FROM ${quoteSqlIdentifier(sourceTable)}`,
+        `JOIN ${quoteSqlIdentifier(targetTable)}`,
+        `${joinLines.join('\n')};`,
+    ].join('\n');
+}
+
+function renderJoinInspector(edgeData) {
+    const sourceTable = edgeData?.sourceTable || '';
+    const targetTable = edgeData?.targetTable || '';
+    const conditions = getJoinConditions(edgeData);
+    const joinSql = buildJoinSql(edgeData);
+
+    return `
+    <div class="structure-graph__panel">
+      <div class="space-y-3">
+        <div class="structure-graph__eyebrow">Join Preview</div>
+        <div class="structure-graph__title">${escapeHtml(sourceTable)} → ${escapeHtml(targetTable)}</div>
+        <div class="structure-graph__subtitle">Foreign key relationship</div>
+      </div>
+
+      <section class="structure-graph__section">
+        <div class="structure-graph__section-title">Relationship</div>
+        <div class="structure-graph__join-flow">
+          <div class="structure-graph__join-table">${escapeHtml(sourceTable)}</div>
+          <span class="material-symbols-outlined structure-graph__join-arrow" aria-hidden="true">arrow_forward</span>
+          <div class="structure-graph__join-table">${escapeHtml(targetTable)}</div>
+        </div>
+        <div class="structure-graph__join-condition-list">
+          ${
+              conditions.length
+                  ? conditions
+                        .map(
+                            condition => `
+                  <div class="structure-graph__join-condition">
+                    <span>${escapeHtml(formatQualifiedEdgeColumn(condition.sourceTable, condition.sourceColumn))}</span>
+                    <span aria-hidden="true">=</span>
+                    <span>${escapeHtml(formatQualifiedEdgeColumn(condition.targetTable, condition.targetColumn))}</span>
+                  </div>
+                `,
+                        )
+                        .join('')
+                  : '<div class="text-sm text-on-surface-variant/45">No join columns found for this relationship.</div>'
+          }
+        </div>
+      </section>
+
+      <section class="structure-graph__section">
+        <div class="structure-graph__section-header">
+          <div class="structure-graph__section-title">SQL</div>
+          <button
+            class="standard-button"
+            data-structure-graph-action="copy-join-sql"
+            type="button"
+          >
+            <span class="material-symbols-outlined text-sm">content_copy</span>
+            Copy join
+          </button>
+        </div>
+        <pre class="structure-graph__ddl structure-graph__join-sql custom-scrollbar" data-structure-graph-join-sql>${escapeHtml(
+            joinSql,
+        )}</pre>
+      </section>
+    </div>
+  `;
+}
+
 export function renderDdlSection(ddl, emptyLabel = 'No DDL available.') {
     const ddlText = typeof ddl === 'string' ? ddl : '';
     const hasDdl = Boolean(ddlText.trim());
@@ -356,6 +476,13 @@ export function buildGraphElements(schema) {
                 return;
             }
 
+            const joinConditions = (foreignKey.mappings ?? []).map(mapping => ({
+                sourceTable: table.name,
+                targetTable: foreignKey.referencedTable,
+                sourceColumn: mapping.from || '',
+                targetColumn: mapping.to || 'rowid',
+            }));
+
             (foreignKey.mappings ?? []).forEach((mapping, mappingIndex) => {
                 edges.push({
                     group: 'edges',
@@ -376,6 +503,7 @@ export function buildGraphElements(schema) {
                         targetTable: foreignKey.referencedTable,
                         sourceColumn: mapping.from || '',
                         targetColumn: mapping.to || 'rowid',
+                        joinConditions,
                     },
                 });
             });
@@ -789,6 +917,23 @@ async function copyInspectorDdl(button) {
     }
 }
 
+async function copyJoinSql(button) {
+    const sqlNode = button?.closest('.structure-graph__section')?.querySelector('[data-structure-graph-join-sql]');
+    const sql = sqlNode?.textContent ?? '';
+
+    if (!sql.trim()) {
+        showToast('No join SQL available to copy.', 'alert');
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(sql);
+        showToast('Join SQL copied.', 'success');
+    } catch (error) {
+        showToast('Clipboard access failed.', 'alert');
+    }
+}
+
 function syncInspectorLayout() {
     if (!currentGraph?.root) {
         return;
@@ -819,6 +964,7 @@ function clearSelection() {
 
     hideEdgeReadout();
     currentGraph.selectedTableName = null;
+    currentGraph.selectedEdgeId = null;
     resetHighlights(currentGraph.cy);
     syncEntryHighlights();
     replaceChildrenFromRenderedMarkup(currentGraph.inspector, getDefaultInspectorMarkup());
@@ -832,6 +978,7 @@ function applyTableSelection(node, { focus = true } = {}) {
 
     hideEdgeReadout();
     const tableData = node.data('table');
+    currentGraph.selectedEdgeId = null;
     currentGraph.selectedTableName = tableData.name;
     replaceChildrenFromRenderedMarkup(currentGraph.inspector, renderInspector(tableData));
     highlightConnectedElements(currentGraph.cy, node);
@@ -856,6 +1003,21 @@ function applyTableSelection(node, { focus = true } = {}) {
     return node;
 }
 
+function applyEdgeSelection(edge) {
+    if (!currentGraph || !edge) {
+        return null;
+    }
+
+    hideEdgeReadout();
+    currentGraph.selectedTableName = null;
+    currentGraph.selectedEdgeId = edge.id();
+    replaceChildrenFromRenderedMarkup(currentGraph.inspector, renderJoinInspector(edge.data()));
+    highlightConnectedElements(currentGraph.cy, edge);
+    syncEntryHighlights([], [edge.data('sourceTable'), edge.data('targetTable')]);
+    updateOpenDataButton();
+    return edge;
+}
+
 function restoreGraphState() {
     if (!currentGraph) {
         return;
@@ -867,6 +1029,16 @@ function restoreGraphState() {
         if (selectedNode.nonempty()) {
             highlightConnectedElements(currentGraph.cy, selectedNode);
             syncEntryHighlights([currentGraph.selectedTableName]);
+            return;
+        }
+    }
+
+    if (currentGraph.selectedEdgeId) {
+        const selectedEdge = currentGraph.cy.getElementById(currentGraph.selectedEdgeId);
+
+        if (selectedEdge.nonempty()) {
+            highlightConnectedElements(currentGraph.cy, selectedEdge);
+            syncEntryHighlights([], [selectedEdge.data('sourceTable'), selectedEdge.data('targetTable')]);
             return;
         }
     }
@@ -1104,6 +1276,9 @@ export function setupToolbar(cy) {
             case 'copy-ddl':
                 await copyInspectorDdl(button);
                 break;
+            case 'copy-join-sql':
+                await copyJoinSql(button);
+                break;
             default:
         }
     };
@@ -1180,6 +1355,7 @@ export async function mountStructureGraph(snapshot) {
         inspectorHidden: cachedState?.inspectorHidden ?? readStoredInspectorHidden(),
         layoutVariant: cachedState?.layoutVariant ?? 0,
         persistStateOnDestroy: true,
+        selectedEdgeId: null,
         selectedTableName: null,
     };
 
@@ -1206,11 +1382,8 @@ export async function mountStructureGraph(snapshot) {
     });
 
     cy.on('tap', 'edge', event => {
-        const edge = event.target;
-        currentGraph.selectedTableName = null;
-        highlightConnectedElements(cy, edge);
-        syncEntryHighlights([], [edge.data('sourceTable'), edge.data('targetTable')]);
-        showEdgeReadout(edge, event.renderedPosition);
+        applyEdgeSelection(event.target);
+        showEdgeReadout(event.target, event.renderedPosition);
         updateOpenDataButton();
         scheduleGraphStatePersist();
     });

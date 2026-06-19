@@ -351,6 +351,50 @@
     text-transform: uppercase;
 }
 
+.structure-graph__join-flow {
+    align-items: center;
+    display: grid;
+    gap: 0.625rem;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.structure-graph__join-table {
+    background: rgba(48, 43, 18, 0.96);
+    border: 1px solid rgba(201, 168, 29, 0.42);
+    color: #fffbd3;
+    font-family: var(--font-family-mono);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+    padding: 0.5rem 0.625rem;
+}
+
+.structure-graph__join-arrow {
+    color: #1ef6ff;
+    font-size: 1rem;
+}
+
+.structure-graph__join-condition-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.structure-graph__join-condition {
+    align-items: center;
+    color: rgba(255, 251, 211, 0.82);
+    display: grid;
+    font-family: var(--font-family-mono);
+    font-size: 0.625rem;
+    gap: 0.5rem;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.structure-graph__join-condition span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .structure-graph__ddl {
     color: rgba(255, 251, 211, 0.82);
     font-family: var(--font-family-mono);
@@ -360,6 +404,10 @@
     max-height: 18rem;
     overflow: auto;
     white-space: pre-wrap;
+}
+
+.structure-graph__join-sql {
+    max-height: 14rem;
 }
 
 .structure-entry--graph-active {

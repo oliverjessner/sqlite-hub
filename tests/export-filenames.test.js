@@ -24,6 +24,7 @@ test("text export filenames use the selected format extension", async () => {
 
   assert.equal(buildTextExportFilename("query-results.csv", { format: "tsv" }), "query-results.tsv");
   assert.equal(buildTextExportFilename("white_house_live_streams", { format: "md" }), "white_house_live_streams.md");
+  assert.equal(buildTextExportFilename("companies.tsv", { format: "json" }), "companies.json");
 });
 
 test("text export filenames sanitize unsafe names and fallback when empty", async () => {
@@ -31,4 +32,5 @@ test("text export filenames sanitize unsafe names and fallback when empty", asyn
 
   assert.equal(buildTextExportFilename("", { format: "csv", fallback: "table" }), "table.csv");
   assert.equal(buildTextExportFilename("../bad:name?.csv", { format: "csv", fallback: "table" }), "bad name.csv");
+  assert.equal(buildTextExportFilename("bad:name?.json", { format: "json", fallback: "table" }), "bad name.json");
 });

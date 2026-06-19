@@ -35,6 +35,7 @@ import {
     clearEditorResults,
     clearQueryHistorySelection,
     closeModal,
+    checkSettingsAppVersion,
     dismissMediaTaggingIssue,
     dismissToast,
     executeCurrentQuery,
@@ -2098,6 +2099,9 @@ async function handleAction(actionNode) {
             return;
         case 'set-settings-section':
             setSettingsSection(actionNode.dataset.section);
+            return;
+        case 'check-app-version':
+            await checkSettingsAppVersion();
             return;
         case 'open-delete-api-token-modal':
             openDeleteSettingsApiTokenModal(actionNode.dataset.tokenId);

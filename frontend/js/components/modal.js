@@ -1019,6 +1019,13 @@ function getExportOptions() {
       preview: ["| id | name |", "| --- | --- |"],
     },
     {
+      label: "JSON",
+      format: "json",
+      icon: "data_object",
+      meta: ".json",
+      preview: ['[', '  {"id":1,"name":"Acme"}', ']'],
+    },
+    {
       label: "Duplicate",
       format: "table",
       icon: "table_chart",
@@ -1047,7 +1054,7 @@ function renderTextExportModal(modal, action) {
           ${disabledAttribute}
         />
       </label>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
         ${getExportOptions()
           .map(
             (option) => `
@@ -1784,6 +1791,8 @@ export function renderModal(state) {
         modal.kind === "row-update-preview" ||
         modal.kind === "table-designer-constraints"
           ? "max-w-3xl"
+          : modal.kind === "query-export" || modal.kind === "data-export"
+            ? "max-w-4xl"
           : "max-w-xl"
       } border border-outline-variant/20 bg-surface-container shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
         <div class="flex items-start justify-between gap-4 border-b border-outline-variant/10 bg-surface-container-low px-6 py-5">

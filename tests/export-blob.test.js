@@ -33,13 +33,32 @@ test("query and table exports include complete BLOB data", () => {
       "SELECT payload FROM files ORDER BY id",
       { format: "csv" }
     );
+    const queryJsonExport = exportService.exportQuery(
+      "SELECT payload FROM files ORDER BY id",
+      { format: "json" }
+    );
     const tableExport = exportService.exportTable("files", { format: "tsv" });
+    const jsonExport = exportService.exportTable("files", { format: "json" });
 
     for (const content of [queryExport.content, tableExport.content]) {
       assert.equal(content.includes(expectedBase64), true);
       assert.match(content, /""encoding"":""base64""/);
       assert.doesNotMatch(content, /base64Preview|hexPreview/);
     }
+
+    assert.equal(jsonExport.mimeType, "application/json; charset=utf-8");
+    assert.equal(jsonExport.filename, "files.json");
+
+    const [queryJsonRow] = JSON.parse(queryJsonExport.content);
+    const [jsonRow] = JSON.parse(jsonExport.content);
+    assert.equal(queryJsonExport.mimeType, "application/json; charset=utf-8");
+    assert.equal(queryJsonRow.payload.encoding, "base64");
+    assert.equal(queryJsonRow.payload.data, expectedBase64);
+    assert.equal(jsonRow.payload.encoding, "base64");
+    assert.equal(jsonRow.payload.data, expectedBase64);
+    assert.equal(jsonRow.payload.sizeBytes, blob.length);
+    assert.equal(jsonExport.content.includes("base64Preview"), false);
+    assert.equal(jsonExport.content.includes("hexPreview"), false);
   } finally {
     db.close();
   }

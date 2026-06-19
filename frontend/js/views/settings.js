@@ -30,6 +30,66 @@ function renderSettingsNavigation(activeSection) {
     `;
 }
 
+function renderVersionCheckStatus(settings) {
+    const result = settings.versionCheck;
+    const error = settings.versionCheckError;
+
+    if (error) {
+        return `
+          <div class="border border-error/20 bg-error-container/10 px-4 py-3 text-sm text-on-surface">
+            <div class="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-error">
+              ${escapeHtml(error.code ?? 'VERSION_CHECK_FAILED')}
+            </div>
+            <div class="mt-1 text-on-surface-variant">${escapeHtml(error.message ?? 'Version check failed.')}</div>
+          </div>
+        `;
+    }
+
+    if (!result) {
+        return `
+          <div class="border border-outline-variant/10 bg-surface-container-high px-4 py-3 text-sm text-on-surface-variant">
+            No version check has been run yet.
+          </div>
+        `;
+    }
+
+    const updateAvailable = Boolean(result.updateAvailable);
+    const releaseLink =
+        updateAvailable && result.releaseUrl
+            ? `
+              <a
+                class="standard-button"
+                href="${escapeHtml(result.releaseUrl)}"
+                rel="noreferrer"
+                target="_blank"
+              >
+                <span class="material-symbols-outlined text-sm">open_in_new</span>
+                Open Release
+              </a>
+            `
+            : '';
+
+    return `
+      <div class="border ${
+          updateAvailable ? 'border-primary-container/30 bg-primary-container/5' : 'border-outline-variant/10 bg-surface-container-high'
+      } px-4 py-3">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="min-w-0">
+            <div class="font-mono text-[10px] font-bold uppercase tracking-[0.18em] ${
+                updateAvailable ? 'text-primary-container' : 'text-on-surface-variant/70'
+            }">
+              ${updateAvailable ? 'New Version Available' : 'Up To Date'}
+            </div>
+            <div class="mt-1 text-sm text-on-surface-variant">
+              Current v${escapeHtml(result.currentVersion ?? '0.0.0')} · Latest v${escapeHtml(result.latestVersion ?? 'unknown')}
+            </div>
+          </div>
+          ${releaseLink}
+        </div>
+      </div>
+    `;
+}
+
 function renderSettingsContent(state) {
     if (state.settings.loading && !state.settings.appVersion) {
         return `
@@ -56,6 +116,7 @@ function renderSettingsContent(state) {
     const activeSection = state.settings.section === 'api-tokens' ? 'api-tokens' : 'information';
     const appVersion = escapeHtml(state.settings.appVersion ?? '0.0.0');
     const sqliteVersion = escapeHtml(state.settings.sqliteVersion ?? 'unknown');
+    const versionCheckLoading = Boolean(state.settings.versionCheckLoading);
     const tokenDatabase = state.settings.tokenDatabase;
     const apiTokens = state.settings.apiTokens ?? [];
     const createdApiToken = state.settings.createdApiToken;
@@ -170,6 +231,23 @@ function renderSettingsContent(state) {
           </div>
           <div class="border-t border-outline-variant/10 py-4 text-sm leading-6 text-on-surface-variant">
             SQL functions and syntax are evaluated with this SQLite runtime.
+          </div>
+          <div class="border-t border-outline-variant/10 pt-4">
+            <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div class="text-[10px] font-mono uppercase tracking-[0.2em] text-on-surface-variant/60">
+                Version_Check
+              </div>
+              <button
+                class="standard-button"
+                data-action="check-app-version"
+                type="button"
+                ${versionCheckLoading ? 'disabled aria-disabled="true"' : ''}
+              >
+                <span class="material-symbols-outlined text-sm">${versionCheckLoading ? 'progress_activity' : 'sync'}</span>
+                ${versionCheckLoading ? 'Checking...' : 'Check Updates'}
+              </button>
+            </div>
+            ${renderVersionCheckStatus(state.settings)}
           </div>
         </div>
       </section>
