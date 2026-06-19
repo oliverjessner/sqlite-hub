@@ -6,3 +6,4 @@
 - Global Database Search
 - Query Analyzer mit Explain Query Plan
 - FTS5 Manager
+- Synthetic Data Generator
