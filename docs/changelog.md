@@ -1,3 +1,8 @@
+# v1.0.1
+
+- structure overhaul, better UI
+- store last position of structure
+
 # v1.0.0
 
 - Removed external Tailwind.

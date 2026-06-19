@@ -280,6 +280,11 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
               The active database does not expose table metadata for the schema graph.
             </p>
           </div>
+          <div
+            class="structure-graph__edge-readout"
+            data-structure-graph-edge-readout
+            hidden
+          ></div>
         </div>
 
         <aside

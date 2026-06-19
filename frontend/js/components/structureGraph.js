@@ -7,6 +7,24 @@ let currentGraph = null;
 let mountVersion = 0;
 let persistedGraphState = null;
 const STRUCTURE_INSPECTOR_VISIBLE_STORAGE_KEY = 'sqlite_hub_structure_inspector_visible';
+const STRUCTURE_GRAPH_STATE_STORAGE_PREFIX = 'sqlite_hub_structure_graph_state';
+const STRUCTURE_GRAPH_STATE_STORAGE_VERSION = 1;
+
+function getHash(input) {
+    let hash = 2166136261;
+    const text = String(input ?? '');
+
+    for (let index = 0; index < text.length; index += 1) {
+        hash ^= text.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+
+    return (hash >>> 0).toString(36);
+}
+
+function getGraphStateStorageKey(schemaSignature) {
+    return `${STRUCTURE_GRAPH_STATE_STORAGE_PREFIX}:${getHash(schemaSignature)}`;
+}
 
 function readStoredInspectorHidden() {
     try {
@@ -53,19 +71,118 @@ function getSchemaSignature(schema) {
     );
 }
 
-function getPersistedGraphState(schema) {
-    const schemaSignature = getSchemaSignature(schema);
-
-    if (persistedGraphState?.schemaSignature !== schemaSignature) {
-        return {
-            schemaSignature,
-            state: null,
-        };
+function normalizeGraphNodePositions(nodePositions) {
+    if (!nodePositions || typeof nodePositions !== 'object') {
+        return null;
     }
+
+    const normalized = {};
+
+    Object.entries(nodePositions).forEach(([nodeId, position]) => {
+        if (!position || typeof position !== 'object') {
+            return;
+        }
+
+        const x = Number(position.x);
+        const y = Number(position.y);
+
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            return;
+        }
+
+        normalized[nodeId] = { x, y };
+    });
+
+    return Object.keys(normalized).length ? normalized : null;
+}
+
+function normalizeGraphStatePayload(payload, schemaSignature) {
+    if (
+        !payload ||
+        typeof payload !== 'object' ||
+        payload.version !== STRUCTURE_GRAPH_STATE_STORAGE_VERSION ||
+        payload.schemaSignature !== schemaSignature
+    ) {
+        return null;
+    }
+
+    const nodePositions = normalizeGraphNodePositions(payload.nodePositions);
+
+    if (!nodePositions) {
+        return null;
+    }
+
+    const zoom = Number(payload.zoom);
+    const panX = Number(payload.pan?.x);
+    const panY = Number(payload.pan?.y);
 
     return {
         schemaSignature,
-        state: persistedGraphState,
+        nodePositions,
+        pan: Number.isFinite(panX) && Number.isFinite(panY) ? { x: panX, y: panY } : null,
+        zoom: Number.isFinite(zoom) ? zoom : null,
+        inspectorHidden: Boolean(payload.inspectorHidden),
+        selectedTableName: typeof payload.selectedTableName === 'string' ? payload.selectedTableName : null,
+        layoutVariant: Number.isFinite(Number(payload.layoutVariant)) ? Number(payload.layoutVariant) : 0,
+    };
+}
+
+function readStoredGraphState(schemaSignature) {
+    try {
+        const rawValue = globalThis.localStorage?.getItem(getGraphStateStorageKey(schemaSignature));
+
+        if (!rawValue) {
+            return null;
+        }
+
+        return normalizeGraphStatePayload(JSON.parse(rawValue), schemaSignature);
+    } catch {
+        return null;
+    }
+}
+
+function writeStoredGraphState(graphState) {
+    if (!graphState?.schemaSignature || !graphState.nodePositions) {
+        return false;
+    }
+
+    try {
+        globalThis.localStorage?.setItem(
+            getGraphStateStorageKey(graphState.schemaSignature),
+            JSON.stringify({
+                version: STRUCTURE_GRAPH_STATE_STORAGE_VERSION,
+                schemaSignature: graphState.schemaSignature,
+                nodePositions: graphState.nodePositions,
+                pan: graphState.pan ?? null,
+                zoom: graphState.zoom ?? null,
+                inspectorHidden: Boolean(graphState.inspectorHidden),
+                selectedTableName: graphState.selectedTableName ?? null,
+                layoutVariant: Number.isFinite(Number(graphState.layoutVariant)) ? Number(graphState.layoutVariant) : 0,
+                savedAt: new Date().toISOString(),
+            }),
+        );
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function getPersistedGraphState(schema) {
+    const schemaSignature = getSchemaSignature(schema);
+
+    if (persistedGraphState?.schemaSignature === schemaSignature) {
+        return {
+            schemaSignature,
+            state: persistedGraphState,
+        };
+    }
+
+    const storedState = readStoredGraphState(schemaSignature);
+    persistedGraphState = storedState;
+
+    return {
+        schemaSignature,
+        state: storedState,
     };
 }
 
@@ -268,22 +385,14 @@ export function buildGraphElements(schema) {
     return [...nodes, ...edges];
 }
 
-export function getElkLayoutOptions(overrides = {}) {
+function getReadableLayoutGeometry(variant = 0) {
     return {
-        name: 'elk',
-        fit: false,
-        padding: 30,
-        animate: false,
-        nodeDimensionsIncludeLabels: false,
-        elk: {
-            algorithm: 'layered',
-            'elk.direction': 'RIGHT',
-            'elk.edgeRouting': 'ORTHOGONAL',
-            'elk.layered.spacing.nodeNodeBetweenLayers': 60,
-            'elk.spacing.nodeNode': 40,
-            'elk.padding': 30,
-        },
-        ...overrides,
+        connectedBaseY: 150,
+        isolatedY: -170,
+        isolatedSpacing: 380,
+        rankSpacing: 440,
+        rowSpacing: 230,
+        variant,
     };
 }
 
@@ -310,92 +419,112 @@ export function createCytoscapeInstance(container, elements) {
                     width: 'data(width)',
                     height: 'data(height)',
                     label: 'data(label)',
-                    'background-color': '#262421',
-                    'border-color': '#8a7b34',
-                    'border-width': 1.4,
-                    color: '#f4efe8',
+                    'background-color': '#302b12',
+                    'border-color': '#c0a31d',
+                    'border-width': 1.8,
+                    color: '#fff8dc',
                     'font-family': 'Space Grotesk, Inter, sans-serif',
-                    'font-size': 13,
+                    'font-size': 13.5,
                     'font-weight': 700,
                     'text-wrap': 'ellipsis',
-                    'text-max-width': 150,
+                    'text-max-width': 170,
                     'text-halign': 'center',
                     'text-valign': 'center',
+                    'text-outline-color': '#11100b',
+                    'text-outline-width': 1.5,
                     'overlay-opacity': 0,
-                    'transition-property': 'background-color, border-color, opacity, color',
+                    'transition-property': 'background-color, border-color, opacity, color, width',
                     'transition-duration': '140ms',
                 },
             },
             {
                 selector: 'node.selected',
                 style: {
-                    'background-color': '#3b340b',
-                    'border-color': '#fce300',
-                    'border-width': 2.8,
-                    color: '#fff6ae',
+                    'background-color': '#5a4e00',
+                    'border-color': '#ffea00',
+                    'border-width': 3.2,
+                    color: '#fffbd3',
                 },
             },
             {
                 selector: 'node.related',
                 style: {
-                    'background-color': '#0d2d30',
-                    'border-color': '#2dfaff',
-                    'border-width': 2.2,
-                    color: '#fbfffe',
+                    'background-color': '#06454a',
+                    'border-color': '#1ef6ff',
+                    'border-width': 2.8,
+                    color: '#edfeff',
                 },
             },
             {
                 selector: 'node.dimmed',
                 style: {
-                    opacity: 0.24,
+                    opacity: 0.46,
                 },
             },
             {
                 selector: 'edge',
                 style: {
-                    width: 1.6,
+                    width: 2.2,
                     label: 'data(label)',
-                    color: '#e7dfbd',
+                    color: '#fff5b8',
                     'font-family': 'Roboto Mono, monospace',
-                    'font-size': 8,
-                    'text-background-color': '#171715',
-                    'text-background-opacity': 0.94,
-                    'text-background-padding': 4,
-                    'line-color': '#8a7b34',
-                    'target-arrow-color': '#8a7b34',
+                    'font-size': 9.5,
+                    'font-weight': 700,
+                    'text-background-color': '#050706',
+                    'text-background-opacity': 0.98,
+                    'text-background-padding': 5,
+                    'text-background-shape': 'roundrectangle',
+                    'text-border-color': '#3d3510',
+                    'text-border-opacity': 0.9,
+                    'text-border-width': 1,
+                    'text-outline-color': '#050706',
+                    'text-outline-width': 1.8,
+                    'text-wrap': 'wrap',
+                    'text-max-width': 170,
+                    'text-margin-y': -7,
+                    'line-color': '#c8a81d',
+                    'target-arrow-color': '#c8a81d',
+                    'arrow-scale': 1.18,
                     'target-arrow-shape': 'triangle',
-                    'curve-style': 'taxi',
-                    'taxi-direction': 'rightward',
-                    'taxi-turn': 20,
+                    'curve-style': 'bezier',
+                    'control-point-step-size': 82,
+                    'loop-direction': '45deg',
+                    'loop-sweep': '90deg',
                     'source-endpoint': 'outside-to-node',
                     'target-endpoint': 'outside-to-node',
                     'overlay-opacity': 0,
-                    'transition-property': 'line-color, target-arrow-color, opacity, color',
+                    'z-index': 1,
+                    'transition-property': 'line-color, target-arrow-color, opacity, color, width',
                     'transition-duration': '120ms',
                 },
             },
             {
                 selector: 'edge.related',
                 style: {
-                    'line-color': '#2dfaff',
-                    'target-arrow-color': '#2dfaff',
-                    color: '#fbfffe',
-                    width: 2.3,
+                    'line-color': '#1ef6ff',
+                    'target-arrow-color': '#1ef6ff',
+                    color: '#edfeff',
+                    'text-border-color': '#1ef6ff',
+                    width: 3.1,
+                    'z-index': 24,
                 },
             },
             {
                 selector: 'edge.hovered',
                 style: {
-                    'line-color': '#fce300',
-                    'target-arrow-color': '#fce300',
-                    color: '#fff6ae',
-                    width: 2.8,
+                    'line-color': '#ffea00',
+                    'target-arrow-color': '#ffea00',
+                    'arrow-scale': 1.35,
+                    color: '#fffbd3',
+                    'text-border-color': '#ffea00',
+                    width: 3.6,
+                    'z-index': 32,
                 },
             },
             {
                 selector: 'edge.dimmed',
                 style: {
-                    opacity: 0.16,
+                    opacity: 0.36,
                 },
             },
         ],
@@ -408,6 +537,129 @@ export function resetHighlights(cy) {
     }
 
     cy.elements().removeClass('selected related hovered dimmed');
+}
+
+function formatQualifiedEdgeColumn(tableName, columnName) {
+    const safeTableName = String(tableName || '?');
+    const safeColumnName = String(columnName || 'rowid');
+
+    return `${safeTableName}.${safeColumnName}`;
+}
+
+function positionEdgeReadout(renderedPosition) {
+    if (!currentGraph?.edgeReadout || !currentGraph.canvasShell || !renderedPosition) {
+        return;
+    }
+
+    const readout = currentGraph.edgeReadout;
+    const shell = currentGraph.canvasShell;
+    const width = readout.offsetWidth || 280;
+    const height = readout.offsetHeight || 64;
+    const maxLeft = Math.max(12, shell.clientWidth - width - 12);
+    const maxTop = Math.max(12, shell.clientHeight - height - 12);
+    const left = Math.min(Math.max(renderedPosition.x + 16, 12), maxLeft);
+    const top = Math.min(Math.max(renderedPosition.y - height / 2, 12), maxTop);
+
+    readout.style.left = `${left}px`;
+    readout.style.top = `${top}px`;
+}
+
+function showEdgeReadout(edge, renderedPosition) {
+    if (!currentGraph?.edgeReadout || !edge) {
+        return;
+    }
+
+    const sourceTable = edge.data('sourceTable') || edge.source().data('tableName') || '?';
+    const targetTable = edge.data('targetTable') || edge.target().data('tableName') || '?';
+    const sourceColumn = edge.data('sourceColumn') || '?';
+    const targetColumn = edge.data('targetColumn') || 'rowid';
+    const sourceLabel = formatQualifiedEdgeColumn(sourceTable, sourceColumn);
+    const targetLabel = formatQualifiedEdgeColumn(targetTable, targetColumn);
+
+    currentGraph.edgeReadout.innerHTML = `
+      <div class="structure-graph__edge-readout-meta">
+        ${escapeHtml(sourceTable)} <span aria-hidden="true">→</span> ${escapeHtml(targetTable)}
+      </div>
+      <div class="structure-graph__edge-readout-path">
+        ${escapeHtml(sourceLabel)} <span aria-hidden="true">→</span> ${escapeHtml(targetLabel)}
+      </div>
+    `;
+    currentGraph.edgeReadout.removeAttribute('hidden');
+    positionEdgeReadout(renderedPosition);
+}
+
+function hideEdgeReadout() {
+    if (!currentGraph?.edgeReadout) {
+        return;
+    }
+
+    currentGraph.edgeReadout.setAttribute('hidden', 'hidden');
+}
+
+function createGraphStateSnapshot(graph = currentGraph) {
+    if (!graph?.cy) {
+        return null;
+    }
+
+    const nodePositions = {};
+
+    graph.cy.nodes().forEach(node => {
+        const x = node.position('x');
+        const y = node.position('y');
+
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+            nodePositions[node.id()] = { x, y };
+        }
+    });
+
+    if (!Object.keys(nodePositions).length) {
+        return null;
+    }
+
+    return {
+        schemaSignature: getSchemaSignature(graph.schema),
+        nodePositions,
+        pan: graph.cy.pan(),
+        zoom: graph.cy.zoom(),
+        inspectorHidden: graph.inspectorHidden,
+        selectedTableName: graph.selectedTableName,
+        layoutVariant: graph.layoutVariant ?? 0,
+    };
+}
+
+function persistCurrentGraphState({ persistToStorage = true } = {}) {
+    const graphState = createGraphStateSnapshot();
+
+    if (!graphState) {
+        return false;
+    }
+
+    persistedGraphState = graphState;
+
+    if (persistToStorage) {
+        writeStoredGraphState(graphState);
+    }
+
+    return true;
+}
+
+function scheduleGraphStatePersist(delay = 180) {
+    if (!currentGraph || currentGraph.persistStateOnDestroy === false) {
+        return;
+    }
+
+    if (currentGraph.persistTimer) {
+        window.clearTimeout(currentGraph.persistTimer);
+    }
+
+    currentGraph.persistTimer = window.setTimeout(() => {
+        if (!currentGraph || currentGraph.persistStateOnDestroy === false) {
+            return;
+        }
+
+        currentGraph.persistTimer = null;
+        persistCurrentGraphState();
+    }, delay);
 }
 
 export function highlightConnectedElements(cy, element) {
@@ -446,26 +698,16 @@ function destroyCurrentGraph() {
     }
 
     if (currentGraph.cy && currentGraph.persistStateOnDestroy !== false) {
-        const nodePositions = {};
-        currentGraph.cy.nodes().forEach(node => {
-            nodePositions[node.id()] = {
-                x: node.position('x'),
-                y: node.position('y'),
-            };
-        });
-
-        persistedGraphState = {
-            schemaSignature: getSchemaSignature(currentGraph.schema),
-            nodePositions,
-            pan: currentGraph.cy.pan(),
-            zoom: currentGraph.cy.zoom(),
-            inspectorHidden: currentGraph.inspectorHidden,
-            selectedTableName: currentGraph.selectedTableName,
-        };
+        persistCurrentGraphState();
     }
 
     currentGraph.cleanup.forEach(cleanup => cleanup());
     currentGraph.cleanup = [];
+
+    if (currentGraph.persistTimer) {
+        window.clearTimeout(currentGraph.persistTimer);
+        currentGraph.persistTimer = null;
+    }
 
     if (currentGraph.resizeObserver) {
         currentGraph.resizeObserver.disconnect();
@@ -483,6 +725,10 @@ function destroyCurrentGraph() {
 }
 
 export function resetPersistedStructureGraphState() {
+    if (currentGraph?.persistStateOnDestroy !== false) {
+        persistCurrentGraphState();
+    }
+
     persistedGraphState = null;
 
     if (currentGraph) {
@@ -571,6 +817,7 @@ function clearSelection() {
         return;
     }
 
+    hideEdgeReadout();
     currentGraph.selectedTableName = null;
     resetHighlights(currentGraph.cy);
     syncEntryHighlights();
@@ -583,6 +830,7 @@ function applyTableSelection(node, { focus = true } = {}) {
         return null;
     }
 
+    hideEdgeReadout();
     const tableData = node.data('table');
     currentGraph.selectedTableName = tableData.name;
     replaceChildrenFromRenderedMarkup(currentGraph.inspector, renderInspector(tableData));
@@ -628,19 +876,148 @@ function restoreGraphState() {
     updateOpenDataButton();
 }
 
-function runLayout(cy, onStop) {
-    const layout = cy.layout(
-        getElkLayoutOptions({
-            stop: () => {
-                cy.fit(cy.elements(), 60);
-                if (typeof onStop === 'function') {
-                    onStop();
-                }
-            },
-        }),
-    );
+function getSortedGraphNodes(nodes) {
+    return nodes
+        .toArray()
+        .sort((left, right) => String(left.data('tableName')).localeCompare(String(right.data('tableName'))));
+}
 
-    layout.run();
+function getIncomingAverageY(node) {
+    const incomingY = [];
+
+    node.incomers('edge').forEach(edge => {
+        const y = edge.source().position('y');
+
+        if (Number.isFinite(y)) {
+            incomingY.push(y);
+        }
+    });
+
+    if (!incomingY.length) {
+        return null;
+    }
+
+    return incomingY.reduce((sum, value) => sum + value, 0) / incomingY.length;
+}
+
+function getLayoutVariantOffset(variant, rank, index, axis) {
+    if (!variant) {
+        return 0;
+    }
+
+    const factor = axis === 'x' ? 28 : 46;
+    const wave = axis === 'x' ? Math.cos : Math.sin;
+
+    return wave((variant + 1) * (rank + 1.7) * (index + 2.3)) * factor;
+}
+
+function applyReadableLayoutPositions(cy, { variant = 0 } = {}) {
+    const nodes = getSortedGraphNodes(cy.nodes());
+
+    if (!nodes.length) {
+        return;
+    }
+
+    const geometry = getReadableLayoutGeometry(variant);
+    const rankById = new Map(nodes.map(node => [node.id(), 0]));
+
+    for (let iteration = 0; iteration < nodes.length; iteration += 1) {
+        let changed = false;
+
+        cy.edges().forEach(edge => {
+            const source = edge.source();
+            const target = edge.target();
+
+            if (source.id() === target.id()) {
+                return;
+            }
+
+            const sourceRank = rankById.get(source.id()) ?? 0;
+            const targetRank = rankById.get(target.id()) ?? 0;
+
+            if (targetRank < sourceRank + 1) {
+                rankById.set(target.id(), sourceRank + 1);
+                changed = true;
+            }
+        });
+
+        if (!changed) {
+            break;
+        }
+    }
+
+    const connectedNodes = nodes.filter(node => node.connectedEdges().nonempty());
+    const isolatedNodes = nodes.filter(node => node.connectedEdges().empty());
+    const nodesByRank = new Map();
+
+    connectedNodes.forEach(node => {
+        const rank = rankById.get(node.id()) ?? 0;
+        const group = nodesByRank.get(rank) ?? [];
+
+        group.push(node);
+        nodesByRank.set(rank, group);
+    });
+
+    const ranks = [...nodesByRank.keys()].sort((left, right) => left - right);
+    const maxRank = ranks.at(-1) ?? 0;
+    const connectedBaseX = -(maxRank * geometry.rankSpacing) / 2;
+
+    ranks.forEach(rank => {
+        const group = (nodesByRank.get(rank) ?? []).sort((left, right) => {
+            const leftAverageY = getIncomingAverageY(left);
+            const rightAverageY = getIncomingAverageY(right);
+
+            if (leftAverageY !== null && rightAverageY !== null && leftAverageY !== rightAverageY) {
+                return leftAverageY - rightAverageY;
+            }
+
+            const degreeDelta = right.degree(false) - left.degree(false);
+
+            if (degreeDelta !== 0) {
+                return degreeDelta;
+            }
+
+            return String(left.data('tableName')).localeCompare(String(right.data('tableName')));
+        });
+
+        group.forEach((node, index) => {
+            node.position({
+                x:
+                    connectedBaseX +
+                    rank * geometry.rankSpacing +
+                    getLayoutVariantOffset(geometry.variant, rank, index, 'x'),
+                y:
+                    geometry.connectedBaseY +
+                    (index - (group.length - 1) / 2) * geometry.rowSpacing +
+                    (rank % 2 === 0 ? 0 : 58) +
+                    getLayoutVariantOffset(geometry.variant, rank, index, 'y'),
+            });
+        });
+    });
+
+    isolatedNodes.forEach((node, index) => {
+        node.position({
+            x:
+                (index - (isolatedNodes.length - 1) / 2) * geometry.isolatedSpacing +
+                getLayoutVariantOffset(geometry.variant, -1, index, 'x'),
+            y: geometry.isolatedY + getLayoutVariantOffset(geometry.variant, -1, index, 'y'),
+        });
+    });
+}
+
+function runLayout(cy, onStop, { randomize = false } = {}) {
+    if (currentGraph) {
+        currentGraph.layoutVariant = randomize ? (currentGraph.layoutVariant ?? 0) + 1 : 0;
+    }
+
+    applyReadableLayoutPositions(cy, { variant: currentGraph?.layoutVariant ?? 0 });
+    cy.fit(cy.elements(), 90);
+
+    if (typeof onStop === 'function') {
+        onStop();
+    }
+
+    persistCurrentGraphState();
 }
 
 function restorePersistedViewport(cy, persistedState) {
@@ -696,16 +1073,18 @@ export function setupToolbar(cy) {
         switch (button.dataset.structureGraphAction) {
             case 'fit':
                 cy.fit(cy.elements(), 60);
+                scheduleGraphStatePersist();
                 break;
             case 'relayout':
+                hideEdgeReadout();
                 runLayout(cy, () => {
                     if (currentGraph?.selectedTableName) {
                         const selectedNode = cy.getElementById(getTableId(currentGraph.selectedTableName));
                         if (selectedNode.nonempty()) {
-                            applyTableSelection(selectedNode, { focus: true });
+                            applyTableSelection(selectedNode, { focus: false });
                         }
                     }
-                });
+                }, { randomize: true });
                 break;
             case 'clear':
                 clearSelection();
@@ -720,6 +1099,7 @@ export function setupToolbar(cy) {
                 storeInspectorHidden(currentGraph.inspectorHidden);
                 updateInspectorToggleButton();
                 syncInspectorLayout();
+                scheduleGraphStatePersist();
                 break;
             case 'copy-ddl':
                 await copyInspectorDdl(button);
@@ -762,6 +1142,8 @@ export async function mountStructureGraph(snapshot) {
     const canvas = root.querySelector('[data-structure-graph-canvas]');
     const inspector = root.querySelector('[data-structure-graph-inspector]');
     const empty = root.querySelector('[data-structure-graph-empty]');
+    const canvasShell = canvas?.closest('.structure-graph__canvas-shell');
+    const edgeReadout = root.querySelector('[data-structure-graph-edge-readout]');
     const schema = snapshot.structure.data?.graph ?? { tables: [] };
     const { schemaSignature, state: cachedState } = getPersistedGraphState(schema);
 
@@ -782,6 +1164,8 @@ export async function mountStructureGraph(snapshot) {
     currentGraph = {
         root,
         canvas,
+        canvasShell: canvasShell instanceof HTMLElement ? canvasShell : null,
+        edgeReadout: edgeReadout instanceof HTMLElement ? edgeReadout : null,
         inspector,
         initialInspectorMarkup: inspector.innerHTML,
         initialSelectedTableName: null,
@@ -794,14 +1178,25 @@ export async function mountStructureGraph(snapshot) {
         openDataButton: null,
         inspectorToggleButton: null,
         inspectorHidden: cachedState?.inspectorHidden ?? readStoredInspectorHidden(),
+        layoutVariant: cachedState?.layoutVariant ?? 0,
         persistStateOnDestroy: true,
         selectedTableName: null,
     };
 
     currentGraph.cleanup.push(setupToolbar(cy));
 
+    const persistBeforeUnload = () => {
+        persistCurrentGraphState();
+    };
+
+    window.addEventListener('beforeunload', persistBeforeUnload);
+    currentGraph.cleanup.push(() => {
+        window.removeEventListener('beforeunload', persistBeforeUnload);
+    });
+
     cy.on('tap', 'node', event => {
         applyTableSelection(event.target, { focus: false });
+        scheduleGraphStatePersist();
     });
 
     cy.on('tap', event => {
@@ -810,14 +1205,39 @@ export async function mountStructureGraph(snapshot) {
         }
     });
 
+    cy.on('tap', 'edge', event => {
+        const edge = event.target;
+        currentGraph.selectedTableName = null;
+        highlightConnectedElements(cy, edge);
+        syncEntryHighlights([], [edge.data('sourceTable'), edge.data('targetTable')]);
+        showEdgeReadout(edge, event.renderedPosition);
+        updateOpenDataButton();
+        scheduleGraphStatePersist();
+    });
+
+    cy.on('dragfree', 'node', () => {
+        scheduleGraphStatePersist(0);
+    });
+
     cy.on('mouseover', 'edge', event => {
         const edge = event.target;
         highlightConnectedElements(cy, edge);
         syncEntryHighlights([], [edge.data('sourceTable'), edge.data('targetTable')]);
+        showEdgeReadout(edge, event.renderedPosition);
+    });
+
+    cy.on('mousemove', 'edge', event => {
+        showEdgeReadout(event.target, event.renderedPosition);
     });
 
     cy.on('mouseout', 'edge', () => {
+        hideEdgeReadout();
         restoreGraphState();
+    });
+
+    cy.on('pan zoom', () => {
+        hideEdgeReadout();
+        scheduleGraphStatePersist(300);
     });
 
     const selectedTableName = snapshot.structure.data?.grouped?.tables?.some(
