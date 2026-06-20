@@ -87,9 +87,17 @@ class DataBrowserService {
 
     return getRawStructureEntries(db)
       .filter((entry) => entry.type === "table")
-      .map((entry) => ({
-        name: entry.name,
-      }));
+      .map((entry) => {
+        const columnCount = db
+          .prepare(`PRAGMA table_xinfo(${quoteIdentifier(entry.name)})`)
+          .all()
+          .filter((column) => Number(column.hidden ?? 0) === 0).length;
+
+        return {
+          name: entry.name,
+          columnCount,
+        };
+      });
   }
 
   getTableData(tableName, options = {}) {

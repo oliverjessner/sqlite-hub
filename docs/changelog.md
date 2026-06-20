@@ -1,3 +1,7 @@
+# v1.1.1
+
+- table designer overhaul
+
 # v1.1.0
 
 - making the UI more consistent

@@ -170,10 +170,10 @@ function renderChartsList(state) {
                 hasSearch
                     ? 'Try another title, SQL fragment, chart type, or saved status.'
                     : isSavedTab
-                    ? 'Save chartable queries from this list or from the SQL Editor to keep them here.'
-                    : isUnsavedTab
-                      ? 'Unsaved chartable queries will appear here until you bookmark them.'
-                    : 'Run SELECT queries in the SQL Editor first. They will appear here automatically.'
+                      ? 'Save chartable queries from this list or from the SQL Editor to keep them here.'
+                      : isUnsavedTab
+                        ? 'Unsaved chartable queries will appear here until you bookmark them.'
+                        : 'Run SELECT queries in the SQL Editor first. They will appear here automatically.'
             }
           </p>
         </div>
@@ -549,7 +549,7 @@ function renderChartCard(chart, state, analysis) {
         '<div class="flex flex-wrap items-center gap-2">',
         '<h3 class="truncate font-headline text-xl font-black uppercase tracking-tight text-on-surface">',
         escapeHtml(chart.name),
-        "</h3>",
+        '</h3>',
         renderStatusBadge(getQueryChartTypeLabel(chart.chartType), 'primary'),
         '</div></div><div class="flex flex-wrap items-center gap-2">',
         '<button class="standard-button" data-action="open-edit-query-chart-modal" data-chart-id="',
@@ -563,8 +563,8 @@ function renderChartCard(chart, state, analysis) {
         '" type="button">Export PNG</button>',
         '</div></header><div class="query-chart-card__body">',
         renderChartSurface(chart, state, analysis),
-        "</div></article>",
-    ].join("");
+        '</div></article>',
+    ].join('');
 }
 
 export function renderChartsDetail(state) {
@@ -636,15 +636,16 @@ export function renderChartsDetail(state) {
             </div>
             <div class="charts-detail-shell__controls-group charts-detail-shell__controls-group--end">
               <button
-                class="standard-button"
+                class="standard-button panel-toggle-button ${historyVisible ? '' : 'is-active'}"
+                aria-pressed="${historyVisible ? 'false' : 'true'}"
                 data-action="toggle-query-history-panel"
                 data-next-value="${historyVisible ? 'false' : 'true'}"
                 type="button"
               >
                 <span class="material-symbols-outlined text-sm">${
-                  historyVisible ? 'visibility_off' : 'visibility'
+                    historyVisible ? 'visibility_off' : 'visibility'
                 }</span>
-                ${historyVisible ? 'Hide Query History' : 'Show Query History'}
+                ${historyVisible ? 'Hide History' : 'Show History'}
               </button>
             </div>
           </div>

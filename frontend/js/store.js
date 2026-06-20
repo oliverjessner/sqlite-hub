@@ -51,9 +51,11 @@ const UI_PREFERENCE_STORAGE_KEYS = {
     chartsHistoryVisible: 'sqlite_hub_charts_history_visible',
     chartsQueryVisible: 'sqlite_hub_charts_query_visible',
     chartsResultsVisible: 'sqlite_hub_charts_results_visible',
+    tableDesignerTablesVisible: 'sqlite_hub_table_designer_tables_visible',
     tableDesignerSqlPreviewVisible: 'sqlite_hub_table_designer_sql_preview_visible',
     documentsEditorVisible: 'sqlite_hub_documents_editor_visible',
     documentsPreviewVisible: 'sqlite_hub_documents_preview_visible',
+    mediaTaggingViewerVisible: 'sqlite_hub_media_tagging_viewer_visible',
 };
 const QUERY_HISTORY_PAGE_SIZE = 30;
 const QUERY_HISTORY_RUN_LIMIT = 8;
@@ -356,6 +358,7 @@ const state = {
         items: [],
         selectedId: null,
         selected: null,
+        searchQuery: '',
         draftFilename: '',
         draftContent: '',
         dirty: false,
@@ -372,6 +375,7 @@ const state = {
         tables: [],
         selectedTableName: null,
         draft: null,
+        tablesVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerTablesVisible, true),
         sqlPreviewVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerSqlPreviewVisible, true),
         pendingImportedDraft: null,
         loading: false,
@@ -424,7 +428,7 @@ const state = {
         issues: [],
         dismissedIssueKeys: [],
         selectedTagKeys: [],
-        workflowMediaDetailsVisible: true,
+        workflowMediaDetailsVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.mediaTaggingViewerVisible, true),
         workflowMediaRotationDegrees: 0,
         skippedMediaKeys: [],
         tagFormValues: {},
@@ -959,6 +963,7 @@ function resetDocumentsState() {
     state.documents.items = [];
     state.documents.selectedId = null;
     state.documents.selected = null;
+    state.documents.searchQuery = '';
     state.documents.draftFilename = '';
     state.documents.draftContent = '';
     state.documents.dirty = false;
@@ -1189,6 +1194,7 @@ function setMissingDatabaseState() {
     state.tableDesigner.tables = [];
     state.tableDesigner.selectedTableName = null;
     state.tableDesigner.draft = null;
+    state.tableDesigner.tablesVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerTablesVisible, true);
     state.tableDesigner.sqlPreviewVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerSqlPreviewVisible, true);
     state.tableDesigner.pendingImportedDraft = null;
     state.tableDesigner.saving = false;
@@ -2384,6 +2390,7 @@ function invalidateDatabaseCaches(options = {}) {
     state.tableDesigner.tables = [];
     state.tableDesigner.selectedTableName = null;
     state.tableDesigner.draft = null;
+    state.tableDesigner.tablesVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerTablesVisible, true);
     state.tableDesigner.sqlPreviewVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerSqlPreviewVisible, true);
     state.tableDesigner.pendingImportedDraft = null;
     state.tableDesigner.saving = false;
@@ -2428,6 +2435,10 @@ function invalidateDatabaseCaches(options = {}) {
     state.mediaTagging.issues = [];
     state.mediaTagging.dismissedIssueKeys = [];
     state.mediaTagging.selectedTagKeys = [];
+    state.mediaTagging.workflowMediaDetailsVisible = readStoredBoolean(
+        UI_PREFERENCE_STORAGE_KEYS.mediaTaggingViewerVisible,
+        true,
+    );
     state.mediaTagging.workflowMediaRotationDegrees = 0;
     state.mediaTagging.skippedMediaKeys = [];
     state.mediaTagging.tagFormValues = {};
@@ -4108,6 +4119,12 @@ export function setTableDesignerSearchQuery(query) {
     emitChange();
 }
 
+export function toggleTableDesignerTablesPanel() {
+    state.tableDesigner.tablesVisible = state.tableDesigner.tablesVisible === false;
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerTablesVisible, state.tableDesigner.tablesVisible);
+    emitChange();
+}
+
 export function setDataTableSearchQuery(query) {
     state.dataBrowser.tableSearchQuery = String(query ?? '');
     emitChange();
@@ -4115,6 +4132,11 @@ export function setDataTableSearchQuery(query) {
 
 export function setStructureTableSearchQuery(query) {
     state.structure.tableSearchQuery = String(query ?? '');
+    emitChange();
+}
+
+export function setDocumentsSearchQuery(query) {
+    state.documents.searchQuery = String(query ?? '');
     emitChange();
 }
 
@@ -4359,6 +4381,7 @@ export function setMediaTaggingWorkflowMediaDetailsVisible(value, options = {}) 
     }
 
     state.mediaTagging.workflowMediaDetailsVisible = nextValue;
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.mediaTaggingViewerVisible, nextValue);
 
     if (options.notify !== false) {
         emitChange();

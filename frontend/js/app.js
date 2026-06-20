@@ -83,8 +83,10 @@ import {
     selectConnection,
     selectQueryHistoryItem,
     selectStructureEntry,
+    setDocumentsSearchQuery,
     setTableDesignerSearchQuery,
     setTableDesignerSqlPreviewVisibility,
+    toggleTableDesignerTablesPanel,
     setDataTableSearchQuery,
     setStructureTableSearchQuery,
     toggleStructureTablesPanel,
@@ -376,21 +378,19 @@ function syncMediaTaggingCurrentMediaUi(button, detailsVisible) {
     }
 
     const nextVisible = Boolean(detailsVisible);
-    const expandedLabel = button.dataset.expandedLabel || 'Shrink Media Viewer';
-    const collapsedLabel = button.dataset.collapsedLabel || 'Show Media Viewer';
+    const expandedLabel = button.dataset.expandedLabel || 'Hide Viewer';
+    const collapsedLabel = button.dataset.collapsedLabel || 'Show Viewer';
     preview.classList.toggle('media-tagging-preview--meta-hidden', !nextVisible);
+    button.classList.toggle('is-active', !nextVisible);
     button.dataset.nextValue = nextVisible ? 'false' : 'true';
     button.setAttribute('aria-expanded', nextVisible ? 'true' : 'false');
+    button.setAttribute('aria-pressed', nextVisible ? 'false' : 'true');
 
-    if (nextVisible) {
-        const icon = document.createElement('span');
+    const icon = document.createElement('span');
 
-        icon.className = 'material-symbols-outlined';
-        icon.textContent = 'visibility_off';
-        button.replaceChildren(icon, document.createTextNode(` ${expandedLabel}`));
-    } else {
-        button.textContent = collapsedLabel;
-    }
+    icon.className = 'material-symbols-outlined';
+    icon.textContent = nextVisible ? 'visibility_off' : 'visibility';
+    button.replaceChildren(icon, document.createTextNode(` ${nextVisible ? expandedLabel : collapsedLabel}`));
 
     return true;
 }
@@ -2656,6 +2656,9 @@ async function handleAction(actionNode) {
         case 'toggle-structure-tables':
             toggleStructureTablesPanel();
             return;
+        case 'toggle-table-designer-tables':
+            toggleTableDesignerTablesPanel();
+            return;
         case 'select-structure-entry':
             if (actionNode.dataset.entryName) {
                 await selectStructureEntry(actionNode.dataset.entryName);
@@ -2989,6 +2992,18 @@ document.addEventListener('keydown', event => {
         return;
     }
 
+    if (state.route.name === 'charts' && state.charts.detailPanelVisible) {
+        event.preventDefault();
+        setChartsDetailPanelVisibility(false);
+        return;
+    }
+
+    if (state.editor.historySelectedId !== null || state.editor.historyDetail) {
+        event.preventDefault();
+        clearQueryHistorySelection();
+        return;
+    }
+
     if (
         state.route.name === 'data' &&
         (typeof state.dataBrowser.selectedRowIndex === 'number' || Boolean(state.dataBrowser.selectedRow))
@@ -3048,6 +3063,11 @@ document.addEventListener('input', event => {
     if (bindNode.dataset.bind === 'document-field') {
         updateCurrentDocumentDraftField(bindNode.dataset.field, bindNode.value);
         scheduleDocumentAutosave(getState().documents.selectedId);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'documents-search') {
+        setDocumentsSearchQuery(bindNode.value);
         return;
     }
 

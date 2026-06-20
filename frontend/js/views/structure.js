@@ -22,7 +22,7 @@ function renderEntryGroup(title, entries, activeName, options = {}) {
                           : '';
 
                       return [
-                          '<button class="w-full border px-3 ',
+                          '<button class="subnavi-item border px-3 ',
                           compact ? 'py-2.5' : 'py-3',
                           ' text-left transition-colors ',
                           isActive
@@ -217,10 +217,11 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
 
     return `
     <section class="structure-graph" data-structure-graph-root>
-      <div class="structure-graph__toolbar">
+      <div class="structure-graph__toolbar workspace-header">
         <div class="structure-graph__toolbar-main">
           <button
-            class="${toolbarButtonClass}"
+            class="${toolbarButtonClass} panel-toggle-button ${tablesVisible ? '' : 'is-active'}"
+            aria-pressed="${tablesVisible ? 'false' : 'true'}"
             data-action="toggle-structure-tables"
             type="button"
           >
@@ -265,7 +266,8 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
         </div>
         <div class="structure-graph__toolbar-inspector">
           <button
-            class="${toolbarButtonClass}"
+            class="${toolbarButtonClass} panel-toggle-button"
+            aria-pressed="false"
             data-structure-graph-action="toggle-inspector"
             type="button"
           >
@@ -321,24 +323,24 @@ export function renderStructureView(state) {
         ${
             tablesVisible
                 ? `
-              <aside class="structure-view__sidebar">
-                <div class="structure-view__sidebar-header">
-                  <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
-                    Objects
-                  </div>
-                  <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-                    total ${escapeHtml(
-                        formatNumber(
-                            (structure?.grouped?.tables?.length ?? 0) +
-                                (structure?.grouped?.views?.length ?? 0) +
-                                (structure?.grouped?.indexes?.length ?? 0) +
-                                (structure?.grouped?.triggers?.length ?? 0),
-                        ),
-                    )}
+              <aside class="structure-view__sidebar subnavi-panel">
+                <div class="structure-view__sidebar-header subnavi-header">
+                  <div>
+                    <div class="subnavi-header-title">Objects</div>
+                    <div class="subnavi-header-details">
+                      total ${escapeHtml(
+                          formatNumber(
+                              (structure?.grouped?.tables?.length ?? 0) +
+                                  (structure?.grouped?.views?.length ?? 0) +
+                                  (structure?.grouped?.indexes?.length ?? 0) +
+                                  (structure?.grouped?.triggers?.length ?? 0),
+                          ),
+                      )}
+                    </div>
                   </div>
                 </div>
                 ${renderStructureTableSearch(state)}
-                <div class="structure-view__sidebar-body custom-scrollbar">
+                <div class="structure-view__sidebar-body subnavi-list custom-scrollbar">
                   ${
                       structure
                           ? `

@@ -18,37 +18,13 @@ export function renderTableDesignerSidebar(state) {
     const isNewDraft = state.tableDesigner.draft?.mode === 'create';
 
     return `
-    <aside class="table-designer-sidebar">
-      <div class="table-designer-sidebar__header">
+    <aside class="table-designer-sidebar subnavi-panel">
+      <div class="table-designer-sidebar__header subnavi-header">
         <div>
-          <div class="table-designer-sidebar__eyebrow">Table Designer</div>
-          <div class="table-designer-sidebar__meta">
+          <div class="subnavi-header-title">Table Designer</div>
+          <div class="subnavi-header-details">
             ${escapeHtml(formatNumber(tables.length))} table${tables.length === 1 ? '' : 's'}
           </div>
-        </div>
-        <div class="table-designer-sidebar__header-actions">
-          <button
-            class="standard-button"
-            data-action="import-table-designer-csv"
-            type="button"
-          >
-            Import CSV
-          </button>
-          <input
-            accept=".csv,text/csv"
-            class="table-designer-sidebar__file-input"
-            data-bind="table-designer-import-file"
-            type="file"
-          />  
-          <button
-            class="signature-button"
-            data-action="navigate"
-            data-to="/table-designer/new"
-            type="button"
-          >
-            + New Table
-          </button>
-  
         </div>
       </div>
 
@@ -64,7 +40,7 @@ export function renderTableDesignerSidebar(state) {
         />
       </label>
 
-      <div class="table-designer-sidebar__list custom-scrollbar">
+      <div class="table-designer-sidebar__list subnavi-list custom-scrollbar">
         ${
             state.tableDesigner.loading && !tables.length
                 ? `
@@ -76,7 +52,7 @@ export function renderTableDesignerSidebar(state) {
                 : isNewDraft
                   ? `
                   <button
-                    class="table-designer-sidebar__item is-active w-full border border-primary-container/30 bg-surface-container-high px-4 py-3 text-left transition-colors"
+                    class="table-designer-sidebar__item subnavi-item is-active border border-primary-container/30 bg-surface-container-high px-4 py-3 text-left transition-colors"
                     data-action="navigate"
                     data-to="/table-designer/new"
                     type="button"
@@ -102,7 +78,7 @@ export function renderTableDesignerSidebar(state) {
                       .map(
                           table => `
                     <button
-                      class="table-designer-sidebar__item w-full border px-4 py-3 text-left transition-colors ${
+                      class="table-designer-sidebar__item subnavi-item border px-4 py-3 text-left transition-colors ${
                           !isNewDraft && table.name === state.tableDesigner.selectedTableName
                               ? 'is-active border-primary-container/30 bg-surface-container-high'
                               : 'border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-high'

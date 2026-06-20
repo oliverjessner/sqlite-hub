@@ -80,7 +80,7 @@ test("database command service provides shared CLI and API operations", (t) => {
   const { connection, service } = createFixture(t);
 
   assert.equal(service.getDatabase("sample").id, connection.id);
-  assert.deepEqual(service.listTables(connection.id), [{ name: "companies" }]);
+  assert.deepEqual(service.listTables(connection.id), [{ name: "companies", columnCount: 2 }]);
   assert.equal(service.getTable(connection.id, "companies").rowCount, 2);
 
   const row = service.getTableRow(connection.id, "companies", "1");

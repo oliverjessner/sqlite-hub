@@ -23,7 +23,8 @@ function renderPreviewHeader(draft, isVisible) {
                 : ''
         }
         <button
-          class="standard-button"
+          class="standard-button panel-toggle-button ${isVisible ? '' : 'is-active'}"
+          aria-pressed="${isVisible ? 'false' : 'true'}"
           data-action="toggle-table-designer-sql-preview"
           data-next-value="${isVisible ? 'false' : 'true'}"
           type="button"

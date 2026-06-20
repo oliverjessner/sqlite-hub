@@ -966,6 +966,7 @@ function updateInspectorToggleButton() {
     }
 
     currentGraph.inspectorToggleButton.classList.toggle('is-active', currentGraph.inspectorHidden);
+    currentGraph.inspectorToggleButton.setAttribute('aria-pressed', currentGraph.inspectorHidden ? 'true' : 'false');
     const icon = document.createElement('span');
     const label = currentGraph.inspectorHidden ? 'Show Inspector' : 'Hide Inspector';
 

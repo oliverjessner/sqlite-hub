@@ -323,7 +323,6 @@ export function renderTableDesignerEditor(state) {
   }
 
   const catalogTables = state.tableDesigner.tables ?? [];
-  const visibleColumns = draft.columns.filter((column) => !column.deleted);
   const saveLabel =
     draft.mode === "create"
       ? state.tableDesigner.saving
@@ -335,11 +334,12 @@ export function renderTableDesignerEditor(state) {
 
   return `
     <section class="table-designer-main shell-section">
-      <header class="table-designer-main__header">
-        <div>
-          <div class="table-designer-main__eyebrow">
-            ${draft.mode === "create" ? "New Table Draft" : "Editing Existing Table"}
-          </div>
+      <div data-table-designer-feedback>
+        ${renderTableDesignerFeedback(draft, state.tableDesigner.saveError)}
+      </div>
+
+      <section class="table-designer-main__section">
+        <div class="table-designer-main__section-header">
           <div class="table-designer-main__title-row">
             <input
               class="table-designer-main__name"
@@ -356,42 +356,6 @@ export function renderTableDesignerEditor(state) {
                 : ""
             }
           </div>
-          <div class="table-designer-main__subtitle">
-            ${escapeHtml(String(visibleColumns.length))} visible column${
-              visibleColumns.length === 1 ? "" : "s"
-            } // Table Designer v2 // SQLite-safe operations only
-          </div>
-        </div>
-        <div class="table-designer-main__actions">
-          ${renderFillToggle(draft)}
-          <button
-            class="standard-button"
-            data-action="refresh-view"
-            type="button"
-          >
-            Reload Schema
-          </button>
-          <button
-            class="standard-button"
-            data-action="save-table-designer"
-            data-table-designer-save-button
-            ${draft.canSave ? "" : "disabled"}
-            type="button"
-          >
-            ${escapeHtml(saveLabel)}
-          </button>
-        </div>
-      </header>
-
-      <div data-table-designer-feedback>
-        ${renderTableDesignerFeedback(draft, state.tableDesigner.saveError)}
-      </div>
-
-      <section class="table-designer-main__section">
-        <div class="table-designer-main__section-header">
-          <div>
-            <div class="table-designer-main__section-title">Columns</div>
-          </div>
           <div class="table-designer-main__section-actions">
             <button
               class="standard-button"
@@ -400,6 +364,23 @@ export function renderTableDesignerEditor(state) {
             >
               + Add Column
             </button>
+            <button
+              class="standard-button"
+              data-action="refresh-view"
+              type="button"
+            >
+              Reload Schema
+            </button>
+            <button
+              class="standard-button"
+              data-action="save-table-designer"
+              data-table-designer-save-button
+              ${draft.canSave ? "" : "disabled"}
+              type="button"
+            >
+              ${escapeHtml(saveLabel)}
+            </button>
+            ${renderFillToggle(draft)}
           </div>
         </div>
         ${renderColumnGrid(draft, catalogTables)}

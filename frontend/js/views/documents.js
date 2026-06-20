@@ -24,7 +24,7 @@ function renderDocumentListItem(item, selectedId) {
 
     return `
       <button
-        class="documents-list-item ${isSelected ? 'is-selected' : ''}"
+        class="documents-list-item subnavi-item ${isSelected ? 'is-selected' : ''}"
         data-action="select-document"
         data-document-id="${escapeHtml(item.id)}"
         type="button"
@@ -42,33 +42,58 @@ function renderDocumentListItem(item, selectedId) {
     `;
 }
 
+function getFilteredDocuments(items, searchQuery) {
+    const normalizedSearch = String(searchQuery ?? '')
+        .trim()
+        .toLowerCase();
+
+    if (!normalizedSearch) {
+        return items;
+    }
+
+    return items.filter(item =>
+        [item.filename, item.title]
+            .filter(Boolean)
+            .some(value => String(value).toLowerCase().includes(normalizedSearch)),
+    );
+}
+
+function renderDocumentsSearch(documents) {
+    return `
+      <label class="table-designer-sidebar__search">
+        <span class="material-symbols-outlined text-sm text-on-surface-variant/55">search</span>
+        <input
+          class="table-designer-sidebar__search-input"
+          data-bind="documents-search"
+          placeholder="Search documents..."
+          spellcheck="false"
+          type="search"
+          value="${escapeHtml(documents.searchQuery ?? '')}"
+        />
+      </label>
+    `;
+}
+
 function renderDocumentsSidebar(documents) {
     const items = documents.items ?? [];
+    const filteredItems = getFilteredDocuments(items, documents.searchQuery);
 
     return `
-      <aside class="documents-view__sidebar">
-        <div class="documents-view__sidebar-header">
+      <aside class="documents-view__sidebar subnavi-panel">
+        <div class="documents-view__sidebar-header subnavi-header">
           <div>
-            <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/50">
-              Documents
-            </div>
-            <div class="mt-1 font-mono text-xs text-primary-container">${formatNumber(items.length)} files</div>
+            <div class="subnavi-header-title">Documents</div>
+            <div class="subnavi-header-details">${formatNumber(items.length)} files</div>
           </div>
-          <button
-            class="icon-button"
-            data-action="create-document"
-            title="New document"
-            type="button"
-            ${documents.saving ? 'disabled aria-disabled="true"' : ''}
-          >
-            <span class="material-symbols-outlined">add</span>
-          </button>
         </div>
-        <div class="documents-view__sidebar-body custom-scrollbar">
+        ${renderDocumentsSearch(documents)}
+        <div class="documents-view__sidebar-body subnavi-list custom-scrollbar">
           ${
-              items.length
-                  ? items.map(item => renderDocumentListItem(item, documents.selectedId)).join('')
-                  : `<div class="documents-list-empty">No documents yet</div>`
+              filteredItems.length
+                  ? filteredItems.map(item => renderDocumentListItem(item, documents.selectedId)).join('')
+                  : `<div class="documents-list-empty">${
+                        items.length ? 'No documents match the current search.' : 'No documents yet'
+                    }</div>`
           }
         </div>
       </aside>
@@ -78,7 +103,9 @@ function renderDocumentsSidebar(documents) {
 function renderDocumentToolbar(documents) {
     const disabled = documents.saving || documents.detailLoading || !documents.selectedId;
 
-    return `       <label class="documents-filename-field">
+    return `
+      <div class="documents-titlebar">
+        <label class="documents-filename-field">
           <input
             class="control-input"
             data-bind="document-field"
@@ -90,13 +117,24 @@ function renderDocumentToolbar(documents) {
             ${!documents.selectedId ? 'disabled' : ''}
           />
         </label>
+        <button
+          class="signature-button documents-create-button"
+          data-action="create-document"
+          type="button"
+          ${documents.saving ? 'disabled aria-disabled="true"' : ''}
+        >
+          <span class="material-symbols-outlined">add</span>
+          New Document
+        </button>
+      </div>
       <div class="documents-toolbar">
    
  
        
         <div class="documents-toolbar__actions">
           <button
-            class="standard-button"
+            class="standard-button panel-toggle-button ${documents.editorVisible ? '' : 'is-active'}"
+            aria-pressed="${documents.editorVisible ? 'false' : 'true'}"
             data-action="toggle-document-pane"
             data-pane="editor"
             type="button"
@@ -105,7 +143,8 @@ function renderDocumentToolbar(documents) {
             ${documents.editorVisible ? 'Hide Editor' : 'Show Editor'}
           </button>
           <button
-            class="standard-button"
+            class="standard-button panel-toggle-button ${documents.previewVisible ? '' : 'is-active'}"
+            aria-pressed="${documents.previewVisible ? 'false' : 'true'}"
             data-action="toggle-document-pane"
             data-pane="preview"
             type="button"

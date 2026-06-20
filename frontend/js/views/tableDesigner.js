@@ -16,12 +16,56 @@ function renderRouteError(error) {
   `;
 }
 
+function renderWorkspaceToolbar(state) {
+  const tablesVisible = state.tableDesigner.tablesVisible !== false;
+
+  return `
+    <div class="table-designer-workspace__toolbar workspace-header">
+      <div class="table-designer-workspace__toolbar-left">
+        <button
+          class="standard-button panel-toggle-button ${tablesVisible ? "" : "is-active"}"
+          aria-pressed="${tablesVisible ? "false" : "true"}"
+          data-action="toggle-table-designer-tables"
+          type="button"
+        >
+          <span class="material-symbols-outlined">${tablesVisible ? "visibility_off" : "visibility"}</span>
+          ${tablesVisible ? "Hide Tables" : "Show Tables"}
+        </button>
+      </div>
+      <div class="table-designer-workspace__toolbar-right">
+        <button
+          class="standard-button"
+          data-action="import-table-designer-csv"
+          type="button"
+        >
+          Import CSV
+        </button>
+        <input
+          accept=".csv,text/csv"
+          class="table-designer-workspace__file-input"
+          data-bind="table-designer-import-file"
+          type="file"
+        />
+        <button
+          class="signature-button"
+          data-action="navigate"
+          data-to="/table-designer/new"
+          type="button"
+        >
+          + New Table
+        </button>
+      </div>
+    </div>
+  `;
+}
+
 export function renderTableDesignerView(state) {
   return {
     main: `
       <section class="view-surface table-designer-view">
-        ${renderTableDesignerSidebar(state)}
+        ${state.tableDesigner.tablesVisible !== false ? renderTableDesignerSidebar(state) : ""}
         <div class="table-designer-workspace">
+          ${renderWorkspaceToolbar(state)}
           ${renderRouteError(state.tableDesigner.error)}
           <div class="table-designer-workspace__top">
             ${renderTableDesignerEditor(state)}

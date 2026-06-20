@@ -396,8 +396,8 @@ function renderPreviewMedia(
 
     const metadata = getWorkflowMetadataEntries(currentItem);
     const toggleLabel = detailsVisible
-        ? '<span class="material-symbols-outlined">visibility_off</span> Shrink Media Viewer'
-        : 'Show Media Viewer';
+        ? '<span class="material-symbols-outlined">visibility_off</span> Hide Viewer'
+        : '<span class="material-symbols-outlined">visibility</span> Show Viewer';
 
     return `
     <div class="media-tagging-preview ${detailsVisible ? '' : 'media-tagging-preview--meta-hidden'}">
@@ -450,11 +450,12 @@ function renderPreviewMedia(
                     : ''
             }
             <button
-              class="standard-button media-tagging-preview__toggle"
+              class="standard-button panel-toggle-button media-tagging-preview__toggle ${detailsVisible ? '' : 'is-active'}"
+              aria-pressed="${detailsVisible ? 'false' : 'true'}"
               data-action="toggle-media-tagging-current-media"
               data-next-value="${detailsVisible ? 'false' : 'true'}"
-              data-expanded-label="Shrink Media Viewer"
-              data-collapsed-label="Show Media Viewer"
+              data-expanded-label="Hide Viewer"
+              data-collapsed-label="Show Viewer"
               aria-expanded="${detailsVisible ? 'true' : 'false'}"
               type="button"
             >

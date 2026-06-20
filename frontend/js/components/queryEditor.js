@@ -45,7 +45,8 @@ export function renderQueryEditor({
   const secondaryButtonClass = "standard-button";
   const left = `
     <button
-      class="${secondaryButtonClass}"
+      class="${secondaryButtonClass} panel-toggle-button ${editorVisible ? "" : "is-active"}"
+      aria-pressed="${editorVisible ? "false" : "true"}"
       data-action="toggle-editor-panel"
       data-next-value="${editorVisible ? "false" : "true"}"
       type="button"
@@ -90,7 +91,8 @@ export function renderQueryEditor({
 
   const right = `
     <button
-      class="${secondaryButtonClass}"
+      class="${secondaryButtonClass} panel-toggle-button ${historyVisible ? "" : "is-active"}"
+      aria-pressed="${historyVisible ? "false" : "true"}"
       data-action="toggle-query-history-panel"
       data-next-value="${historyVisible ? "false" : "true"}"
       type="button"
@@ -102,7 +104,7 @@ export function renderQueryEditor({
 
   return `
     <div class="flex h-full min-h-0 flex-col">
-      <div class="bg-surface-container-low px-6 py-3">
+      <div class="workspace-header workspace-header--low">
         <div class="query-editor-toolbar">
           <div class="query-editor-toolbar__left">${left}</div>
           <div class="query-editor-toolbar__center">${center}</div>

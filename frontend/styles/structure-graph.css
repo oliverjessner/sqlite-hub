@@ -12,7 +12,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 1rem;
-    padding: 1rem 1.25rem;
 }
 
 .structure-graph__toolbar-main {
@@ -57,9 +56,18 @@
     background: var(--color-surface-container-highest);
 }
 
-.structure-graph__toolbar .standard-button.is-active {
+.structure-graph__toolbar .panel-toggle-button.is-active,
+.structure-graph__toolbar .panel-toggle-button[aria-pressed='true'] {
     background: var(--primary-alpha-12);
     border-color: rgb(var(--rgb-primary) / 0.38);
+    box-shadow: inset 0 0 0 1px var(--primary-alpha-12);
+    color: var(--color-primary-container);
+}
+
+.structure-graph__toolbar .panel-toggle-button.is-active:hover,
+.structure-graph__toolbar .panel-toggle-button[aria-pressed='true']:hover {
+    background: var(--primary-alpha-18);
+    border-color: rgb(var(--rgb-primary) / 0.5);
     color: var(--color-primary-container);
 }
 

@@ -78,31 +78,32 @@ function renderTableList(state) {
     }
 
     return `
-    <div class="custom-scrollbar flex-1 overflow-auto px-4 py-4">
-      <div class="space-y-2">
-        ${filteredTables
-            .map(
-                table => `
-              <button
-                class="w-full border px-4 py-3 text-left transition-colors ${
-                    table.name === activeName
-                        ? 'border-primary-container/30 bg-surface-container-high'
-                        : 'border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-high'
-                }"
-                data-action="navigate"
-                data-to="/data/${encodeURIComponent(table.name)}"
-                type="button"
-              >
-                <div class="truncate font-mono text-xs ${
-                    table.name === activeName ? 'text-primary-container' : 'text-on-surface'
-                }">
-                  ${escapeHtml(table.name)}
-                </div>
-              </button>
-            `,
-            )
-            .join('')}
-      </div>
+    <div class="subnavi-list custom-scrollbar">
+      ${filteredTables
+          .map(
+              table => `
+            <button
+              class="table-designer-sidebar__item subnavi-item border px-4 py-3 text-left transition-colors ${
+                  table.name === activeName
+                      ? 'is-active border-primary-container/30 bg-surface-container-high'
+                      : 'border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-high'
+              }"
+              data-action="navigate"
+              data-to="/data/${encodeURIComponent(table.name)}"
+              type="button"
+            >
+              <div class="table-designer-sidebar__item-name ${table.name === activeName ? 'is-active' : ''}">
+                ${escapeHtml(table.name)}
+              </div>
+              <div class="mt-1 truncate text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45">
+                ${escapeHtml(formatNumber(table.columnCount ?? 0))} column${
+                    Number(table.columnCount ?? 0) === 1 ? '' : 's'
+                }
+              </div>
+            </button>
+          `,
+          )
+          .join('')}
     </div>
   `;
 }
@@ -112,13 +113,14 @@ function renderWorkspaceHeader(state) {
     const tablesVisible = state.dataBrowser.tablesVisible !== false;
 
     return `
-    <header class="border-b border-outline-variant/10 bg-surface-container px-6 py-3">
+    <header class="workspace-header">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div class="flex items-center gap-3">
           ${
               table
                   ? `<button
-                    class="standard-button"
+                    class="standard-button panel-toggle-button ${tablesVisible ? '' : 'is-active'}"
+                    aria-pressed="${tablesVisible ? 'false' : 'true'}"
                     data-action="toggle-data-tables"
                     type="button"
                   >
@@ -631,17 +633,17 @@ export function renderDataView(state) {
     return {
         main: `
       <section class="view-surface min-h-full bg-surface-container flex h-full min-h-0 flex-col overflow-hidden">
-        <div class="grid h-full min-h-0 grid-cols-1 ${tablesVisible ? 'md:grid-cols-[18rem_minmax(0,1fr)]' : ''}">
+        <div class="data-view-grid ${tablesVisible ? 'data-view-grid--with-subnavi' : ''}">
           ${
               tablesVisible
                   ? `
-                    <aside class="flex min-h-0 flex-col border-r border-outline-variant/10 bg-surface-low">
-                      <div class="border-b border-outline-variant/10 px-6 py-5">
-                        <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
-                          Tables
-                        </div>
-                        <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-                          total ${escapeHtml(formatNumber(state.dataBrowser.tables.length))}
+                    <aside class="data-view__sidebar subnavi-panel">
+                      <div class="subnavi-header">
+                        <div>
+                          <div class="subnavi-header-title">Tables</div>
+                          <div class="subnavi-header-details">
+                            total ${escapeHtml(formatNumber(state.dataBrowser.tables.length))}
+                          </div>
                         </div>
                       </div>
                       ${renderDataTableSearch(state)}
