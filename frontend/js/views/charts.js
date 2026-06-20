@@ -451,7 +451,7 @@ export function renderChartsDetail(state) {
     const charts = detail.charts ?? [];
 
     return `
-    <div class="custom-scrollbar flex-1 overflow-auto">
+    <div class="charts-detail-scroll custom-scrollbar flex-1 overflow-auto">
       <div class="charts-detail-shell">
         <header class="charts-detail-shell__header" data-charts-detail-header>
           <div class="charts-detail-shell__title">

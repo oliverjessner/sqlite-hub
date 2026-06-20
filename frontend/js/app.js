@@ -1364,13 +1364,19 @@ function renderApp(state) {
     const canPatchChartsMain =
         mainChanged && previousRouteName === 'charts' && state.route.name === 'charts' && !chartsHistoryChanged;
     let mainPatched = false;
+    let preservedChartsDom = false;
 
     if (canPatchChartsMain) {
         if (chartsCardsChanged) {
             teardownQueryChartRenderer();
         }
 
-        mainPatched = patchChartsDetailUi(state, { preserveCharts: !chartsCardsChanged });
+        preservedChartsDom = !chartsCardsChanged;
+        mainPatched = patchChartsDetailUi(state, { preserveCharts: preservedChartsDom });
+
+        if (!mainPatched) {
+            preservedChartsDom = false;
+        }
     }
 
     if (mainChanged) {
@@ -1476,7 +1482,7 @@ function renderApp(state) {
         });
     }
 
-    if (state.route.name === 'charts') {
+    if (state.route.name === 'charts' && !preservedChartsDom) {
         mountQueryChartRenderer(state);
     }
 }

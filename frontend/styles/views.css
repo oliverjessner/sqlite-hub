@@ -652,6 +652,10 @@
     min-width: 0;
 }
 
+.charts-detail-scroll {
+    scrollbar-gutter: stable;
+}
+
 .charts-detail-shell {
     min-height: 100%;
     padding: var(--spacing-6);
