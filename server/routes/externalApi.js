@@ -1,9 +1,77 @@
 const express = require("express");
 const { createApiTokenAuth } = require("../middleware/apiTokenAuth");
-const { route, successResponse } = require("../utils/errors");
+const { readBearerToken } = require("../middleware/apiTokenAuth");
+const { AuthenticationError, ValidationError, route, successResponse } = require("../utils/errors");
+const { buildAppInfo } = require("../services/appInfoService");
 
-function createExternalApiRouter({ databaseService, tokenService }) {
+function buildRequestBaseUrl(req) {
+  const host = req.get("host") ?? `127.0.0.1:${req.socket.localPort ?? ""}`;
+  return `${req.protocol}://${host}`;
+}
+
+function readDatabaseId(req) {
+  return String(req.body?.databaseId ?? req.query.databaseId ?? "").trim();
+}
+
+function readSqlText(req) {
+  return String(req.body?.sql ?? req.body?.query ?? req.query.sql ?? req.query.query ?? "");
+}
+
+function authenticateDatabaseRequest(req, tokenService, databaseId) {
+  const token = readBearerToken(req.get("authorization"));
+
+  if (!token) {
+    throw new AuthenticationError("Bearer API token is required.", {
+      code: "API_TOKEN_REQUIRED",
+    });
+  }
+
+  return tokenService.authenticate(databaseId, token);
+}
+
+function createExternalApiRouter({ databaseService, tokenService, appInfoService = buildAppInfo }) {
   const router = express.Router();
+
+  router.get(
+    "/info",
+    route(async (req, res) => {
+      const port = Number(req.socket.localPort);
+      const data = await appInfoService({
+        port: Number.isInteger(port) ? port : null,
+        url: buildRequestBaseUrl(req),
+      });
+
+      res.json(successResponse({ data }));
+    })
+  );
+
+  router.post(
+    "/query",
+    route((req, res) => {
+      const databaseId = readDatabaseId(req);
+      const sql = readSqlText(req);
+
+      if (!databaseId) {
+        throw new ValidationError("databaseId is required.");
+      }
+
+      authenticateDatabaseRequest(req, tokenService, databaseId);
+
+      const { result } = databaseService.executeRawQuery(databaseId, sql);
+
+      res.json(
+        successResponse({
+          message: "SQL executed successfully.",
+          data: result,
+          metadata: {
+            databaseId,
+          },
+          timingMs: result.timingMs,
+          readOnly: false,
+        })
+      );
+    })
+  );
 
   router.use(
     "/databases/:databaseId",

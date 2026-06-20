@@ -1,115 +1,65 @@
-import { escapeHtml, formatNumber } from '../utils/format.js';
+import { escapeHtml } from '../utils/format.js';
 import { renderStatusBadge } from './badges.js';
-import { renderQueryHistoryHeader } from './queryHistoryHeader.js';
-
-function getQueryTypeTone(queryType) {
-    if (queryType === 'select' || queryType === 'update') {
-        return 'success';
-    }
-
-    if (queryType === 'pragma') {
-        return 'primary';
-    }
-
-    return 'muted';
-}
+import { renderQueryHistoryHeader, renderQueryHistorySearch } from './queryHistoryHeader.js';
+import {
+    getQueryTypeTone,
+    renderQueryHistoryActionGroup,
+    renderQueryHistoryBadgeRow,
+    renderQueryHistoryIconButton,
+    renderQueryHistoryListItem as renderSharedQueryHistoryListItem,
+    renderQueryHistoryTabs,
+} from './queryHistoryList.js';
 
 export function renderQueryHistoryListItem(item, activeHistoryId, selectedHistoryId) {
     const isActive = Number(activeHistoryId) === Number(item.id);
     const isSelected = Number(selectedHistoryId) === Number(item.id);
-    const visibleTables = (item.tablesDetected ?? []).slice(0, 3);
-    const itemClasses = [
-        'query-history-item',
-        isActive ? 'is-active' : '',
-        item.lastRun?.status === 'error' ? 'is-error' : '',
-    ]
-        .filter(Boolean)
-        .join(' ');
-    const tableMarkup = visibleTables
-        .map(tableName =>
-            [
-                '<span class="border border-outline-variant/20 bg-surface-highest px-2 py-1">',
-                escapeHtml(tableName),
-                '</span>',
-            ].join(''),
-        )
-        .join('');
+    const badgesMarkup = renderQueryHistoryBadgeRow(
+        [
+            renderStatusBadge(item.queryType, getQueryTypeTone(item.queryType)),
+            item.isSaved ? renderStatusBadge('saved', 'primary') : '',
+            item.isDestructive ? renderStatusBadge('destructive', 'warning') : '',
+        ].join(''),
+    );
+    const actionsMarkup = renderQueryHistoryActionGroup([
+        renderQueryHistoryIconButton({
+            action: 'open-query-history',
+            historyId: item.id,
+            icon: 'edit_note',
+            title: 'Open in editor',
+        }),
+        renderQueryHistoryIconButton({
+            action: 'run-query-history',
+            historyId: item.id,
+            icon: 'play_arrow',
+            title: 'Run query',
+        }),
+        renderQueryHistoryIconButton({
+            action: 'select-query-history-item',
+            historyId: item.id,
+            icon: 'info',
+            title: 'Open query detail',
+            active: isSelected,
+        }),
+        renderQueryHistoryIconButton({
+            action: 'toggle-query-history-saved',
+            historyId: item.id,
+            icon: item.isSaved ? 'bookmark' : 'bookmark_add',
+            title: item.isSaved ? 'Remove from saved' : 'Save query',
+            active: item.isSaved,
+            nextValue: item.isSaved ? 'false' : 'true',
+        }),
+    ]);
 
-    return [
-        '<article class="',
-        itemClasses,
-        '"><button class="query-history-item-hit ',
-        isActive ? 'is-active' : '',
-        '" data-action="select-query-history-item" data-history-id="',
-        escapeHtml(item.id),
-        '" type="button">',
-        '<div class="space-y-2 text-left"><span class="block w-full truncate font-headline text-sm font-bold uppercase tracking-tight text-on-surface">',
-        escapeHtml(item.displayTitle),
-        '</span><div class="flex flex-wrap items-center gap-2">',
-        renderStatusBadge(item.queryType, getQueryTypeTone(item.queryType)),
-        item.isSaved ? renderStatusBadge('saved', 'primary') : '',
-        item.isDestructive ? renderStatusBadge('destructive', 'warning') : '',
-        '</div></div>',
-        '<p class="query-history-sql-preview mt-2 text-left font-mono text-xs leading-5 text-on-surface-variant/75">',
-        escapeHtml(item.previewSql),
-        '</p></button>',
-        '<div class="flex items-center justify-between gap-3 border-t border-outline-variant/10 px-3 pb-3 pt-2">',
-        '<div class="min-w-0 flex flex-wrap gap-2 text-[10px] font-mono uppercase tracking-[0.14em] text-on-surface-variant/55">',
-        tableMarkup,
-        '</div><div class="flex items-center gap-1">',
-        '<button class="query-history-icon-button" data-action="open-query-history" data-history-id="',
-        escapeHtml(item.id),
-        '" title="Open in editor" type="button"><span class="material-symbols-outlined text-[18px]">edit_note</span></button>',
-        '<button class="query-history-icon-button" data-action="run-query-history" data-history-id="',
-        escapeHtml(item.id),
-        '" title="Run query" type="button"><span class="material-symbols-outlined text-[18px]">play_arrow</span></button>',
-        '<button class="query-history-icon-button ',
-        item.isSaved ? 'is-active' : '',
-        '" data-action="toggle-query-history-saved" data-history-id="',
-        escapeHtml(item.id),
-        '" data-next-value="',
-        item.isSaved ? 'false' : 'true',
-        '" title="',
-        item.isSaved ? 'Remove from saved' : 'Save query',
-        '" type="button"><span class="material-symbols-outlined text-[18px]">',
-        item.isSaved ? 'bookmark' : 'bookmark_add',
-        '</span></button>',
-        '<button class="query-history-icon-button ',
-        isSelected ? 'is-active' : '',
-        '" data-action="select-query-history-item" data-history-id="',
-        escapeHtml(item.id),
-        '" title="Open query detail" type="button"><span class="material-symbols-outlined text-[18px]">info</span></button>',
-        '</div></div></article>',
-    ].join('');
-}
-
-function renderQueryHistoryTabs(activeTab, historyTotal) {
-    const tabs = [
-        { id: 'recent', label: 'Recent' },
-        { id: 'saved', label: 'Saved' },
-        { id: 'unsaved', label: 'Unsaved' },
-        { id: 'failed', label: 'Failed' },
-    ];
-
-    return [
-        '<div class="flex items-center gap-2">',
-        tabs
-            .map(tab =>
-                [
-                    '<button class="query-history-tab ',
-                    activeTab === tab.id ? 'is-active' : '',
-                    '" data-action="set-query-history-tab" data-tab="',
-                    tab.id,
-                    '" type="button">',
-                    escapeHtml(tab.label),
-                    '</button>',
-                ].join(''),
-            )
-            .join(''),
-        '<span class="ml-auto text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/50">',
-        escapeHtml(formatNumber(historyTotal)),
-        '</span></div>',
-    ].join('');
+    return renderSharedQueryHistoryListItem({
+        title: item.displayTitle,
+        preview: item.previewSql,
+        historyId: item.id,
+        active: isActive,
+        error: item.lastRun?.status === 'error',
+        hitAction: 'select-query-history-item',
+        badgesMarkup,
+        actionsMarkup,
+    });
 }
 
 export function renderQueryHistoryPanel({
@@ -127,22 +77,23 @@ export function renderQueryHistoryPanel({
 }) {
     return `
     <aside class="query-history-panel border-l border-outline-variant/10 bg-surface-container-lowest">
-      <div class="border-b border-outline-variant/10 px-4 py-4">
+      <div class="query-history-panel__header">
         ${renderQueryHistoryHeader()}
-        <div class="mt-4">${renderQueryHistoryTabs(activeTab, total)}</div>
-        <label class="mt-4 block">
-          <span class="sr-only">Search query history</span>
-          <input
-            class="control-input w-full border border-outline-variant/20 bg-surface-container text-sm text-on-surface outline-none placeholder:text-on-surface-variant/35 focus:border-primary-container"
-            data-bind="query-history-search"
-            placeholder="Search SQL, titles, notes..."
-            type="search"
-            value="${escapeHtml(search)}"
-          />
-        </label>
+        ${renderQueryHistoryTabs({
+            tabs: [
+                { id: 'recent', label: 'Recent' },
+                { id: 'saved', label: 'Saved' },
+                { id: 'unsaved', label: 'Unsaved' },
+                { id: 'failed', label: 'Failed' },
+            ],
+            activeTab,
+            action: 'set-query-history-tab',
+            count: total,
+        })}
+        ${renderQueryHistorySearch({ value: search })}
       </div>
       <div
-        class="custom-scrollbar min-h-0 flex-1 overflow-auto px-3 py-3"
+        class="query-history-list-scroll custom-scrollbar"
         data-query-history-committed-search="${escapeHtml(committedSearch)}"
         data-query-history-loading-more="${loadingMore ? 'true' : 'false'}"
         data-query-history-search="${escapeHtml(search)}"
@@ -173,7 +124,7 @@ export function renderQueryHistoryPanel({
             `
                 : ''
         }
-          <div class="space-y-3">
+          <div class="query-history-list">
           ${items.map(item => renderQueryHistoryListItem(item, activeHistoryId, selectedHistoryId)).join('')}
         </div>
         ${

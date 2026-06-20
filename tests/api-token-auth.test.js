@@ -8,6 +8,7 @@ const test = require("node:test");
 const { createExternalApiRouter } = require("../server/routes/externalApi");
 const { ApiTokenService } = require("../server/services/apiTokenService");
 const { AppStateStore } = require("../server/services/storage/appStateStore");
+const { ReadOnlyError } = require("../server/utils/errors");
 const { errorMiddleware } = require("../server/utils/errors");
 
 function createConnection(id, label, databasePath) {
@@ -39,13 +40,52 @@ async function startApi(t) {
       serviceCalls.push(databaseId);
       return [{ name: "companies" }];
     },
+    executeRawQuery(databaseId, sql) {
+      serviceCalls.push(`${databaseId}:query:${sql}`);
+      if (sql === "READONLY") {
+        throw new ReadOnlyError("Cannot execute raw SQL against a read-only database.");
+      }
+      return {
+        result: {
+          sql,
+          statementCount: 1,
+          statements: [],
+          rows: [],
+          columns: [],
+          affectedRowCount: 0,
+          resultKind: "unknown",
+          timingMs: 2,
+          historyId: 42,
+        },
+      };
+    },
   };
   const app = express();
 
   app.use(express.json());
   app.use(
     "/api/v1",
-    createExternalApiRouter({ databaseService, tokenService })
+    createExternalApiRouter({
+      databaseService,
+      tokenService,
+      appInfoService: async ({ port, url }) => ({
+        packageName: "sqlite-hub",
+        appVersion: "1.0.1",
+        sqliteVersion: "3.50.0",
+        port,
+        url,
+        versionCheck: {
+          packageName: "sqlite-hub",
+          currentVersion: "1.0.1",
+          latestVersion: "1.0.1",
+          updateAvailable: false,
+          checkedAt: "2026-06-20T10:00:00.000Z",
+          source: "npm",
+          releaseUrl: "https://www.npmjs.com/package/sqlite-hub/v/1.0.1",
+          status: "current",
+        },
+      }),
+    })
   );
   app.use(errorMiddleware);
 
@@ -124,4 +164,61 @@ test("tokens are hashed, deletable, and isolated per database", async (t) => {
     () => fixture.tokenService.authenticate(fixture.databaseA.id, created.token),
     /invalid for this database/
   );
+});
+
+test("public API info returns app and version status without a token", async (t) => {
+  const fixture = await startApi(t);
+  const response = await fetch(`${fixture.baseUrl}/info`);
+  const payload = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(payload.data.packageName, "sqlite-hub");
+  assert.equal(payload.data.appVersion, "1.0.1");
+  assert.equal(payload.data.sqliteVersion, "3.50.0");
+  assert.equal(payload.data.versionCheck.status, "current");
+  assert.equal(payload.data.versionCheck.updateAvailable, false);
+  assert.match(payload.data.url, /^http:\/\/127\.0\.0\.1:\d+$/);
+});
+
+test("query API executes raw SQL with a database token", async (t) => {
+  const fixture = await startApi(t);
+  const created = fixture.tokenService.createToken(fixture.databaseA.id, "Automation");
+  const response = await fetch(`${fixture.baseUrl}/query`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${created.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      databaseId: fixture.databaseA.id,
+      sql: "SELECT 1",
+    }),
+  });
+  const payload = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(payload.data.sql, "SELECT 1");
+  assert.equal(payload.data.historyId, 42);
+  assert.equal(payload.metadata.databaseId, fixture.databaseA.id);
+  assert.deepEqual(fixture.serviceCalls, [`${fixture.databaseA.id}:query:SELECT 1`]);
+});
+
+test("query API rejects read-only raw SQL execution", async (t) => {
+  const fixture = await startApi(t);
+  const created = fixture.tokenService.createToken(fixture.databaseA.id, "Automation");
+  const response = await fetch(`${fixture.baseUrl}/query`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${created.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      databaseId: fixture.databaseA.id,
+      sql: "READONLY",
+    }),
+  });
+  const payload = await response.json();
+
+  assert.equal(response.status, 403);
+  assert.equal(payload.error.code, "SQLITE_READONLY");
 });

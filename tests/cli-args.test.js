@@ -31,6 +31,11 @@ test("parses database info commands with the new schema", () => {
   assert.equal(parseCliArguments(["--database:db", "--lastopened"]).lastOpenedInfo, true);
 });
 
+test("parses app info command and keeps config as a legacy alias", () => {
+  assert.equal(parseCliArguments(["--info"]).info, true);
+  assert.equal(parseCliArguments(["--config"]).info, true);
+});
+
 test("keeps old sqleditor aliases working", () => {
   const listOptions = parseCliArguments(["--database:Unit-00", "--sqleditor"]);
   const executeOptions = parseCliArguments(["--database:Unit-00", "--sqleditor:Saved Query"]);
@@ -50,8 +55,9 @@ test("keeps old database detail aliases working", () => {
   assert.equal(tableOptions.tables, true);
 });
 
-test("parses query display and export commands", () => {
-  const showOptions = parseCliArguments(["--database:db", "--query:Stock Winners"]);
+test("parses raw query, saved query display, and export commands", () => {
+  const rawOptions = parseCliArguments(["--database:db", "--query:SELECT 1"]);
+  const showOptions = parseCliArguments(["--database:db", "--saved-query:Stock Winners"]);
   const notesOptions = parseCliArguments(["--database:db", "--notes:Stock Winners"]);
   const exportOptions = parseCliArguments([
     "--database:db",
@@ -59,6 +65,7 @@ test("parses query display and export commands", () => {
     "--format:md",
   ]);
 
+  assert.equal(rawOptions.rawQuery, "SELECT 1");
   assert.equal(showOptions.showQuery, "Stock Winners");
   assert.equal(notesOptions.showNotes, "Stock Winners");
   assert.equal(exportOptions.exportTarget, "Stock Winners");

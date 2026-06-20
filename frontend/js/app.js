@@ -96,7 +96,9 @@ import {
     toggleDataTablesPanel,
     setCurrentQuery,
     setChartsHeightPreset,
+    setChartsDetailPanelVisibility,
     setChartsHistoryTab,
+    setChartsHistorySearchInput,
     setChartsHistoryPanelVisibility,
     setEditorPanelVisibility,
     setEditorTab,
@@ -716,7 +718,11 @@ function buildChartsHistorySignature(state) {
     }
 
     return JSON.stringify({
+        detailPanelVisible: Boolean(state.charts.detailPanelVisible),
+        detailPanelHistoryId: state.charts.detailPanelVisible ? state.charts.selectedHistoryId : null,
         tab: state.charts.historyTab ?? 'recent',
+        searchInput: state.charts.historySearchInput ?? '',
+        search: state.charts.historySearch ?? '',
         queries: queries.map(item => [
             item.id,
             item.displayTitle,
@@ -780,53 +786,101 @@ function syncChartsHistorySelectionUi(state) {
 
         const itemNode = button.closest('[data-charts-history-item]');
         const isSelected = button.dataset.historyId === selectedHistoryId;
-        const titleNode = button.querySelector('[data-charts-history-title]');
         const selectionNode = itemNode instanceof HTMLElement ? itemNode : button;
 
-        selectionNode.classList.toggle('border-primary-container/30', isSelected);
-        selectionNode.classList.toggle('bg-surface-container-high', isSelected);
-        selectionNode.classList.toggle('border-outline-variant/10', !isSelected);
-        selectionNode.classList.toggle('bg-surface-container-lowest', !isSelected);
-        selectionNode.classList.toggle('hover:bg-surface-container-high', !isSelected);
-
-        if (titleNode instanceof HTMLElement) {
-            titleNode.classList.toggle('text-primary-container', isSelected);
-            titleNode.classList.toggle('text-on-surface', !isSelected);
-        }
+        selectionNode.classList.toggle('is-active', isSelected);
+        button.classList.toggle('is-active', isSelected);
     }
 
     return true;
 }
 
-function syncChartsSavedToggleUi(actionNode, nextValue) {
-    const itemNode = actionNode.closest('[data-charts-history-item]');
+function syncChartsSavedToggleButtonUi(button, nextValue) {
+    button.classList.toggle('is-active', nextValue);
+    button.dataset.nextValue = nextValue ? 'false' : 'true';
+    button.title = nextValue ? 'Remove from saved' : 'Save query';
 
-    actionNode.classList.toggle('is-active', nextValue);
-    actionNode.dataset.nextValue = nextValue ? 'false' : 'true';
-    actionNode.title = nextValue ? 'Remove from saved' : 'Save query';
-
-    const iconNode = actionNode.querySelector('.material-symbols-outlined');
+    const iconNode = button.querySelector('.material-symbols-outlined');
     if (iconNode instanceof HTMLElement) {
         iconNode.textContent = nextValue ? 'bookmark' : 'bookmark_add';
     }
 
-    if (itemNode instanceof HTMLElement) {
-        itemNode.querySelector('[data-charts-saved-badge]')?.toggleAttribute('hidden', !nextValue);
+    const labelNode = button.querySelector('[data-charts-saved-label]');
+    if (labelNode instanceof HTMLElement) {
+        labelNode.textContent = nextValue ? 'Unsave' : 'Save';
+    }
+}
 
-        if (!nextValue && getState().charts.historyTab === 'saved') {
+function syncChartsSavedToggleUi(actionNode, nextValue) {
+    const historyId = actionNode.dataset.historyId;
+    const relatedButtons = [
+        actionNode,
+        ...shellRefs.view.querySelectorAll('[data-action="toggle-charts-query-history-saved"][data-history-id]'),
+        ...shellRefs.panel.querySelectorAll('[data-action="toggle-charts-query-history-saved"][data-history-id]'),
+    ].filter((button, index, buttons) => {
+        return (
+            button instanceof HTMLElement &&
+            button.dataset.historyId === historyId &&
+            buttons.indexOf(button) === index
+        );
+    });
+
+    for (const button of relatedButtons) {
+        syncChartsSavedToggleButtonUi(button, nextValue);
+
+        const itemNode = button.closest('[data-charts-history-item]');
+        const historyTab = getState().charts.historyTab;
+        if (
+            itemNode instanceof HTMLElement &&
+            ((historyTab === 'saved' && !nextValue) || (historyTab === 'unsaved' && nextValue))
+        ) {
             itemNode.remove();
+        }
+    }
+
+    for (const badgeNode of [
+        ...shellRefs.view.querySelectorAll('[data-charts-saved-badge][data-history-id]'),
+        ...shellRefs.panel.querySelectorAll('[data-charts-saved-badge][data-history-id]'),
+    ]) {
+        if (badgeNode instanceof HTMLElement && badgeNode.dataset.historyId === historyId) {
+            badgeNode.toggleAttribute('hidden', !nextValue);
         }
     }
 
     const countNode = shellRefs.view.querySelector('[data-charts-history-count]');
     if (countNode instanceof HTMLElement) {
-        const state = getState();
-        const count =
-            state.charts.historyTab === 'saved'
-                ? (state.charts.queries ?? []).filter(item => item.isSaved).length
-                : (state.charts.queries ?? []).length;
-        countNode.textContent = String(count);
+        countNode.textContent = String(shellRefs.view.querySelectorAll('[data-charts-history-item]').length);
     }
+}
+
+function renderChartsMainIntoScratch(state) {
+    const scratch = document.createElement('div');
+
+    replaceChildrenFromRenderedMarkup(scratch, renderChartsView(state).main);
+    return scratch;
+}
+
+function patchChartsHistoryUi(state) {
+    const chartsView = shellRefs.view.querySelector('.charts-view');
+
+    if (!(chartsView instanceof HTMLElement)) {
+        return false;
+    }
+
+    const currentSidebar = chartsView.querySelector('.charts-view__sidebar');
+    const scratch = renderChartsMainIntoScratch(state);
+    const nextSidebar = scratch.querySelector('.charts-view__sidebar');
+
+    if (!currentSidebar && !nextSidebar) {
+        return true;
+    }
+
+    if (!(currentSidebar instanceof HTMLElement) || !(nextSidebar instanceof HTMLElement)) {
+        return false;
+    }
+
+    currentSidebar.replaceWith(nextSidebar);
+    return true;
 }
 
 function renderChartsDetailIntoScratch(state) {
@@ -865,10 +919,7 @@ function patchChartsDetailUi(state, { preserveCharts = false } = {}) {
 
     if (preserveCharts) {
         const scratch = renderChartsDetailIntoScratch(state);
-        const patched =
-            replaceChartsDetailSection(detailNode, scratch, '[data-charts-detail-header]') &&
-            replaceChartsDetailSection(detailNode, scratch, '[data-charts-query-section]') &&
-            replaceChartsDetailSection(detailNode, scratch, '[data-charts-results-section]');
+        const patched = replaceChartsDetailSection(detailNode, scratch, '[data-charts-detail-header]');
 
         if (!patched) {
             return false;
@@ -1362,17 +1413,21 @@ function renderApp(state) {
     }
 
     const canPatchChartsMain =
-        mainChanged && previousRouteName === 'charts' && state.route.name === 'charts' && !chartsHistoryChanged;
+        mainChanged && previousRouteName === 'charts' && state.route.name === 'charts';
     let mainPatched = false;
     let preservedChartsDom = false;
 
     if (canPatchChartsMain) {
-        if (chartsCardsChanged) {
-            teardownQueryChartRenderer();
-        }
+        const historyPatched = !chartsHistoryChanged || patchChartsHistoryUi(state);
 
-        preservedChartsDom = !chartsCardsChanged;
-        mainPatched = patchChartsDetailUi(state, { preserveCharts: preservedChartsDom });
+        if (historyPatched) {
+            if (chartsCardsChanged) {
+                teardownQueryChartRenderer();
+            }
+
+            preservedChartsDom = !chartsCardsChanged;
+            mainPatched = patchChartsDetailUi(state, { preserveCharts: preservedChartsDom });
+        }
 
         if (!mainPatched) {
             preservedChartsDom = false;
@@ -2514,6 +2569,17 @@ async function handleAction(actionNode) {
                 }
             }
             return;
+        case 'open-charts-query-detail':
+            if (actionNode.dataset.historyId) {
+                setChartsDetailPanelVisibility(true);
+                if (getState().route.params?.historyId !== actionNode.dataset.historyId) {
+                    router.navigate(`/charts/${encodeURIComponent(actionNode.dataset.historyId)}`);
+                }
+            }
+            return;
+        case 'close-charts-query-detail':
+            setChartsDetailPanelVisibility(false);
+            return;
         case 'toggle-charts-sql-panel':
             toggleChartsSqlPanel();
             return;
@@ -3073,6 +3139,11 @@ document.addEventListener('input', event => {
 
     if (bindNode.dataset.bind === 'query-history-search') {
         setQueryHistorySearchInput(bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'charts-history-search') {
+        setChartsHistorySearchInput(bindNode.value);
         return;
     }
 

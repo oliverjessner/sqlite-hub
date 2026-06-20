@@ -9,6 +9,7 @@ const {
   readSettingsMetadata,
   readSqliteVersion,
 } = require("../server/routes/settings");
+const { buildAppInfo } = require("../server/services/appInfoService");
 
 test("settings metadata exposes app and SQLite versions", () => {
   const metadata = readSettingsMetadata();
@@ -51,4 +52,63 @@ test("settings version check reads the npm latest version", async () => {
   assert.equal(result.source, "npm");
   assert.equal(result.releaseUrl, "https://www.npmjs.com/package/sqlite-hub/v/1.1.0");
   assert.match(result.checkedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("app info includes update status for CLI and API consumers", async () => {
+  const info = await buildAppInfo({
+    port: 4173,
+    url: "http://127.0.0.1:4173",
+    currentVersion: "1.0.1",
+    sqliteVersion: "3.50.0",
+    versionCheckService: async () => ({
+      packageName: "sqlite-hub",
+      currentVersion: "1.0.1",
+      latestVersion: "1.1.0",
+      updateAvailable: true,
+      checkedAt: "2026-06-20T10:00:00.000Z",
+      source: "npm",
+      releaseUrl: "https://www.npmjs.com/package/sqlite-hub/v/1.1.0",
+    }),
+  });
+
+  assert.equal(info.packageName, "sqlite-hub");
+  assert.equal(info.appVersion, "1.0.1");
+  assert.equal(info.sqliteVersion, "3.50.0");
+  assert.equal(info.port, 4173);
+  assert.equal(info.url, "http://127.0.0.1:4173");
+  assert.equal(info.versionCheck.status, "update_available");
+  assert.equal(info.versionCheck.updateAvailable, true);
+});
+
+test("app info reports unknown version status when registry lookup fails", async () => {
+  const info = await buildAppInfo({
+    currentVersion: "1.0.1",
+    sqliteVersion: "3.50.0",
+    versionCheckService: async () => {
+      throw new Error("offline");
+    },
+  });
+
+  assert.equal(info.versionCheck.status, "unknown");
+  assert.equal(info.versionCheck.updateAvailable, null);
+  assert.equal(info.versionCheck.error.message, "offline");
+});
+
+test("app info marks local builds newer than npm latest as ahead", async () => {
+  const info = await buildAppInfo({
+    currentVersion: "1.1.0",
+    sqliteVersion: "3.50.0",
+    versionCheckService: async () => ({
+      packageName: "sqlite-hub",
+      currentVersion: "1.1.0",
+      latestVersion: "1.0.0",
+      updateAvailable: false,
+      checkedAt: "2026-06-20T10:00:00.000Z",
+      source: "npm",
+      releaseUrl: "https://www.npmjs.com/package/sqlite-hub/v/1.0.0",
+    }),
+  });
+
+  assert.equal(info.versionCheck.status, "ahead");
+  assert.equal(info.versionCheck.updateAvailable, false);
 });

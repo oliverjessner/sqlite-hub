@@ -8,7 +8,7 @@ const Database = require("better-sqlite3");
 const { DatabaseCommandService } = require("../server/services/databaseCommandService");
 const { AppStateStore } = require("../server/services/storage/appStateStore");
 
-function createFixture(t) {
+function createFixture(t, options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-command-service-"));
   const databasePath = path.join(directory, "sample.db");
   const targetDb = new Database(databasePath);
@@ -27,7 +27,7 @@ function createFixture(t) {
     lastOpenedAt: new Date().toISOString(),
     lastModifiedAt: new Date().toISOString(),
     sizeBytes: fs.statSync(databasePath).size,
-    readOnly: false,
+    readOnly: Boolean(options.readOnly),
     logoPath: null,
   };
 
@@ -72,6 +72,7 @@ function createFixture(t) {
   return {
     connection,
     service: new DatabaseCommandService({ appStateStore: store }),
+    store,
   };
 }
 
@@ -99,4 +100,35 @@ test("database command service provides shared CLI and API operations", (t) => {
 
   assert.equal(service.listDocuments(connection.id).length, 1);
   assert.equal(service.getDocument(connection.id, "Readme").content, "# Sample\n");
+});
+
+test("raw query execution writes SQL Editor query history", (t) => {
+  const { connection, service, store } = createFixture(t);
+  const beforeCount = Number(
+    store.db.prepare("SELECT COUNT(*) AS count FROM query_history").get().count
+  );
+  const { result } = service.executeRawQuery(
+    connection.id,
+    "INSERT INTO companies (name) VALUES ('Initech')"
+  );
+  const afterCount = Number(
+    store.db.prepare("SELECT COUNT(*) AS count FROM query_history").get().count
+  );
+  const historyRow = store.db
+    .prepare("SELECT raw_sql, query_type FROM query_history WHERE id = ?")
+    .get(result.historyId);
+
+  assert.equal(result.affectedRowCount, 1);
+  assert.equal(afterCount, beforeCount + 1);
+  assert.equal(historyRow.raw_sql, "INSERT INTO companies (name) VALUES ('Initech')");
+  assert.equal(historyRow.query_type, "insert");
+});
+
+test("raw query execution is blocked for read-only connections", (t) => {
+  const { connection, service } = createFixture(t, { readOnly: true });
+
+  assert.throws(
+    () => service.executeRawQuery(connection.id, "SELECT 1"),
+    /read-only database/
+  );
 });

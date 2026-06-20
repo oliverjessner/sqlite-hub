@@ -215,7 +215,7 @@ SQLite Hub ships with a built-in CLI that lets you start the app or query inform
 sqlite-hub                  # start on default port 4173
 sqlite-hub --port:4174      # start on a custom port
 sqlite-hub --open           # open SQLite Hub in the browser
-sqlite-hub --config         # show port, URL, app version, and SQLite version
+sqlite-hub --info           # show port, URL, versions, and update status
 sqlite-hub --help           # show help text
 sqlite-hub --version        # show version number
 ```
@@ -261,7 +261,15 @@ sqlite-hub --database:Billly --table:companies
 
 Prints table metadata such as columns, primary keys, foreign keys, indexes, row count, and row identity strategy.
 
-### SQL Editor - Saved Queries
+### SQL Editor - Raw SQL And Saved Queries
+
+Execute raw SQL through the same SQL Editor execution path used by the app:
+
+```bash
+sqlite-hub --database:Unit-00 --query:"SELECT * FROM companies LIMIT 10"
+```
+
+Raw CLI queries are recorded in Query History. They are rejected when the target database is marked read-only.
 
 List all saved queries for a database:
 
@@ -280,7 +288,7 @@ This searches the query history for the given database, finds the matching saved
 Show the saved query SQL without executing it:
 
 ```bash
-sqlite-hub --database:Unit-00 --query:"Stock Winners"
+sqlite-hub --database:Unit-00 --saved-query:"Stock Winners"
 ```
 
 Show the saved notes for a query:
@@ -337,7 +345,7 @@ sqlite-hub --database:Unit-00 --table:companies --export:0a754aba373d34972998792
 | --------------------------------------------------------------- | ----------------------------------------------- |
 | `--help`, `-h`                                                  | Show help text                                  |
 | `--version`, `-v`                                               | Show version number                             |
-| `--config`                                                      | Show port, URL, app version, and SQLite version |
+| `--info`                                                        | Show port, URL, versions, and update status     |
 | `--open`                                                        | Open SQLite Hub in the browser                  |
 | `--port:PORT`                                                   | Start the server on a custom port               |
 | `--database`, `-d`                                              | List all imported databases                     |
@@ -347,8 +355,9 @@ sqlite-hub --database:Unit-00 --table:companies --export:0a754aba373d34972998792
 | `--database:name --lastopened`                                  | Get the last opened timestamp                   |
 | `--database:name --tables`                                      | Get all table names from a database             |
 | `--database:name --queries`                                     | List saved queries for a database               |
+| `--database:name --query:"sql"`                                 | Execute raw SQL and record it in Query History  |
 | `--database:name --execute:"query"`                             | Execute a saved query by name                   |
-| `--database:name --query:"query"`                               | Print a saved query by name                     |
+| `--database:name --saved-query:"query"`                         | Print a saved query by name                     |
 | `--database:name --notes:"query"`                               | Print saved notes for a query                   |
 | `--database:name --export:"query" --format:csv\|tsv\|md\|json` | Set query export format                         |
 | `--database:name --documents`                                   | List Markdown documents for a database          |
@@ -389,7 +398,7 @@ Results:
 
 ## API
 
-SQLite Hub also provides a local JSON API for database metadata, tables, saved queries, exports, and documents. Access is protected by database-specific API tokens created in Settings. See the [API documentation](./docs/API.md) for authentication, endpoints, and examples.
+SQLite Hub also provides a local JSON API for app info, database metadata, tables, saved queries, exports, and documents. `/api/v1/info` returns the same app/version status as `sqlite-hub --info`; database data is protected by database-specific API tokens created in Settings. See the [API documentation](./docs/API.md) for authentication, endpoints, and examples.
 
 ## Changelog
 

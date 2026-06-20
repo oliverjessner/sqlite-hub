@@ -152,18 +152,18 @@
 }
 
 .charts-view__sidebar {
-    background: var(--color-surface-low);
-    border-left: 1px solid var(--border-medium);
+    background: var(--color-surface-container-lowest);
+    border-left: 1px solid rgb(var(--rgb-outline) / 0.1);
     display: flex;
-    flex: 0 0 clamp(20rem, 28vw, 23rem);
+    flex: 0 0 clamp(20rem, 26vw, 22.5rem);
     flex-direction: column;
     min-height: 0;
-    width: clamp(20rem, 28vw, 23rem);
+    width: clamp(20rem, 26vw, 22.5rem);
 }
 
 .charts-view__sidebar-header {
-    border-bottom: 1px solid var(--border-medium);
-    padding: var(--spacing-5);
+    border-bottom: 1px solid rgb(var(--rgb-outline) / 0.1);
+    padding: var(--spacing-4);
 }
 
 .structure-view {

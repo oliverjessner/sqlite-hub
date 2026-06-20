@@ -163,7 +163,7 @@ export function renderQueryHistoryDetail({
     escapeHtml(item.displayTitle),
     "</h2></div>",
     '<button class="query-history-icon-button" data-action="clear-query-history-selection" type="button"><span class="material-symbols-outlined text-[18px]">close</span></button>',
-    '</div><div class="mt-4 flex flex-wrap gap-2">',
+    '</div><div class="query-history-badge-row mt-4 flex flex-wrap gap-2">',
     statusMarkup,
     "</div></div>",
     '<div class="custom-scrollbar min-h-0 flex-1 overflow-auto px-5 py-5">',

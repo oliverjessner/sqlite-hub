@@ -1,8 +1,9 @@
 # SQLite Hub API
 
 SQLite Hub exposes a versioned JSON API at `/api/v1`. The server listens on
-`127.0.0.1` and every database request requires a token created for that exact
-database in **Settings > API Tokens**.
+`127.0.0.1`. `GET /api/v1/info` is public local app metadata; every database
+request requires a token created for that exact database in **Settings > API
+Tokens**.
 
 The token is shown only once when it is created. SQLite Hub stores a SHA-256
 hash, the token prefix, its name, and timestamps. Send the token as a bearer
@@ -26,6 +27,9 @@ with a structured JSON error.
 All path values must be URL encoded.
 
 ```text
+GET  /api/v1/info
+POST /api/v1/query
+
 GET  /api/v1/databases/:databaseId
 GET  /api/v1/databases/:databaseId/tables
 GET  /api/v1/databases/:databaseId/tables/:tableName
@@ -40,6 +44,24 @@ POST /api/v1/databases/:databaseId/queries/:queryName/execute
 GET  /api/v1/databases/:databaseId/documents
 GET  /api/v1/databases/:databaseId/documents/:documentName
 GET  /api/v1/databases/:databaseId/documents/:documentName/export
+```
+
+`GET /api/v1/info` returns the same app/version status shown by
+`sqlite-hub --info`, including the installed SQLite Hub version, SQLite runtime
+version, local URL, and npm update status.
+
+`POST /api/v1/query` executes raw SQL through the same SQL Editor execution path
+used by the app and records it in Query History. Send the database token as a
+bearer token and include `databaseId` plus `sql` in the JSON body. Raw query
+execution is rejected with HTTP `403` when the target database is marked
+read-only.
+
+```bash
+curl \
+  -H "Authorization: Bearer shub_..." \
+  -H "Content-Type: application/json" \
+  -d '{"databaseId":"DATABASE_ID","sql":"SELECT * FROM companies LIMIT 10"}' \
+  http://127.0.0.1:4173/api/v1/query
 ```
 
 Row lookup accepts a scalar key or a composite primary-key object:

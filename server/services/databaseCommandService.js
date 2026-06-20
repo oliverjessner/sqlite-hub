@@ -1,5 +1,5 @@
 const path = require("node:path");
-const { NotFoundError, ValidationError } = require("../utils/errors");
+const { NotFoundError, ReadOnlyError, ValidationError } = require("../utils/errors");
 const { ConnectionManager } = require("./sqlite/connectionManager");
 const { DataBrowserService } = require("./sqlite/dataBrowserService");
 const { ExportService } = require("./sqlite/exportService");
@@ -160,7 +160,7 @@ function buildRowJsonObject({ row, columns = [] } = {}) {
 class DatabaseCommandService {
   constructor({ appStateStore, runtimeFactory } = {}) {
     this.appStateStore = appStateStore;
-    this.runtimeFactory = runtimeFactory ?? ((connection) => this.createReadOnlyRuntime(connection));
+    this.runtimeFactory = runtimeFactory ?? ((connection, options) => this.createRuntime(connection, options));
   }
 
   listDatabases() {
@@ -182,7 +182,7 @@ class DatabaseCommandService {
     return connection;
   }
 
-  createReadOnlyRuntime(connection) {
+  createRuntime(connection, { readOnly = true } = {}) {
     const connectionManager = new ConnectionManager({ appStateStore: this.appStateStore });
 
     connectionManager.openConnection({
@@ -191,7 +191,7 @@ class DatabaseCommandService {
       id: connection.id,
       logoPath: connection.logoPath ?? null,
       makeActive: false,
-      readOnly: true,
+      readOnly,
     });
 
     const sqlExecutor = new SqlExecutor({
@@ -215,9 +215,17 @@ class DatabaseCommandService {
     };
   }
 
-  withDatabase(databaseReference, callback) {
+  createReadOnlyRuntime(connection) {
+    return this.createRuntime(connection, { readOnly: true });
+  }
+
+  createWritableRuntime(connection) {
+    return this.createRuntime(connection, { readOnly: false });
+  }
+
+  withDatabase(databaseReference, callback, options = {}) {
     const connection = this.getDatabase(databaseReference);
-    const runtime = this.runtimeFactory(connection);
+    const runtime = this.runtimeFactory(connection, options);
 
     try {
       return callback({ connection, runtime });
@@ -320,6 +328,25 @@ class DatabaseCommandService {
     );
 
     return { query, result };
+  }
+
+  executeRawQuery(databaseReference, sql, options = {}) {
+    const connection = this.getDatabase(databaseReference);
+
+    if (connection.readOnly) {
+      throw new ReadOnlyError(`Cannot execute raw SQL against a read-only database: ${connection.label}`);
+    }
+
+    const result = this.withDatabase(
+      connection.id,
+      ({ runtime }) => runtime.sqlExecutor.execute(sql, options),
+      { readOnly: false }
+    );
+
+    return {
+      connection,
+      result,
+    };
   }
 
   exportSavedQuery(databaseReference, queryName, format = "csv") {

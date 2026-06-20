@@ -3,10 +3,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const {
-    DatabaseCommandService,
-    getQueryTitle,
-} = require('../server/services/databaseCommandService');
+const { DatabaseCommandService, getQueryTitle } = require('../server/services/databaseCommandService');
+const { buildAppInfo } = require('../server/services/appInfoService');
 
 const DEFAULT_PORT = 4173;
 const EXPORT_FORMATS = new Set(['csv', 'tsv', 'md', 'json']);
@@ -18,8 +16,9 @@ Usage:
   sqlite-hub [--port:4173]
   sqlite-hub --database
   sqlite-hub --database:"name" --tables
+  sqlite-hub --database:"name" --query:"SELECT * FROM table_name"
   sqlite-hub --database:"name" --execute:"Saved Query"
-  sqlite-hub --database:"name" --query:"Saved Query"
+  sqlite-hub --database:"name" --saved-query:"Saved Query"
   sqlite-hub --database:"name" --notes:"Saved Query"
   sqlite-hub --database:"name" --export:"Saved Query" --format:csv
   sqlite-hub --database:"name" --documents
@@ -31,7 +30,7 @@ Usage:
 Options:
   --help, -h                         Show this help text.
   --version, -v                      Show the version number.
-  --config                           Show CLI port, URL, app version, and SQLite version.
+  --info                             Show port, URL, app version, SQLite version, and update status.
   --open                             Start/open SQLite Hub in the browser.
   --port:PORT                        Start the server on a custom port.
   --database, -d                     List all imported databases.
@@ -41,8 +40,9 @@ Options:
   --lastopened                       Print the selected database last-opened timestamp.
   --tables                           List tables in the selected database.
   --queries                          List saved SQL Editor queries for the selected database.
+  --query:"sql"                      Execute raw SQL and record it in query history.
   --execute:"query"                  Execute a saved SQL Editor query by name.
-  --query:"query"                    Print a saved SQL Editor query by name.
+  --saved-query:"query"              Print a saved SQL Editor query by name.
   --notes:"query"                    Print notes for a saved SQL Editor query by name.
   --export:"query"                   Export a saved query when --table is not set.
   --format:csv|tsv|md|json           Export format for query exports. Defaults to csv.
@@ -51,10 +51,6 @@ Options:
   --documents:"name" --export        Export a document as a Markdown file.
   --table:"table"                    Print table metadata.
   --table:"table" --export:"pk"      Export one row as JSON by primary key or rowid.
-
-Legacy aliases still work:
-  --database-path:name, --database-size:name, --database-lastopened:name
-  --database-tables:name, --database:name --sqleditor, --database:name --sqleditor:"query"
 `);
 }
 
@@ -156,7 +152,7 @@ function parseCliArguments(argv) {
     const options = {
         help: false,
         version: false,
-        config: false,
+        info: false,
         open: false,
         port: undefined,
         databaseList: false,
@@ -167,6 +163,7 @@ function parseCliArguments(argv) {
         tables: false,
         queries: false,
         executeQuery: null,
+        rawQuery: null,
         showQuery: null,
         showNotes: null,
         exportTarget: null,
@@ -191,8 +188,8 @@ function parseCliArguments(argv) {
             continue;
         }
 
-        if (flag === '--config') {
-            options.config = true;
+        if (flag === '--info' || flag === '--config') {
+            options.info = true;
             continue;
         }
 
@@ -300,6 +297,13 @@ function parseCliArguments(argv) {
 
         if (flag === '--query') {
             const parsed = takeFlagValue(flag, value, argv, index);
+            options.rawQuery = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--saved-query') {
+            const parsed = takeFlagValue(flag, value, argv, index);
             options.showQuery = parsed.value;
             index = parsed.nextIndex;
             continue;
@@ -379,18 +383,19 @@ function parseCliArguments(argv) {
 function hasDatabaseOperation(options) {
     return Boolean(
         options.pathInfo ||
-            options.sizeInfo ||
-            options.lastOpenedInfo ||
-            options.tables ||
-            options.queries ||
-            options.executeQuery ||
-            options.showQuery ||
-            options.showNotes ||
-            options.documents ||
-            options.documentName ||
-            options.documentExport ||
-            options.exportTarget ||
-            options.tableName,
+        options.sizeInfo ||
+        options.lastOpenedInfo ||
+        options.tables ||
+        options.queries ||
+        options.executeQuery ||
+        options.rawQuery ||
+        options.showQuery ||
+        options.showNotes ||
+        options.documents ||
+        options.documentName ||
+        options.documentExport ||
+        options.exportTarget ||
+        options.tableName,
     );
 }
 
@@ -559,6 +564,18 @@ function executeSavedQuery({ databaseService, conn, queryName }) {
     printExecutionResult(result);
 }
 
+function executeRawQuery({ databaseService, conn, sql }) {
+    const { result } = databaseService.executeRawQuery(conn.id, sql);
+
+    console.log(`\nExecuting raw SQL against: ${conn.label}`);
+    console.log('─'.repeat(60));
+    printExecutionResult(result);
+
+    if (result.historyId) {
+        console.log(`\nHistory ID: ${result.historyId}`);
+    }
+}
+
 function showSavedQuery({ databaseService, conn, queryName }) {
     const matchingQuery = databaseService.getSavedQuery(conn.id, queryName);
 
@@ -690,28 +707,51 @@ function printTableInfo(tableDetail) {
         console.log(`Indexes: ${tableDetail.indexes.length}`);
         tableDetail.indexes.forEach(index => {
             const unique = index.unique ? ' UNIQUE' : '';
-            const columns = index.columns.map(column => column.name).filter(Boolean).join(', ') || 'expression';
+            const columns =
+                index.columns
+                    .map(column => column.name)
+                    .filter(Boolean)
+                    .join(', ') || 'expression';
             console.log(`  - ${index.name}${unique}: ${columns}`);
         });
     }
 }
 
-function printConfig(port) {
-    const Database = require('better-sqlite3');
-    const { version } = require('../package.json');
-    const db = new Database(':memory:');
+function formatVersionStatus(versionCheck) {
+    if (!versionCheck || versionCheck.status === 'unknown') {
+        return `unknown${versionCheck?.error?.message ? ` (${versionCheck.error.message})` : ''}`;
+    }
 
-    try {
-        const sqliteVersion = db.prepare('SELECT sqlite_version() AS version').get().version;
-        const url = `http://127.0.0.1:${port}`;
+    if (versionCheck.updateAvailable) {
+        return `update available (${versionCheck.currentVersion} -> ${versionCheck.latestVersion})`;
+    }
 
-        console.log('SQLite Hub config');
-        console.log(`Port: ${port}`);
-        console.log(`URL: ${url}`);
-        console.log(`App version: ${version}`);
-        console.log(`SQLite version: ${sqliteVersion}`);
-    } finally {
-        db.close();
+    if (versionCheck.status === 'ahead') {
+        return `ahead of npm latest (${versionCheck.currentVersion} > ${versionCheck.latestVersion})`;
+    }
+
+    return `current (${versionCheck.currentVersion})`;
+}
+
+async function printInfo(port, options = {}) {
+    const infoService = options.appInfoService ?? buildAppInfo;
+    const url = `http://127.0.0.1:${port}`;
+    const info = await infoService({ port, url });
+
+    console.log('SQLite Hub info');
+    console.log(`Port: ${info.port}`);
+    console.log(`URL: ${info.url}`);
+    console.log(`Package: ${info.packageName}`);
+    console.log(`App version: ${info.appVersion}`);
+    console.log(`SQLite version: ${info.sqliteVersion}`);
+    console.log(`Version status: ${formatVersionStatus(info.versionCheck)}`);
+
+    if (info.versionCheck?.latestVersion) {
+        console.log(`Latest version: ${info.versionCheck.latestVersion}`);
+    }
+
+    if (info.versionCheck?.releaseUrl) {
+        console.log(`Release URL: ${info.versionCheck.releaseUrl}`);
     }
 }
 
@@ -757,8 +797,8 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
         return;
     }
 
-    if (options.config) {
-        printConfig(port);
+    if (options.info) {
+        await printInfo(port, dependencies);
         return;
     }
 
@@ -805,7 +845,16 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
             return;
         }
 
-        if (options.tableName || options.tables || options.queries || options.executeQuery || options.showQuery || options.showNotes || options.exportTarget) {
+        if (
+            options.tableName ||
+            options.tables ||
+            options.queries ||
+            options.executeQuery ||
+            options.rawQuery ||
+            options.showQuery ||
+            options.showNotes ||
+            options.exportTarget
+        ) {
             if (options.tableName) {
                 if (options.exportTarget) {
                     exportTableRowAsJson({
@@ -836,6 +885,15 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
                     databaseService,
                     conn,
                     queryName: options.executeQuery,
+                });
+                return;
+            }
+
+            if (options.rawQuery) {
+                executeRawQuery({
+                    databaseService,
+                    conn,
+                    sql: options.rawQuery,
                 });
                 return;
             }
@@ -897,7 +955,9 @@ if (require.main === module) {
 
 module.exports = {
     main,
+    formatVersionStatus,
     normalizeExportFormat,
     openInDefaultBrowser,
     parseCliArguments,
+    printInfo,
 };

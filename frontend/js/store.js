@@ -337,7 +337,10 @@ const state = {
         loading: false,
         error: null,
         historyTab: readStoredChartsHistoryTab(),
+        historySearchInput: '',
+        historySearch: '',
         historyPanelVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsHistoryVisible, true),
+        detailPanelVisible: false,
         selectedHistoryId: null,
         chartHeightPreset: 'medium',
         queryVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsQueryVisible, true),
@@ -935,7 +938,10 @@ function resetChartsState() {
     state.charts.loading = false;
     state.charts.error = null;
     state.charts.historyTab = readStoredChartsHistoryTab(state.charts.historyTab);
+    state.charts.historySearchInput = '';
+    state.charts.historySearch = '';
     state.charts.historyPanelVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsHistoryVisible, true);
+    state.charts.detailPanelVisible = false;
     state.charts.selectedHistoryId = null;
     state.charts.chartHeightPreset = 'medium';
     state.charts.queryVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsQueryVisible, true);
@@ -1025,7 +1031,7 @@ function normalizeChartsHeightPreset(value) {
 }
 
 function normalizeChartsHistoryTab(value) {
-    return ['recent', 'saved'].includes(value) ? value : 'recent';
+    return ['recent', 'saved', 'unsaved'].includes(value) ? value : 'recent';
 }
 
 function mergeQueryHistoryItemWithChartSummary(updatedItem, fallbackItem = null) {
@@ -1590,6 +1596,7 @@ async function loadChartsDetail(historyId) {
 
     if (!Number.isInteger(numericId) || numericId < 1) {
         state.charts.selectedHistoryId = null;
+        state.charts.detailPanelVisible = false;
         state.charts.queryVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsQueryVisible, true);
         state.charts.resultsVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsResultsVisible, true);
         state.charts.detail = null;
@@ -3504,6 +3511,17 @@ export function setChartsHistoryPanelVisibility(visible) {
     emitChange();
 }
 
+export function setChartsDetailPanelVisibility(visible) {
+    const nextValue = typeof visible === 'boolean' ? visible : !Boolean(state.charts.detailPanelVisible);
+
+    if (state.charts.detailPanelVisible === nextValue) {
+        return;
+    }
+
+    state.charts.detailPanelVisible = nextValue;
+    emitChange();
+}
+
 export function setChartsHeightPreset(preset) {
     const nextPreset = normalizeChartsHeightPreset(preset);
 
@@ -3528,6 +3546,18 @@ export function setChartsHistoryTab(tab) {
 
     state.charts.historyTab = nextTab;
     storeChartsHistoryTab(nextTab);
+    emitChange();
+}
+
+export function setChartsHistorySearchInput(query) {
+    const nextQuery = String(query ?? '');
+
+    if (state.charts.historySearchInput === nextQuery && state.charts.historySearch === nextQuery.trim()) {
+        return;
+    }
+
+    state.charts.historySearchInput = nextQuery;
+    state.charts.historySearch = nextQuery.trim();
     emitChange();
 }
 
