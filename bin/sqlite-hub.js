@@ -17,6 +17,7 @@ Usage:
   sqlite-hub --database
   sqlite-hub --database:"name" --tables
   sqlite-hub --database:"name" --query:"SELECT * FROM table_name"
+  sqlite-hub --database:"name" --query:"SELECT * FROM table_name" --store:"Query Name"
   sqlite-hub --database:"name" --execute:"Saved Query"
   sqlite-hub --database:"name" --saved-query:"Saved Query"
   sqlite-hub --database:"name" --notes:"Saved Query"
@@ -41,6 +42,7 @@ Options:
   --tables                           List tables in the selected database.
   --queries                          List saved SQL Editor queries for the selected database.
   --query:"sql"                      Execute raw SQL and record it in query history.
+  --store:"name"                     Save a raw --query history item with this name.
   --execute:"query"                  Execute a saved SQL Editor query by name.
   --saved-query:"query"              Print a saved SQL Editor query by name.
   --notes:"query"                    Print notes for a saved SQL Editor query by name.
@@ -164,6 +166,7 @@ function parseCliArguments(argv) {
         queries: false,
         executeQuery: null,
         rawQuery: null,
+        storeName: null,
         showQuery: null,
         showNotes: null,
         exportTarget: null,
@@ -302,6 +305,13 @@ function parseCliArguments(argv) {
             continue;
         }
 
+        if (flag === '--store') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.storeName = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
         if (flag === '--saved-query') {
             const parsed = takeFlagValue(flag, value, argv, index);
             options.showQuery = parsed.value;
@@ -389,6 +399,7 @@ function hasDatabaseOperation(options) {
         options.queries ||
         options.executeQuery ||
         options.rawQuery ||
+        options.storeName ||
         options.showQuery ||
         options.showNotes ||
         options.documents ||
@@ -564,8 +575,8 @@ function executeSavedQuery({ databaseService, conn, queryName }) {
     printExecutionResult(result);
 }
 
-function executeRawQuery({ databaseService, conn, sql }) {
-    const { result } = databaseService.executeRawQuery(conn.id, sql);
+function executeRawQuery({ databaseService, conn, sql, storeName = null }) {
+    const { result, storedQuery } = databaseService.executeRawQuery(conn.id, sql, { storeName });
 
     console.log(`\nExecuting raw SQL against: ${conn.label}`);
     console.log('─'.repeat(60));
@@ -573,6 +584,10 @@ function executeRawQuery({ databaseService, conn, sql }) {
 
     if (result.historyId) {
         console.log(`\nHistory ID: ${result.historyId}`);
+    }
+
+    if (storedQuery) {
+        console.log(`Stored query: ${getQueryTitle(storedQuery)}`);
     }
 }
 
@@ -807,6 +822,10 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
         return;
     }
 
+    if (options.storeName && !options.rawQuery) {
+        throw new Error('--store requires --query:"sql".');
+    }
+
     const databaseService =
         dependencies.databaseService ??
         new DatabaseCommandService({
@@ -894,6 +913,7 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
                     databaseService,
                     conn,
                     sql: options.rawQuery,
+                    storeName: options.storeName,
                 });
                 return;
             }

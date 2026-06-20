@@ -16,6 +16,11 @@ function normalizeLookupValue(value, label) {
   return normalized;
 }
 
+function normalizeOptionalValue(value) {
+  const normalized = String(value ?? "").trim();
+  return normalized || null;
+}
+
 function getQueryTitle(item) {
   return item?.title || item?.displayTitle || item?.previewSql || item?.rawSql || "(untitled query)";
 }
@@ -332,6 +337,8 @@ class DatabaseCommandService {
 
   executeRawQuery(databaseReference, sql, options = {}) {
     const connection = this.getDatabase(databaseReference);
+    const { name = null, storeName = null, ...executeOptions } = options;
+    const normalizedStoreName = normalizeOptionalValue(storeName ?? name);
 
     if (connection.readOnly) {
       throw new ReadOnlyError(`Cannot execute raw SQL against a read-only database: ${connection.label}`);
@@ -339,13 +346,23 @@ class DatabaseCommandService {
 
     const result = this.withDatabase(
       connection.id,
-      ({ runtime }) => runtime.sqlExecutor.execute(sql, options),
+      ({ runtime }) => runtime.sqlExecutor.execute(sql, executeOptions),
       { readOnly: false }
     );
+    let storedQuery = null;
+
+    if (normalizedStoreName && result.historyId) {
+      this.appStateStore.renameQuery(result.historyId, normalizedStoreName, connection.id);
+      storedQuery = this.appStateStore.toggleSaved(result.historyId, true, connection.id);
+    }
 
     return {
       connection,
-      result,
+      result: {
+        ...result,
+        storedQuery,
+      },
+      storedQuery,
     };
   }
 

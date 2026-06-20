@@ -52,15 +52,15 @@ version, local URL, and npm update status.
 
 `POST /api/v1/query` executes raw SQL through the same SQL Editor execution path
 used by the app and records it in Query History. Send the database token as a
-bearer token and include `databaseId` plus `sql` in the JSON body. Raw query
-execution is rejected with HTTP `403` when the target database is marked
-read-only.
+bearer token and include `databaseId` plus `sql` in the JSON body. Add `store`
+or `name` to title the history item and mark it as saved. Raw query execution is
+rejected with HTTP `403` when the target database is marked read-only.
 
 ```bash
 curl \
   -H "Authorization: Bearer shub_..." \
   -H "Content-Type: application/json" \
-  -d '{"databaseId":"DATABASE_ID","sql":"SELECT * FROM companies LIMIT 10"}' \
+  -d '{"databaseId":"DATABASE_ID","sql":"SELECT * FROM companies LIMIT 10","name":"Company Sample"}' \
   http://127.0.0.1:4173/api/v1/query
 ```
 

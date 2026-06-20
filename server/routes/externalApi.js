@@ -17,6 +17,18 @@ function readSqlText(req) {
   return String(req.body?.sql ?? req.body?.query ?? req.query.sql ?? req.query.query ?? "");
 }
 
+function readStoreName(req) {
+  return String(
+    req.body?.store ??
+      req.body?.storeName ??
+      req.body?.name ??
+      req.query.store ??
+      req.query.storeName ??
+      req.query.name ??
+      ""
+  ).trim();
+}
+
 function authenticateDatabaseRequest(req, tokenService, databaseId) {
   const token = readBearerToken(req.get("authorization"));
 
@@ -50,6 +62,7 @@ function createExternalApiRouter({ databaseService, tokenService, appInfoService
     route((req, res) => {
       const databaseId = readDatabaseId(req);
       const sql = readSqlText(req);
+      const storeName = readStoreName(req);
 
       if (!databaseId) {
         throw new ValidationError("databaseId is required.");
@@ -57,7 +70,7 @@ function createExternalApiRouter({ databaseService, tokenService, appInfoService
 
       authenticateDatabaseRequest(req, tokenService, databaseId);
 
-      const { result } = databaseService.executeRawQuery(databaseId, sql);
+      const { result } = databaseService.executeRawQuery(databaseId, sql, { storeName });
 
       res.json(
         successResponse({
@@ -65,6 +78,7 @@ function createExternalApiRouter({ databaseService, tokenService, appInfoService
           data: result,
           metadata: {
             databaseId,
+            stored: Boolean(result.storedQuery),
           },
           timingMs: result.timingMs,
           readOnly: false,

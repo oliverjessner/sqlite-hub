@@ -55,8 +55,12 @@ test("keeps old database detail aliases working", () => {
   assert.equal(tableOptions.tables, true);
 });
 
-test("parses raw query, saved query display, and export commands", () => {
-  const rawOptions = parseCliArguments(["--database:db", "--query:SELECT 1"]);
+test("parses raw query, store name, saved query display, and export commands", () => {
+  const rawOptions = parseCliArguments([
+    "--database:db",
+    "--query:SELECT 1",
+    "--store:Stored Select",
+  ]);
   const showOptions = parseCliArguments(["--database:db", "--saved-query:Stock Winners"]);
   const notesOptions = parseCliArguments(["--database:db", "--notes:Stock Winners"]);
   const exportOptions = parseCliArguments([
@@ -66,6 +70,7 @@ test("parses raw query, saved query display, and export commands", () => {
   ]);
 
   assert.equal(rawOptions.rawQuery, "SELECT 1");
+  assert.equal(rawOptions.storeName, "Stored Select");
   assert.equal(showOptions.showQuery, "Stock Winners");
   assert.equal(notesOptions.showNotes, "Stock Winners");
   assert.equal(exportOptions.exportTarget, "Stock Winners");

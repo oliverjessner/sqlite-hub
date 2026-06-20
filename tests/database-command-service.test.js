@@ -107,21 +107,26 @@ test("raw query execution writes SQL Editor query history", (t) => {
   const beforeCount = Number(
     store.db.prepare("SELECT COUNT(*) AS count FROM query_history").get().count
   );
-  const { result } = service.executeRawQuery(
+  const { result, storedQuery } = service.executeRawQuery(
     connection.id,
-    "INSERT INTO companies (name) VALUES ('Initech')"
+    "INSERT INTO companies (name) VALUES ('Initech')",
+    { storeName: "Add Initech" }
   );
   const afterCount = Number(
     store.db.prepare("SELECT COUNT(*) AS count FROM query_history").get().count
   );
   const historyRow = store.db
-    .prepare("SELECT raw_sql, query_type FROM query_history WHERE id = ?")
+    .prepare("SELECT raw_sql, query_type, title, is_saved FROM query_history WHERE id = ?")
     .get(result.historyId);
 
   assert.equal(result.affectedRowCount, 1);
   assert.equal(afterCount, beforeCount + 1);
   assert.equal(historyRow.raw_sql, "INSERT INTO companies (name) VALUES ('Initech')");
   assert.equal(historyRow.query_type, "insert");
+  assert.equal(historyRow.title, "Add Initech");
+  assert.equal(historyRow.is_saved, 1);
+  assert.equal(storedQuery.title, "Add Initech");
+  assert.equal(storedQuery.isSaved, true);
 });
 
 test("raw query execution is blocked for read-only connections", (t) => {

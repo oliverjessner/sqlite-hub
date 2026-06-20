@@ -40,8 +40,8 @@ async function startApi(t) {
       serviceCalls.push(databaseId);
       return [{ name: "companies" }];
     },
-    executeRawQuery(databaseId, sql) {
-      serviceCalls.push(`${databaseId}:query:${sql}`);
+    executeRawQuery(databaseId, sql, options = {}) {
+      serviceCalls.push(`${databaseId}:query:${sql}:${options.storeName ?? ""}`);
       if (sql === "READONLY") {
         throw new ReadOnlyError("Cannot execute raw SQL against a read-only database.");
       }
@@ -56,6 +56,13 @@ async function startApi(t) {
           resultKind: "unknown",
           timingMs: 2,
           historyId: 42,
+          storedQuery: options.storeName
+            ? {
+                id: 42,
+                title: options.storeName,
+                isSaved: true,
+              }
+            : null,
         },
       };
     },
@@ -192,6 +199,7 @@ test("query API executes raw SQL with a database token", async (t) => {
     body: JSON.stringify({
       databaseId: fixture.databaseA.id,
       sql: "SELECT 1",
+      store: "Stored API Query",
     }),
   });
   const payload = await response.json();
@@ -199,8 +207,12 @@ test("query API executes raw SQL with a database token", async (t) => {
   assert.equal(response.status, 200);
   assert.equal(payload.data.sql, "SELECT 1");
   assert.equal(payload.data.historyId, 42);
+  assert.equal(payload.data.storedQuery.title, "Stored API Query");
+  assert.equal(payload.metadata.stored, true);
   assert.equal(payload.metadata.databaseId, fixture.databaseA.id);
-  assert.deepEqual(fixture.serviceCalls, [`${fixture.databaseA.id}:query:SELECT 1`]);
+  assert.deepEqual(fixture.serviceCalls, [
+    `${fixture.databaseA.id}:query:SELECT 1:Stored API Query`,
+  ]);
 });
 
 test("query API rejects read-only raw SQL execution", async (t) => {

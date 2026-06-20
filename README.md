@@ -267,9 +267,12 @@ Execute raw SQL through the same SQL Editor execution path used by the app:
 
 ```bash
 sqlite-hub --database:Unit-00 --query:"SELECT * FROM companies LIMIT 10"
+sqlite-hub --database:Unit-00 --query:"SELECT * FROM companies LIMIT 10" --store:"Company Sample"
 ```
 
-Raw CLI queries are recorded in Query History. They are rejected when the target database is marked read-only.
+Raw CLI queries are recorded in Query History. Add `--store:"name"` to title the
+history item and mark it as saved. Raw SQL execution is rejected when the target
+database is marked read-only.
 
 List all saved queries for a database:
 
@@ -356,6 +359,7 @@ sqlite-hub --database:Unit-00 --table:companies --export:0a754aba373d34972998792
 | `--database:name --tables`                                      | Get all table names from a database             |
 | `--database:name --queries`                                     | List saved queries for a database               |
 | `--database:name --query:"sql"`                                 | Execute raw SQL and record it in Query History  |
+| `--database:name --query:"sql" --store:"name"`                  | Save a raw query in Query History with a name   |
 | `--database:name --execute:"query"`                             | Execute a saved query by name                   |
 | `--database:name --saved-query:"query"`                         | Print a saved query by name                     |
 | `--database:name --notes:"query"`                               | Print saved notes for a query                   |
