@@ -236,7 +236,7 @@ function renderQuerySqlSection(state, rawSql) {
     const isVisible = Boolean(state.charts.queryVisible);
 
     return `
-    <section class="mt-6 border border-outline-variant/10 bg-surface-container-lowest">
+    <section class="mt-6 border border-outline-variant/10 bg-surface-container-lowest" data-charts-query-section>
       <div class="flex items-center justify-between gap-3 border-b border-outline-variant/10 px-4 py-3">
         <span class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
           Query
@@ -270,7 +270,7 @@ function renderQueryResultsSection(state) {
     const statusMarkup = renderQueryResultState(state, state.charts.result);
 
     return `
-    <section class="mt-6 border border-outline-variant/10 bg-surface-container-lowest">
+    <section class="mt-6 border border-outline-variant/10 bg-surface-container-lowest" data-charts-results-section>
       <div class="flex items-center justify-between gap-3 border-b border-outline-variant/10 px-4 py-3">
         <span class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
           Results
@@ -453,7 +453,7 @@ export function renderChartsDetail(state) {
     return `
     <div class="custom-scrollbar flex-1 overflow-auto">
       <div class="charts-detail-shell">
-        <header class="charts-detail-shell__header">
+        <header class="charts-detail-shell__header" data-charts-detail-header>
           <div class="charts-detail-shell__title">
             <h1 class="mt-2 truncate font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
               ${escapeHtml(detail.item.displayTitle)}
@@ -496,7 +496,7 @@ export function renderChartsDetail(state) {
           </div>
         </header>
 
-        <section class="mt-6 space-y-5">
+        <section class="mt-6 space-y-5" data-charts-card-list>
           ${
               charts.length
                   ? charts.map(chart => renderChartCard(chart, state, analysis)).join('')

@@ -223,6 +223,7 @@ let lastRenderedPanelMarkup = '';
 let lastRenderedModalMarkup = '';
 let lastRenderedToastMarkup = '';
 let lastRenderedChartsHistorySignature = '';
+let lastRenderedChartsCardSignature = '';
 let lastRenderedPanelOpen = false;
 let lastRenderedLockedRoute = false;
 let pendingNewTableDesignerAutofocus = false;
@@ -726,6 +727,46 @@ function buildChartsHistorySignature(state) {
     });
 }
 
+const chartSignatureObjectIds = new WeakMap();
+let nextChartSignatureObjectId = 1;
+
+function getChartSignatureObjectId(value) {
+    if (!value || typeof value !== 'object') {
+        return null;
+    }
+
+    if (!chartSignatureObjectIds.has(value)) {
+        chartSignatureObjectIds.set(value, nextChartSignatureObjectId);
+        nextChartSignatureObjectId += 1;
+    }
+
+    return chartSignatureObjectIds.get(value);
+}
+
+function buildChartsCardSignature(state) {
+    if (state.route.name !== 'charts' || !state.charts.selectedHistoryId || !state.charts.detail?.item) {
+        return '';
+    }
+
+    const charts = state.charts.detail?.charts ?? [];
+
+    return JSON.stringify({
+        selectedHistoryId: state.charts.selectedHistoryId,
+        chartHeightPreset: state.charts.chartHeightPreset ?? 'medium',
+        resultObjectId: getChartSignatureObjectId(state.charts.result),
+        resultLoading: Boolean(state.charts.resultLoading),
+        resultError: state.charts.resultError
+            ? [state.charts.resultError.code ?? '', state.charts.resultError.message ?? '']
+            : null,
+        charts: charts.map(chart => [
+            chart.id,
+            chart.name,
+            chart.chartType,
+            JSON.stringify(chart.config ?? {}),
+        ]),
+    });
+}
+
 function syncChartsHistorySelectionUi(state) {
     const selectedHistoryId = String(state.charts.selectedHistoryId ?? '');
     const historyButtons = shellRefs.view.querySelectorAll(
@@ -788,7 +829,26 @@ function syncChartsSavedToggleUi(actionNode, nextValue) {
     }
 }
 
-function patchChartsDetailUi(state) {
+function renderChartsDetailIntoScratch(state) {
+    const scratch = document.createElement('div');
+
+    replaceChildrenFromRenderedMarkup(scratch, renderChartsDetail(state));
+    return scratch;
+}
+
+function replaceChartsDetailSection(detailNode, scratchNode, selector) {
+    const currentNode = detailNode.querySelector(selector);
+    const nextNode = scratchNode.querySelector(selector);
+
+    if (!(currentNode instanceof HTMLElement) || !(nextNode instanceof HTMLElement)) {
+        return false;
+    }
+
+    currentNode.replaceWith(nextNode);
+    return true;
+}
+
+function patchChartsDetailUi(state, { preserveCharts = false } = {}) {
     const chartsView = shellRefs.view.querySelector('.charts-view');
     const detailNode = chartsView?.querySelector('.charts-view__detail');
 
@@ -803,7 +863,20 @@ function patchChartsDetailUi(state) {
         return false;
     }
 
-    replaceChildrenFromRenderedMarkup(detailNode, renderChartsDetail(state));
+    if (preserveCharts) {
+        const scratch = renderChartsDetailIntoScratch(state);
+        const patched =
+            replaceChartsDetailSection(detailNode, scratch, '[data-charts-detail-header]') &&
+            replaceChartsDetailSection(detailNode, scratch, '[data-charts-query-section]') &&
+            replaceChartsDetailSection(detailNode, scratch, '[data-charts-results-section]');
+
+        if (!patched) {
+            return false;
+        }
+    } else {
+        replaceChildrenFromRenderedMarkup(detailNode, renderChartsDetail(state));
+    }
+
     syncChartsHistorySelectionUi(state);
     return true;
 }
@@ -1229,6 +1302,7 @@ function renderApp(state) {
     const modalMarkup = renderModal(state);
     const toastMarkup = renderToasts(state.toasts);
     const chartsHistorySignature = buildChartsHistorySignature(state);
+    const chartsCardSignature = buildChartsCardSignature(state);
     const isLockedRoute = [
         'editor',
         'editorResults',
@@ -1248,6 +1322,7 @@ function renderApp(state) {
     const panelChanged = panel !== lastRenderedPanelMarkup;
     const modalChanged = modalMarkup !== lastRenderedModalMarkup;
     const chartsHistoryChanged = chartsHistorySignature !== lastRenderedChartsHistorySignature;
+    const chartsCardsChanged = chartsCardSignature !== lastRenderedChartsCardSignature;
     const panelOpenChanged = panelOpen !== lastRenderedPanelOpen;
     const lockedRouteChanged = isLockedRoute !== lastRenderedLockedRoute;
     const shellMarkupUnchanged =
@@ -1291,8 +1366,11 @@ function renderApp(state) {
     let mainPatched = false;
 
     if (canPatchChartsMain) {
-        teardownQueryChartRenderer();
-        mainPatched = patchChartsDetailUi(state);
+        if (chartsCardsChanged) {
+            teardownQueryChartRenderer();
+        }
+
+        mainPatched = patchChartsDetailUi(state, { preserveCharts: !chartsCardsChanged });
     }
 
     if (mainChanged) {
@@ -1388,6 +1466,7 @@ function renderApp(state) {
     lastRenderedModalMarkup = modalMarkup;
     lastRenderedToastMarkup = toastMarkup;
     lastRenderedChartsHistorySignature = chartsHistorySignature;
+    lastRenderedChartsCardSignature = chartsCardSignature;
     lastRenderedPanelOpen = panelOpen;
     lastRenderedLockedRoute = isLockedRoute;
 
@@ -2391,7 +2470,12 @@ async function handleAction(actionNode) {
             await loadMoreQueryHistory();
             return;
         case 'open-query-history':
-            if (actionNode.dataset.historyId && openQueryHistoryInEditor(actionNode.dataset.historyId)) {
+            if (
+                actionNode.dataset.historyId &&
+                openQueryHistoryInEditor(actionNode.dataset.historyId, {
+                    notify: getState().route.name !== 'charts',
+                })
+            ) {
                 router.navigate('/editor');
             }
             return;

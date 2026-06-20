@@ -3969,7 +3969,9 @@ export function openQueryHistoryInEditor(historyId, options = {}) {
     clearQueryHistoryDetailState();
     state.editor.sqlText = options.append ? [state.editor.sqlText.trim(), rawSql].filter(Boolean).join('\n\n') : rawSql;
     storeString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft, state.editor.sqlText);
-    emitChange();
+    if (options.notify !== false) {
+        emitChange();
+    }
     return true;
 }
 

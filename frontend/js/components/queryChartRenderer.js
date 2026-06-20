@@ -7,6 +7,7 @@ import {
 import { analyzeQueryChartResult, validateQueryChartConfig } from "../lib/queryCharts.js";
 
 const chartInstances = new Map();
+const chartHosts = new Map();
 const resizeObservers = new Map();
 
 function getEchartsRuntime() {
@@ -41,6 +42,8 @@ function disposeChart(chartId) {
     chartInstances.delete(chartId);
   }
 
+  chartHosts.delete(chartId);
+
   const observer = resizeObservers.get(chartId);
 
   if (observer) {
@@ -58,7 +61,15 @@ export function mountQueryChartRenderer(state) {
   const charts = state.charts.detail?.charts ?? [];
   const result = state.charts.result;
 
-  teardownQueryChartRenderer();
+  const activeChartIds = new Set(charts.map((chart) => String(chart.id)));
+
+  Array.from(chartInstances.keys()).forEach((chartId) => {
+    const host = chartHosts.get(chartId);
+
+    if (!activeChartIds.has(chartId) || !(host instanceof HTMLElement) || !host.isConnected) {
+      disposeChart(chartId);
+    }
+  });
 
   if (!echartsRuntime || !result || !charts.length) {
     return;
@@ -85,17 +96,31 @@ export function mountQueryChartRenderer(state) {
       return;
     }
 
+    const chartId = String(chart.id);
+    const existingInstance = chartInstances.get(chartId);
+    const existingHost = chartHosts.get(chartId);
+
+    if (existingInstance && existingHost === host) {
+      existingInstance.resize();
+      return;
+    }
+
+    if (existingInstance) {
+      disposeChart(chartId);
+    }
+
     const instance = echartsRuntime.init(host);
 
     instance.setOption(buildOption(chart, result.rows ?? [], analysis), true);
-    chartInstances.set(String(chart.id), instance);
+    chartInstances.set(chartId, instance);
+    chartHosts.set(chartId, host);
 
     const resizeObserver = new ResizeObserver(() => {
       instance.resize();
     });
 
     resizeObserver.observe(host);
-    resizeObservers.set(String(chart.id), resizeObserver);
+    resizeObservers.set(chartId, resizeObserver);
   });
 }
 
