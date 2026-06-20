@@ -44,6 +44,7 @@ const STATE_DATABASE_FILENAME = "sqlite-hub-state.db";
 const MAX_CONNECTION_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_DOCUMENT_CONTENT_BYTES = 5 * 1024 * 1024;
 const MAX_DOCUMENT_FILENAME_LENGTH = 160;
+const QUERY_EXECUTION_SOURCES = new Set(["api", "cli", "user", "mcp"]);
 const CONNECTION_LOGO_EXTENSION_BY_MIME_TYPE = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -123,6 +124,24 @@ function buildDocumentTitleFromFilename(filename) {
   const title = baseName.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 
   return title || "Untitled";
+}
+
+function normalizeQueryExecutionSource(value, fallback = "user") {
+  const normalized = String(value ?? fallback)
+    .trim()
+    .toLowerCase();
+
+  return QUERY_EXECUTION_SOURCES.has(normalized) ? normalized : fallback;
+}
+
+function requireQueryExecutionSource(value) {
+  const normalized = normalizeQueryExecutionSource(value, null);
+
+  if (!normalized) {
+    throw new ValidationError(`Unsupported query execution source: ${value}`);
+  }
+
+  return normalized;
 }
 
 function normalizeDocumentTitle(value, filename) {
@@ -379,6 +398,7 @@ class AppStateStore {
         status TEXT NOT NULL CHECK(status IN ('success', 'error')),
         error_message TEXT,
         affected_rows INTEGER,
+        executed_by TEXT NOT NULL DEFAULT 'user' CHECK(executed_by IN ('api', 'cli', 'user', 'mcp')),
         FOREIGN KEY (history_id) REFERENCES query_history(id) ON DELETE CASCADE
       );
 
@@ -483,7 +503,25 @@ class AppStateStore {
       this.db.exec("ALTER TABLE recent_connections ADD COLUMN logoPath TEXT");
     }
 
+    this.ensureQueryRunsSchema();
     this.ensureMediaTaggingConfigSchema();
+  }
+
+  ensureQueryRunsSchema() {
+    const queryRunColumns = new Set(
+      this.db
+        .prepare("PRAGMA table_info(query_runs)")
+        .all()
+        .map((column) => column.name)
+    );
+
+    if (!queryRunColumns.has("executed_by")) {
+      this.db.exec(`
+        ALTER TABLE query_runs
+        ADD COLUMN executed_by TEXT NOT NULL DEFAULT 'user'
+        CHECK(executed_by IN ('api', 'cli', 'user', 'mcp'))
+      `);
+    }
   }
 
   seedDefaultSettings() {
@@ -901,6 +939,7 @@ class AppStateStore {
       id: Number(row.id),
       historyId: Number(row.history_id ?? row.historyId),
       executedAt: row.executed_at ?? row.executedAt ?? null,
+      executedBy: normalizeQueryExecutionSource(row.executed_by ?? row.executedBy),
       durationMs: this.normalizeQueryHistoryInteger(row.duration_ms ?? row.durationMs),
       rowCount: this.normalizeQueryHistoryInteger(row.row_count ?? row.rowCount),
       status: row.status ?? "success",
@@ -924,6 +963,7 @@ class AppStateStore {
             id: row.last_run_id ?? row.lastRunId,
             history_id: row.id,
             executed_at: row.last_run_executed_at ?? row.lastRunExecutedAt,
+            executed_by: row.last_run_executed_by ?? row.lastRunExecutedBy,
             duration_ms: row.last_run_duration_ms ?? row.lastRunDurationMs,
             row_count: row.last_run_row_count ?? row.lastRunRowCount,
             status: row.last_run_status ?? row.lastRunStatus,
@@ -1161,6 +1201,7 @@ class AppStateStore {
           q.last_used_at,
           latest.id AS last_run_id,
           latest.executed_at AS last_run_executed_at,
+          latest.executed_by AS last_run_executed_by,
           latest.duration_ms AS last_run_duration_ms,
           latest.row_count AS last_run_row_count,
           latest.status AS last_run_status,
@@ -1290,10 +1331,12 @@ class AppStateStore {
     affectedRows = null,
     errorMessage = null,
     executedAt = null,
+    executedBy = "user",
   } = {}) {
     const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
     const normalizedRawSql = String(rawSql ?? "");
     const normalizedSql = normalizeSql(normalizedRawSql);
+    const normalizedExecutedBy = requireQueryExecutionSource(executedBy);
 
     if (!normalizedDatabaseKey) {
       throw new ValidationError("Query history requires a database key.");
@@ -1382,9 +1425,10 @@ class AppStateStore {
           row_count,
           status,
           error_message,
-          affected_rows
+          affected_rows,
+          executed_by
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         historyId,
@@ -1393,7 +1437,8 @@ class AppStateStore {
         this.normalizeQueryHistoryInteger(rowCount),
         status,
         this.normalizeQueryHistoryText(errorMessage),
-        this.normalizeQueryHistoryInteger(affectedRows)
+        this.normalizeQueryHistoryInteger(affectedRows),
+        normalizedExecutedBy
       );
 
     return historyId;
@@ -1438,6 +1483,7 @@ class AppStateStore {
           charts.chart_types,
           latest.id AS last_run_id,
           latest.executed_at AS last_run_executed_at,
+          latest.executed_by AS last_run_executed_by,
           latest.duration_ms AS last_run_duration_ms,
           latest.row_count AS last_run_row_count,
           latest.status AS last_run_status,
@@ -1497,6 +1543,7 @@ class AppStateStore {
           q.last_used_at,
           latest.id AS last_run_id,
           latest.executed_at AS last_run_executed_at,
+          latest.executed_by AS last_run_executed_by,
           latest.duration_ms AS last_run_duration_ms,
           latest.row_count AS last_run_row_count,
           latest.status AS last_run_status,
@@ -1551,6 +1598,7 @@ class AppStateStore {
           q.last_used_at,
           latest.id AS last_run_id,
           latest.executed_at AS last_run_executed_at,
+          latest.executed_by AS last_run_executed_by,
           latest.duration_ms AS last_run_duration_ms,
           latest.row_count AS last_run_row_count,
           latest.status AS last_run_status,
@@ -1596,6 +1644,7 @@ class AppStateStore {
           id,
           history_id,
           executed_at,
+          executed_by,
           duration_ms,
           row_count,
           status,

@@ -41,7 +41,9 @@ async function startApi(t) {
       return [{ name: "companies" }];
     },
     executeRawQuery(databaseId, sql, options = {}) {
-      serviceCalls.push(`${databaseId}:query:${sql}:${options.storeName ?? ""}`);
+      serviceCalls.push(
+        `${databaseId}:query:${sql}:${options.storeName ?? ""}:${options.executedBy ?? ""}`
+      );
       if (sql === "READONLY") {
         throw new ReadOnlyError("Cannot execute raw SQL against a read-only database.");
       }
@@ -63,6 +65,27 @@ async function startApi(t) {
                 isSaved: true,
               }
             : null,
+        },
+      };
+    },
+    executeSavedQuery(databaseId, queryName, options = {}) {
+      serviceCalls.push(`${databaseId}:saved:${queryName}:${options.executedBy ?? ""}`);
+      return {
+        query: {
+          id: 7,
+          title: queryName,
+          rawSql: "SELECT 1",
+        },
+        result: {
+          sql: "SELECT 1",
+          statementCount: 1,
+          statements: [],
+          rows: [],
+          columns: [],
+          affectedRowCount: 0,
+          resultKind: "resultSet",
+          timingMs: 3,
+          historyId: 7,
         },
       };
     },
@@ -211,7 +234,7 @@ test("query API executes raw SQL with a database token", async (t) => {
   assert.equal(payload.metadata.stored, true);
   assert.equal(payload.metadata.databaseId, fixture.databaseA.id);
   assert.deepEqual(fixture.serviceCalls, [
-    `${fixture.databaseA.id}:query:SELECT 1:Stored API Query`,
+    `${fixture.databaseA.id}:query:SELECT 1:Stored API Query:api`,
   ]);
 });
 
@@ -233,4 +256,24 @@ test("query API rejects read-only raw SQL execution", async (t) => {
 
   assert.equal(response.status, 403);
   assert.equal(payload.error.code, "SQLITE_READONLY");
+});
+
+test("saved query API records executions as api", async (t) => {
+  const fixture = await startApi(t);
+  const created = fixture.tokenService.createToken(fixture.databaseA.id, "Automation");
+  const response = await fetch(
+    `${fixture.baseUrl}/databases/${fixture.databaseA.id}/queries/Hype-Reversal/execute`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${created.token}` },
+    }
+  );
+  const payload = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(payload.data.historyId, 7);
+  assert.equal(payload.metadata.query.title, "Hype-Reversal");
+  assert.deepEqual(fixture.serviceCalls, [
+    `${fixture.databaseA.id}:saved:Hype-Reversal:api`,
+  ]);
 });

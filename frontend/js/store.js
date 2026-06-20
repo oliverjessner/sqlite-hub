@@ -53,6 +53,7 @@ const UI_PREFERENCE_STORAGE_KEYS = {
     chartsResultsVisible: 'sqlite_hub_charts_results_visible',
     tableDesignerTablesVisible: 'sqlite_hub_table_designer_tables_visible',
     tableDesignerSqlPreviewVisible: 'sqlite_hub_table_designer_sql_preview_visible',
+    documentsVisible: 'sqlite_hub_documents_visible',
     documentsEditorVisible: 'sqlite_hub_documents_editor_visible',
     documentsPreviewVisible: 'sqlite_hub_documents_preview_visible',
     mediaTaggingViewerVisible: 'sqlite_hub_media_tagging_viewer_visible',
@@ -362,6 +363,7 @@ const state = {
         draftFilename: '',
         draftContent: '',
         dirty: false,
+        documentsVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.documentsVisible, true),
         editorVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.documentsEditorVisible, true),
         previewVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.documentsPreviewVisible, true),
         loading: false,
@@ -4137,6 +4139,12 @@ export function setStructureTableSearchQuery(query) {
 
 export function setDocumentsSearchQuery(query) {
     state.documents.searchQuery = String(query ?? '');
+    emitChange();
+}
+
+export function toggleDocumentsPanel() {
+    state.documents.documentsVisible = state.documents.documentsVisible === false;
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.documentsVisible, state.documents.documentsVisible);
     emitChange();
 }
 

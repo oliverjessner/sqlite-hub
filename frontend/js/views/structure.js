@@ -1,4 +1,5 @@
 import { clearInspector, renderDdlSection, renderInspector } from '../components/structureGraph.js';
+import { renderDropdownButton } from '../components/dropdownButton.js';
 import { escapeHtml, formatNumber } from '../utils/format.js';
 
 function renderEntryGroup(title, entries, activeName, options = {}) {
@@ -230,30 +231,31 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
           </button>
         </div>
         <div class="structure-graph__toolbar-actions">
-          <button
-            class="${toolbarButtonClass}"
-            data-structure-graph-action="fit"
-            type="button"
-          >
-            <span class="material-symbols-outlined text-sm">fit_screen</span>
-            Fit Graph
-          </button>
-          <button
-            class="${toolbarButtonClass}"
-            data-structure-graph-action="relayout"
-            type="button"
-          >
-            <span class="material-symbols-outlined text-sm">device_hub</span>
-            Recalculate Layout
-          </button>
-          <button
-            class="${toolbarButtonClass}"
-            data-structure-graph-action="clear"
-            type="button"
-          >
-            <span class="material-symbols-outlined text-sm">close</span>
-            Clear Selection
-          </button>
+          ${renderDropdownButton({
+              icon: 'format_shapes',
+              label: 'Format',
+              title: 'Format graph',
+              items: [
+                  {
+                      action: 'fit',
+                      actionAttribute: 'data-structure-graph-action',
+                      icon: 'fit_screen',
+                      label: 'Fit Graph',
+                  },
+                  {
+                      action: 'relayout',
+                      actionAttribute: 'data-structure-graph-action',
+                      icon: 'device_hub',
+                      label: 'Recalculate Layout',
+                  },
+                  {
+                      action: 'clear',
+                      actionAttribute: 'data-structure-graph-action',
+                      icon: 'close',
+                      label: 'Clear Selection',
+                  },
+              ],
+          })}
           <button
             class="${toolbarButtonClass}"
             data-structure-graph-action="open-data"

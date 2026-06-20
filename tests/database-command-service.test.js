@@ -59,6 +59,29 @@ function createFixture(t, options = {}) {
       new Date().toISOString(),
       new Date().toISOString()
     );
+  store.db
+    .prepare(
+      `
+        INSERT INTO query_history (
+          database_key,
+          normalized_sql,
+          raw_sql,
+          query_type,
+          tables_detected,
+          is_saved,
+          first_executed_at,
+          last_used_at
+        )
+        VALUES (?, ?, ?, 'other', '[]', 0, ?, ?)
+      `
+    )
+    .run(
+      connection.id,
+      "company list",
+      "Company List",
+      new Date().toISOString(),
+      new Date().toISOString()
+    );
   store.createDatabaseDocument(connection.id, {
     filename: "Readme.md",
     content: "# Sample\n",
@@ -77,7 +100,7 @@ function createFixture(t, options = {}) {
 }
 
 test("database command service provides shared CLI and API operations", (t) => {
-  const { connection, service } = createFixture(t);
+  const { connection, service, store } = createFixture(t);
 
   assert.equal(service.getDatabase("sample").id, connection.id);
   assert.deepEqual(service.listTables(connection.id), [{ name: "companies", columnCount: 2 }]);
@@ -89,10 +112,18 @@ test("database command service provides shared CLI and API operations", (t) => {
 
   const queries = service.listSavedQueries(connection.id);
   assert.equal(queries.total, 1);
-  assert.equal(service.getSavedQuery(connection.id, "Company List").notes, "Used by CLI and API");
+  const savedQuery = service.getSavedQuery(connection.id, "Company List");
+  assert.equal(savedQuery.notes, "Used by CLI and API");
+  assert.equal(savedQuery.rawSql, "SELECT id, name FROM companies ORDER BY id");
 
   const execution = service.executeSavedQuery(connection.id, "Company List");
   assert.equal(execution.result.statements[0].rowCount, 2);
+  assert.equal(execution.result.historyId, savedQuery.id);
+
+  const savedRun = store.db
+    .prepare("SELECT executed_by, status FROM query_runs WHERE history_id = ? ORDER BY id DESC LIMIT 1")
+    .get(savedQuery.id);
+  assert.deepEqual(savedRun, { executed_by: "user", status: "success" });
 
   const exported = service.exportSavedQuery(connection.id, "Company List", "csv");
   assert.equal(exported.result.rowCount, 2);
@@ -118,6 +149,9 @@ test("raw query execution writes SQL Editor query history", (t) => {
   const historyRow = store.db
     .prepare("SELECT raw_sql, query_type, title, is_saved FROM query_history WHERE id = ?")
     .get(result.historyId);
+  const runRow = store.db
+    .prepare("SELECT executed_by FROM query_runs WHERE history_id = ? ORDER BY id DESC LIMIT 1")
+    .get(result.historyId);
 
   assert.equal(result.affectedRowCount, 1);
   assert.equal(afterCount, beforeCount + 1);
@@ -125,6 +159,7 @@ test("raw query execution writes SQL Editor query history", (t) => {
   assert.equal(historyRow.query_type, "insert");
   assert.equal(historyRow.title, "Add Initech");
   assert.equal(historyRow.is_saved, 1);
+  assert.equal(runRow.executed_by, "user");
   assert.equal(storedQuery.title, "Add Initech");
   assert.equal(storedQuery.isSaved, true);
 });

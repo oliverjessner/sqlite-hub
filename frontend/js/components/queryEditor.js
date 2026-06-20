@@ -1,3 +1,4 @@
+import { renderDropdownButton } from "./dropdownButton.js";
 import { escapeHtml, highlightSql } from "../utils/format.js";
 
 function renderLineNumbers(query) {
@@ -57,21 +58,29 @@ export function renderQueryEditor({
   `;
 
   const center = `
-    <button
-      class="${secondaryButtonClass}"
-      data-action="format-current-query"
-      type="button"
-    >
-      <span class="material-symbols-outlined text-sm">format_align_left</span>
-      Format
-    </button>
-    <button
-      class="${secondaryButtonClass}"
-      data-action="clear-query"
-      type="button"
-    >
-      Clear
-    </button>
+    ${renderDropdownButton({
+      icon: "edit_note",
+      label: "Editor",
+      title: "Editor actions",
+      items: [
+        {
+          action: "format-current-query",
+          icon: "format_align_left",
+          label: "Format",
+        },
+        {
+          action: "clear-query",
+          icon: "delete_sweep",
+          label: "Clear",
+          danger: true,
+        },
+        {
+          action: "copy-current-query",
+          icon: "content_copy",
+          label: "Copy to Clipboard",
+        },
+      ],
+    })}
     <button
       class="${secondaryButtonClass}"
       data-action="open-query-export-modal"

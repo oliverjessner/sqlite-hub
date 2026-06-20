@@ -557,7 +557,7 @@ function renderChartCard(chart, state, analysis) {
         '" type="button">Edit</button>',
         '<button class="delete-button" data-action="open-delete-query-chart-modal" data-chart-id="',
         escapeHtml(chart.id),
-        '" type="button">Delete</button>',
+        '" type="button"><span class="material-symbols-outlined">delete</span> Delete</button>',
         '<button class="standard-button" data-action="export-query-chart-png" data-chart-id="',
         escapeHtml(chart.id),
         '" type="button">Export PNG</button>',

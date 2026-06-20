@@ -1,3 +1,4 @@
+import { renderDropdownButton } from '../components/dropdownButton.js';
 import { escapeHtml, formatCompactDateTime, formatNumber } from '../utils/format.js';
 import { renderMarkdownPreview } from '../utils/markdownDocuments.js';
 
@@ -100,164 +101,191 @@ function renderDocumentsSidebar(documents) {
     `;
 }
 
-function renderDocumentToolbar(documents) {
+function renderDocumentImportFileInput() {
+    return `
+      <input
+        accept=".md,.markdown,text/markdown,text/plain"
+        data-bind="document-import-file"
+        hidden
+        type="file"
+      />
+    `;
+}
+
+function renderNewDocumentDropdown(documents, className = '') {
+    return `
+      <div class="${escapeHtml(className)}">
+        ${renderDropdownButton({
+            disabled: documents.saving,
+            icon: 'add',
+            label: 'New Document',
+            title: 'New document',
+            items: [
+                {
+                    action: 'create-document',
+                    icon: 'draft',
+                    label: 'Blank Page',
+                },
+                {
+                    action: 'import-document-markdown',
+                    icon: 'upload_file',
+                    label: 'Import .md',
+                },
+            ],
+        })}
+      </div>
+    `;
+}
+
+function renderDocumentsPanelToggle(documents) {
+    const visible = documents.documentsVisible !== false;
+
+    return `
+      <button
+        class="standard-button panel-toggle-button ${visible ? '' : 'is-active'}"
+        aria-pressed="${visible ? 'false' : 'true'}"
+        data-action="toggle-documents-panel"
+        type="button"
+      >
+        <span class="material-symbols-outlined">${visible ? 'visibility_off' : 'visibility'}</span>
+        ${visible ? 'Hide Documents' : 'Show Documents'}
+      </button>
+    `;
+}
+
+function renderDocumentPaneToggle(documents, pane) {
+    const isEditor = pane === 'editor';
+    const visible = isEditor ? documents.editorVisible : documents.previewVisible;
+    const label = `${visible ? 'Hide' : 'Show'} ${isEditor ? 'Editor' : 'Preview'}`;
+    const icon = visible ? 'visibility_off' : isEditor ? 'edit_note' : 'visibility';
+
+    return `
+      <button
+        class="standard-button panel-toggle-button documents-pane__toggle ${visible ? '' : 'is-active'}"
+        aria-pressed="${visible ? 'false' : 'true'}"
+        data-action="toggle-document-pane"
+        data-pane="${escapeHtml(pane)}"
+        type="button"
+      >
+        <span class="material-symbols-outlined">${icon}</span>
+        ${label}
+      </button>
+    `;
+}
+
+function renderDocumentsTitlebar(documents, options = {}) {
+    const { showDocumentActions = false, showFilename = true } = options;
     const disabled = documents.saving || documents.detailLoading || !documents.selectedId;
 
     return `
       <div class="documents-titlebar">
-        <label class="documents-filename-field">
-          <input
-            class="control-input"
-            data-bind="document-field"
-            data-field="filename"
-            name="filename"
-            spellcheck="false"
-            type="text"
-            value="${escapeHtml(documents.draftFilename)}"
-            ${!documents.selectedId ? 'disabled' : ''}
-          />
-        </label>
-        <button
-          class="signature-button documents-create-button"
-          data-action="create-document"
-          type="button"
-          ${documents.saving ? 'disabled aria-disabled="true"' : ''}
-        >
-          <span class="material-symbols-outlined">add</span>
-          New Document
-        </button>
-      </div>
-      <div class="documents-toolbar">
-   
- 
-       
-        <div class="documents-toolbar__actions">
-          <button
-            class="standard-button panel-toggle-button ${documents.editorVisible ? '' : 'is-active'}"
-            aria-pressed="${documents.editorVisible ? 'false' : 'true'}"
-            data-action="toggle-document-pane"
-            data-pane="editor"
-            type="button"
-          >
-            <span class="material-symbols-outlined">${documents.editorVisible ? 'visibility_off' : 'edit_note'}</span>
-            ${documents.editorVisible ? 'Hide Editor' : 'Show Editor'}
-          </button>
-          <button
-            class="standard-button panel-toggle-button ${documents.previewVisible ? '' : 'is-active'}"
-            aria-pressed="${documents.previewVisible ? 'false' : 'true'}"
-            data-action="toggle-document-pane"
-            data-pane="preview"
-            type="button"
-          >
-            <span class="material-symbols-outlined">${documents.previewVisible ? 'visibility_off' : 'visibility'}</span>
-            ${documents.previewVisible ? 'Hide Preview' : 'Show Preview'}
-          </button>
-          <input
-            accept=".md,.markdown,text/markdown,text/plain"
-            data-bind="document-import-file"
-            hidden
-            type="file"
-          />
-          </div>
-        <div class="documents-toolbar__actions">
-          <button
-            class="standard-button"
-            data-action="open-document-insert-table-modal"
-            type="button"
-            ${disabled ? 'disabled aria-disabled="true"' : ''}
-          >
-            <span class="material-symbols-outlined">table_chart</span>
-            Insert Table
-          </button>
-          <button
-            class="standard-button"
-            data-action="open-document-insert-note-modal"
-            type="button"
-            ${disabled ? 'disabled aria-disabled="true"' : ''}
-          >
-            <span class="material-symbols-outlined">note_add</span>
-            Insert Note
-          </button>
-          <button
-            class="standard-button"
-            data-action="export-document-markdown"
-            type="button"
-            ${disabled ? 'disabled aria-disabled="true"' : ''}
-          >
-            <span class="material-symbols-outlined">download</span>
-            Export .md
-          </button>
-          <button
-            class="standard-button"
-            data-action="import-document-markdown"
-            type="button"
-            ${documents.saving ? 'disabled aria-disabled="true"' : ''}
-          >
-            <span class="material-symbols-outlined">upload_file</span>
-            Import .md
-          </button>
-        </div>
-          <div class="documents-toolbar__actions">
-          <button
-            class="standard-button"
-            data-action="delete-document"
-            type="button"
-            ${disabled || documents.deleting ? 'disabled aria-disabled="true"' : ''}
-          >
-            <span class="material-symbols-outlined">delete</span>
-            Delete
-          </button>
-          <button
-            class="signature-button"
-            data-action="save-document"
-            type="button"
-            ${disabled || !documents.dirty ? 'disabled aria-disabled="true"' : ''}
-          >
-            <span class="material-symbols-outlined">save</span>
-            ${documents.saving ? 'Saving...' : 'Save'}
-          </button>
-        </div>
+        ${renderDocumentsPanelToggle(documents)}
+        ${
+            showFilename
+                ? `
+                  <label class="documents-filename-field">
+                    <input
+                      class="control-input"
+                      data-bind="document-field"
+                      data-field="filename"
+                      name="filename"
+                      spellcheck="false"
+                      type="text"
+                      value="${escapeHtml(documents.draftFilename)}"
+                      ${!documents.selectedId ? 'disabled' : ''}
+                    />
+                  </label>
+                `
+                : ''
+        }
+        ${renderNewDocumentDropdown(documents, 'documents-create-button')}
+        ${
+            showDocumentActions
+                ? `
+                  ${renderDropdownButton({
+                      disabled,
+                      icon: 'add_box',
+                      label: 'Insert',
+                      title: 'Insert content',
+                      items: [
+                          {
+                              action: 'open-document-insert-table-modal',
+                              icon: 'table_chart',
+                              label: 'Insert Table',
+                          },
+                          {
+                              action: 'open-document-insert-note-modal',
+                              icon: 'note_add',
+                              label: 'Insert Note',
+                          },
+                      ],
+                  })}
+                  <button
+                    class="standard-button"
+                    data-action="export-document-markdown"
+                    type="button"
+                    ${disabled ? 'disabled aria-disabled="true"' : ''}
+                  >
+                    <span class="material-symbols-outlined">download</span>
+                    Export .md
+                  </button>
+                  <button
+                    class="delete-button"
+                    data-action="delete-document"
+                    type="button"
+                    ${disabled || documents.deleting ? 'disabled aria-disabled="true"' : ''}
+                  >
+                    <span class="material-symbols-outlined">delete</span>
+                    Delete
+                  </button>
+                `
+                : ''
+        }
       </div>
     `;
 }
 
 function renderDocumentEditor(documents) {
-    if (!documents.editorVisible) {
-        return '';
-    }
-
     return `
-      <section class="documents-pane documents-pane--editor">
+      <section class="documents-pane documents-pane--editor ${documents.editorVisible ? '' : 'documents-pane--collapsed'}">
         <div class="documents-pane__header">
-          <span>Editor</span>
-          <span>${formatNumber(documents.draftContent.length)} chars</span>
+          ${renderDocumentPaneToggle(documents, 'editor')}
+          <span class="documents-pane__meta">${formatNumber(documents.draftContent.length)} chars</span>
         </div>
-        <textarea
-          class="documents-editor-input custom-scrollbar"
-          data-bind="document-field"
-          data-field="content"
-          name="content"
-          spellcheck="true"
-          ${!documents.selectedId ? 'disabled' : ''}
-        >${escapeHtml(documents.draftContent)}</textarea>
+        ${
+            documents.editorVisible
+                ? `
+                  <textarea
+                    class="documents-editor-input custom-scrollbar"
+                    data-bind="document-field"
+                    data-field="content"
+                    name="content"
+                    spellcheck="true"
+                    ${!documents.selectedId ? 'disabled' : ''}
+                  >${escapeHtml(documents.draftContent)}</textarea>
+                `
+                : ''
+        }
       </section>
     `;
 }
 
 function renderDocumentPreview(documents) {
-    if (!documents.previewVisible) {
-        return '';
-    }
-
     return `
-      <section class="documents-pane documents-pane--preview">
+      <section class="documents-pane documents-pane--preview ${documents.previewVisible ? '' : 'documents-pane--collapsed'}">
         <div class="documents-pane__header">
-          <span>Preview</span>
-          <span>${escapeHtml(documents.dirty ? 'unsaved' : 'saved')}</span>
+          ${renderDocumentPaneToggle(documents, 'preview')}
+          <span class="documents-pane__meta">${escapeHtml(documents.dirty ? 'unsaved' : 'saved')}</span>
         </div>
-        <div class="document-markdown-preview custom-scrollbar" data-document-preview>
-          ${renderMarkdownPreview(documents.draftContent)}
-        </div>
+        ${
+            documents.previewVisible
+                ? `
+                  <div class="document-markdown-preview custom-scrollbar" data-document-preview>
+                    ${renderMarkdownPreview(documents.draftContent)}
+                  </div>
+                `
+                : ''
+        }
       </section>
     `;
 }
@@ -269,15 +297,7 @@ function renderEmptyDocumentsState(documents) {
         <p class="font-headline text-2xl font-black uppercase tracking-tight text-primary-container">
           No Documents
         </p>
-        <button
-          class="signature-button mt-4"
-          data-action="create-document"
-          type="button"
-          ${documents.saving ? 'disabled aria-disabled="true"' : ''}
-        >
-          <span class="material-symbols-outlined">add</span>
-          New Document
-        </button>
+        ${renderNewDocumentDropdown(documents, 'mt-4')}
       </div>
     `;
 }
@@ -286,6 +306,7 @@ function renderDocumentDetail(documents) {
     if (documents.loading && !documents.items.length) {
         return `
           <main class="documents-view__detail">
+            ${renderDocumentsTitlebar(documents, { showFilename: false })}
             <div class="documents-empty-state">
               <span class="material-symbols-outlined">sync</span>
               <p class="font-headline text-2xl font-black uppercase tracking-tight text-primary-container">
@@ -299,18 +320,26 @@ function renderDocumentDetail(documents) {
     if (!documents.selectedId) {
         return `
           <main class="documents-view__detail">
+            ${renderDocumentsTitlebar(documents, { showFilename: false })}
             ${renderEmptyDocumentsState(documents)}
           </main>
         `;
     }
 
-    const paneCount = Number(documents.editorVisible) + Number(documents.previewVisible);
+    const workspaceClasses = [
+        'documents-workspace',
+        documents.editorVisible && documents.previewVisible ? 'documents-workspace--split' : '',
+        !documents.editorVisible ? 'documents-workspace--editor-collapsed' : '',
+        !documents.previewVisible ? 'documents-workspace--preview-collapsed' : '',
+    ]
+        .filter(Boolean)
+        .join(' ');
 
     return `
       <main class="documents-view__detail">
-        ${renderDocumentToolbar(documents)}
+        ${renderDocumentsTitlebar(documents, { showDocumentActions: true })}
         ${documents.saveError ? `<div class="documents-error">${escapeHtml(documents.saveError.message)}</div>` : ''}
-        <div class="documents-workspace ${paneCount > 1 ? 'documents-workspace--split' : ''}">
+        <div class="${workspaceClasses}">
           ${renderDocumentEditor(documents)}
           ${renderDocumentPreview(documents)}
         </div>
@@ -327,13 +356,14 @@ export function renderDocumentsView(state) {
     }
 
     const documents = state.documents;
+    const documentsVisible = documents.documentsVisible !== false;
 
     return {
-        main: `<div class="documents-view">
-                ${renderDocumentsSidebar(documents)}
+        main: `<div class="documents-view ${documentsVisible ? 'documents-view--with-subnavi' : ''}">
+                ${renderDocumentImportFileInput()}
+                ${documentsVisible ? renderDocumentsSidebar(documents) : ''}
                 ${renderDocumentDetail(documents)}
-              </div>
-            </div>`,
+              </div>`,
         panel: '',
     };
 }

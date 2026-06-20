@@ -35,11 +35,30 @@ function getQueryTypeTone(queryType) {
   return "muted";
 }
 
+function getExecutionSourceTone(source) {
+  if (source === "api") {
+    return "primary";
+  }
+
+  if (source === "cli") {
+    return "warning";
+  }
+
+  if (source === "mcp") {
+    return "muted";
+  }
+
+  return "success";
+}
+
 function renderRunItem(run) {
+  const executedBy = String(run.executedBy ?? "user").trim().toLowerCase() || "user";
+
   return `
     <div class="border border-outline-variant/10 bg-surface-container px-3 py-3">
       <div class="flex flex-wrap items-center gap-2">
         ${renderStatusBadge(run.status, run.status === "error" ? "alert" : "success")}
+        ${renderStatusBadge(executedBy, getExecutionSourceTone(executedBy))}
         <span class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
           ${escapeHtml(formatCompactDateTime(run.executedAt))}
         </span>

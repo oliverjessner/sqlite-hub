@@ -566,7 +566,9 @@ function printExecutionResult(result) {
 }
 
 function executeSavedQuery({ databaseService, conn, queryName }) {
-    const { query: matchingQuery, result } = databaseService.executeSavedQuery(conn.id, queryName);
+    const { query: matchingQuery, result } = databaseService.executeSavedQuery(conn.id, queryName, {
+        executedBy: "cli",
+    });
 
     console.log(`\nExecuting: ${getQueryTitle(matchingQuery)}`);
     console.log(`SQL: ${matchingQuery.previewSql || matchingQuery.rawSql}`);
@@ -576,7 +578,10 @@ function executeSavedQuery({ databaseService, conn, queryName }) {
 }
 
 function executeRawQuery({ databaseService, conn, sql, storeName = null }) {
-    const { result, storedQuery } = databaseService.executeRawQuery(conn.id, sql, { storeName });
+    const { result, storedQuery } = databaseService.executeRawQuery(conn.id, sql, {
+        storeName,
+        executedBy: "cli",
+    });
 
     console.log(`\nExecuting raw SQL against: ${conn.label}`);
     console.log('─'.repeat(60));

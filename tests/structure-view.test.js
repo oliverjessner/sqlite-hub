@@ -1,0 +1,56 @@
+const assert = require("node:assert/strict");
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
+const test = require("node:test");
+
+let structureViewModulePromise = null;
+
+function loadStructureViewModule() {
+  if (!structureViewModulePromise) {
+    structureViewModulePromise = import(
+      pathToFileURL(path.resolve(__dirname, "../frontend/js/views/structure.js")).href
+    );
+  }
+
+  return structureViewModulePromise;
+}
+
+function buildStructureState() {
+  return {
+    structure: {
+      data: {
+        grouped: {
+          tables: [{ name: "companies", type: "table" }],
+          views: [],
+          indexes: [],
+          triggers: [],
+        },
+        graph: {
+          relationshipCount: 0,
+          tables: [{ name: "companies", type: "table", columns: [], foreignKeys: [] }],
+        },
+      },
+      detail: null,
+      detailLoading: false,
+      error: null,
+      loading: false,
+      selectedName: "companies",
+      tableSearchQuery: "",
+      tablesVisible: true,
+    },
+  };
+}
+
+test("structure toolbar groups graph format actions in a dropdown", async () => {
+  const { renderStructureView } = await loadStructureViewModule();
+  const { main } = renderStructureView(buildStructureState());
+
+  assert.match(main, /data-dropdown-button/);
+  assert.match(main, /Format graph/);
+  assert.match(main, /Fit Graph/);
+  assert.match(main, /data-structure-graph-action="fit"/);
+  assert.match(main, /Recalculate Layout/);
+  assert.match(main, /data-structure-graph-action="relayout"/);
+  assert.match(main, /Clear Selection/);
+  assert.match(main, /data-structure-graph-action="clear"/);
+});

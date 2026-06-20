@@ -70,7 +70,10 @@ function createExternalApiRouter({ databaseService, tokenService, appInfoService
 
       authenticateDatabaseRequest(req, tokenService, databaseId);
 
-      const { result } = databaseService.executeRawQuery(databaseId, sql, { storeName });
+      const { result } = databaseService.executeRawQuery(databaseId, sql, {
+        storeName,
+        executedBy: "api",
+      });
 
       res.json(
         successResponse({
@@ -168,7 +171,8 @@ function createExternalApiRouter({ databaseService, tokenService, appInfoService
     route((req, res) => {
       const { query, result } = databaseService.executeSavedQuery(
         req.params.databaseId,
-        req.params.queryName
+        req.params.queryName,
+        { executedBy: "api" }
       );
 
       res.json(

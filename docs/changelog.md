@@ -1,3 +1,8 @@
+# v1.1.2
+
+- documents overhaul
+- introducing the SQLite Hub dropdown button
+
 # v1.1.1
 
 - table designer overhaul

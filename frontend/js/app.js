@@ -129,6 +129,7 @@ import {
     toggleChartsResultsPanel,
     toggleChartsSqlPanel,
     toggleCurrentDocumentTodo,
+    toggleDocumentsPanel,
     toggleDocumentsPane,
     setMediaTaggingWorkflowMediaDetailsVisible,
     setMediaTaggingWorkflowMediaRotationDegrees,
@@ -1585,6 +1586,27 @@ function formatCurrentQuery() {
     showToast('SQL query formatted.', 'success');
 }
 
+async function copyCurrentQueryToClipboard() {
+    const currentQuery = getState().editor.sqlText ?? '';
+
+    if (!currentQuery.trim()) {
+        showToast('No SQL query to copy.', 'alert');
+        return;
+    }
+
+    if (!navigator.clipboard?.writeText) {
+        showToast('Clipboard API is not available.', 'alert');
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(currentQuery);
+        showToast('SQL query copied.', 'success');
+    } catch (error) {
+        showToast('SQL query could not be copied.', 'alert');
+    }
+}
+
 const OPENABLE_URL_PATTERN = /^https?:\/\/[^\s<>"']+$/i;
 
 function getOpenableUrl(value) {
@@ -1791,6 +1813,14 @@ function closeCopyColumnMenus(exceptMenu = null) {
     document.querySelectorAll('[data-copy-column-menu][open]').forEach(menu => {
         if (menu !== exceptMenu && menu instanceof HTMLDetailsElement) {
             menu.open = false;
+        }
+    });
+}
+
+function closeDropdownButtons(exceptDropdown = null) {
+    document.querySelectorAll('[data-dropdown-button][open]').forEach(dropdown => {
+        if (dropdown !== exceptDropdown && dropdown instanceof HTMLDetailsElement) {
+            dropdown.open = false;
         }
     });
 }
@@ -2476,6 +2506,9 @@ async function handleAction(actionNode) {
         case 'format-current-query':
             formatCurrentQuery();
             return;
+        case 'copy-current-query':
+            await copyCurrentQueryToClipboard();
+            return;
         case 'delete-data-row':
             openDeleteDataRowModal(actionNode.dataset.rowIndex);
             return;
@@ -2658,6 +2691,9 @@ async function handleAction(actionNode) {
             return;
         case 'toggle-table-designer-tables':
             toggleTableDesignerTablesPanel();
+            return;
+        case 'toggle-documents-panel':
+            toggleDocumentsPanel();
             return;
         case 'select-structure-entry':
             if (actionNode.dataset.entryName) {
@@ -2867,6 +2903,20 @@ document.addEventListener('click', event => {
         });
     }
 
+    const dropdownButton = target.closest('[data-dropdown-button]');
+
+    if (!dropdownButton) {
+        closeDropdownButtons();
+    } else if (target.closest('.dropdown-button__toggle')) {
+        window.requestAnimationFrame(() => {
+            if (dropdownButton instanceof HTMLDetailsElement && dropdownButton.open) {
+                closeDropdownButtons(dropdownButton);
+            }
+        });
+    } else if (target.closest('.dropdown-button__item')) {
+        closeDropdownButtons();
+    }
+
     const sidebarDatabasePicker = target.closest('.sidebar-db-picker');
 
     if (!sidebarDatabasePicker) {
@@ -2983,6 +3033,12 @@ document.addEventListener('keydown', event => {
     if (document.querySelector('[data-copy-column-menu][open]')) {
         event.preventDefault();
         closeCopyColumnMenus();
+        return;
+    }
+
+    if (document.querySelector('[data-dropdown-button][open]')) {
+        event.preventDefault();
+        closeDropdownButtons();
         return;
     }
 

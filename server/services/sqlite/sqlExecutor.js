@@ -488,6 +488,7 @@ class SqlExecutor {
             rowCount: lastResultSet?.rowCount ?? null,
             affectedRows: totalChanges,
             errorMessage: normalizedError.message,
+            executedBy: options.executedBy,
           });
         } catch (recordingError) {
           console.warn(
@@ -524,6 +525,7 @@ class SqlExecutor {
         durationMs: timingMs,
         rowCount: lastResultSet?.rowCount ?? null,
         affectedRows: totalChanges,
+        executedBy: options.executedBy,
       });
     }
 

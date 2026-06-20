@@ -283,7 +283,7 @@ class DatabaseCommandService {
     const collection = this.appStateStore.buildQueryHistoryCollection({
       databaseKey: connection.id,
       search: queryName,
-      onlySaved: false,
+      onlySaved: true,
       limit: 100,
     });
 
@@ -326,10 +326,11 @@ class DatabaseCommandService {
     return this.requireQuery(databaseReference, queryName);
   }
 
-  executeSavedQuery(databaseReference, queryName) {
+  executeSavedQuery(databaseReference, queryName, options = {}) {
     const query = this.requireQuery(databaseReference, queryName);
+    const { executedBy = "user" } = options;
     const result = this.withDatabase(databaseReference, ({ runtime }) =>
-      runtime.sqlExecutor.execute(query.rawSql, { persistHistory: false })
+      runtime.sqlExecutor.execute(query.rawSql, { executedBy })
     );
 
     return { query, result };
