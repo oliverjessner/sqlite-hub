@@ -2,6 +2,7 @@ import { renderQueryResultsPane } from '../components/queryResults.js';
 import { analyzeQueryChartResult, getQueryChartTypeLabel, validateQueryChartConfig } from '../lib/queryCharts.js';
 import { escapeHtml, highlightSql } from '../utils/format.js';
 import { renderStatusBadge } from '../components/badges.js';
+import { renderQueryHistoryHeader } from '../components/queryHistoryHeader.js';
 
 function renderMissingDatabase() {
     return `
@@ -91,13 +92,13 @@ function renderChartsList(state) {
                   data-to="/charts/${encodeURIComponent(item.id)}"
                   type="button"
                 >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0 flex-1 truncate font-mono text-xs ${
+                  <div class="space-y-2">
+                    <div class="w-full min-w-0 truncate font-mono text-xs ${
                         selectedHistoryId === Number(item.id) ? 'text-primary-container' : 'text-on-surface'
                     }" data-charts-history-title>
                       ${escapeHtml(item.displayTitle)}
                     </div>
-                    <div class="flex shrink-0 flex-wrap justify-end gap-1">
+                    <div class="flex w-full flex-wrap gap-1">
                       <span class="inline-flex" data-charts-saved-badge ${item.isSaved ? '' : 'hidden'}>
                         ${renderStatusBadge('saved', 'primary')}
                       </span>
@@ -185,7 +186,7 @@ function renderEmptyChartDetail() {
           Select A Query
         </h2>
         <p class="mt-3 text-sm leading-7 text-on-surface-variant/65">
-          Choose a query-history entry on the left to load its charts, render the live result set, and manage chart definitions.
+          Choose a query-history entry on the right to load its charts, render the live result set, and manage chart definitions.
         </p>
       </div>
     </div>
@@ -232,24 +233,27 @@ function renderQueryResultState(state, result) {
 }
 
 function renderQuerySqlSection(state, rawSql) {
-    const isExpanded = Boolean(state.charts.sqlExpanded);
+    const isVisible = Boolean(state.charts.queryVisible);
 
     return `
-    <section class="mt-5 border border-outline-variant/10 bg-surface-container-lowest">
-      <button
-        class="standard-button flex w-full justify-between border-b border-outline-variant/10 px-4 text-left"
-        data-action="toggle-charts-sql-panel"
-        type="button"
-      >
+    <section class="mt-6 border border-outline-variant/10 bg-surface-container-lowest">
+      <div class="flex items-center justify-between gap-3 border-b border-outline-variant/10 px-4 py-3">
         <span class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-          Query SQL
+          Query
         </span>
-        <span class="material-symbols-outlined text-on-surface-variant/55">
-          ${isExpanded ? 'expand_less' : 'expand_more'}
-        </span>
-      </button>
+        <button
+          class="standard-button"
+          data-action="toggle-charts-sql-panel"
+          type="button"
+        >
+          <span class="material-symbols-outlined text-sm">
+            ${isVisible ? 'visibility_off' : 'visibility'}
+          </span>
+          ${isVisible ? 'Hide Query' : 'Show Query'}
+        </button>
+      </div>
       ${
-          isExpanded
+          isVisible
               ? `
             <pre class="custom-scrollbar overflow-auto p-4 font-mono text-sm leading-6 text-on-surface"><code>${highlightSql(
                 rawSql,
@@ -450,9 +454,6 @@ export function renderChartsDetail(state) {
     <div class="custom-scrollbar flex-1 overflow-auto">
       <div class="charts-detail-shell">
         <header class="charts-detail-shell__header">
-          <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/70">
-            Charts
-          </div>
           <div class="charts-detail-shell__title">
             <h1 class="mt-2 truncate font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
               ${escapeHtml(detail.item.displayTitle)}
@@ -461,19 +462,6 @@ export function renderChartsDetail(state) {
           <div class="charts-detail-shell__controls">
             <div class="charts-detail-shell__controls-group">
               ${renderChartHeightPresetToggle(state)}
-              <button
-                class="standard-button"
-                data-action="toggle-query-history-panel"
-                data-next-value="${historyVisible ? 'false' : 'true'}"
-                type="button"
-              >
-                <span class="material-symbols-outlined text-sm">${
-                  historyVisible ? 'visibility_off' : 'visibility'
-                }</span>
-                ${historyVisible ? 'Hide Query History' : 'Show Query History'}
-              </button>
-            </div>
-            <div class="charts-detail-shell__controls-group charts-detail-shell__controls-group--end">
               <button
                 class="standard-button"
                 data-action="open-query-history"
@@ -492,10 +480,21 @@ export function renderChartsDetail(state) {
                 New Chart
               </button>
             </div>
+            <div class="charts-detail-shell__controls-group charts-detail-shell__controls-group--end">
+              <button
+                class="standard-button"
+                data-action="toggle-query-history-panel"
+                data-next-value="${historyVisible ? 'false' : 'true'}"
+                type="button"
+              >
+                <span class="material-symbols-outlined text-sm">${
+                  historyVisible ? 'visibility_off' : 'visibility'
+                }</span>
+                ${historyVisible ? 'Hide Query History' : 'Show Query History'}
+              </button>
+            </div>
           </div>
         </header>
-
-        ${renderQuerySqlSection(state, detail.item.rawSql)}
 
         <section class="mt-6 space-y-5">
           ${
@@ -517,6 +516,7 @@ export function renderChartsDetail(state) {
           }
         </section>
 
+        ${renderQuerySqlSection(state, detail.item.rawSql)}
         ${renderQueryResultsSection(state)}
       </div>
     </div>
@@ -536,17 +536,13 @@ export function renderChartsView(state) {
     return {
         main: `
       <section class="charts-view">
+        <div class="charts-view__detail">${renderChartsDetail(state)}</div>
         ${
             historyVisible
                 ? `
                   <aside class="charts-view__sidebar">
                     <div class="charts-view__sidebar-header">
-                      <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
-                        Query History
-                      </div>
-                      <h2 class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-                        Charts
-                      </h2>
+                      ${renderQueryHistoryHeader()}
                       ${renderChartsHistoryTabs(state)}
                     </div>
                     ${renderChartsList(state)}
@@ -554,7 +550,6 @@ export function renderChartsView(state) {
                 `
                 : ''
         }
-        <div class="charts-view__detail">${renderChartsDetail(state)}</div>
       </section>
     `,
         panel: '',

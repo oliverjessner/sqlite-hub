@@ -746,6 +746,42 @@
     width: clamp(20rem, 26vw, 22.5rem);
 }
 
+.query-editor-toolbar {
+    align-items: center;
+    display: grid;
+    gap: var(--spacing-4);
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.query-editor-toolbar__left,
+.query-editor-toolbar__center,
+.query-editor-toolbar__right {
+    align-items: center;
+    display: flex;
+    gap: var(--spacing-3);
+}
+
+.query-editor-toolbar__center {
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.query-editor-toolbar__right {
+    justify-content: flex-end;
+}
+
+@media (max-width: 980px) {
+    .query-editor-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .query-editor-toolbar__left,
+    .query-editor-toolbar__center,
+    .query-editor-toolbar__right {
+        justify-content: flex-start;
+    }
+}
+
 .table-designer-sidebar {
     background: var(--color-surface-low);
     border-right: 1px solid var(--border-medium);

@@ -3,6 +3,7 @@ export const TEXT_EXPORT_EXTENSIONS = {
   tsv: "tsv",
   md: "md",
   json: "json",
+  parquet: "parquet",
 };
 
 export function normalizeTextExportFormat(format = "csv") {
@@ -11,7 +12,7 @@ export function normalizeTextExportFormat(format = "csv") {
 }
 
 function stripKnownTextExportExtension(value = "") {
-  return String(value).replace(/\.(csv|tsv|md|json)$/i, "");
+  return String(value).replace(/\.(csv|tsv|md|json|parquet)$/i, "");
 }
 
 export function sanitizeExportFilenameBase(value, fallback = "export") {

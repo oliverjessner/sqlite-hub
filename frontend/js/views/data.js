@@ -112,25 +112,8 @@ function renderWorkspaceHeader(state) {
     const tablesVisible = state.dataBrowser.tablesVisible !== false;
 
     return `
-    <header class="border-b border-outline-variant/10 bg-surface-container px-6 py-5">
-      <div class="flex flex-wrap items-end justify-between gap-4">
-        <div class="data-headline-container">
-          <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
-            Data Browser
-          </div>
-          <h1 class="mt-2 font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
-            ${escapeHtml(table?.name ?? 'Table Data')}
-          </h1>
-          <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-            ${
-                table
-                    ? `rows ${escapeHtml(formatNumber(table.rowCount ?? 0))} // columns ${escapeHtml(
-                          formatNumber(table.columns?.length ?? 0),
-                      )}`
-                    : `tables ${escapeHtml(formatNumber(state.dataBrowser.tables.length))}`
-            }
-          </div>
-        </div>
+    <header class="border-b border-outline-variant/10 bg-surface-container px-6 py-3">
+      <div class="flex flex-wrap items-center justify-between gap-4">
         <div class="flex items-center gap-3">
           ${
               table
@@ -145,7 +128,14 @@ function renderWorkspaceHeader(state) {
                             : '<span class="material-symbols-outlined text-sm">visibility</span> Show Tables'
                     }
                   </button>
-                  <button
+                  `
+                  : ''
+          }
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-3">
+          ${
+              table
+                  ? `<button
                     class="standard-button"
                     data-action="open-data-export-modal"
                     type="button"
@@ -476,6 +466,8 @@ function renderTableSurface(state) {
         escapeHtml(formatNumber(totalRows)),
         filteredRowsText,
         ' rows',
+        ' // columns ',
+        escapeHtml(formatNumber(table.columns?.length ?? 0)),
         '</div>',
         '<div class="flex flex-wrap items-center gap-4"><div class="flex items-center gap-2">',
         '<span class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">rows</span>',

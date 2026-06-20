@@ -1,10 +1,14 @@
-# v1.0.1
+# v1.1.0
 
+- making the UI more consistent
 - structure overhaul, better UI
+- chart overhaul, better UI, search, etz
 - store last position of structure
 - join preview in structure
-- export JSON for Data
+- export JSON for Data, SQL Editor
+- export parquet for Data, SQL Editor
 - check updates for new versions in settings
+- Global Database Search
 
 # v1.0.0
 

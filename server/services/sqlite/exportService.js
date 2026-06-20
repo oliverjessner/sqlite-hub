@@ -1,5 +1,8 @@
+const { PassThrough } = require("node:stream");
+const parquet = require("parquetjs-lite");
 const { quoteIdentifier } = require("../../utils/identifier");
 const { serializeRows } = require("../../utils/sqliteTypes");
+const { ValidationError } = require("../../utils/errors");
 const {
   rowsToCsv,
   rowsToDelimitedText,
@@ -45,6 +48,10 @@ const EXPORT_FORMATS = {
     extension: "json",
     mimeType: "application/json; charset=utf-8",
   },
+  parquet: {
+    extension: "parquet",
+    mimeType: "application/vnd.apache.parquet",
+  },
 };
 
 function normalizeExportFormat(format) {
@@ -58,6 +65,10 @@ function normalizeExportFormat(format) {
 }
 
 function renderExportContent({ columns, rows, format, csvDelimiter }) {
+  if (format === "parquet") {
+    throw new ValidationError("Parquet exports are binary and must use a download endpoint.");
+  }
+
   if (format === "json") {
     return JSON.stringify(
       rows.map((row) =>
@@ -79,6 +90,206 @@ function renderExportContent({ columns, rows, format, csvDelimiter }) {
   return rowsToCsv({ columns, rows, delimiter: csvDelimiter });
 }
 
+function isSerializedBlob(value) {
+  return (
+    value &&
+    typeof value === "object" &&
+    value.__type === "blob" &&
+    typeof value.data === "string"
+  );
+}
+
+function getParquetValueKind(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (Buffer.isBuffer(value) || value instanceof Uint8Array || isSerializedBlob(value)) {
+    return "blob";
+  }
+
+  if (typeof value === "boolean") {
+    return "boolean";
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Number.isInteger(value) ? "integer" : "number";
+  }
+
+  return "string";
+}
+
+function inferParquetColumnType(rows, column) {
+  const kinds = new Set();
+
+  for (const row of rows) {
+    const kind = getParquetValueKind(row?.[column]);
+
+    if (kind) {
+      kinds.add(kind);
+    }
+  }
+
+  if (kinds.size === 0) {
+    return "UTF8";
+  }
+
+  if (kinds.size === 1 && kinds.has("blob")) {
+    return "BYTE_ARRAY";
+  }
+
+  if (kinds.size === 1 && kinds.has("boolean")) {
+    return "BOOLEAN";
+  }
+
+  if (kinds.size === 1 && kinds.has("integer")) {
+    return "INT64";
+  }
+
+  if (
+    (kinds.size === 1 && kinds.has("number")) ||
+    (kinds.size === 2 && kinds.has("integer") && kinds.has("number"))
+  ) {
+    return "DOUBLE";
+  }
+
+  return "UTF8";
+}
+
+function stringifyParquetValue(value) {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (Buffer.isBuffer(value)) {
+    return value.toString("base64");
+  }
+
+  if (value instanceof Uint8Array) {
+    return Buffer.from(value).toString("base64");
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+function normalizeParquetBlob(value) {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (Buffer.isBuffer(value)) {
+    return value;
+  }
+
+  if (value instanceof Uint8Array) {
+    return Buffer.from(value);
+  }
+
+  if (isSerializedBlob(value)) {
+    return Buffer.from(value.data, value.encoding === "hex" ? "hex" : "base64");
+  }
+
+  return Buffer.from(stringifyParquetValue(value) ?? "", "utf8");
+}
+
+function normalizeParquetValue(value, type) {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (type === "BYTE_ARRAY") {
+    return normalizeParquetBlob(value);
+  }
+
+  if (type === "BOOLEAN") {
+    return Boolean(value);
+  }
+
+  if (type === "INT64" || type === "DOUBLE") {
+    return Number(value);
+  }
+
+  return stringifyParquetValue(value);
+}
+
+function createParquetSchema(columns, rows) {
+  return new parquet.ParquetSchema(
+    Object.fromEntries(
+      columns.map((column) => [
+        column,
+        {
+          type: inferParquetColumnType(rows, column),
+          optional: true,
+        },
+      ])
+    )
+  );
+}
+
+async function rowsToParquetBuffer({ columns, rows }) {
+  const schema = createParquetSchema(columns, rows);
+  const output = new PassThrough();
+  const chunks = [];
+  const finished = new Promise((resolve, reject) => {
+    output.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    output.on("end", resolve);
+    output.on("error", reject);
+  });
+  const writer = await parquet.ParquetWriter.openStream(schema, output, {
+    useDataPageV2: false,
+  });
+  const columnTypes = Object.fromEntries(
+    columns.map((column) => [column, schema.schema[column].type])
+  );
+
+  for (const row of rows) {
+    const parquetRow = {};
+
+    for (const column of columns) {
+      const value = normalizeParquetValue(row?.[column], columnTypes[column]);
+
+      if (value !== undefined) {
+        parquetRow[column] = value;
+      }
+    }
+
+    await writer.appendRow(parquetRow);
+  }
+
+  await writer.close();
+  await finished;
+
+  return Buffer.concat(chunks);
+}
+
+async function renderDownloadContent({ columns, rows, format, csvDelimiter }) {
+  if (format === "parquet") {
+    return rowsToParquetBuffer({ columns, rows });
+  }
+
+  return renderExportContent({ columns, rows, format, csvDelimiter });
+}
+
+function buildExportResult({ filenameBase, formatConfig, content, format, columns, rowCount }) {
+  return {
+    filename: `${filenameBase}.${formatConfig.extension}`,
+    content,
+    csv: format === "csv" ? content : undefined,
+    format,
+    mimeType: formatConfig.mimeType,
+    columns,
+    rowCount,
+  };
+}
+
 class ExportService {
   constructor({ appStateStore, connectionManager, sqlExecutor }) {
     this.appStateStore = appStateStore;
@@ -90,7 +301,7 @@ class ExportService {
     return this.appStateStore.getSettings().csvDelimiter || ",";
   }
 
-  exportQuery(sql, options = {}) {
+  buildQueryExportData(sql, options = {}) {
     const format = normalizeExportFormat(options.format);
     const formatConfig = EXPORT_FORMATS[format];
     const activeConnection = this.connectionManager.getActiveConnection();
@@ -110,25 +321,55 @@ class ExportService {
       persistHistory: false,
       requireReader: true,
     });
-    const content = renderExportContent({
-      columns: result.columns,
-      rows: result.rows,
-      format,
-      csvDelimiter: this.getDelimiter(),
-    });
 
     return {
-      filename: `${filenameBase}.${formatConfig.extension}`,
-      content,
-      csv: format === "csv" ? content : undefined,
+      filenameBase,
       format,
-      mimeType: formatConfig.mimeType,
+      formatConfig,
       columns: result.columns,
-      rowCount: result.rows.length,
+      rows: result.rows,
     };
   }
 
-  exportTable(tableName, options = {}) {
+  exportQuery(sql, options = {}) {
+    const exportData = this.buildQueryExportData(sql, options);
+    const content = renderExportContent({
+      columns: exportData.columns,
+      rows: exportData.rows,
+      format: exportData.format,
+      csvDelimiter: this.getDelimiter(),
+    });
+
+    return buildExportResult({
+      filenameBase: exportData.filenameBase,
+      formatConfig: exportData.formatConfig,
+      content,
+      format: exportData.format,
+      columns: exportData.columns,
+      rowCount: exportData.rows.length,
+    });
+  }
+
+  async exportQueryDownload(sql, options = {}) {
+    const exportData = this.buildQueryExportData(sql, options);
+    const content = await renderDownloadContent({
+      columns: exportData.columns,
+      rows: exportData.rows,
+      format: exportData.format,
+      csvDelimiter: this.getDelimiter(),
+    });
+
+    return buildExportResult({
+      filenameBase: exportData.filenameBase,
+      formatConfig: exportData.formatConfig,
+      content,
+      format: exportData.format,
+      columns: exportData.columns,
+      rowCount: exportData.rows.length,
+    });
+  }
+
+  buildTableExportData(tableName, options = {}) {
     const format = normalizeExportFormat(options.format);
     const formatConfig = EXPORT_FORMATS[format];
     const db = this.connectionManager.getActiveDatabase();
@@ -152,22 +393,52 @@ class ExportService {
       blobMode: "full",
     });
     const columns = statement.columns().map((column) => column.name);
-    const content = renderExportContent({
+
+    return {
+      filenameBase: tableName,
+      format,
+      formatConfig,
       columns,
       rows,
-      format,
+    };
+  }
+
+  exportTable(tableName, options = {}) {
+    const exportData = this.buildTableExportData(tableName, options);
+    const content = renderExportContent({
+      columns: exportData.columns,
+      rows: exportData.rows,
+      format: exportData.format,
       csvDelimiter: this.getDelimiter(),
     });
 
-    return {
-      filename: `${tableName}.${formatConfig.extension}`,
+    return buildExportResult({
+      filenameBase: exportData.filenameBase,
+      formatConfig: exportData.formatConfig,
       content,
-      csv: format === "csv" ? content : undefined,
-      format,
-      mimeType: formatConfig.mimeType,
-      columns,
-      rowCount: rows.length,
-    };
+      format: exportData.format,
+      columns: exportData.columns,
+      rowCount: exportData.rows.length,
+    });
+  }
+
+  async exportTableDownload(tableName, options = {}) {
+    const exportData = this.buildTableExportData(tableName, options);
+    const content = await renderDownloadContent({
+      columns: exportData.columns,
+      rows: exportData.rows,
+      format: exportData.format,
+      csvDelimiter: this.getDelimiter(),
+    });
+
+    return buildExportResult({
+      filenameBase: exportData.filenameBase,
+      formatConfig: exportData.formatConfig,
+      content,
+      format: exportData.format,
+      columns: exportData.columns,
+      rowCount: exportData.rows.length,
+    });
   }
 }
 

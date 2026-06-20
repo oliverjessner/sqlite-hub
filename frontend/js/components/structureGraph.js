@@ -306,7 +306,17 @@ function renderJoinInspector(edgeData) {
     return `
     <div class="structure-graph__panel">
       <div class="space-y-3">
-        <div class="structure-graph__eyebrow">Join Preview</div>
+        <div class="structure-graph__panel-heading">
+          <div class="structure-graph__eyebrow">Join Preview</div>
+          <button
+            class="query-history-icon-button"
+            data-structure-graph-action="toggle-inspector"
+            type="button"
+            aria-label="Hide inspector"
+          >
+            <span class="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
         <div class="structure-graph__title">${escapeHtml(sourceTable)} → ${escapeHtml(targetTable)}</div>
         <div class="structure-graph__subtitle">Foreign key relationship</div>
       </div>
@@ -408,11 +418,18 @@ export function renderInspector(tableData) {
     return `
     <div class="structure-graph__panel">
       <div class="space-y-3">
-        <div class="structure-graph__eyebrow">Table Inspector</div>
-        <div class="structure-graph__title">${escapeHtml(tableData.name)}</div>
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="structure-graph__subtitle">${escapeHtml(tableData.type)}</div>
+        <div class="structure-graph__panel-heading">
+          <div class="structure-graph__eyebrow">Table Inspector</div>
+          <button
+            class="query-history-icon-button"
+            data-structure-graph-action="toggle-inspector"
+            type="button"
+            aria-label="Hide inspector"
+          >
+            <span class="material-symbols-outlined text-[18px]">close</span>
+          </button>
         </div>
+        <div class="structure-graph__title">${escapeHtml(tableData.name)}</div>
       </div>
 
       <div class="structure-graph__summary">

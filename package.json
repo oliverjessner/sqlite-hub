@@ -27,7 +27,8 @@
         "express-rate-limit": "^8.5.2",
         "helmet": "^8.2.0",
         "marked": "^18.0.5",
-        "material-symbols": "^0.45.1"
+        "material-symbols": "^0.45.1",
+        "parquetjs-lite": "^0.8.7"
     },
     "devDependencies": {
         "@tailwindcss/cli": "^4.3.1",

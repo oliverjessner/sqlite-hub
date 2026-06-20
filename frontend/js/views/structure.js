@@ -115,20 +115,27 @@ function renderObjectInspector(detail) {
     return `
     <div class="structure-graph__panel">
       <div class="space-y-3">
-        <div class="structure-graph__eyebrow">Object Inspector</div>
-        <div class="structure-graph__title">${escapeHtml(detail.name)}</div>
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="structure-graph__subtitle">${escapeHtml(detail.type ?? 'object')}</div>
-          ${
-              detail.tableName
-                  ? `
-                  <div class="structure-graph__subtitle">
-                    TABLE ${escapeHtml(detail.tableName)}
-                  </div>
-                `
-                  : ''
-          }
+        <div class="structure-graph__panel-heading">
+          <div class="structure-graph__eyebrow">Object Inspector</div>
+          <button
+            class="query-history-icon-button"
+            data-structure-graph-action="toggle-inspector"
+            type="button"
+            aria-label="Hide inspector"
+          >
+            <span class="material-symbols-outlined text-[18px]">close</span>
+          </button>
         </div>
+        <div class="structure-graph__title">${escapeHtml(detail.name)}</div>
+        ${
+            detail.tableName
+                ? `
+                <div class="structure-graph__subtitle">
+                  TABLE ${escapeHtml(detail.tableName)}
+                </div>
+              `
+                : ''
+        }
       </div>
 
       <div class="structure-graph__summary">
@@ -255,6 +262,8 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
             <span class="material-symbols-outlined text-sm">table_rows</span>
             Open Data
           </button>
+        </div>
+        <div class="structure-graph__toolbar-inspector">
           <button
             class="${toolbarButtonClass}"
             data-structure-graph-action="toggle-inspector"

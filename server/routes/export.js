@@ -1,8 +1,18 @@
 const express = require("express");
-const { route, successResponse } = require("../utils/errors");
+const { route, successResponse, ValidationError } = require("../utils/errors");
 
 function createExportRouter({ exportService }) {
   const router = express.Router();
+
+  function normalizeRequestFormat(format = "csv") {
+    return String(format ?? "csv").toLowerCase();
+  }
+
+  function assertJsonExportFormat(format) {
+    if (normalizeRequestFormat(format) === "parquet") {
+      throw new ValidationError("Parquet exports are binary and must use the download endpoint.");
+    }
+  }
 
   function sendExport(res, result) {
     res.setHeader("Content-Type", result.mimeType || "text/plain; charset=utf-8");
@@ -13,13 +23,13 @@ function createExportRouter({ exportService }) {
     res.send(result.content ?? result.csv ?? "");
   }
 
-  function sendQueryExport(res, sql, format) {
-    const result = exportService.exportQuery(sql, { format });
+  async function sendQueryExport(res, sql, format) {
+    const result = await exportService.exportQueryDownload(sql, { format });
     sendExport(res, result);
   }
 
-  function exportTableFromBody(body, format) {
-    return exportService.exportTable(body?.tableName, {
+  async function exportTableFromBody(body, format) {
+    return exportService.exportTableDownload(body?.tableName, {
       sortColumn: body?.sortColumn,
       sortDirection: body?.sortDirection,
       filterColumn: body?.filterColumn,
@@ -29,13 +39,14 @@ function createExportRouter({ exportService }) {
     });
   }
 
-  function sendTableExport(res, body, format) {
-    sendExport(res, exportTableFromBody(body, format));
+  async function sendTableExport(res, body, format) {
+    sendExport(res, await exportTableFromBody(body, format));
   }
 
   router.post(
     "/query",
     route((req, res) => {
+      assertJsonExportFormat(req.body?.format);
       const result = exportService.exportQuery(req.body?.sql, {
         format: req.body?.format || "csv",
       });
@@ -57,36 +68,51 @@ function createExportRouter({ exportService }) {
 
   router.post(
     "/query.csv",
-    route((req, res) => {
-      sendQueryExport(res, req.body?.sql, "csv");
+    route(async (req, res) => {
+      await sendQueryExport(res, req.body?.sql, "csv");
     })
   );
 
   router.post(
     "/query.tsv",
-    route((req, res) => {
-      sendQueryExport(res, req.body?.sql, "tsv");
+    route(async (req, res) => {
+      await sendQueryExport(res, req.body?.sql, "tsv");
     })
   );
 
   router.post(
     "/query.md",
-    route((req, res) => {
-      sendQueryExport(res, req.body?.sql, "md");
+    route(async (req, res) => {
+      await sendQueryExport(res, req.body?.sql, "md");
     })
   );
 
   router.post(
     "/query.json",
-    route((req, res) => {
-      sendQueryExport(res, req.body?.sql, "json");
+    route(async (req, res) => {
+      await sendQueryExport(res, req.body?.sql, "json");
+    })
+  );
+
+  router.post(
+    "/query.parquet",
+    route(async (req, res) => {
+      await sendQueryExport(res, req.body?.sql, "parquet");
     })
   );
 
   router.post(
     "/table",
     route((req, res) => {
-      const result = exportTableFromBody(req.body, req.body?.format || "csv");
+      assertJsonExportFormat(req.body?.format);
+      const result = exportService.exportTable(req.body?.tableName, {
+        sortColumn: req.body?.sortColumn,
+        sortDirection: req.body?.sortDirection,
+        filterColumn: req.body?.filterColumn,
+        filterOperator: req.body?.filterOperator,
+        filterValue: req.body?.filterValue,
+        format: req.body?.format || "csv",
+      });
 
       res.json(
         successResponse({
@@ -105,45 +131,62 @@ function createExportRouter({ exportService }) {
 
   router.post(
     "/table.csv",
-    route((req, res) => {
-      sendTableExport(res, req.body, "csv");
+    route(async (req, res) => {
+      await sendTableExport(res, req.body, "csv");
     })
   );
 
   router.post(
     "/table.tsv",
-    route((req, res) => {
-      sendTableExport(res, req.body, "tsv");
+    route(async (req, res) => {
+      await sendTableExport(res, req.body, "tsv");
     })
   );
 
   router.post(
     "/table.md",
-    route((req, res) => {
-      sendTableExport(res, req.body, "md");
+    route(async (req, res) => {
+      await sendTableExport(res, req.body, "md");
     })
   );
 
   router.post(
     "/table.json",
-    route((req, res) => {
-      sendTableExport(res, req.body, "json");
+    route(async (req, res) => {
+      await sendTableExport(res, req.body, "json");
+    })
+  );
+
+  router.post(
+    "/table.parquet",
+    route(async (req, res) => {
+      await sendTableExport(res, req.body, "parquet");
     })
   );
 
   router.get(
     "/table/:tableName.csv",
-    route((req, res) => {
-      const result = exportService.exportTable(req.params.tableName);
+    route(async (req, res) => {
+      const result = await exportService.exportTableDownload(req.params.tableName);
       sendExport(res, result);
     })
   );
 
   router.get(
     "/table/:tableName.json",
-    route((req, res) => {
-      const result = exportService.exportTable(req.params.tableName, {
+    route(async (req, res) => {
+      const result = await exportService.exportTableDownload(req.params.tableName, {
         format: "json",
+      });
+      sendExport(res, result);
+    })
+  );
+
+  router.get(
+    "/table/:tableName.parquet",
+    route(async (req, res) => {
+      const result = await exportService.exportTableDownload(req.params.tableName, {
+        format: "parquet",
       });
       sendExport(res, result);
     })

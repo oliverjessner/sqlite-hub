@@ -34,3 +34,7 @@ Follow these rules exactly when creating or modifying UI controls.
 - Prefer reuse over invention.
 - Prefer migration over local override.
 - Prefer shared component updates over per-view fixes.
+
+## History elements
+
+- the query histories like in SQL Editor or charts are always on the right side. While side menus for tables for example are always placed on the right

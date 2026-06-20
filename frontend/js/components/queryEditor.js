@@ -1,5 +1,4 @@
 import { escapeHtml, highlightSql } from "../utils/format.js";
-import { renderActionBar } from "./actionBar.js";
 
 function renderLineNumbers(query) {
   const lineCount = Math.max(1, String(query || "").split("\n").length);
@@ -40,20 +39,11 @@ export function renderQueryEditor({
   query,
   executing = false,
   exporting = false,
-  historyLoading = false,
-  historyTotal = 0,
   editorVisible = true,
   historyVisible = true,
 }) {
   const secondaryButtonClass = "standard-button";
   const left = `
-    <div class="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/40">
-      <span class="material-symbols-outlined text-xs">history</span>
-      ${historyLoading ? "Loading history..." : `${historyTotal} queries tracked`}
-    </div>
-  `;
-
-  const right = `
     <button
       class="${secondaryButtonClass}"
       data-action="toggle-editor-panel"
@@ -63,15 +53,9 @@ export function renderQueryEditor({
       <span class="material-symbols-outlined text-sm">${editorVisible ? "keyboard_arrow_down" : "terminal"}</span>
       ${editorVisible ? "Hide Editor" : "Show Editor"}
     </button>
-    <button
-      class="${secondaryButtonClass}"
-      data-action="toggle-query-history-panel"
-      data-next-value="${historyVisible ? "false" : "true"}"
-      type="button"
-    >
-      <span class="material-symbols-outlined text-sm">${historyVisible ? "visibility_off" : "visibility"}</span>
-      ${historyVisible ? "Hide History" : "Show History"}
-    </button>
+  `;
+
+  const center = `
     <button
       class="${secondaryButtonClass}"
       data-action="format-current-query"
@@ -104,14 +88,26 @@ export function renderQueryEditor({
     </button>
   `;
 
+  const right = `
+    <button
+      class="${secondaryButtonClass}"
+      data-action="toggle-query-history-panel"
+      data-next-value="${historyVisible ? "false" : "true"}"
+      type="button"
+    >
+      <span class="material-symbols-outlined text-sm">${historyVisible ? "visibility_off" : "visibility"}</span>
+      ${historyVisible ? "Hide History" : "Show History"}
+    </button>
+  `;
+
   return `
     <div class="flex h-full min-h-0 flex-col">
       <div class="bg-surface-container-low px-6 py-3">
-        ${renderActionBar({
-          left,
-          right,
-          className: "flex-wrap",
-        })}
+        <div class="query-editor-toolbar">
+          <div class="query-editor-toolbar__left">${left}</div>
+          <div class="query-editor-toolbar__center">${center}</div>
+          <div class="query-editor-toolbar__right">${right}</div>
+        </div>
       </div>
       ${
         editorVisible

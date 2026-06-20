@@ -1026,6 +1026,13 @@ function getExportOptions() {
       preview: ['[', '  {"id":1,"name":"Acme"}', ']'],
     },
     {
+      label: "Parquet",
+      format: "parquet",
+      icon: "dataset",
+      meta: ".parquet",
+      preview: ["columnar binary", "typed row groups"],
+    },
+    {
       label: "Duplicate",
       format: "table",
       icon: "table_chart",

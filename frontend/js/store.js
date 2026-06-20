@@ -49,6 +49,7 @@ const UI_PREFERENCE_STORAGE_KEYS = {
     dataTablesVisible: 'sqlite_hub_data_tables_visible',
     structureTablesVisible: 'sqlite_hub_structure_tables_visible',
     chartsHistoryVisible: 'sqlite_hub_charts_history_visible',
+    chartsQueryVisible: 'sqlite_hub_charts_query_visible',
     chartsResultsVisible: 'sqlite_hub_charts_results_visible',
     tableDesignerSqlPreviewVisible: 'sqlite_hub_table_designer_sql_preview_visible',
     documentsEditorVisible: 'sqlite_hub_documents_editor_visible',
@@ -64,6 +65,7 @@ const TEXT_EXPORT_FORMAT_LABELS = {
     tsv: 'TSV',
     md: 'Markdown',
     json: 'JSON',
+    parquet: 'Parquet',
 };
 const MISSING_DATABASE_ERROR = {
     code: 'ACTIVE_DATABASE_REQUIRED',
@@ -338,7 +340,7 @@ const state = {
         historyPanelVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsHistoryVisible, true),
         selectedHistoryId: null,
         chartHeightPreset: 'medium',
-        sqlExpanded: false,
+        queryVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsQueryVisible, true),
         resultsVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsResultsVisible, true),
         detail: null,
         detailLoading: false,
@@ -936,7 +938,7 @@ function resetChartsState() {
     state.charts.historyPanelVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsHistoryVisible, true);
     state.charts.selectedHistoryId = null;
     state.charts.chartHeightPreset = 'medium';
-    state.charts.sqlExpanded = false;
+    state.charts.queryVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsQueryVisible, true);
     state.charts.resultsVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsResultsVisible, true);
     state.charts.detail = null;
     state.charts.detailLoading = false;
@@ -1588,7 +1590,7 @@ async function loadChartsDetail(historyId) {
 
     if (!Number.isInteger(numericId) || numericId < 1) {
         state.charts.selectedHistoryId = null;
-        state.charts.sqlExpanded = false;
+        state.charts.queryVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsQueryVisible, true);
         state.charts.resultsVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsResultsVisible, true);
         state.charts.detail = null;
         state.charts.detailLoading = false;
@@ -1601,7 +1603,7 @@ async function loadChartsDetail(historyId) {
     }
 
     state.charts.selectedHistoryId = numericId;
-    state.charts.sqlExpanded = false;
+    state.charts.queryVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsQueryVisible, true);
     state.charts.resultsVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsResultsVisible, true);
     state.charts.detail = null;
     state.charts.detailLoading = true;
@@ -3479,7 +3481,8 @@ export async function openEditorRowUpdatePreview(rowIndex, values) {
 }
 
 export function toggleChartsSqlPanel() {
-    state.charts.sqlExpanded = !state.charts.sqlExpanded;
+    state.charts.queryVisible = !state.charts.queryVisible;
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsQueryVisible, state.charts.queryVisible);
     emitChange();
 }
 

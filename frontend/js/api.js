@@ -453,6 +453,7 @@ const TEXT_EXPORT_EXTENSIONS = {
   tsv: "tsv",
   md: "md",
   json: "json",
+  parquet: "parquet",
 };
 
 function normalizeTextExportFormat(format) {

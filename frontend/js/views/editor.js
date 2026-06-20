@@ -307,8 +307,6 @@ export function renderEditorView(state, { isResultsRoute = false } = {}) {
                 query: state.editor.sqlText,
                 executing: state.editor.executing,
                 exporting: state.editor.exportLoading,
-                historyLoading: state.editor.historyLoading,
-                historyTotal: state.editor.historyTotal,
                 editorVisible: state.editor.editorPanelVisible,
                 historyVisible: state.editor.historyPanelVisible,
             })}

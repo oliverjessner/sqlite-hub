@@ -1,5 +1,6 @@
 import { escapeHtml, formatNumber } from '../utils/format.js';
 import { renderStatusBadge } from './badges.js';
+import { renderQueryHistoryHeader } from './queryHistoryHeader.js';
 
 function getQueryTypeTone(queryType) {
     if (queryType === 'select' || queryType === 'update') {
@@ -42,13 +43,13 @@ export function renderQueryHistoryListItem(item, activeHistoryId, selectedHistor
         '" data-action="select-query-history-item" data-history-id="',
         escapeHtml(item.id),
         '" type="button">',
-        '<div class="flex flex-wrap items-center gap-2"><span class="truncate font-headline text-sm font-bold uppercase tracking-tight text-on-surface w-full">',
+        '<div class="space-y-2 text-left"><span class="block w-full truncate font-headline text-sm font-bold uppercase tracking-tight text-on-surface">',
         escapeHtml(item.displayTitle),
-        '</span>',
+        '</span><div class="flex flex-wrap items-center gap-2">',
         renderStatusBadge(item.queryType, getQueryTypeTone(item.queryType)),
         item.isSaved ? renderStatusBadge('saved', 'primary') : '',
         item.isDestructive ? renderStatusBadge('destructive', 'warning') : '',
-        '</div>',
+        '</div></div>',
         '<p class="query-history-sql-preview mt-2 text-left font-mono text-xs leading-5 text-on-surface-variant/75">',
         escapeHtml(item.previewSql),
         '</p></button>',
@@ -127,23 +128,7 @@ export function renderQueryHistoryPanel({
     return `
     <aside class="query-history-panel border-l border-outline-variant/10 bg-surface-container-lowest">
       <div class="border-b border-outline-variant/10 px-4 py-4">
-        <div class="flex items-center justify-between gap-3">
-          <div class="flex items-center gap-2">
-            <span class="material-symbols-outlined text-[18px] text-primary-container">history</span>
-            <span class="font-headline text-xs font-black uppercase tracking-[0.18em] text-primary-container">
-              Query History
-            </span>
-          </div>
-          <button
-            class="query-history-icon-button"
-            data-action="toggle-query-history-panel"
-            data-next-value="false"
-            title="Hide query history"
-            type="button"
-          >
-            <span class="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        </div>
+        ${renderQueryHistoryHeader()}
         <div class="mt-4">${renderQueryHistoryTabs(activeTab, total)}</div>
         <label class="mt-4 block">
           <span class="sr-only">Search query history</span>

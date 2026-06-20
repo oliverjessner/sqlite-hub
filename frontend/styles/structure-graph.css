@@ -12,26 +12,36 @@
     display: flex;
     flex-wrap: wrap;
     gap: 1rem;
-    justify-content: space-between;
     padding: 1rem 1.25rem;
 }
 
 .structure-graph__toolbar-main {
     align-items: center;
     display: flex;
-    flex: 1 1 20rem;
+    flex: 1 1 0;
     flex-wrap: wrap;
     gap: 0.875rem;
+    justify-content: flex-start;
     min-width: 0;
 }
 
 .structure-graph__toolbar-actions {
     align-items: center;
     display: flex;
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+    justify-content: center;
+}
+
+.structure-graph__toolbar-inspector {
+    align-items: center;
+    display: flex;
+    flex: 1 1 0;
     flex-wrap: wrap;
     gap: 0.625rem;
     justify-content: flex-end;
+    min-width: 0;
 }
 
 .structure-graph__toolbar .standard-button,
@@ -176,6 +186,13 @@
     align-items: center;
     justify-content: center;
     text-align: center;
+}
+
+.structure-graph__panel-heading {
+    align-items: center;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
 }
 
 .structure-graph__eyebrow {

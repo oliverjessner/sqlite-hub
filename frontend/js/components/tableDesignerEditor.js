@@ -351,11 +351,9 @@ export function renderTableDesignerEditor(state) {
               value="${escapeHtml(draft.tableName)}"
             />
             ${
-              draft.mode === "edit"
-                ? `<div class="status-badge status-badge--muted">FROM ${escapeHtml(
-                    draft.originalTableName
-                  )}</div>`
-                : `<div class="status-badge status-badge--primary">CREATE</div>`
+              draft.mode === "create"
+                ? `<div class="status-badge status-badge--primary">CREATE</div>`
+                : ""
             }
           </div>
           <div class="table-designer-main__subtitle">
