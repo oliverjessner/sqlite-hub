@@ -3,6 +3,9 @@ const { ReadOnlyError, ValidationError, mapSqliteError } = require("../../utils/
 const { validateSqlDumpPath } = require("../../utils/fileValidation");
 const { splitSqlStatements } = require("./sqlExecutor");
 
+const LARGE_IMPORT_ROW_THRESHOLD = 1000;
+const LARGE_IMPORT_FILE_SIZE_THRESHOLD = 5 * 1024 * 1024;
+
 class ImportService {
   constructor({ connectionManager }) {
     this.connectionManager = connectionManager;
@@ -10,6 +13,26 @@ class ImportService {
 
   containsExplicitTransaction(sql) {
     return /\b(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)\b/i.test(sql);
+  }
+
+  inspectSqlImport({ sqlFilePath }) {
+    const dumpPath = validateSqlDumpPath(sqlFilePath);
+    const stat = fs.statSync(dumpPath);
+    const sql = fs.readFileSync(dumpPath, "utf8");
+    const statementCount = splitSqlStatements(sql).length;
+
+    return {
+      sourceDumpPath: dumpPath,
+      sizeBytes: stat.size,
+      statementCount,
+      requiresSafetyBackup:
+        stat.size > LARGE_IMPORT_FILE_SIZE_THRESHOLD ||
+        statementCount > LARGE_IMPORT_ROW_THRESHOLD,
+      thresholds: {
+        rowCount: LARGE_IMPORT_ROW_THRESHOLD,
+        sizeBytes: LARGE_IMPORT_FILE_SIZE_THRESHOLD,
+      },
+    };
   }
 
   importSql({
@@ -107,5 +130,7 @@ class ImportService {
 }
 
 module.exports = {
+  LARGE_IMPORT_FILE_SIZE_THRESHOLD,
+  LARGE_IMPORT_ROW_THRESHOLD,
   ImportService,
 };

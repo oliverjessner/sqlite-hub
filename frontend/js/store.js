@@ -22,6 +22,7 @@ import {
 import { MEDIA_TAGGING_DEFAULT_MAPPING_TABLE, MEDIA_TAGGING_DEFAULT_TAG_TABLE } from './lib/mediaTaggingDefaults.js';
 import { buildTextExportFilename } from './utils/exportFilenames.js';
 import { toggleMarkdownTodoLine } from './utils/markdownDocuments.js';
+import { buildRiskySqlBackupContext, detectRiskySqlOperations } from './utils/riskySql.js';
 
 const listeners = new Set();
 const DEFAULT_SETTINGS = {
@@ -262,6 +263,12 @@ const state = {
         active: null,
         loading: false,
         backupLoading: false,
+        error: null,
+    },
+    backups: {
+        items: [],
+        loading: false,
+        operationLoading: false,
         error: null,
     },
     settings: {
@@ -582,6 +589,7 @@ function clearQueryHistoryDetailState() {
 function requiresActiveDatabase(routeName) {
     return [
         'overview',
+        'backups',
         'data',
         'editor',
         'editorResults',
@@ -1358,6 +1366,30 @@ async function refreshSettingsState() {
         state.settings.error = normalizeError(error);
     } finally {
         state.settings.loading = false;
+        emitChange();
+    }
+}
+
+async function refreshBackupsState() {
+    if (!state.connections.active) {
+        state.backups.items = [];
+        state.backups.error = null;
+        emitChange();
+        return;
+    }
+
+    state.backups.loading = true;
+    state.backups.error = null;
+    emitChange();
+
+    try {
+        const response = await api.getBackups();
+        state.backups.items = response.data ?? [];
+        state.backups.error = null;
+    } catch (error) {
+        state.backups.error = normalizeError(error);
+    } finally {
+        state.backups.loading = false;
         emitChange();
     }
 }
@@ -2492,6 +2524,9 @@ async function loadRouteData(route, options = {}) {
     switch (route.name) {
         case 'overview':
             await loadOverview(version);
+            return;
+        case 'backups':
+            await refreshBackupsState();
             return;
         case 'data':
             await loadData(version, route);
@@ -3718,10 +3753,36 @@ export async function chooseCreateDatabasePath() {
 }
 
 export async function submitImportSql(payload) {
+    if (!payload?.skipSafety && !payload?.createNew && !payload?.targetConnectionId && !payload?.targetPath) {
+        try {
+            const preview = await api.previewImportSql(payload);
+
+            if (preview.data?.requiresSafetyBackup) {
+                state.modal = {
+                    kind: 'backup-safety',
+                    operation: 'import',
+                    importPayload: payload,
+                    backupType: 'pre_import',
+                    backupName: 'Before import',
+                    notes: `SQL import, ${preview.data.statementCount ?? 0} statements, ${preview.data.sizeBytes ?? 0} bytes`,
+                    description: 'This SQL dump is large enough to change substantial data. Creating a backup allows you to restore the current state if the import goes wrong.',
+                    error: null,
+                    submitting: false,
+                };
+                emitChange();
+                return null;
+            }
+        } catch (error) {
+            withModalError(error);
+            return null;
+        }
+    }
+
     startModalSubmission();
 
     try {
-        const response = await api.importSql(payload);
+        const { skipSafety, ...requestPayload } = payload ?? {};
+        const response = await api.importSql(requestPayload);
         closeModalInternal();
         pushToast(response.message || 'SQL dump imported.', 'success');
         await refreshConnectionsState();
@@ -3797,26 +3858,255 @@ export async function removeConnection(id) {
 }
 
 export async function createActiveConnectionBackup() {
+    openCreateBackupModal();
+    return null;
+}
+
+export function openCreateBackupModal(defaults = {}) {
     if (!state.connections.active) {
         pushToast('No active SQLite database selected for backup.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind: 'create-backup',
+        name: defaults.name ?? '',
+        notes: defaults.notes ?? '',
+        backupType: defaults.type ?? 'manual',
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+export async function submitCreateBackupConfirmation({ name = '', notes = '', type = 'manual' } = {}) {
+    if (state.modal?.kind !== 'create-backup') {
         return null;
     }
 
+    startModalSubmission();
     state.connections.backupLoading = true;
-    emitChange();
+    state.backups.operationLoading = true;
 
     try {
-        const response = await api.createActiveConnectionBackup();
-        await refreshConnectionsState();
+        const response = await api.createBackup({ name, notes, type });
+        state.backups.items = [
+            response.data,
+            ...state.backups.items.filter(item => item.id !== response.data.id),
+        ];
+        closeModalInternal();
         pushToast(response.message || 'Backup created.', 'success');
+        if (state.route.name === 'backups') {
+            await refreshBackupsState();
+        }
         return response.data;
     } catch (error) {
-        pushToast(normalizeError(error)?.message || 'Backup could not be created.', 'alert');
+        withModalError(error);
         return null;
     } finally {
         state.connections.backupLoading = false;
+        state.backups.operationLoading = false;
         emitChange();
     }
+}
+
+export function openEditBackupNotesModal(backupId) {
+    const backup = state.backups.items.find(item => String(item.id) === String(backupId));
+
+    if (!backup) {
+        pushToast('The selected backup could not be loaded.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind: 'edit-backup-notes',
+        backupId: backup.id,
+        backupName: backup.name,
+        notes: backup.notes ?? '',
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+export async function submitEditBackupNotesConfirmation(notes = '') {
+    if (state.modal?.kind !== 'edit-backup-notes') {
+        return null;
+    }
+
+    const backupId = state.modal.backupId;
+    startModalSubmission();
+    state.backups.operationLoading = true;
+
+    try {
+        const response = await api.updateBackup(backupId, { notes });
+        state.backups.items = state.backups.items.map(item =>
+            String(item.id) === String(response.data.id) ? response.data : item
+        );
+        closeModalInternal();
+        pushToast(response.message || 'Backup notes updated.', 'success');
+        return response.data;
+    } catch (error) {
+        withModalError(error);
+        return null;
+    } finally {
+        state.backups.operationLoading = false;
+        emitChange();
+    }
+}
+
+export function openDeleteBackupModal(backupId) {
+    const backup = state.backups.items.find(item => String(item.id) === String(backupId));
+
+    if (!backup) {
+        pushToast('The selected backup could not be loaded.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind: 'delete-backup',
+        backupId: backup.id,
+        backupName: backup.name,
+        fileName: backup.fileName,
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+export async function submitDeleteBackupConfirmation() {
+    if (state.modal?.kind !== 'delete-backup') {
+        return false;
+    }
+
+    const backupId = state.modal.backupId;
+    startModalSubmission();
+    state.backups.operationLoading = true;
+
+    try {
+        const response = await api.deleteBackup(backupId);
+        state.backups.items = state.backups.items.filter(item => String(item.id) !== String(backupId));
+        closeModalInternal();
+        pushToast(response.message || 'Backup deleted.', 'muted');
+        return true;
+    } catch (error) {
+        withModalError(error);
+        return false;
+    } finally {
+        state.backups.operationLoading = false;
+        emitChange();
+    }
+}
+
+export async function downloadBackup(backupId) {
+    state.backups.operationLoading = true;
+    emitChange();
+
+    try {
+        await api.downloadBackup(backupId);
+        pushToast('Backup download started.', 'success');
+        return true;
+    } catch (error) {
+        state.backups.error = normalizeError(error);
+        pushToast(state.backups.error.message || 'Backup could not be downloaded.', 'alert');
+        return false;
+    } finally {
+        state.backups.operationLoading = false;
+        emitChange();
+    }
+}
+
+export function openRestoreBackupModal(backupId) {
+    const backup = state.backups.items.find(item => String(item.id) === String(backupId));
+
+    if (!backup) {
+        pushToast('The selected backup could not be loaded.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind: 'backup-safety',
+        operation: 'restore',
+        backupId: backup.id,
+        backupName: backup.name,
+        backupType: 'pre_restore',
+        backupNameBeforeOperation: `Before restore of ${backup.name}`,
+        description: 'Restoring replaces the current database file with this backup.',
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+async function restoreBackupById(backupId) {
+    state.backups.operationLoading = true;
+
+    try {
+        const response = await api.restoreBackup(backupId);
+        pushToast(response.message || 'Backup restored.', 'success');
+        await Promise.all([refreshConnectionsState(), refreshBackupsState()]);
+        invalidateDatabaseCaches();
+        return response.data;
+    } finally {
+        state.backups.operationLoading = false;
+        emitChange();
+    }
+}
+
+async function createSafetyBackupFromModal(modal) {
+    const response = await api.createBackup({
+        name: modal.backupNameBeforeOperation ?? modal.backupName,
+        notes: modal.notes,
+        type: modal.backupType,
+    });
+
+    if (state.route.name === 'backups') {
+        await refreshBackupsState();
+    }
+
+    return response.data;
+}
+
+export async function submitBackupSafetyChoice(choice) {
+    const modal = state.modal;
+
+    if (modal?.kind !== 'backup-safety') {
+        return false;
+    }
+
+    if (choice === 'cancel') {
+        closeModalInternal();
+        return false;
+    }
+
+    startModalSubmission();
+
+    try {
+        if (choice === 'create') {
+            await createSafetyBackupFromModal(modal);
+        }
+
+        if (modal.operation === 'restore') {
+            await restoreBackupById(modal.backupId);
+        } else if (modal.operation === 'sql') {
+            await executeCurrentQuery({ skipSafety: true });
+        } else if (modal.operation === 'import') {
+            await submitImportSql({
+                ...(modal.importPayload ?? {}),
+                skipSafety: true,
+            });
+        }
+
+        closeModalInternal();
+        return true;
+    } catch (error) {
+        withModalError(error);
+        return false;
+    }
+}
+
+export async function refreshBackups() {
+    await refreshBackupsState();
 }
 
 export async function openOverviewInFinder() {
@@ -3891,7 +4181,26 @@ export function setEditorTab(tab) {
     emitChange();
 }
 
-export async function executeCurrentQuery() {
+export async function executeCurrentQuery(options = {}) {
+    const riskyOperations = detectRiskySqlOperations(state.editor.sqlText);
+
+    if (!options.skipSafety && riskyOperations.length) {
+        const context = buildRiskySqlBackupContext(riskyOperations);
+        state.modal = {
+            kind: 'backup-safety',
+            operation: 'sql',
+            backupType: context.type,
+            backupName: context.name,
+            notes: state.editor.sqlText.slice(0, 600),
+            description: context.description,
+            sqlText: state.editor.sqlText,
+            error: null,
+            submitting: false,
+        };
+        emitChange();
+        return false;
+    }
+
     state.editor.executing = true;
     state.editor.lastExecutedSql = state.editor.sqlText;
     state.editor.error = null;

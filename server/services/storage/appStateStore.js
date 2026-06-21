@@ -487,6 +487,52 @@ class AppStateStore {
 
       CREATE INDEX IF NOT EXISTS idx_api_tokens_database_created
       ON api_tokens(database_key, created_at DESC, id ASC);
+
+      CREATE TABLE IF NOT EXISTS backups (
+        id TEXT PRIMARY KEY,
+        connectionId TEXT,
+        name TEXT NOT NULL,
+        notes TEXT,
+        path TEXT NOT NULL,
+        sizeBytes INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'creating'
+          CHECK(status IN ('creating', 'verifying', 'verified', 'failed', 'restoring')),
+        type TEXT NOT NULL DEFAULT 'manual'
+          CHECK(type IN (
+            'manual',
+            'automatic',
+            'pre_restore',
+            'pre_migration',
+            'pre_import',
+            'pre_schema_change'
+          )),
+        sourcePath TEXT NOT NULL,
+        sourceLabel TEXT,
+        sqliteHubVersion TEXT,
+        sqliteVersion TEXT,
+        journalMode TEXT,
+        schemaVersion INTEGER,
+        tableCount INTEGER,
+        rowCount INTEGER,
+        checksumSha256 TEXT,
+        createdAt TEXT NOT NULL,
+        verifiedAt TEXT,
+        lastRestoredAt TEXT,
+        errorMessage TEXT,
+        FOREIGN KEY (connectionId)
+          REFERENCES recent_connections(id)
+          ON UPDATE CASCADE
+          ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_backups_connection_created
+      ON backups(connectionId, createdAt DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_backups_status
+      ON backups(status);
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_backups_path
+      ON backups(path);
     `);
 
     const recentConnectionColumns = new Set(
@@ -1911,6 +1957,286 @@ class AppStateStore {
     return this.db
       .prepare("DELETE FROM query_history WHERE database_key = ?")
       .run(normalizedDatabaseKey).changes;
+  }
+
+  decorateBackupRow(row = {}) {
+    return {
+      id: String(row.id ?? ""),
+      connectionId: this.normalizeQueryHistoryText(row.connectionId),
+      name: String(row.name ?? ""),
+      notes: this.normalizeQueryHistoryText(row.notes),
+      path: String(row.path ?? ""),
+      sizeBytes: Number(row.sizeBytes ?? 0),
+      status: String(row.status ?? "creating"),
+      type: String(row.type ?? "manual"),
+      sourcePath: String(row.sourcePath ?? ""),
+      sourceLabel: this.normalizeQueryHistoryText(row.sourceLabel),
+      sqliteHubVersion: this.normalizeQueryHistoryText(row.sqliteHubVersion),
+      sqliteVersion: this.normalizeQueryHistoryText(row.sqliteVersion),
+      journalMode: this.normalizeQueryHistoryText(row.journalMode),
+      schemaVersion: this.normalizeQueryHistoryInteger(row.schemaVersion),
+      tableCount: this.normalizeQueryHistoryInteger(row.tableCount),
+      rowCount: this.normalizeQueryHistoryInteger(row.rowCount),
+      checksumSha256: this.normalizeQueryHistoryText(row.checksumSha256),
+      createdAt: row.createdAt ?? null,
+      verifiedAt: row.verifiedAt ?? null,
+      lastRestoredAt: row.lastRestoredAt ?? null,
+      errorMessage: this.normalizeQueryHistoryText(row.errorMessage),
+    };
+  }
+
+  listBackups({ connectionId = null, includeAll = false } = {}) {
+    const normalizedConnectionId = this.normalizeQueryHistoryText(connectionId);
+    const whereSql = includeAll || !normalizedConnectionId ? "" : "WHERE connectionId = ?";
+    const params = includeAll || !normalizedConnectionId ? [] : [normalizedConnectionId];
+
+    return this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            connectionId,
+            name,
+            notes,
+            path,
+            sizeBytes,
+            status,
+            type,
+            sourcePath,
+            sourceLabel,
+            sqliteHubVersion,
+            sqliteVersion,
+            journalMode,
+            schemaVersion,
+            tableCount,
+            rowCount,
+            checksumSha256,
+            createdAt,
+            verifiedAt,
+            lastRestoredAt,
+            errorMessage
+          FROM backups
+          ${whereSql}
+          ORDER BY createdAt DESC, id ASC
+        `
+      )
+      .all(...params)
+      .map((row) => this.decorateBackupRow(row));
+  }
+
+  listBackupsByDirectory(directoryPath) {
+    const normalizedDirectory = String(directoryPath ?? "").trim();
+
+    if (!normalizedDirectory) {
+      return [];
+    }
+
+    return this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            connectionId,
+            name,
+            notes,
+            path,
+            sizeBytes,
+            status,
+            type,
+            sourcePath,
+            sourceLabel,
+            sqliteHubVersion,
+            sqliteVersion,
+            journalMode,
+            schemaVersion,
+            tableCount,
+            rowCount,
+            checksumSha256,
+            createdAt,
+            verifiedAt,
+            lastRestoredAt,
+            errorMessage
+          FROM backups
+          WHERE path LIKE ?
+          ORDER BY createdAt DESC, id ASC
+        `
+      )
+      .all(`${normalizedDirectory}%`)
+      .map((row) => this.decorateBackupRow(row));
+  }
+
+  getBackup(backupId) {
+    const id = String(backupId ?? "").trim();
+
+    if (!id) {
+      return null;
+    }
+
+    const row = this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            connectionId,
+            name,
+            notes,
+            path,
+            sizeBytes,
+            status,
+            type,
+            sourcePath,
+            sourceLabel,
+            sqliteHubVersion,
+            sqliteVersion,
+            journalMode,
+            schemaVersion,
+            tableCount,
+            rowCount,
+            checksumSha256,
+            createdAt,
+            verifiedAt,
+            lastRestoredAt,
+            errorMessage
+          FROM backups
+          WHERE id = ?
+        `
+      )
+      .get(id);
+
+    return row ? this.decorateBackupRow(row) : null;
+  }
+
+  createBackupRecord(record = {}) {
+    this.db
+      .prepare(
+        `
+          INSERT INTO backups (
+            id,
+            connectionId,
+            name,
+            notes,
+            path,
+            sizeBytes,
+            status,
+            type,
+            sourcePath,
+            sourceLabel,
+            sqliteHubVersion,
+            sqliteVersion,
+            journalMode,
+            schemaVersion,
+            tableCount,
+            rowCount,
+            checksumSha256,
+            createdAt,
+            verifiedAt,
+            lastRestoredAt,
+            errorMessage
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      .run(
+        record.id,
+        this.normalizeQueryHistoryText(record.connectionId),
+        String(record.name ?? "Backup").trim() || "Backup",
+        this.normalizeQueryHistoryText(record.notes),
+        String(record.path ?? "").trim(),
+        Number(record.sizeBytes ?? 0),
+        record.status ?? "creating",
+        record.type ?? "manual",
+        String(record.sourcePath ?? "").trim(),
+        this.normalizeQueryHistoryText(record.sourceLabel),
+        this.normalizeQueryHistoryText(record.sqliteHubVersion),
+        this.normalizeQueryHistoryText(record.sqliteVersion),
+        this.normalizeQueryHistoryText(record.journalMode),
+        this.normalizeQueryHistoryInteger(record.schemaVersion),
+        this.normalizeQueryHistoryInteger(record.tableCount),
+        this.normalizeQueryHistoryInteger(record.rowCount),
+        this.normalizeQueryHistoryText(record.checksumSha256),
+        record.createdAt ?? new Date().toISOString(),
+        record.verifiedAt ?? null,
+        record.lastRestoredAt ?? null,
+        this.normalizeQueryHistoryText(record.errorMessage)
+      );
+
+    return this.getBackup(record.id);
+  }
+
+  updateBackupRecord(backupId, changes = {}) {
+    const backup = this.getBackup(backupId);
+
+    if (!backup) {
+      throw new NotFoundError(`Backup not found: ${backupId}`);
+    }
+
+    const next = {
+      ...backup,
+      ...changes,
+    };
+
+    this.db
+      .prepare(
+        `
+          UPDATE backups
+          SET
+            connectionId = ?,
+            name = ?,
+            notes = ?,
+            path = ?,
+            sizeBytes = ?,
+            status = ?,
+            type = ?,
+            sourcePath = ?,
+            sourceLabel = ?,
+            sqliteHubVersion = ?,
+            sqliteVersion = ?,
+            journalMode = ?,
+            schemaVersion = ?,
+            tableCount = ?,
+            rowCount = ?,
+            checksumSha256 = ?,
+            verifiedAt = ?,
+            lastRestoredAt = ?,
+            errorMessage = ?
+          WHERE id = ?
+        `
+      )
+      .run(
+        this.normalizeQueryHistoryText(next.connectionId),
+        String(next.name ?? "Backup").trim() || "Backup",
+        this.normalizeQueryHistoryText(next.notes),
+        String(next.path ?? "").trim(),
+        Number(next.sizeBytes ?? 0),
+        next.status ?? "creating",
+        next.type ?? "manual",
+        String(next.sourcePath ?? "").trim(),
+        this.normalizeQueryHistoryText(next.sourceLabel),
+        this.normalizeQueryHistoryText(next.sqliteHubVersion),
+        this.normalizeQueryHistoryText(next.sqliteVersion),
+        this.normalizeQueryHistoryText(next.journalMode),
+        this.normalizeQueryHistoryInteger(next.schemaVersion),
+        this.normalizeQueryHistoryInteger(next.tableCount),
+        this.normalizeQueryHistoryInteger(next.rowCount),
+        this.normalizeQueryHistoryText(next.checksumSha256),
+        next.verifiedAt ?? null,
+        next.lastRestoredAt ?? null,
+        this.normalizeQueryHistoryText(next.errorMessage),
+        backup.id
+      );
+
+    return this.getBackup(backup.id);
+  }
+
+  deleteBackupRecord(backupId) {
+    const backup = this.getBackup(backupId);
+
+    if (!backup) {
+      throw new NotFoundError(`Backup not found: ${backupId}`);
+    }
+
+    this.db.prepare("DELETE FROM backups WHERE id = ?").run(backup.id);
+    return backup;
   }
 
   trimRecentConnections() {

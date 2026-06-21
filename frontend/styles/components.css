@@ -533,6 +533,23 @@
     text-transform: uppercase;
 }
 
+.backup-safety-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--spacing-3);
+    overflow-x: auto;
+}
+
+.backup-safety-actions > button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.backup-safety-actions > .standard-button {
+    margin-right: auto;
+}
+
 .standard-button:focus-visible,
 .signature-button:focus-visible,
 .delete-button:focus-visible,

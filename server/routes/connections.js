@@ -77,6 +77,24 @@ function createConnectionsRouter({ connectionManager, importService, backupServi
   );
 
   router.post(
+    "/import-sql/preview",
+    route((req, res) => {
+      const result = importService.inspectSqlImport({
+        sqlFilePath: req.body.sqlFilePath,
+      });
+
+      res.json(
+        successResponse({
+          message: result.requiresSafetyBackup
+            ? "Import safety backup recommended."
+            : "Import can continue without a safety backup.",
+          data: result,
+        })
+      );
+    })
+  );
+
+  router.post(
     "/import-sql",
     route((req, res) => {
       const result = importService.importSql({
@@ -104,12 +122,17 @@ function createConnectionsRouter({ connectionManager, importService, backupServi
 
   router.post(
     "/backup-active",
-    route((req, res) => {
-      const backup = backupService.createActiveBackup();
+    route(async (req, res) => {
+      const backup = await backupService.createActiveBackup({
+        name: req.body?.name,
+        notes: req.body?.notes,
+        type: req.body?.type,
+        context: req.body?.context,
+      });
 
       res.json(
         successResponse({
-          message: `Backup created: ${backup.fileName}`,
+          message: "Backup created and verified.",
           data: backup,
         })
       );

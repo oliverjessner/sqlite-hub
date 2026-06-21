@@ -24,6 +24,7 @@ import { renderTopNav } from './components/topNav.js';
 import { createRouter } from './router.js';
 import {
     createActiveConnectionBackup,
+    downloadBackup,
     createSettingsApiToken,
     chooseOpenDatabasePath,
     chooseCreateDatabasePath,
@@ -53,6 +54,10 @@ import {
     openDeleteEditorRowModal,
     openDeleteQueryHistoryModal,
     openDeleteSettingsApiTokenModal,
+    openCreateBackupModal,
+    openEditBackupNotesModal,
+    openDeleteBackupModal,
+    openRestoreBackupModal,
     openDeleteQueryChartModal,
     openDataExportModal,
     openDeleteDocumentModal,
@@ -68,6 +73,7 @@ import {
     openDataRowUpdatePreview,
     openEditorRowUpdatePreview,
     refreshCurrentRoute,
+    refreshBackups,
     refreshMediaTaggingPreview,
     removeConnection,
     removeCurrentMediaTag,
@@ -105,6 +111,7 @@ import {
     setEditorPanelVisibility,
     setEditorTab,
     submitDeleteChartConfirmation,
+    submitDeleteBackupConfirmation,
     submitDeleteDocumentConfirmation,
     submitDocumentInsertNote,
     submitDocumentInsertTable,
@@ -112,6 +119,9 @@ import {
     submitCreateMediaTaggingMappingTable,
     submitDeleteQueryHistoryConfirmation,
     submitDeleteSettingsApiTokenConfirmation,
+    submitBackupSafetyChoice,
+    submitCreateBackupConfirmation,
+    submitEditBackupNotesConfirmation,
     submitRowUpdatePreviewConfirmation,
     setQueryHistoryPanelVisibility,
     sortDataTableByColumn,
@@ -160,6 +170,7 @@ import {
     removeCurrentTableDesignerColumn,
 } from './store.js';
 import { renderChartsDetail, renderChartsView } from './views/charts.js';
+import { renderBackupsView } from './views/backups.js';
 import { renderConnectionsView } from './views/connections.js';
 import { renderDataRowEditorPanel, renderDataView } from './views/data.js';
 import { renderDocumentsView } from './views/documents.js';
@@ -242,6 +253,7 @@ const DOCUMENT_AUTOSAVE_DELAY_MS = 5000;
 const APP_TITLE = 'SQLite Hub';
 const ROUTE_TITLE_SEGMENTS = {
     connections: 'Connections',
+    backups: 'Backups',
     overview: 'Overview',
     data: 'Data',
     structure: 'Structure',
@@ -1054,6 +1066,8 @@ function resolveView(state) {
             return renderLandingView(state);
         case 'connections':
             return renderConnectionsView(state);
+        case 'backups':
+            return renderBackupsView(state);
         case 'overview':
             return renderOverviewView(state);
         case 'charts':
@@ -2476,6 +2490,33 @@ async function handleAction(actionNode) {
         case 'create-backup':
             await createActiveConnectionBackup();
             return;
+        case 'open-create-backup-modal':
+            openCreateBackupModal();
+            return;
+        case 'refresh-backups':
+            await refreshBackups();
+            return;
+        case 'open-restore-backup-modal':
+            openRestoreBackupModal(actionNode.dataset.backupId);
+            return;
+        case 'open-edit-backup-notes-modal':
+            openEditBackupNotesModal(actionNode.dataset.backupId);
+            return;
+        case 'open-delete-backup-modal':
+            openDeleteBackupModal(actionNode.dataset.backupId);
+            return;
+        case 'download-backup':
+            await downloadBackup(actionNode.dataset.backupId);
+            return;
+        case 'backup-safety-create':
+            await submitBackupSafetyChoice('create');
+            return;
+        case 'backup-safety-continue':
+            await submitBackupSafetyChoice('continue');
+            return;
+        case 'backup-safety-cancel':
+            await submitBackupSafetyChoice('cancel');
+            return;
         case 'copy-media-tags': {
             const tags = getState().mediaTagging.tags ?? [];
             const formattedTags = tags
@@ -3488,6 +3529,19 @@ document.addEventListener('submit', async event => {
         }
         case 'delete-row-confirm':
             await submitDeleteRowConfirmation();
+            return;
+        case 'create-backup':
+            await submitCreateBackupConfirmation({
+                name: String(formData.get('name') ?? ''),
+                notes: String(formData.get('notes') ?? ''),
+                type: String(formData.get('type') ?? 'manual'),
+            });
+            return;
+        case 'edit-backup-notes':
+            await submitEditBackupNotesConfirmation(String(formData.get('notes') ?? ''));
+            return;
+        case 'delete-backup-confirm':
+            await submitDeleteBackupConfirmation();
             return;
         case 'save-query-chart':
             await saveCurrentQueryChartDraft();

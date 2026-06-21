@@ -23,7 +23,7 @@ SQLite Hub keeps that workflow sharp:
 - copy result columns with formatting, headers, first-10 previews, TXT export, and Markdown todo export
 - keep database-scoped Markdown documents with previews, autosave, imports, exports, and saved-query inserts
 - switch between recent databases with sidebar quick picks
-- create simple local backups of the active database
+- create verified local backups of the active database and get safety prompts before risky operations
 - run and format SQL in a syntax-highlighted editor with history, messages, and performance metrics
 - keep large interactive query results bounded while full exports remain available
 - turn query-history results into local charts
@@ -176,9 +176,18 @@ The Settings view reports the installed SQLite Hub version and the actual SQLite
 
 The active database footer in the sidebar opens a quick-pick panel with the five most recent databases, so you can switch databases without going back to the Connections view.
 
-### Simple backups
+### Backup Manager
 
-Create timestamped local backups of the active SQLite database in one click. Backups are stored as plain file copies in a local `backups` folder next to the database.
+Create verified local backups of the active SQLite database, review backup metadata, edit backup notes, download backup files, restore verified backups, and delete managed backups from the Backups view. SQLite Hub stores backup files under its local app-state backup directory by connection id and keeps a `manifest.json` beside each database's backup files. Each backup is created through SQLite's backup API, hashed with SHA-256, and verified with `PRAGMA quick_check` before it is marked as verified.
+
+SQLite Hub also proposes a safety backup before operations that can be hard to undo:
+
+- SQL Editor execution when the statement set contains `DROP TABLE`, `ALTER TABLE`, `CREATE TABLE`, `CREATE INDEX`, `CREATE VIEW`, `CREATE TRIGGER`, `DROP INDEX`, `DROP VIEW`, `DROP TRIGGER`, `REINDEX`, or `VACUUM`.
+- SQL Editor execution with multiple schema-affecting statements in one run; this is treated as a migration and suggests a `Before migration` backup.
+- SQL import into the currently active database when the dump is larger than 5 MB or contains more than 1,000 parsed SQL statements.
+- Restore from a managed backup, because the current active database file will be replaced.
+
+The safety dialog lets you create the backup and continue, continue without creating one, or cancel the operation.
 
 ### Local-first
 

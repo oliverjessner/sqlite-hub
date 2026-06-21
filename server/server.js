@@ -24,6 +24,7 @@ const { MediaTaggingService } = require("./services/sqlite/mediaTaggingService")
 const { ApiTokenService } = require("./services/apiTokenService");
 const { DatabaseCommandService } = require("./services/databaseCommandService");
 const { createConnectionsRouter } = require("./routes/connections");
+const { createBackupsRouter } = require("./routes/backups");
 const { createOverviewRouter } = require("./routes/overview");
 const { createSqlRouter } = require("./routes/sql");
 const { createChartsRouter } = require("./routes/charts");
@@ -56,7 +57,7 @@ const connectionManager = new ConnectionManager({ appStateStore });
 const overviewService = new OverviewService({ connectionManager });
 const sqlExecutor = new SqlExecutor({ connectionManager, appStateStore });
 const importService = new ImportService({ connectionManager });
-const backupService = new BackupService({ connectionManager });
+const backupService = new BackupService({ connectionManager, appStateStore });
 const nativeFileDialogService = new NativeFileDialogService();
 const exportService = new ExportService({
   appStateStore,
@@ -114,6 +115,7 @@ app.use(
     nativeFileDialogService,
   })
 );
+app.use("/api/backups", createBackupsRouter({ backupService }));
 app.use("/api/db", createOverviewRouter({ overviewService }));
 app.use("/api/sql", createSqlRouter({ appStateStore, connectionManager, sqlExecutor }));
 app.use("/api/charts", createChartsRouter({ appStateStore, connectionManager, sqlExecutor }));

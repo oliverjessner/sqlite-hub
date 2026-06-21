@@ -2,6 +2,7 @@
 
 - documents overhaul
 - introducing the SQLite Hub dropdown button
+- backup manager
 
 # v1.1.1
 

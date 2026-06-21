@@ -19,6 +19,7 @@ const sidebarItems = [
             { label: 'TAGGING_QUEUE', href: '#/media-tagging/queue', key: 'mediaTaggingQueue' },
         ],
     },
+    { label: 'Backups', href: '#/backups', key: 'backups', icon: 'inventory_2' },
     { label: 'Settings', href: '#/settings', key: 'settings', icon: 'settings' },
 ];
 

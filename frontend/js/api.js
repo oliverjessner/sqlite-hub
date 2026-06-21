@@ -105,6 +105,13 @@ export function importSql(payload) {
   });
 }
 
+export function previewImportSql(payload) {
+  return request("/api/connections/import-sql/preview", {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export function selectActiveConnection(id) {
   return request("/api/connections/select-active", {
     method: "POST",
@@ -128,6 +135,59 @@ export function updateRecentConnection(id, payload) {
 export function createActiveConnectionBackup() {
   return request("/api/connections/backup-active", {
     method: "POST",
+  });
+}
+
+export function getBackups(options = {}) {
+  const params = new URLSearchParams();
+
+  if (options.all) {
+    params.set("all", "true");
+  }
+
+  const query = params.toString();
+  return request(`/api/backups${query ? `?${query}` : ""}`);
+}
+
+export function getBackup(backupId) {
+  return request(`/api/backups/${encodeURIComponent(backupId)}`);
+}
+
+export function createBackup(payload = {}) {
+  return request("/api/backups", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function updateBackup(backupId, payload = {}) {
+  return request(`/api/backups/${encodeURIComponent(backupId)}`, {
+    method: "PATCH",
+    body: payload,
+  });
+}
+
+export function restoreBackup(backupId) {
+  return request(`/api/backups/${encodeURIComponent(backupId)}/restore`, {
+    method: "POST",
+  });
+}
+
+export function verifyBackup(backupId) {
+  return request(`/api/backups/${encodeURIComponent(backupId)}/verify`, {
+    method: "POST",
+  });
+}
+
+export function deleteBackup(backupId) {
+  return request(`/api/backups/${encodeURIComponent(backupId)}`, {
+    method: "DELETE",
+  });
+}
+
+export function downloadBackup(backupId) {
+  return download(`/api/backups/${encodeURIComponent(backupId)}/download`, {
+    fallbackFilename: "backup.sqlite",
   });
 }
 

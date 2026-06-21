@@ -11,6 +11,8 @@ export function parseHash(hash = window.location.hash) {
     switch (segments[0]) {
         case 'connections':
             return { name: 'connections', path: '/connections', params: {} };
+        case 'backups':
+            return { name: 'backups', path: '/backups', params: {} };
         case 'overview':
             return { name: 'overview', path: '/overview', params: {} };
         case 'charts':
