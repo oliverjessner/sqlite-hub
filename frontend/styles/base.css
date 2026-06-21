@@ -154,17 +154,6 @@ img {
     vertical-align: middle;
 }
 
-.no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-
-.no-scrollbar::-webkit-scrollbar {
-    display: none;
-    height: 0;
-    width: 0;
-}
-
 .custom-scrollbar {
     scrollbar-color: var(--color-surface-highest) var(--color-surface-lowest);
     scrollbar-width: thin;
@@ -188,10 +177,7 @@ img {
 }
 
 .clipped-btn,
-.clipped-corner,
-.custom-clip,
-.clip-button,
-.clip-corner {
+.clipped-corner {
     clip-path: var(--clip-path);
 }
 
@@ -269,26 +255,10 @@ img {
     color: transparent;
 }
 
-.cursor-blink {
-    animation: cursor-blink var(--duration-cursor-blink) step-end infinite;
-    border-right: 2px solid var(--color-primary-container);
-}
-
 .text-xs {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-@keyframes cursor-blink {
-    from,
-    to {
-        border-color: transparent;
-    }
-
-    50% {
-        border-color: var(--color-primary-container);
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -301,8 +271,4 @@ img {
         transition-duration: 0.001ms;
     }
 
-    .cursor-blink {
-        animation: none;
-        border-right-color: var(--color-primary-container);
-    }
 }

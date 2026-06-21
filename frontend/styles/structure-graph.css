@@ -354,28 +354,6 @@
     color: rgba(255, 251, 211, 0.62);
 }
 
-.structure-graph__list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-2);
-}
-
-.structure-graph__list-item {
-    align-items: center;
-    color: rgb(var(--rgb-on-surface) / 0.82);
-    display: flex;
-    justify-content: space-between;
-    gap: var(--spacing-4);
-}
-
-.structure-graph__list-item-label {
-    color: rgba(255, 251, 211, 0.68);
-    font-family: var(--font-family-mono);
-    font-size: 0.625rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-}
-
 .structure-graph__join-flow {
     align-items: center;
     display: grid;

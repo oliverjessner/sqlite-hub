@@ -104,5 +104,4 @@
     /* Motion tokens */
     --transition-fast: 150ms ease;
     --transition-standard: 300ms ease;
-    --duration-cursor-blink: 1s;
 }
