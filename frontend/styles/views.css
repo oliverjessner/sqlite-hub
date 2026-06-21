@@ -1502,13 +1502,11 @@
 }
 
 .media-tagging-created-tag__remove {
-    flex: 0 0 auto;
     align-items: center;
     display: inline-flex;
-    height: 2.4rem;
+    flex: 0 0 auto;
     justify-content: center;
-    min-width: 2.4rem;
-    padding: 0;
+    white-space: nowrap;
 }
 
 .media-tagging-tag-option {

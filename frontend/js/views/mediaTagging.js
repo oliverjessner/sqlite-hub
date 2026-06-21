@@ -301,9 +301,11 @@ function renderCreatedTagList(tags = [], { canRemove = false, removingTagKey = n
                   escapeHtml(tag.key),
                   '" type="button" title="Remove tag" ',
                   canRemove && removingTagKey !== tag.key ? '' : 'disabled',
-                  '><span class="material-symbols-outlined text-[18px]">',
-                  removingTagKey === tag.key ? 'hourglass_top' : 'delete',
-                  '</span></button></article>',
+                  '><span class="material-symbols-outlined text-sm">',
+                  'delete',
+                  '</span>',
+                  removingTagKey === tag.key ? 'Removing...' : 'Delete',
+                  '</button></article>',
               ].join('');
           })
           .join('')}
