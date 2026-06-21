@@ -105,7 +105,7 @@ function renderSettingsContent(state) {
     if (state.settings.error) {
         return `
       <div class="border border-error/20 bg-error-container/10 px-6 py-5 text-sm text-on-surface">
-        <div class="font-headline text-xs font-bold uppercase tracking-[0.18em] text-error">
+        <div class="font-body text-xs font-bold uppercase tracking-[0.18em] text-error">
           ${escapeHtml(state.settings.error.code)}
         </div>
         <div class="mt-2">${escapeHtml(state.settings.error.message)}</div>
@@ -217,7 +217,7 @@ function renderSettingsContent(state) {
               <div class="text-[10px] font-mono uppercase tracking-[0.2em] text-on-surface-variant/60">
                 Current_Version
               </div>
-              <div class="mt-2 font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
+              <div class="mt-2 font-body text-4xl font-black uppercase tracking-tight text-primary-container">
                 v${appVersion}
               </div>
             </div>
@@ -225,7 +225,7 @@ function renderSettingsContent(state) {
               <div class="text-[10px] font-mono uppercase tracking-[0.2em] text-on-surface-variant/60">
                 SQLite_Runtime
               </div>
-              <div class="mt-2 font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
+              <div class="mt-2 font-body text-4xl font-black uppercase tracking-tight text-primary-container">
                 ${sqliteVersion}
               </div>
             </div>

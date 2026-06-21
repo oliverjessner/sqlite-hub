@@ -321,7 +321,7 @@ function renderPreviewMedia(
         return `
       <div class="media-tagging-preview__empty">
         <span class="material-symbols-outlined text-4xl">photo_size_select_large</span>
-        <div class="mt-3 font-headline text-lg uppercase tracking-[0.06em] text-primary-container">
+        <div class="mt-3 font-body text-lg uppercase tracking-[0.06em] text-primary-container">
           Queue Empty
         </div>
         <div class="mt-2 text-sm text-on-surface-variant/55">
@@ -717,7 +717,7 @@ function renderMappingSection(state) {
       </div>
       <div class="media-tagging-card__body media-tagging-card__body--mapping">
         <article class="media-tagging-mapping-card ${mappingCandidate ? 'is-selected' : ''}">
-          <div class="font-headline text-sm uppercase tracking-[0.08em] text-primary-container">
+          <div class="font-body text-sm uppercase tracking-[0.08em] text-primary-container">
             ${escapeHtml(MEDIA_TAGGING_DEFAULT_MAPPING_TABLE)}
           </div>
           ${

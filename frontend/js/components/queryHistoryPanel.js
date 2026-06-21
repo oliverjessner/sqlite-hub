@@ -114,7 +114,7 @@ export function renderQueryHistoryPanel({
                 ? `
               <div class="flex h-full min-h-[240px] flex-col items-center justify-center px-6 text-center">
                 <span class="material-symbols-outlined text-4xl text-on-surface-variant/25">manage_search</span>
-                <p class="mt-4 font-headline text-lg font-bold uppercase tracking-tight text-on-surface">
+                <p class="mt-4 font-body text-lg font-bold uppercase tracking-tight text-on-surface">
                   No Matching Queries
                 </p>
                 <p class="mt-2 max-w-xs text-sm leading-6 text-on-surface-variant/65">

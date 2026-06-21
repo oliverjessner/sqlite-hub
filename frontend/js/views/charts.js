@@ -16,7 +16,7 @@ function renderMissingDatabase() {
     <section class="flex flex-1 items-center justify-center px-8 text-center">
       <div class="max-w-xl">
         <span class="material-symbols-outlined mb-4 text-5xl text-on-surface-variant/20">database_off</span>
-        <h1 class="font-headline text-3xl font-black uppercase tracking-tight text-primary-container">
+        <h1 class="font-body text-3xl font-black uppercase tracking-tight text-primary-container">
           No Active SQLite Database
         </h1>
         <p class="mt-3 text-sm leading-7 text-on-surface-variant/65">
@@ -154,7 +154,7 @@ function renderChartsList(state) {
           <span class="material-symbols-outlined mb-3 text-4xl text-on-surface-variant/25">${
               hasSearch ? 'manage_search' : isSavedTab ? 'bookmark' : isUnsavedTab ? 'bookmark_border' : 'query_stats'
           }</span>
-          <p class="font-headline text-lg font-black uppercase tracking-tight text-on-surface">
+          <p class="font-body text-lg font-black uppercase tracking-tight text-on-surface">
             ${
                 hasSearch
                     ? 'No Matching Queries'
@@ -220,7 +220,7 @@ function renderEmptyChartDetail() {
     <div class="flex flex-1 items-center justify-center px-8 py-10 text-center">
       <div class="max-w-lg">
         <span class="material-symbols-outlined mb-4 text-5xl text-on-surface-variant/20">bar_chart</span>
-        <h2 class="font-headline text-2xl font-black uppercase tracking-tight text-primary-container">
+        <h2 class="font-body text-2xl font-black uppercase tracking-tight text-primary-container">
           Select A Query
         </h2>
         <p class="mt-3 text-sm leading-7 text-on-surface-variant/65">
@@ -339,7 +339,7 @@ export function renderChartsDetailDrawer(state) {
       <section class="flex h-full min-h-0 flex-col bg-surface-low">
         <div class="border-b border-outline-variant/10 px-5 py-4">
           <div class="flex items-center justify-between gap-3">
-            <span class="font-headline text-sm font-black uppercase tracking-[0.18em] text-primary-container">
+            <span class="font-body text-sm font-black uppercase tracking-[0.18em] text-primary-container">
               Chart Detail
             </span>
             <button class="query-history-icon-button" data-action="close-charts-query-detail" type="button">
@@ -359,7 +359,7 @@ export function renderChartsDetailDrawer(state) {
       <section class="flex h-full min-h-0 flex-col bg-surface-low">
         <div class="border-b border-outline-variant/10 px-5 py-4">
           <div class="flex items-center justify-between gap-3">
-            <span class="font-headline text-sm font-black uppercase tracking-[0.18em] text-primary-container">
+            <span class="font-body text-sm font-black uppercase tracking-[0.18em] text-primary-container">
               Chart Detail
             </span>
             <button class="query-history-icon-button" data-action="close-charts-query-detail" type="button">
@@ -415,7 +415,7 @@ export function renderChartsDetailDrawer(state) {
             <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/70">
               Chart Detail
             </div>
-            <h2 class="mt-1 truncate font-headline text-lg font-black uppercase tracking-tight text-on-surface">
+            <h2 class="mt-1 truncate font-body text-lg font-black uppercase tracking-tight text-on-surface">
               ${escapeHtml(detail.item.displayTitle)}
             </h2>
           </div>
@@ -547,7 +547,7 @@ function renderChartCard(chart, state, analysis) {
         sizeClass,
         '"><header class="query-chart-card__header"><div class="min-w-0">',
         '<div class="flex flex-wrap items-center gap-2">',
-        '<h3 class="truncate font-headline text-xl font-black uppercase tracking-tight text-on-surface">',
+        '<h3 class="truncate font-body text-xl font-black uppercase tracking-tight text-on-surface">',
         escapeHtml(chart.name),
         '</h3>',
         renderStatusBadge(getQueryChartTypeLabel(chart.chartType), 'primary'),
@@ -609,7 +609,7 @@ export function renderChartsDetail(state) {
       <div class="charts-detail-shell">
         <header class="charts-detail-shell__header" data-charts-detail-header>
           <div class="charts-detail-shell__title">
-            <h1 class="mt-2 truncate font-headline text-4xl font-black uppercase tracking-tight text-primary-container">
+            <h1 class="mt-2 truncate font-body text-4xl font-black uppercase tracking-tight text-primary-container">
               ${escapeHtml(detail.item.displayTitle)}
             </h1>
           </div>
@@ -659,7 +659,7 @@ export function renderChartsDetail(state) {
                   <div class="flex min-h-[240px] items-center justify-center border border-dashed border-outline-variant/20 bg-surface-container-low px-8 text-center">
                     <div>
                       <span class="material-symbols-outlined mb-3 text-4xl text-on-surface-variant/25">add_chart</span>
-                      <p class="font-headline text-lg font-black uppercase tracking-tight text-on-surface">
+                      <p class="font-body text-lg font-black uppercase tracking-tight text-on-surface">
                         No Charts Yet
                       </p>
                       <p class="mt-2 max-w-md text-sm leading-6 text-on-surface-variant/60">

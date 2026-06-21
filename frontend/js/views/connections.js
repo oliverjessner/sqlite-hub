@@ -43,7 +43,7 @@ function renderConnectionsBody(state) {
     if (state.connections.error) {
         return `
       <div class="border border-error/20 bg-error-container/10 px-6 py-5 text-sm text-on-surface">
-        <div class="font-headline text-xs font-bold uppercase tracking-[0.18em] text-error">
+        <div class="font-body text-xs font-bold uppercase tracking-[0.18em] text-error">
           ${escapeHtml(state.connections.error.code)}
         </div>
         <div class="mt-2">${escapeHtml(state.connections.error.message)}</div>
@@ -55,7 +55,7 @@ function renderConnectionsBody(state) {
         return `
       <div class="border border-dashed border-outline-variant/20 bg-surface-container-low px-8 py-10 text-center">
         <span class="material-symbols-outlined mb-3 text-5xl text-on-surface-variant/25">database_off</span>
-        <p class="font-headline text-xl font-black uppercase tracking-tight text-primary-container">
+        <p class="font-body text-xl font-black uppercase tracking-tight text-primary-container">
           No Recorded SQLite Connections
         </p>
         <p class="mx-auto mt-3 max-w-xl text-sm leading-7 text-on-surface-variant/65">

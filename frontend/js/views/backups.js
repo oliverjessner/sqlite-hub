@@ -64,7 +64,7 @@ function renderBackupRows(state) {
         <tr class="border-b border-outline-variant/10 align-top">
           <td class="min-w-[20rem] px-4 py-5">
             <div class="space-y-2">
-              <div class="font-headline text-sm font-black uppercase text-on-surface">${escapeHtml(backup.name)}</div>
+              <div class="font-body text-sm font-black uppercase text-on-surface">${escapeHtml(backup.name)}</div>
               <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-on-surface-variant/45" title="${escapeHtml(backup.path)}">
                 ${escapeHtml(truncateMiddle(backup.fileName || backup.path, 48))}
               </div>
@@ -125,7 +125,7 @@ function renderBackupsBody(state) {
     if (state.backups.error) {
         return `
       <div class="border border-error/20 bg-error-container/10 px-6 py-5 text-sm text-on-surface">
-        <div class="font-headline text-xs font-bold uppercase tracking-[0.18em] text-error">
+        <div class="font-body text-xs font-bold uppercase tracking-[0.18em] text-error">
           ${escapeHtml(state.backups.error.code)}
         </div>
         <div class="mt-2">${escapeHtml(state.backups.error.message)}</div>
@@ -137,7 +137,7 @@ function renderBackupsBody(state) {
         return `
       <div class="border border-dashed border-outline-variant/20 bg-surface-container-low px-8 py-10 text-center">
         <span class="material-symbols-outlined mb-3 text-5xl text-on-surface-variant/25">inventory_2</span>
-        <p class="font-headline text-xl font-black uppercase tracking-tight text-primary-container">
+        <p class="font-body text-xl font-black uppercase tracking-tight text-primary-container">
           No backups yet
         </p>
         <p class="mx-auto mt-3 max-w-xl text-sm leading-7 text-on-surface-variant/65">

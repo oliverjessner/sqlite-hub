@@ -394,7 +394,7 @@ export function renderStructureView(state) {
                   : state.structure.error
                     ? `
                     <div class="min-h-0 flex-1 border-t border-error/20 bg-error-container/10 px-6 py-5 text-sm text-on-surface">
-                      <div class="font-headline text-xs font-bold uppercase tracking-[0.18em] text-error">
+                      <div class="font-body text-xs font-bold uppercase tracking-[0.18em] text-error">
                         ${escapeHtml(state.structure.error.code)}
                       </div>
                       <div class="mt-2">${escapeHtml(state.structure.error.message)}</div>

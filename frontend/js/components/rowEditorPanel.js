@@ -577,7 +577,7 @@ export function renderRowEditorPanel({
             <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
               ${escapeHtml(sectionLabel)}
             </div>
-            <h2 class="mt-2 font-headline text-3xl font-black uppercase tracking-tight text-primary-container">
+            <h2 class="mt-2 font-body text-3xl font-black uppercase tracking-tight text-primary-container">
               ${escapeHtml(title)}
             </h2>
             ${
@@ -647,7 +647,7 @@ export function renderRowEditorPanel({
                     saveError
                       ? `
                           <div class="border border-error/20 bg-error-container/10 px-4 py-4 text-sm text-on-surface">
-                            <div class="font-headline text-xs font-bold uppercase tracking-[0.18em] text-error">
+                            <div class="font-body text-xs font-bold uppercase tracking-[0.18em] text-error">
                               ${escapeHtml(saveError.code)}
                             </div>
                             <div class="mt-2">${escapeHtml(saveError.message)}</div>

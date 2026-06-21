@@ -8,7 +8,7 @@ function renderMissingDatabase() {
         <div class="view-frame flex min-h-full items-center justify-center">
           <div class="text-center">
             <span class="material-symbols-outlined mb-3 text-5xl text-on-surface-variant/25">database_off</span>
-            <p class="font-headline text-xl font-black uppercase tracking-tight text-primary-container">
+            <p class="font-body text-xl font-black uppercase tracking-tight text-primary-container">
               No Active SQLite Database
             </p>
             <p class="mt-3 max-w-xl text-sm leading-7 text-on-surface-variant/65">
@@ -294,7 +294,7 @@ function renderEmptyDocumentsState(documents) {
     return `
       <div class="documents-empty-state">
         <span class="material-symbols-outlined">description</span>
-        <p class="font-headline text-2xl font-black uppercase tracking-tight text-primary-container">
+        <p class="font-body text-2xl font-black uppercase tracking-tight text-primary-container">
           No Documents
         </p>
         ${renderNewDocumentDropdown(documents, 'mt-4')}
@@ -309,7 +309,7 @@ function renderDocumentDetail(documents) {
             ${renderDocumentsTitlebar(documents, { showFilename: false })}
             <div class="documents-empty-state">
               <span class="material-symbols-outlined">sync</span>
-              <p class="font-headline text-2xl font-black uppercase tracking-tight text-primary-container">
+              <p class="font-body text-2xl font-black uppercase tracking-tight text-primary-container">
                 Loading Documents
               </p>
             </div>

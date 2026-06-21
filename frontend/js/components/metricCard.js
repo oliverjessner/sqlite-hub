@@ -10,7 +10,7 @@ export function renderMetricCard({
   return `
     <div class="metric-card ${accent ? "metric-card--accent" : ""}">
       <span class="text-[10px] font-mono text-on-surface/40 uppercase">${escapeHtml(label)}</span>
-      <span class="text-3xl font-headline font-bold text-on-surface">${escapeHtml(value)}</span>
+      <span class="text-3xl font-body font-bold text-on-surface">${escapeHtml(value)}</span>
       ${
         progress
           ? `

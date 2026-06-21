@@ -16,7 +16,7 @@ export function renderPageHeader({ eyebrow = '', title, subtitle = '', actions =
             `
                 : ''
         }
-        <h1 class="text-5xl font-headline font-bold text-[#FCE300] tracking-tighter uppercase">${escapeHtml(title)}</h1>
+        <h1 class="text-5xl font-body font-bold text-[#FCE300] tracking-tighter uppercase">${escapeHtml(title)}</h1>
         ${
             subtitle
                 ? `<p class="text-xs font-mono text-on-surface/40 mt-1 uppercase tracking-widest">${escapeHtml(

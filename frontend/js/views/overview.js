@@ -7,7 +7,7 @@ function renderMissingDatabase() {
   return `
     <div class="border border-dashed border-outline-variant/20 bg-surface-container-low px-8 py-12 text-center">
       <span class="material-symbols-outlined mb-3 text-5xl text-on-surface-variant/25">database_off</span>
-      <p class="font-headline text-xl font-black uppercase tracking-tight text-primary-container">
+      <p class="font-body text-xl font-black uppercase tracking-tight text-primary-container">
         No Active SQLite Database
       </p>
       <p class="mx-auto mt-3 max-w-xl text-sm leading-7 text-on-surface-variant/65">
@@ -210,7 +210,7 @@ function renderSchemaMapPreview(overview) {
       <div class="space-y-5 p-4">
         <div class="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <div class="font-headline text-xl font-black uppercase tracking-tight text-primary-container">
+            <div class="font-body text-xl font-black uppercase tracking-tight text-primary-container">
               ${escapeHtml(narrative.title)}
             </div>
             <p class="mt-2 max-w-3xl text-sm leading-6 text-on-surface-variant/70">
@@ -237,7 +237,7 @@ function renderSchemaMapPreview(overview) {
                   <div class="text-[9px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
                     ${escapeHtml(stat.label)}
                   </div>
-                  <div class="mt-2 font-headline text-2xl font-black uppercase tracking-tight text-on-surface">
+                  <div class="mt-2 font-body text-2xl font-black uppercase tracking-tight text-on-surface">
                     ${escapeHtml(stat.value)}
                   </div>
                 </div>

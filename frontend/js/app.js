@@ -1065,11 +1065,11 @@ function renderNotFoundView() {
           <p class="font-mono text-[10px] uppercase tracking-[0.3em] text-primary-container/40">
             ROUTE_LOST // HASH_NOT_RECOGNIZED
           </p>
-          <h1 class="mt-4 font-headline text-6xl font-black uppercase tracking-tight text-primary-container">
+          <h1 class="mt-4 font-body text-6xl font-black uppercase tracking-tight text-primary-container">
             404_SIGNAL
           </h1>
           <button
-            class="standard-button mt-8 px-6 font-headline text-sm"
+            class="standard-button mt-8 px-6 font-body text-sm"
             data-action="navigate"
             data-to="/"
             type="button"

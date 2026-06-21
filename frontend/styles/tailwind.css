@@ -3,7 +3,8 @@
 
 @layer components {
   .signature-button {
-    @apply inline-flex items-center justify-center gap-2 h-[var(--button-height)] min-h-[var(--button-height)] border border-primary-container bg-primary-container px-[var(--button-padding-inline)] font-headline text-[10px] font-bold uppercase tracking-[0.16em] text-black transition-all;
+    @apply inline-flex items-center justify-center h-[var(--button-height)] min-h-[var(--button-height)] border border-primary-container bg-primary-container px-[var(--button-padding-inline)] font-body text-[10px] font-bold uppercase tracking-[0.16em] text-black transition-all;
+    gap: var(--spacing-2);
     box-shadow: 0 0 18px -10px rgb(var(--rgb-primary) / 0.7);
     clip-path: polygon(0 0, calc(100% - var(--button-corner-size)) 0, 100% var(--button-corner-size), 100% 100%, 0 100%);
   }
@@ -28,7 +29,8 @@
   }
 
   .standard-button {
-    @apply inline-flex items-center justify-center gap-2 h-[var(--button-height)] min-h-[var(--button-height)] border border-outline-variant/20 bg-surface-container px-[var(--button-padding-inline)] font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-on-surface transition-colors;
+    @apply inline-flex items-center justify-center h-[var(--button-height)] min-h-[var(--button-height)] border border-outline-variant/20 bg-surface-container px-[var(--button-padding-inline)] font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-on-surface transition-colors;
+    gap: var(--spacing-2);
   }
 
   .standard-button:hover {
@@ -51,7 +53,8 @@
   }
 
   .standard-checkbox {
-    @apply inline-flex w-full items-center gap-3 min-h-[var(--control-height)] border border-outline-variant/10 bg-surface-container-lowest px-[var(--control-padding-inline)] text-sm text-on-surface;
+    @apply inline-flex w-full items-center min-h-[var(--control-height)] border border-outline-variant/10 bg-surface-container-lowest px-[var(--control-padding-inline)] text-sm text-on-surface;
+    gap: var(--spacing-4);
   }
 
   .standard-checkbox input[type="checkbox"] {
@@ -65,7 +68,8 @@
   }
 
   .delete-button {
-    @apply inline-flex items-center justify-center gap-2 h-[var(--button-height)] min-h-[var(--button-height)] border border-error/25 bg-error-container/10 px-[var(--button-padding-inline)] font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-error transition-all;
+    @apply inline-flex items-center justify-center h-[var(--button-height)] min-h-[var(--button-height)] border border-error/25 bg-error-container/10 px-[var(--button-padding-inline)] font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-error transition-all;
+    gap: var(--spacing-2);
   }
 
   .delete-button:hover {

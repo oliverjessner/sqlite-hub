@@ -11,7 +11,7 @@ export function renderQueryHistoryHeader({
       <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <span class="material-symbols-outlined text-[18px] text-primary-container">${escapeHtml(icon)}</span>
-          <span class="font-headline text-xs font-black uppercase tracking-[0.18em] text-primary-container">
+          <span class="font-body text-xs font-black uppercase tracking-[0.18em] text-primary-container">
             ${escapeHtml(title)}
           </span>
         </div>

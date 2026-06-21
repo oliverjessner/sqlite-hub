@@ -126,7 +126,7 @@ function renderError(error) {
 
     return `
     <div class="border border-error/20 bg-error-container/20 px-4 py-3 text-sm text-error">
-      <div class="font-headline text-xs font-bold uppercase tracking-[0.18em]">${escapeHtml(
+      <div class="font-body text-xs font-bold uppercase tracking-[0.18em]">${escapeHtml(
           error.code || 'Request failed',
       )}</div>
       <div class="mt-1 text-on-surface">${escapeHtml(error.message)}</div>
@@ -453,8 +453,8 @@ function renderEditBackupNotesForm(modal) {
     return `
     <form class="space-y-5" data-form="edit-backup-notes">
       <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
-        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/55">Backup</div>
-        <div class="mt-2 font-headline text-sm font-black uppercase text-on-surface">
+        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/55">Name</div>
+        <div class="mt-2 font-body text-sm font-black uppercase text-on-surface">
           ${escapeHtml(modal.backupName ?? 'Backup')}
         </div>
       </div>
@@ -490,7 +490,7 @@ function renderBackupSafetyForm(modal) {
       </p>
       <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
         <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/55">Safety Backup</div>
-        <div class="mt-2 font-headline text-sm font-black uppercase text-on-surface">${escapeHtml(
+        <div class="mt-2 font-body text-sm font-black uppercase text-on-surface">${escapeHtml(
             modal.backupNameBeforeOperation ?? modal.backupName ?? 'Before operation',
         )}</div>
       </div>
@@ -1172,7 +1172,7 @@ function renderTextExportModal(modal, action) {
                       <span class="material-symbols-outlined text-xl">${escapeHtml(option.icon)}</span>
                     </span>
                     <span class="min-w-0">
-                      <span class="block truncate font-headline text-lg font-black uppercase tracking-normal text-primary-container">
+                      <span class="block truncate font-body text-lg font-black uppercase tracking-normal text-primary-container">
                         ${escapeHtml(option.label)}
                       </span>
                       <span class="mt-1 block font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/55">
@@ -1922,7 +1922,7 @@ export function renderModal(state) {
             <div class="text-[10px] font-mono uppercase tracking-[0.26em] text-primary-container/70">
               ${escapeHtml(config.eyebrow)}
             </div>
-            <h2 class="mt-2 font-headline text-3xl font-black uppercase tracking-tight text-primary-container">
+            <h2 class="mt-2 font-body text-3xl font-black uppercase tracking-tight text-primary-container">
               ${escapeHtml(config.title)}
             </h2>
           </div>

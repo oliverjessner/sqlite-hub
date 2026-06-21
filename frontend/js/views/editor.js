@@ -11,7 +11,7 @@ function renderMissingDatabase() {
     return `
     <div class="flex flex-1 flex-col items-center justify-center bg-surface-container-lowest px-8 text-center">
       <span class="material-symbols-outlined mb-3 text-5xl text-on-surface-variant/25">database_off</span>
-      <p class="font-headline text-xl font-black uppercase tracking-tight text-primary-container">
+      <p class="font-body text-xl font-black uppercase tracking-tight text-primary-container">
         No Active SQLite Database
       </p>
       <p class="mt-3 max-w-xl text-sm leading-7 text-on-surface-variant/65">
@@ -60,35 +60,35 @@ function renderPerformancePane(state) {
     <div class="performance-metrics-grid grid flex-1 gap-4 bg-surface-container-lowest p-6">
       <div class="metric-card">
         <span class="text-[10px] font-mono uppercase text-on-surface/40">Exec_Time</span>
-        <span class="font-headline text-3xl font-bold text-on-surface">${escapeHtml(
+        <span class="font-body text-3xl font-bold text-on-surface">${escapeHtml(
             formatExecutionTimeMs(metrics.timingMs ?? 0),
         )}</span>
         <span class="text-[10px] text-primary-container">Measured backend execution time</span>
       </div>
       <div class="metric-card">
         <span class="text-[10px] font-mono uppercase text-on-surface/40">Statements</span>
-        <span class="font-headline text-3xl font-bold text-on-surface">${escapeHtml(
+        <span class="font-body text-3xl font-bold text-on-surface">${escapeHtml(
             formatNumber(metrics.statementCount),
         )}</span>
         <span class="text-[10px] text-on-surface/40">Split and executed by SQLite</span>
       </div>
       <div class="metric-card">
         <span class="text-[10px] font-mono uppercase text-on-surface/40">Rows_Returned</span>
-        <span class="font-headline text-3xl font-bold text-on-surface">${escapeHtml(
+        <span class="font-body text-3xl font-bold text-on-surface">${escapeHtml(
             formatNumber(metrics.rowCount),
         )}</span>
         <span class="text-[10px] text-on-surface/40">Visible result set size</span>
       </div>
       <div class="metric-card">
         <span class="text-[10px] font-mono uppercase text-on-surface/40">Memory_Size</span>
-        <span class="font-headline text-3xl font-bold text-on-surface">${escapeHtml(
+        <span class="font-body text-3xl font-bold text-on-surface">${escapeHtml(
             formatBytes(metrics.memoryBytes),
         )}</span>
         <span class="text-[10px] text-on-surface/40">Serialized result payload</span>
       </div>
       <div class="metric-card metric-card--accent">
         <span class="text-[10px] font-mono uppercase text-on-surface/40">Rows_Affected</span>
-        <span class="font-headline text-3xl font-bold text-on-surface">${escapeHtml(
+        <span class="font-body text-3xl font-bold text-on-surface">${escapeHtml(
             formatNumber(metrics.affectedRowCount),
         )}</span>
         <span class="text-[10px] text-primary-container">INSERT / UPDATE / DELETE impact</span>

@@ -100,7 +100,7 @@ export function renderQueryHistoryDetail({
       <section class="flex h-full min-h-0 flex-col bg-surface-low">
         <div class="border-b border-outline-variant/10 px-5 py-4">
           <div class="flex items-center justify-between gap-3">
-            <span class="font-headline text-sm font-black uppercase tracking-[0.18em] text-primary-container">
+            <span class="font-body text-sm font-black uppercase tracking-[0.18em] text-primary-container">
               Query Detail
             </span>
             <button
@@ -124,7 +124,7 @@ export function renderQueryHistoryDetail({
       <section class="flex h-full min-h-0 flex-col bg-surface-low">
         <div class="border-b border-outline-variant/10 px-5 py-4">
           <div class="flex items-center justify-between gap-3">
-            <span class="font-headline text-sm font-black uppercase tracking-[0.18em] text-primary-container">
+            <span class="font-body text-sm font-black uppercase tracking-[0.18em] text-primary-container">
               Query Detail
             </span>
             <button
@@ -178,7 +178,7 @@ export function renderQueryHistoryDetail({
     '<div class="border-b border-outline-variant/10 px-5 py-4">',
     '<div class="flex items-center justify-between gap-3"><div>',
     '<div class="text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/70">Query Detail</div>',
-    '<h2 class="mt-1 font-headline text-lg font-black uppercase tracking-tight text-on-surface">',
+    '<h2 class="mt-1 font-body text-lg font-black uppercase tracking-tight text-on-surface">',
     escapeHtml(item.displayTitle),
     "</h2></div>",
     '<button class="query-history-icon-button" data-action="clear-query-history-selection" type="button"><span class="material-symbols-outlined text-[18px]">close</span></button>',

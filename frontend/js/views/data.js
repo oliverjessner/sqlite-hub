@@ -193,7 +193,7 @@ function renderWorkspaceError(state) {
 
     return `
     <div class="border-b border-error/20 bg-error-container/10 px-6 py-4 text-sm text-on-surface">
-      <div class="font-headline text-xs font-bold uppercase tracking-[0.18em] text-error">
+      <div class="font-body text-xs font-bold uppercase tracking-[0.18em] text-error">
         ${escapeHtml(state.dataBrowser.error.code)}
       </div>
       <div class="mt-2">${escapeHtml(state.dataBrowser.error.message)}</div>

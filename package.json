@@ -1,6 +1,6 @@
 {
     "name": "sqlite-hub",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "description": "SQLite-only local management app backend and SPA shell",
     "license": "MIT",
     "main": "server/server.js",

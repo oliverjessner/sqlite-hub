@@ -36,7 +36,7 @@ export function renderConnectionCard(connection, activeConnectionId) {
     renderStatusBadge(isActive ? "ACTIVE" : "RECENT", isActive ? "primary" : "muted"),
     connection.readOnly ? renderStatusBadge("READ_ONLY", "alert") : "",
     "</div></div>",
-    '<h3 class="mb-1 font-headline text-xl font-bold uppercase ',
+    '<h3 class="mb-1 font-body text-xl font-bold uppercase ',
     isActive ? "text-[#FCE300]" : "text-on-surface",
     '">',
     escapeHtml(connection.label),

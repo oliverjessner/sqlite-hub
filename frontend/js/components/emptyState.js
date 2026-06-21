@@ -61,7 +61,7 @@ function renderActiveConnection(activeConnection) {
             <p class="text-[10px] font-mono uppercase tracking-[0.24em] text-primary-container/70">
               ACTIVE_DATABASE
             </p>
-            <h2 class="mt-2 font-headline text-2xl font-black uppercase tracking-tight text-primary-container">
+            <h2 class="mt-2 font-body text-2xl font-black uppercase tracking-tight text-primary-container">
               ${escapeHtml(activeConnection.label)}
             </h2>
             <p class="mt-2 font-mono text-[10px] text-on-surface-variant/55">${escapeHtml(
@@ -93,7 +93,7 @@ export function renderEmptyState({ activeConnection, recentConnections = [] }) {
             SYSTEM_READY // ${hasActive ? 'ACTIVE_CONTEXT' : 'IDLE_STATE'}
           </span>
         </div>
-        <h1 class="mb-4 font-headline text-7xl font-black tracking-tighter text-primary-container opacity-90 md:text-9xl">
+        <h1 class="mb-4 font-body text-7xl font-black tracking-tighter text-primary-container opacity-90 md:text-9xl">
           SQLite Hub
         </h1>
         <p class="font-mono text-primary-container/40">The only fucking SQLite Manager you'll ever need.</p>
@@ -104,7 +104,7 @@ export function renderEmptyState({ activeConnection, recentConnections = [] }) {
         </div>
         <div class="mx-auto grid w-full max-w-3xl grid-cols-1 gap-4 px-6 md:grid-cols-2">
           <button
-            class="landing-primary-action clipped-btn group flex items-center justify-between bg-primary-container px-8 py-6 font-headline text-lg font-bold transition-all duration-300 hover:shadow-[0_0_20px_rgba(252,227,0,0.3)]"
+            class="landing-primary-action clipped-btn group flex items-center justify-between bg-primary-container px-8 py-6 font-body text-lg font-bold transition-all duration-300 hover:shadow-[0_0_20px_rgba(252,227,0,0.3)]"
             data-action="open-modal"
             data-modal="open-connection"
             style="--clip-path: polygon(0 0, 90% 0, 100% 25%, 100% 100%, 0 100%);"
@@ -114,7 +114,7 @@ export function renderEmptyState({ activeConnection, recentConnections = [] }) {
             <span class="material-symbols-outlined transition-transform group-hover:translate-x-1">add_circle</span>
           </button>
           <button
-            class="flex items-center justify-between border-l-2 border-primary-container bg-surface-container-highest px-8 py-6 font-headline text-lg font-bold text-primary-container transition-colors duration-150 hover:bg-surface-bright"
+            class="flex items-center justify-between border-l-2 border-primary-container bg-surface-container-highest px-8 py-6 font-body text-lg font-bold text-primary-container transition-colors duration-150 hover:bg-surface-bright"
             data-action="open-modal"
             data-modal="create-connection"
             type="button"

@@ -56,7 +56,6 @@ module.exports = {
         "secondary-fixed": "#e5e2e1",
       },
       fontFamily: {
-        headline: "var(--font-family-headline)",
         body: "var(--font-family-body)",
         label: "var(--font-family-body)",
         mono: "var(--font-family-mono)",
