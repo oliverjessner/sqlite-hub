@@ -60,6 +60,30 @@ test("markdown preview escapes raw html content", async () => {
   assert.match(html, /&lt;script&gt;/);
 });
 
+test("markdown preview keeps JSON code block quotes readable", async () => {
+  const { renderMarkdownPreview } = await loadMarkdownModule();
+  const previousMarked = globalThis.marked;
+  let parsedSource = "";
+
+  globalThis.marked = {
+    parse: source => {
+      parsedSource = source;
+      return `<pre><code>${source}</code></pre>`;
+    },
+  };
+
+  try {
+    const html = renderMarkdownPreview(['<img src=x onerror="alert(1)">', '', '```json', '{"id":"abc"}', '```'].join("\n"));
+
+    assert.match(parsedSource, /&lt;img/);
+    assert.match(parsedSource, /"id":"abc"/);
+    assert.doesNotMatch(parsedSource, /&quot;id&quot;/);
+    assert.match(html, /"id":"abc"/);
+  } finally {
+    globalThis.marked = previousMarked;
+  }
+});
+
 test("markdown preview strips executable link targets from rendered markdown", async () => {
   const { renderMarkdownPreview } = await loadMarkdownModule();
   const previousMarked = globalThis.marked;

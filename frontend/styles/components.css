@@ -674,6 +674,11 @@
     line-height: 1;
 }
 
+.data-table .material-symbols-outlined {
+    font-size: var(--data-table-icon-size);
+    line-height: 1;
+}
+
 .query-result-header-cell {
     min-width: 10rem;
     position: relative;

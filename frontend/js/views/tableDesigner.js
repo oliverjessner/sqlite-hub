@@ -1,6 +1,7 @@
 import { renderTableDesignerEditor } from "../components/tableDesignerEditor.js";
 import { renderTableDesignerSidebar } from "../components/tableDesignerSidebar.js";
 import { renderTableDesignerSqlPreview } from "../components/tableDesignerSqlPreview.js";
+import { renderWorkspaceOpenDropdown } from "../components/workspaceOpenDropdown.js";
 import { escapeHtml } from "../utils/format.js";
 
 function renderRouteError(error) {
@@ -18,6 +19,7 @@ function renderRouteError(error) {
 
 function renderWorkspaceToolbar(state) {
   const tablesVisible = state.tableDesigner.tablesVisible !== false;
+  const tableName = state.tableDesigner.selectedTableName ?? state.tableDesigner.draft?.tableName ?? "";
 
   return `
     <div class="table-designer-workspace__toolbar workspace-header">
@@ -33,6 +35,27 @@ function renderWorkspaceToolbar(state) {
         </button>
       </div>
       <div class="table-designer-workspace__toolbar-right">
+        ${renderWorkspaceOpenDropdown({
+          tableName,
+          disabled: !state.tableDesigner.selectedTableName,
+          destinations: [
+            {
+              icon: "table_rows",
+              key: "data",
+              label: "Data",
+              target: name => `/data/${encodeURIComponent(name)}`,
+            },
+            {
+              icon: "account_tree",
+              key: "structure",
+              label: "Structure",
+              target: name => `/structure/${encodeURIComponent(name)}`,
+            },
+            {
+              key: "sql-editor",
+            },
+          ],
+        })}
         <button
           class="standard-button"
           data-action="import-table-designer-csv"

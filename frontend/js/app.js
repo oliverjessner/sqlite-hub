@@ -46,6 +46,7 @@ import {
     exportCurrentQueryFormat,
     getState,
     initializeApp,
+    insertMarkdownIntoLastOpenDocument,
     loadMoreQueryHistory,
     openModal,
     openOverviewInFinder,
@@ -239,6 +240,7 @@ let lastRenderedPanelMarkup = '';
 let lastRenderedModalMarkup = '';
 let lastRenderedToastMarkup = '';
 let lastRenderedChartsHistorySignature = '';
+let lastRenderedChartsDetailSignature = '';
 let lastRenderedChartsCardSignature = '';
 let lastRenderedPanelOpen = false;
 let lastRenderedLockedRoute = false;
@@ -783,6 +785,27 @@ function buildChartsCardSignature(state) {
             chart.chartType,
             JSON.stringify(chart.config ?? {}),
         ]),
+    });
+}
+
+function buildChartsDetailSignature(state) {
+    if (state.route.name !== 'charts') {
+        return '';
+    }
+
+    const detail = state.charts.detail;
+    const historyVisible = state.charts.historyPanelVisible !== false || !state.charts.selectedHistoryId;
+
+    return JSON.stringify({
+        selectedHistoryId: state.charts.selectedHistoryId ?? null,
+        historyVisible,
+        detailLoading: Boolean(state.charts.detailLoading),
+        detailError: state.charts.detailError
+            ? [state.charts.detailError.code ?? '', state.charts.detailError.message ?? '']
+            : null,
+        hasDetailItem: Boolean(detail?.item),
+        displayTitle: detail?.item?.displayTitle ?? '',
+        cards: buildChartsCardSignature(state),
     });
 }
 
@@ -1368,6 +1391,7 @@ function renderApp(state) {
     const modalMarkup = renderModal(state);
     const toastMarkup = renderToasts(state.toasts);
     const chartsHistorySignature = buildChartsHistorySignature(state);
+    const chartsDetailSignature = buildChartsDetailSignature(state);
     const chartsCardSignature = buildChartsCardSignature(state);
     const isLockedRoute = [
         'editor',
@@ -1388,6 +1412,7 @@ function renderApp(state) {
     const panelChanged = panel !== lastRenderedPanelMarkup;
     const modalChanged = modalMarkup !== lastRenderedModalMarkup;
     const chartsHistoryChanged = chartsHistorySignature !== lastRenderedChartsHistorySignature;
+    const chartsDetailChanged = chartsDetailSignature !== lastRenderedChartsDetailSignature;
     const chartsCardsChanged = chartsCardSignature !== lastRenderedChartsCardSignature;
     const panelOpenChanged = panelOpen !== lastRenderedPanelOpen;
     const lockedRouteChanged = isLockedRoute !== lastRenderedLockedRoute;
@@ -1436,12 +1461,17 @@ function renderApp(state) {
         const historyPatched = !chartsHistoryChanged || patchChartsHistoryUi(state);
 
         if (historyPatched) {
-            if (chartsCardsChanged) {
-                teardownQueryChartRenderer();
-            }
+            if (chartsDetailChanged) {
+                if (chartsCardsChanged) {
+                    teardownQueryChartRenderer();
+                }
 
-            preservedChartsDom = !chartsCardsChanged;
-            mainPatched = patchChartsDetailUi(state, { preserveCharts: preservedChartsDom });
+                preservedChartsDom = !chartsCardsChanged;
+                mainPatched = patchChartsDetailUi(state, { preserveCharts: preservedChartsDom });
+            } else {
+                preservedChartsDom = true;
+                mainPatched = syncChartsHistorySelectionUi(state);
+            }
         }
 
         if (!mainPatched) {
@@ -1542,6 +1572,7 @@ function renderApp(state) {
     lastRenderedModalMarkup = modalMarkup;
     lastRenderedToastMarkup = toastMarkup;
     lastRenderedChartsHistorySignature = chartsHistorySignature;
+    lastRenderedChartsDetailSignature = chartsDetailSignature;
     lastRenderedChartsCardSignature = chartsCardSignature;
     lastRenderedPanelOpen = panelOpen;
     lastRenderedLockedRoute = isLockedRoute;
@@ -1565,6 +1596,22 @@ async function executeEditorQueryAndNavigate() {
     const success = await executeCurrentQuery();
     const activeTab = getState().editor.activeTab;
     router.navigate(success && activeTab === 'results' ? '/editor/results' : '/editor');
+}
+
+function quoteSqlIdentifier(identifier) {
+    return `"${String(identifier ?? '').replace(/"/g, '""')}"`;
+}
+
+async function openTableInSqlEditor(tableName) {
+    const normalizedTableName = String(tableName ?? '').trim();
+
+    if (!normalizedTableName) {
+        showToast('No table selected for SQL Editor.', 'alert');
+        return;
+    }
+
+    setCurrentQuery(`SELECT * FROM ${quoteSqlIdentifier(normalizedTableName)};`);
+    router.navigate('/editor');
 }
 
 function formatCurrentQuery() {
@@ -2103,6 +2150,39 @@ function exportRowEditorJson() {
     showToast(`Row from "${payload.label}" exported as JSON.`, 'success');
 }
 
+async function insertRowEditorJsonIntoDocument() {
+    const payload = buildRowEditorJsonPayload(getState());
+
+    if (!payload) {
+        showToast('No row is selected.', 'alert');
+        return;
+    }
+
+    const markdown = ['```json', payload.text, '```'].join('\n');
+
+    try {
+        const result = await insertMarkdownIntoLastOpenDocument(markdown);
+
+        if (!result.documentId) {
+            showToast('Open a document before inserting row JSON.', 'alert');
+            return;
+        }
+
+        if (!result.inserted) {
+            showToast('Row JSON could not be inserted.', 'alert');
+            return;
+        }
+
+        if (!result.saved) {
+            scheduleDocumentAutosave(result.documentId);
+        }
+
+        showToast(`Row from "${payload.label}" inserted into document.`, 'success');
+    } catch (error) {
+        showToast('Open a document before inserting row JSON.', 'alert');
+    }
+}
+
 function exportCurrentDocumentMarkdown() {
     const documents = getState().documents;
 
@@ -2319,6 +2399,9 @@ async function handleAction(actionNode) {
         case 'export-row-editor-json':
             exportRowEditorJson();
             return;
+        case 'insert-row-editor-json-into-document':
+            await insertRowEditorJsonIntoDocument();
+            return;
         case 'open-modal':
             openModal(actionNode.dataset.modal, {
                 columnId: actionNode.dataset.columnId,
@@ -2495,6 +2578,9 @@ async function handleAction(actionNode) {
             return;
         case 'refresh-backups':
             await refreshBackups();
+            return;
+        case 'open-table-in-sql-editor':
+            await openTableInSqlEditor(actionNode.dataset.tableName);
             return;
         case 'open-restore-backup-modal':
             openRestoreBackupModal(actionNode.dataset.backupId);

@@ -73,3 +73,29 @@ test("dropdown button supports local action attributes", async () => {
   assert.match(markup, /data-structure-graph-action="fit"/);
   assert.doesNotMatch(markup, /data-action="fit"/);
 });
+
+test("workspace open dropdown renders navigation and SQL editor actions", async () => {
+  const { renderWorkspaceOpenDropdown } = await import(
+    pathToFileURL(path.resolve(__dirname, "../frontend/js/components/workspaceOpenDropdown.js")).href
+  );
+  const markup = renderWorkspaceOpenDropdown({
+    tableName: "companies",
+    destinations: [
+      {
+        icon: "account_tree",
+        key: "structure",
+        label: "Structure",
+        target: tableName => `/structure/${encodeURIComponent(tableName)}`,
+      },
+      {
+        key: "sql-editor",
+      },
+    ],
+  });
+
+  assert.match(markup, /data-dropdown-button/);
+  assert.match(markup, /data-action="navigate"/);
+  assert.match(markup, /data-to="\/structure\/companies"/);
+  assert.match(markup, /data-action="open-table-in-sql-editor"/);
+  assert.match(markup, /data-table-name="companies"/);
+});

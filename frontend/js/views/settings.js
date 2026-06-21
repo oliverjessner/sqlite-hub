@@ -139,6 +139,7 @@ function renderSettingsContent(state) {
                     type="button"
                     ${tokenSaving ? 'disabled' : ''}
                   >
+                    <span class="material-symbols-outlined text-sm">delete</span>
                     Delete
                   </button>
                 </div>

@@ -1,11 +1,8 @@
 export function renderTopNav() {
-  return `
+    return `
     <div class="top-nav-shell">
       <a class="top-nav-brand" href="#/">SQLite Hub</a>
       <div class="top-nav-actions">
-        <button class="top-nav-icon" data-action="refresh-view" type="button" aria-label="Refresh">
-          <span class="material-symbols-outlined">refresh</span>
-        </button>
         <button
           class="top-nav-icon"
           data-action="open-modal"

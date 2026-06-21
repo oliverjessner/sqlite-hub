@@ -147,7 +147,7 @@ export function renderQueryResultsPane(
               ? renderDataGrid({
                   columns,
                   rows: result.rows ?? [],
-                  tableClass: "min-w-full border-collapse text-left font-mono text-xs",
+                  tableClass: "data-table min-w-full border-collapse text-left font-mono text-xs",
                   theadClass: "sticky top-0 z-10 bg-surface-container-highest text-on-surface",
                   tbodyClass: "divide-y divide-outline-variant/5",
                   getRowClass: (_, index) =>

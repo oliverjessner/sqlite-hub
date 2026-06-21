@@ -1,5 +1,6 @@
 import { clearInspector, renderDdlSection, renderInspector } from '../components/structureGraph.js';
 import { renderDropdownButton } from '../components/dropdownButton.js';
+import { renderWorkspaceOpenDropdown } from '../components/workspaceOpenDropdown.js';
 import { escapeHtml, formatNumber } from '../utils/format.js';
 
 function renderEntryGroup(title, entries, activeName, options = {}) {
@@ -231,6 +232,26 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
           </button>
         </div>
         <div class="structure-graph__toolbar-actions">
+          ${renderWorkspaceOpenDropdown({
+              tableName: selectedGraphTable?.name ?? '',
+              destinations: [
+                  {
+                      icon: 'table_rows',
+                      key: 'data',
+                      label: 'Data',
+                      target: tableName => `/data/${encodeURIComponent(tableName)}`,
+                  },
+                  {
+                      icon: 'table_chart',
+                      key: 'table-designer',
+                      label: 'Table Designer',
+                      target: tableName => `/table-designer/${encodeURIComponent(tableName)}`,
+                  },
+                  {
+                      key: 'sql-editor',
+                  },
+              ],
+          })}
           ${renderDropdownButton({
               icon: 'format_shapes',
               label: 'Format',
@@ -256,15 +277,6 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
                   },
               ],
           })}
-          <button
-            class="${toolbarButtonClass}"
-            data-structure-graph-action="open-data"
-            disabled
-            type="button"
-          >
-            <span class="material-symbols-outlined text-sm">table_rows</span>
-            Open Data
-          </button>
         </div>
         <div class="structure-graph__toolbar-inspector">
           <button

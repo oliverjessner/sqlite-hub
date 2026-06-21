@@ -42,6 +42,8 @@ test("backup manager renders backup rows with status and actions", async () => {
             notes: "Schema update",
             sizeBytes: 1024,
             status: "verified",
+            sqliteHubVersion: "1.1.2",
+            sqliteVersion: "3.50.0",
             fileExists: true,
             fileName: "backup.sqlite",
             path: "/tmp/backup.sqlite",
@@ -57,6 +59,10 @@ test("backup manager renders backup rows with status and actions", async () => {
 
   assert.match(rendered, /Before migration/);
   assert.match(rendered, /Verified/);
+  assert.match(rendered, /SQLite Hub/);
+  assert.match(rendered, /v1\.1\.2/);
+  assert.match(rendered, /SQLite/);
+  assert.match(rendered, /v3\.50\.0/);
   assert.match(rendered, /data-action="open-edit-backup-notes-modal"/);
   assert.match(rendered, /data-action="open-restore-backup-modal"/);
   assert.match(rendered, /data-action="download-backup"/);

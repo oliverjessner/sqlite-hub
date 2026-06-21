@@ -1,4 +1,6 @@
 import { escapeHtml } from "../utils/format.js";
+import { renderDropdownButton } from "./dropdownButton.js";
+import { detectEmailValue } from "../utils/emailPreview.js";
 import {
   compactPathForDisplay,
   detectFilePathValue,
@@ -47,6 +49,19 @@ function withUrlBadge(badges = [], url) {
   });
 
   return hasUrlBadge ? badges : [...badges, { label: "URL", tone: "url" }];
+}
+
+function withEmailBadge(badges = [], email) {
+  if (!email) {
+    return badges;
+  }
+
+  const hasEmailBadge = badges.some((badge) => {
+    const label = typeof badge === "object" ? badge.label : badge;
+    return String(label ?? "").toUpperCase() === "EMAIL";
+  });
+
+  return hasEmailBadge ? badges : [...badges, { label: "EMAIL", tone: "email" }];
 }
 
 function getAllowedValues(field) {
@@ -277,7 +292,11 @@ function renderReadonlyField(field = {}, tableMeta = {}) {
   const protectedKeyColumn = isProtectedKeyColumn(columnName, tableMeta);
   const filePathPreview = getFieldFilePathPreview({ ...field, rawValue }, tableMeta);
   const url = getUrlValue(value);
-  const badges = withFilePathBadge(withUrlBadge(Array.isArray(label?.badges) ? label.badges : [], url), filePathPreview);
+  const email = detectEmailValue(rawValue);
+  const badges = withEmailBadge(
+    withFilePathBadge(withUrlBadge(Array.isArray(label?.badges) ? label.badges : [], url), filePathPreview),
+    email
+  );
   const displayLabel = typeof label === "object" ? label.label : label;
   const jsonPreview = formatJsonPreview(value);
   const valueState = getRowEditorValueState(rawValue);
@@ -290,7 +309,9 @@ function renderReadonlyField(field = {}, tableMeta = {}) {
       data-row-editor-protected-key="${protectedKeyColumn ? "true" : "false"}"
       ${
       url ? "data-row-editor-url-field" : ""
-    }>
+    }
+      ${email ? "data-row-editor-email-field" : ""}
+    >
       <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
         <span>${escapeHtml(displayLabel)}</span>
         ${renderFieldBadgesWithCharacterCount(badges, rawValue)}
@@ -334,10 +355,11 @@ function renderEditableField(field, tableMeta = {}) {
   const columnName = getFieldColumnName(field);
   const protectedKeyColumn = isProtectedKeyColumn(columnName, tableMeta);
   const url = getUrlValue(field.value);
+  const email = detectEmailValue(getFieldRawValue(field));
   const allowedValues = getAllowedValues(field);
   const filePathPreview = getFieldFilePathPreview(field, tableMeta);
   const baseBadges = withCheckBadge(Array.isArray(field.badges) ? field.badges : [], allowedValues);
-  const badges = withFilePathBadge(withUrlBadge(baseBadges, url), filePathPreview);
+  const badges = withEmailBadge(withFilePathBadge(withUrlBadge(baseBadges, url), filePathPreview), email);
   const jsonPreview = formatJsonPreview(field.value);
   const inputType = field.inputType === "number" ? "number" : "text";
   const numberStep = field.numberStep === "1" ? "1" : "any";
@@ -351,6 +373,7 @@ function renderEditableField(field, tableMeta = {}) {
       data-row-editor-initial-state="${escapeHtml(valueState)}"
       data-row-editor-protected-key="${protectedKeyColumn ? "true" : "false"}"
       ${url ? "data-row-editor-url-field" : ""}
+      ${email ? "data-row-editor-email-field" : ""}
     >
       <span class="flex flex-wrap items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">
         <span>${escapeHtml(field.label ?? field.name)}</span>
@@ -427,6 +450,10 @@ function getFieldBadgeClassName(tone) {
     return "border-primary-container/35 bg-primary-container/15 text-primary-container";
   }
 
+  if (tone === "email") {
+    return "border-tertiary-fixed-dim/35 bg-tertiary-fixed-dim/15 text-tertiary-fixed-dim";
+  }
+
   if (tone === "check") {
     return "border-tertiary-fixed-dim/35 bg-tertiary-fixed-dim/15 text-tertiary-fixed-dim";
   }
@@ -488,16 +515,28 @@ export function renderRowEditorPanel({
         ].join("")
       : "",
     jsonActionsEnabled
-      ? [
-          '<button class="standard-button" data-action="copy-row-editor-json" type="button">',
-          '<span class="material-symbols-outlined text-sm">content_copy</span>',
-          "Copy as JSON",
-          "</button>",
-          '<button class="standard-button" data-action="export-row-editor-json" type="button">',
-          '<span class="material-symbols-outlined text-sm">download</span>',
-          "Export as JSON",
-          "</button>",
-        ].join("")
+      ? renderDropdownButton({
+          icon: "download",
+          label: "Export",
+          title: "Export row",
+          items: [
+            {
+              action: "copy-row-editor-json",
+              icon: "content_copy",
+              label: "Copy to clipboard",
+            },
+            {
+              action: "export-row-editor-json",
+              icon: "download",
+              label: "JSON file",
+            },
+            {
+              action: "insert-row-editor-json-into-document",
+              icon: "description",
+              label: "Markdown document",
+            },
+          ],
+        })
       : "",
     canSubmit
       ? [

@@ -100,6 +100,7 @@ test("settings view scopes API token controls to the active database", async () 
   assert.match(rendered.main, /name="name"/);
   assert.match(rendered.main, /type="submit"/);
   assert.match(rendered.main, /data-action="open-delete-api-token-modal"/);
+  assert.match(rendered.main, /<span class="material-symbols-outlined text-sm">delete<\/span>\s*Delete/);
   assert.match(rendered.main, /bg-surface-container-lowest/);
   assert.doesNotMatch(rendered.main, /sqlite-hub --port:PORT/);
   assert.doesNotMatch(rendered.main, /Open Github/);

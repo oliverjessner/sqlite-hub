@@ -106,6 +106,35 @@ test("row editor delete button renders a trash icon", async () => {
   assert.match(html, /<span class="material-symbols-outlined text-sm">delete<\/span>\s*Delete Row/);
 });
 
+test("row editor JSON actions render as an export dropdown", async () => {
+  const { renderRowEditorPanel } = await loadFrontendModule(
+    "../frontend/js/components/rowEditorPanel.js"
+  );
+  const html = renderRowEditorPanel({
+    title: "Values",
+    closeAction: "close",
+    formName: "save-data-row",
+    jsonActionsEnabled: true,
+    editableFields: [
+      {
+        name: "title",
+        label: "title",
+        value: "Acme",
+      },
+    ],
+  });
+
+  assert.match(html, /data-dropdown-button/);
+  assert.match(html, /Export/);
+  assert.match(html, /data-action="copy-row-editor-json"/);
+  assert.match(html, /Copy to clipboard/);
+  assert.match(html, /data-action="export-row-editor-json"/);
+  assert.match(html, /JSON file/);
+  assert.match(html, /data-action="insert-row-editor-json-into-document"/);
+  assert.match(html, /Markdown document/);
+  assert.doesNotMatch(html, /Copy as JSON|Export as JSON/);
+});
+
 test("data updates can change NULL to empty string and empty string to NULL", () => {
   const db = new Database(":memory:");
 

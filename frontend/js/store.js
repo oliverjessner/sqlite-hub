@@ -82,6 +82,7 @@ let chartsLoadVersion = 0;
 let chartsDetailLoadVersion = 0;
 let mediaTaggingPreviewVersion = 0;
 let documentsLoadVersion = 0;
+let lastOpenDocumentId = null;
 
 function readStoredDataPageSize(fallback = DEFAULT_DATA_PAGE_SIZE) {
     try {
@@ -1003,6 +1004,10 @@ function applyCurrentDocument(document) {
     state.documents.draftContent = document?.content ?? '';
     state.documents.dirty = false;
     state.documents.saveError = null;
+
+    if (document?.id) {
+        lastOpenDocumentId = document.id;
+    }
 }
 
 function upsertDocumentSummary(document) {
@@ -2425,6 +2430,10 @@ async function previewMediaTaggingDraft(options = {}) {
 function invalidateDatabaseCaches(options = {}) {
     const preserveDataBrowserState = options.preserveDataBrowserState === true;
 
+    if (!preserveDataBrowserState) {
+        lastOpenDocumentId = null;
+    }
+
     state.overview.data = null;
     state.dataBrowser.tables = [];
     if (!preserveDataBrowserState) {
@@ -2932,7 +2941,7 @@ function buildDocumentMarkdownInsertion(currentContent, insertion, range = null)
     return `${before}${prefix}${text}${suffix}${after}`;
 }
 
-function insertMarkdownIntoCurrentDocumentDraft(markdown, range = null) {
+export function insertMarkdownIntoCurrentDocumentDraft(markdown, range = null) {
     if (!state.documents.selectedId) {
         return false;
     }
@@ -2948,6 +2957,63 @@ function insertMarkdownIntoCurrentDocumentDraft(markdown, range = null) {
     state.documents.saveError = null;
     emitChange();
     return true;
+}
+
+export async function insertMarkdownIntoLastOpenDocument(markdown) {
+    if (state.route.name === 'documents' && state.documents.selectedId) {
+        const inserted = insertMarkdownIntoCurrentDocumentDraft(markdown);
+
+        return {
+            documentId: state.documents.selectedId,
+            inserted,
+            saved: false,
+        };
+    }
+
+    const documentId = lastOpenDocumentId ?? state.documents.selectedId;
+
+    if (!documentId) {
+        return {
+            documentId: null,
+            inserted: false,
+            saved: false,
+        };
+    }
+
+    const response = await api.getDocument(documentId);
+    const document = response.data ?? null;
+
+    if (!document?.id) {
+        return {
+            documentId: null,
+            inserted: false,
+            saved: false,
+        };
+    }
+
+    const nextContent = buildDocumentMarkdownInsertion(document.content, markdown);
+
+    if (nextContent === document.content) {
+        return {
+            documentId: document.id,
+            inserted: false,
+            saved: false,
+        };
+    }
+
+    const updateResponse = await api.updateDocument(document.id, {
+        content: nextContent,
+    });
+    const updatedDocument = updateResponse.data ?? document;
+
+    lastOpenDocumentId = updatedDocument.id;
+    upsertDocumentSummary(updatedDocument);
+
+    return {
+        documentId: updatedDocument.id,
+        inserted: true,
+        saved: true,
+    };
 }
 
 function getDocumentInsertQueryTitle(query) {

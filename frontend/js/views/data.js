@@ -1,6 +1,8 @@
 import { renderDataGrid } from '../components/dataGrid.js';
 import { renderRowEditorPanel } from '../components/rowEditorPanel.js';
+import { renderWorkspaceOpenDropdown } from '../components/workspaceOpenDropdown.js';
 import { escapeHtml, formatCellValue, formatNumber, isBlobPreview, truncateMiddle } from '../utils/format.js';
+import { detectEmailValue } from '../utils/emailPreview.js';
 import { compactPathForDisplay, detectFilePathValue } from '../utils/filePathPreview.js';
 
 function getSelectedRow(state) {
@@ -137,6 +139,30 @@ function renderWorkspaceHeader(state) {
         <div class="flex flex-wrap items-center justify-end gap-3">
           ${
               table
+                  ? renderWorkspaceOpenDropdown({
+                        tableName: table.name,
+                        destinations: [
+                            {
+                                icon: 'account_tree',
+                                key: 'structure',
+                                label: 'Structure',
+                                target: tableName => `/structure/${encodeURIComponent(tableName)}`,
+                            },
+                            {
+                                icon: 'table_chart',
+                                key: 'table-designer',
+                                label: 'Table Designer',
+                                target: tableName => `/table-designer/${encodeURIComponent(tableName)}`,
+                            },
+                            {
+                                key: 'sql-editor',
+                            },
+                        ],
+                    })
+                  : ''
+          }
+          ${
+              table
                   ? `<button
                     class="standard-button"
                     data-action="open-data-export-modal"
@@ -154,21 +180,6 @@ function renderWorkspaceHeader(state) {
           >
             Reload Data
           </button>
-          ${
-              table
-                  ? `
-                  <button
-                    class="standard-button"
-                    data-action="navigate"
-                    data-to="/structure/${encodeURIComponent(table.name)}"
-                    type="button"
-                  >
-                  <span class="material-symbols-outlined">account_tree</span>
-                    Open Structure
-                  </button>
-                `
-                  : ''
-          }
         </div>
       </div>
     </header>
@@ -370,10 +381,25 @@ function renderTableSurface(state) {
         cellClassName: 'px-4 py-2 align-top text-[11px] text-on-surface',
         render: row => {
             const rawValue = row[columnName];
+            const email = detectEmailValue(rawValue);
             const filePath = detectFilePathValue(rawValue, columnName, tableMeta);
             const value = formatCellValue(rawValue);
             const isNull = value === 'NULL';
             const widthClass = getCellWidthClass(columnName);
+
+            if (email) {
+                return `
+                  <span
+                    class="inline-flex ${widthClass} items-center gap-2 overflow-hidden whitespace-nowrap text-on-surface"
+                    title="${escapeHtml(email.value)}"
+                  >
+                    <span class="material-symbols-outlined text-sm text-primary-container/75">alternate_email</span>
+                    <span class="min-w-0 overflow-hidden text-ellipsis">${escapeHtml(
+                        truncateMiddle(email.value, 48),
+                    )}</span>
+                  </span>
+                `;
+            }
 
             if (filePath) {
                 return `
@@ -406,7 +432,7 @@ function renderTableSurface(state) {
     const gridMarkup = renderDataGrid({
         columns,
         rows: indexedRows.map(({ row }) => row),
-        tableClass: 'min-w-full border-collapse text-left font-mono text-xs',
+        tableClass: 'data-table min-w-full border-collapse text-left font-mono text-xs',
         theadClass: 'sticky top-0 z-10 bg-surface-container-highest',
         tbodyClass: 'divide-y divide-outline-variant/5',
         getRowClass: (_, rowIndexOnPage) => {

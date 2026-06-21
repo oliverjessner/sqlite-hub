@@ -46,6 +46,10 @@ test("structure toolbar groups graph format actions in a dropdown", async () => 
   const { main } = renderStructureView(buildStructureState());
 
   assert.match(main, /data-dropdown-button/);
+  assert.match(main, /Open companies/);
+  assert.match(main, /data-to="\/data\/companies"/);
+  assert.match(main, /data-to="\/table-designer\/companies"/);
+  assert.match(main, /data-action="open-table-in-sql-editor"/);
   assert.match(main, /Format graph/);
   assert.match(main, /Fit Graph/);
   assert.match(main, /data-structure-graph-action="fit"/);

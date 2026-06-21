@@ -83,8 +83,24 @@ function renderFallbackMarkdown(markdown = '') {
     return html.join('\n');
 }
 
+function escapeMarkdownHtmlOutsideFences(markdown = '') {
+    const lines = String(markdown ?? '').split('\n');
+    let inFence = false;
+
+    return lines
+        .map(line => {
+            if (FENCED_CODE_PATTERN.test(line)) {
+                inFence = !inFence;
+                return line;
+            }
+
+            return inFence ? line : escapeHtml(line);
+        })
+        .join('\n');
+}
+
 function renderMarkdownBlock(markdown = '') {
-    const source = escapeHtml(markdown);
+    const source = escapeMarkdownHtmlOutsideFences(markdown);
     const markedRuntime = globalThis.marked;
     const parser = typeof markedRuntime?.parse === 'function' ? markedRuntime.parse.bind(markedRuntime) : null;
 

@@ -28,6 +28,29 @@ function isBackupBusy(backup, state) {
     return Boolean(state.backups.operationLoading) || ['creating', 'verifying', 'restoring'].includes(backup.status);
 }
 
+function renderBackupMetadataItem(label, value, extraClass = '') {
+    return `
+      <div class="border border-outline-variant/10 bg-surface-container-lowest px-3 py-2 ${extraClass}">
+        <div class="font-mono text-[9px] uppercase tracking-[0.16em] text-on-surface-variant/45">${escapeHtml(label)}</div>
+        <div class="mt-1 font-mono text-[10px] uppercase tracking-[0.1em] text-on-surface/80">${escapeHtml(value)}</div>
+      </div>
+    `;
+}
+
+function renderBackupMetadata(backup) {
+    return `
+      <div class="grid min-w-[24rem] grid-cols-2 gap-2">
+        ${renderBackupMetadataItem('Size', formatBytes(backup.sizeBytes))}
+        <div class="border border-outline-variant/10 bg-surface-container-lowest px-3 py-2">
+          <div class="font-mono text-[9px] uppercase tracking-[0.16em] text-on-surface-variant/45">Status</div>
+          <div class="mt-1">${renderBackupStatus(backup)}</div>
+        </div>
+        ${renderBackupMetadataItem('SQLite Hub', backup.sqliteHubVersion ? `v${backup.sqliteHubVersion}` : 'n/a')}
+        ${renderBackupMetadataItem('SQLite', backup.sqliteVersion ? `v${backup.sqliteVersion}` : 'n/a')}
+      </div>
+    `;
+}
+
 function renderBackupRows(state) {
     return state.backups.items
         .map(backup => {
@@ -39,27 +62,34 @@ function renderBackupRows(state) {
 
             return `
         <tr class="border-b border-outline-variant/10 align-top">
-          <td class="px-4 py-4 text-xs font-mono text-on-surface/80">${escapeHtml(formatCompactDateTime(backup.createdAt))}</td>
-          <td class="px-4 py-4">
-            <div class="font-headline text-sm font-black uppercase text-on-surface">${escapeHtml(backup.name)}</div>
-            <div class="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-on-surface-variant/45" title="${escapeHtml(backup.path)}">
-              ${escapeHtml(truncateMiddle(backup.fileName || backup.path, 44))}
+          <td class="min-w-[20rem] px-4 py-5">
+            <div class="space-y-2">
+              <div class="font-headline text-sm font-black uppercase text-on-surface">${escapeHtml(backup.name)}</div>
+              <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-on-surface-variant/45" title="${escapeHtml(backup.path)}">
+                ${escapeHtml(truncateMiddle(backup.fileName || backup.path, 48))}
+              </div>
+              <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-on-surface-variant/55">
+                Created // ${escapeHtml(formatCompactDateTime(backup.createdAt))}
+              </div>
             </div>
           </td>
-          <td class="px-4 py-4 text-right text-xs font-mono text-on-surface/70">${escapeHtml(formatBytes(backup.sizeBytes))}</td>
-          <td class="px-4 py-4">${renderBackupStatus(backup)}</td>
-          <td class="max-w-[18rem] px-4 py-4 text-xs leading-6 text-on-surface-variant/70">
-            ${backup.notes ? escapeHtml(backup.notes) : '<span class="text-on-surface-variant/35">-</span>'}
-            ${backup.errorMessage ? `<div class="mt-2 text-error">${escapeHtml(backup.errorMessage)}</div>` : ''}
-            <div class="mt-3">
+          <td class="px-4 py-5">
+            ${renderBackupMetadata(backup)}
+          </td>
+          <td class="min-w-[18rem] max-w-[24rem] px-4 py-5">
+            <div class="flex h-full flex-col items-start gap-3">
+              <div class="text-xs leading-6 text-on-surface-variant/70">
+                ${backup.notes ? escapeHtml(backup.notes) : '<span class="text-on-surface-variant/35">No notes</span>'}
+                ${backup.errorMessage ? `<div class="mt-2 text-error">${escapeHtml(backup.errorMessage)}</div>` : ''}
+              </div>
               <button class="standard-button" data-action="open-edit-backup-notes-modal" data-backup-id="${escapeHtml(backup.id)}" type="button" ${canEditNotes ? '' : 'disabled'}>
                 <span class="material-symbols-outlined text-sm">edit_note</span>
                 Edit Notes
               </button>
             </div>
           </td>
-          <td class="px-4 py-4">
-            <div class="flex flex-wrap items-center justify-end gap-2">
+          <td class="px-4 py-5">
+            <div class="flex min-w-[10rem] flex-col items-stretch gap-2">
               <button class="standard-button" data-action="open-restore-backup-modal" data-backup-id="${escapeHtml(backup.id)}" type="button" ${canRestore ? '' : 'disabled'}>
                 <span class="material-symbols-outlined text-sm">restore</span>
                 Restore
@@ -128,10 +158,8 @@ function renderBackupsBody(state) {
       <table class="min-w-full border-collapse text-left">
         <thead class="border-b border-outline-variant/10 bg-surface-container">
           <tr class="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/55">
-            <th class="px-4 py-3 font-normal">Created</th>
-            <th class="px-4 py-3 font-normal">Name</th>
-            <th class="px-4 py-3 text-right font-normal">Size</th>
-            <th class="px-4 py-3 font-normal">Status</th>
+            <th class="px-4 py-3 font-normal">Backup</th>
+            <th class="px-4 py-3 font-normal">Metadata</th>
             <th class="px-4 py-3 font-normal">Note</th>
             <th class="px-4 py-3 text-right font-normal">Actions</th>
           </tr>
