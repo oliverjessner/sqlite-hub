@@ -3976,7 +3976,7 @@ export async function submitCreateBackupConfirmation({ name = '', notes = '', ty
     }
 }
 
-export function openEditBackupNotesModal(backupId) {
+export function openEditBackupModal(backupId) {
     const backup = state.backups.items.find(item => String(item.id) === String(backupId));
 
     if (!backup) {
@@ -3985,7 +3985,7 @@ export function openEditBackupNotesModal(backupId) {
     }
 
     state.modal = {
-        kind: 'edit-backup-notes',
+        kind: 'edit-backup',
         backupId: backup.id,
         backupName: backup.name,
         notes: backup.notes ?? '',
@@ -3995,8 +3995,8 @@ export function openEditBackupNotesModal(backupId) {
     emitChange();
 }
 
-export async function submitEditBackupNotesConfirmation(notes = '') {
-    if (state.modal?.kind !== 'edit-backup-notes') {
+export async function submitEditBackupConfirmation({ name = '', notes = '' } = {}) {
+    if (state.modal?.kind !== 'edit-backup') {
         return null;
     }
 
@@ -4005,12 +4005,12 @@ export async function submitEditBackupNotesConfirmation(notes = '') {
     state.backups.operationLoading = true;
 
     try {
-        const response = await api.updateBackup(backupId, { notes });
+        const response = await api.updateBackup(backupId, { name, notes });
         state.backups.items = state.backups.items.map(item =>
             String(item.id) === String(response.data.id) ? response.data : item
         );
         closeModalInternal();
-        pushToast(response.message || 'Backup notes updated.', 'success');
+        pushToast(response.message || 'Backup updated.', 'success');
         return response.data;
     } catch (error) {
         withModalError(error);

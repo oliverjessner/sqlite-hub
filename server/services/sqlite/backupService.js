@@ -161,8 +161,9 @@ class BackupService {
     return this.decorateBackupFileState(backup);
   }
 
-  updateBackupNotes(backupId, notes = "") {
+  updateBackupDetails(backupId, { name, notes } = {}) {
     const backup = this.appStateStore.updateBackupRecord(backupId, {
+      name,
       notes,
     });
 

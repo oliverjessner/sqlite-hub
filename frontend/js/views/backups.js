@@ -57,7 +57,7 @@ function renderBackupRows(state) {
             const busy = isBackupBusy(backup, state);
             const canRestore = backup.status === 'verified' && backup.fileExists && !busy && !state.connections.active?.readOnly;
             const canDownload = backup.fileExists && !busy;
-            const canEditNotes = !busy;
+            const canEdit = !busy;
             const canDelete = !busy;
 
             return `
@@ -71,6 +71,9 @@ function renderBackupRows(state) {
               <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-on-surface-variant/55">
                 Created // ${escapeHtml(formatCompactDateTime(backup.createdAt))}
               </div>
+              <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-on-surface-variant/45">
+                PK // ${escapeHtml(backup.id)}
+              </div>
             </div>
           </td>
           <td class="px-4 py-5">
@@ -82,9 +85,9 @@ function renderBackupRows(state) {
                 ${backup.notes ? escapeHtml(backup.notes) : '<span class="text-on-surface-variant/35">No notes</span>'}
                 ${backup.errorMessage ? `<div class="mt-2 text-error">${escapeHtml(backup.errorMessage)}</div>` : ''}
               </div>
-              <button class="standard-button" data-action="open-edit-backup-notes-modal" data-backup-id="${escapeHtml(backup.id)}" type="button" ${canEditNotes ? '' : 'disabled'}>
+              <button class="standard-button" data-action="open-edit-backup-modal" data-backup-id="${escapeHtml(backup.id)}" type="button" ${canEdit ? '' : 'disabled'}>
                 <span class="material-symbols-outlined text-sm">edit_note</span>
-                Edit Notes
+                Edit
               </button>
             </div>
           </td>

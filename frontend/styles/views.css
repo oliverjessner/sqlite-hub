@@ -1508,7 +1508,9 @@
         max-height: 14rem;
     }
 
-    .charts-view {
+    .charts-view,
+    .structure-view,
+    .table-designer-view {
         flex-direction: column;
     }
 
@@ -1519,18 +1521,10 @@
         width: 100%;
     }
 
-    .structure-view {
-        flex-direction: column;
-    }
-
     .structure-view__sidebar {
         flex-basis: 18rem;
         max-width: none;
         width: 100%;
-    }
-
-    .table-designer-view {
-        flex-direction: column;
     }
 
     .table-designer-workspace__bottom {

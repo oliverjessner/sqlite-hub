@@ -2,6 +2,7 @@
 
 - remove unused css and duplicates, css code rework
 - UX Audit from @corneliakocher
+- edit name and notes for backup
 
 # v1.1.2
 

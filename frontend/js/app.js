@@ -56,7 +56,7 @@ import {
     openDeleteQueryHistoryModal,
     openDeleteSettingsApiTokenModal,
     openCreateBackupModal,
-    openEditBackupNotesModal,
+    openEditBackupModal,
     openDeleteBackupModal,
     openRestoreBackupModal,
     openDeleteQueryChartModal,
@@ -122,7 +122,7 @@ import {
     submitDeleteSettingsApiTokenConfirmation,
     submitBackupSafetyChoice,
     submitCreateBackupConfirmation,
-    submitEditBackupNotesConfirmation,
+    submitEditBackupConfirmation,
     submitRowUpdatePreviewConfirmation,
     setQueryHistoryPanelVisibility,
     sortDataTableByColumn,
@@ -2585,8 +2585,8 @@ async function handleAction(actionNode) {
         case 'open-restore-backup-modal':
             openRestoreBackupModal(actionNode.dataset.backupId);
             return;
-        case 'open-edit-backup-notes-modal':
-            openEditBackupNotesModal(actionNode.dataset.backupId);
+        case 'open-edit-backup-modal':
+            openEditBackupModal(actionNode.dataset.backupId);
             return;
         case 'open-delete-backup-modal':
             openDeleteBackupModal(actionNode.dataset.backupId);
@@ -3623,8 +3623,11 @@ document.addEventListener('submit', async event => {
                 type: String(formData.get('type') ?? 'manual'),
             });
             return;
-        case 'edit-backup-notes':
-            await submitEditBackupNotesConfirmation(String(formData.get('notes') ?? ''));
+        case 'edit-backup':
+            await submitEditBackupConfirmation({
+                name: String(formData.get('name') ?? ''),
+                notes: String(formData.get('notes') ?? ''),
+            });
             return;
         case 'delete-backup-confirm':
             await submitDeleteBackupConfirmation();

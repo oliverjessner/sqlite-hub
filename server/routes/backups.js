@@ -49,11 +49,14 @@ function createBackupsRouter({ backupService }) {
   router.patch(
     "/:backupId",
     route((req, res) => {
-      const backup = backupService.updateBackupNotes(req.params.backupId, req.body?.notes ?? "");
+      const backup = backupService.updateBackupDetails(req.params.backupId, {
+        name: req.body?.name,
+        notes: req.body?.notes,
+      });
 
       res.json(
         successResponse({
-          message: "Backup notes updated.",
+          message: "Backup updated.",
           data: backup,
         })
       );

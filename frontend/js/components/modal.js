@@ -449,15 +449,25 @@ function renderDeleteBackupForm(modal) {
     ].join('');
 }
 
-function renderEditBackupNotesForm(modal) {
+function renderEditBackupForm(modal) {
     return `
-    <form class="space-y-5" data-form="edit-backup-notes">
+    <form class="space-y-5" data-form="edit-backup">
       <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
-        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/55">Name</div>
-        <div class="mt-2 font-body text-sm font-black uppercase text-on-surface">
-          ${escapeHtml(modal.backupName ?? 'Backup')}
+        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/55">Primary Key</div>
+        <div class="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-on-surface/80">
+          ${escapeHtml(modal.backupId ?? 'n/a')}
         </div>
       </div>
+      <label class="block space-y-2">
+        <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">Name</span>
+        <input
+          class="control-input w-full border border-outline-variant/20 bg-surface-container-lowest px-3 py-3 text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+          name="name"
+          placeholder="Backup name"
+          required
+          value="${escapeHtml(modal.backupName ?? 'Backup')}"
+        />
+      </label>
       <label class="block space-y-2">
         <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">Notes</span>
         <textarea
@@ -471,7 +481,7 @@ function renderEditBackupNotesForm(modal) {
         <button class="standard-button" data-action="close-modal" type="button">Cancel</button>
         <button class="signature-button" type="submit" ${modal.submitting ? 'disabled' : ''}>
           <span class="material-symbols-outlined text-sm">save</span>
-          ${modal.submitting ? 'Saving...' : 'Save notes'}
+          ${modal.submitting ? 'Saving...' : 'Save backup'}
         </button>
       </div>
     </form>
@@ -1806,10 +1816,10 @@ export function renderModal(state) {
             title: 'Delete Backup',
             body: renderDeleteBackupForm(modal),
         },
-        'edit-backup-notes': {
-            eyebrow: 'Backups // Notes',
-            title: 'Edit Backup Notes',
-            body: renderEditBackupNotesForm(modal),
+        'edit-backup': {
+            eyebrow: 'Backups // Edit',
+            title: 'Edit Backup',
+            body: renderEditBackupForm(modal),
         },
         'backup-safety': {
             eyebrow: 'Backups // Safety check',
