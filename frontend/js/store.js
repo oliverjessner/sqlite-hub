@@ -19,10 +19,7 @@ import {
     suggestQueryChartType,
     validateQueryChartConfig,
 } from './lib/queryCharts.js';
-import {
-    MEDIA_TAGGING_DEFAULT_MAPPING_TABLE,
-    MEDIA_TAGGING_DEFAULT_TAG_TABLE,
-} from './lib/mediaTaggingDefaults.js';
+import { MEDIA_TAGGING_DEFAULT_MAPPING_TABLE, MEDIA_TAGGING_DEFAULT_TAG_TABLE } from './lib/mediaTaggingDefaults.js';
 import { buildTextExportFilename } from './utils/exportFilenames.js';
 import { toggleMarkdownTodoLine } from './utils/markdownDocuments.js';
 
@@ -51,6 +48,7 @@ const UI_PREFERENCE_STORAGE_KEYS = {
     chartsHistoryVisible: 'sqlite_hub_charts_history_visible',
     chartsQueryVisible: 'sqlite_hub_charts_query_visible',
     chartsResultsVisible: 'sqlite_hub_charts_results_visible',
+    chartsHeightPreset: 'sqlite_hub_charts_height_preset',
     tableDesignerTablesVisible: 'sqlite_hub_table_designer_tables_visible',
     tableDesignerSqlPreviewVisible: 'sqlite_hub_table_designer_sql_preview_visible',
     documentsVisible: 'sqlite_hub_documents_visible',
@@ -229,6 +227,15 @@ function storeChartsHistoryTab(tab) {
     }
 }
 
+function readStoredChartsHeightPreset(fallback = 'medium') {
+    return normalizeChartsHeightPreset(readStoredString(UI_PREFERENCE_STORAGE_KEYS.chartsHeightPreset, fallback));
+}
+
+function storeChartsHeightPreset(preset) {
+    const normalizedPreset = normalizeChartsHeightPreset(preset);
+    storeString(UI_PREFERENCE_STORAGE_KEYS.chartsHeightPreset, normalizedPreset);
+}
+
 function readStoredQueryHistoryTab(fallback = 'recent') {
     try {
         return normalizeQueryHistoryTab(globalThis.localStorage?.getItem(QUERY_HISTORY_TAB_STORAGE_KEY) ?? fallback);
@@ -345,7 +352,7 @@ const state = {
         historyPanelVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsHistoryVisible, true),
         detailPanelVisible: false,
         selectedHistoryId: null,
-        chartHeightPreset: 'medium',
+        chartHeightPreset: readStoredChartsHeightPreset(),
         queryVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsQueryVisible, true),
         resultsVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsResultsVisible, true),
         detail: null,
@@ -613,7 +620,7 @@ function normalizeMediaTaggingRotationDegrees(value) {
         return 0;
     }
 
-    return ((Math.round(numericValue / 90) * 90) % 360 + 360) % 360;
+    return (((Math.round(numericValue / 90) * 90) % 360) + 360) % 360;
 }
 
 function normalizeDataPageSize(value, fallback = 50) {
@@ -820,8 +827,10 @@ function areRowIdentitiesEqual(left, right) {
         return false;
     }
 
-    return JSON.stringify(left.columns ?? []) === JSON.stringify(right.columns ?? [])
-        && JSON.stringify(left.values ?? null) === JSON.stringify(right.values ?? null);
+    return (
+        JSON.stringify(left.columns ?? []) === JSON.stringify(right.columns ?? []) &&
+        JSON.stringify(left.values ?? null) === JSON.stringify(right.values ?? null)
+    );
 }
 
 function getSelectedDataBrowserRow(snapshot = state) {
@@ -853,9 +862,7 @@ function clearDataBrowserRowSelectionState() {
 
 function resolveDataBrowserRowSelection(rowIndex, identity = null) {
     const hasRowIndex =
-        rowIndex !== null &&
-        rowIndex !== undefined &&
-        (typeof rowIndex !== 'string' || rowIndex.trim() !== '');
+        rowIndex !== null && rowIndex !== undefined && (typeof rowIndex !== 'string' || rowIndex.trim() !== '');
     const numericIndex = hasRowIndex ? Number(rowIndex) : NaN;
 
     if (Number.isInteger(numericIndex) && numericIndex >= 0) {
@@ -873,7 +880,11 @@ function resolveDataBrowserRowSelection(rowIndex, identity = null) {
     const selectedRow = getSelectedDataBrowserRow();
     const selectedIdentity = identity ?? selectedRow?.__identity ?? null;
 
-    if (!selectedRow?.__identity || !selectedIdentity || !areRowIdentitiesEqual(selectedRow.__identity, selectedIdentity)) {
+    if (
+        !selectedRow?.__identity ||
+        !selectedIdentity ||
+        !areRowIdentitiesEqual(selectedRow.__identity, selectedIdentity)
+    ) {
         return {
             row: null,
             rowIndex: null,
@@ -949,7 +960,7 @@ function resetChartsState() {
     state.charts.historyPanelVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsHistoryVisible, true);
     state.charts.detailPanelVisible = false;
     state.charts.selectedHistoryId = null;
-    state.charts.chartHeightPreset = 'medium';
+    state.charts.chartHeightPreset = readStoredChartsHeightPreset(state.charts.chartHeightPreset);
     state.charts.queryVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsQueryVisible, true);
     state.charts.resultsVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.chartsResultsVisible, true);
     state.charts.detail = null;
@@ -1068,7 +1079,9 @@ function syncQueryHistoryItem(updatedItem) {
 
     const updatedItemId = String(updatedItem.id);
 
-    state.editor.history = state.editor.history.map(entry => (String(entry.id) === updatedItemId ? updatedItem : entry));
+    state.editor.history = state.editor.history.map(entry =>
+        String(entry.id) === updatedItemId ? updatedItem : entry,
+    );
 
     if (String(state.editor.historyDetail?.id ?? '') === updatedItemId) {
         state.editor.historyDetail = updatedItem;
@@ -1197,7 +1210,10 @@ function setMissingDatabaseState() {
     state.tableDesigner.selectedTableName = null;
     state.tableDesigner.draft = null;
     state.tableDesigner.tablesVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerTablesVisible, true);
-    state.tableDesigner.sqlPreviewVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerSqlPreviewVisible, true);
+    state.tableDesigner.sqlPreviewVisible = readStoredBoolean(
+        UI_PREFERENCE_STORAGE_KEYS.tableDesignerSqlPreviewVisible,
+        true,
+    );
     state.tableDesigner.pendingImportedDraft = null;
     state.tableDesigner.saving = false;
     state.tableDesigner.searchQuery = '';
@@ -1389,9 +1405,7 @@ export async function checkSettingsAppVersion() {
 
         state.settings.versionCheck = result;
         pushToast(
-            result?.updateAvailable
-                ? `SQLite Hub v${result.latestVersion} is available.`
-                : 'SQLite Hub is up to date.',
+            result?.updateAvailable ? `SQLite Hub v${result.latestVersion} is available.` : 'SQLite Hub is up to date.',
             'success',
         );
         return result;
@@ -1673,11 +1687,17 @@ function getRequestedChartsHistoryId(route) {
 function resolveLoadableChartsHistoryId(route) {
     const requestedHistoryId = getRequestedChartsHistoryId(route);
 
-    if (!requestedHistoryId) {
-        return null;
+    if (requestedHistoryId) {
+        return state.charts.queries.some(item => item.id === requestedHistoryId) ? requestedHistoryId : null;
     }
 
-    return state.charts.queries.some(item => item.id === requestedHistoryId) ? requestedHistoryId : null;
+    const selectedHistoryId = Number(state.charts.selectedHistoryId);
+
+    return Number.isInteger(selectedHistoryId) &&
+        selectedHistoryId > 0 &&
+        state.charts.queries.some(item => item.id === selectedHistoryId)
+        ? selectedHistoryId
+        : null;
 }
 
 function hasSettledChartsDetail(historyId) {
@@ -2393,7 +2413,10 @@ function invalidateDatabaseCaches(options = {}) {
     state.tableDesigner.selectedTableName = null;
     state.tableDesigner.draft = null;
     state.tableDesigner.tablesVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerTablesVisible, true);
-    state.tableDesigner.sqlPreviewVisible = readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerSqlPreviewVisible, true);
+    state.tableDesigner.sqlPreviewVisible = readStoredBoolean(
+        UI_PREFERENCE_STORAGE_KEYS.tableDesignerSqlPreviewVisible,
+        true,
+    );
     state.tableDesigner.pendingImportedDraft = null;
     state.tableDesigner.saving = false;
     state.tableDesigner.searchQuery = '';
@@ -2507,7 +2530,7 @@ function pushToast(message, tone = 'muted') {
 
     window.setTimeout(() => {
         dismissToast(id);
-    }, 3600);
+    }, 4500);
 }
 
 function withModalError(error) {
@@ -2847,7 +2870,9 @@ function normalizeDocumentInsertionRange(range = null) {
     const start = Number(range?.start);
     const end = Number(range?.end);
     const normalizedStart = Number.isInteger(start) ? Math.max(0, Math.min(contentLength, start)) : contentLength;
-    const normalizedEnd = Number.isInteger(end) ? Math.max(normalizedStart, Math.min(contentLength, end)) : normalizedStart;
+    const normalizedEnd = Number.isInteger(end)
+        ? Math.max(normalizedStart, Math.min(contentLength, end))
+        : normalizedStart;
 
     return {
         start: normalizedStart,
@@ -3156,7 +3181,8 @@ export async function deleteCurrentDocument(options = {}) {
     try {
         await api.deleteDocument(documentId);
         state.documents.items = state.documents.items.filter(item => item.id !== documentId);
-        const nextDocument = state.documents.items[Math.max(0, Math.min(deletedIndex, state.documents.items.length - 1))] ?? null;
+        const nextDocument =
+            state.documents.items[Math.max(0, Math.min(deletedIndex, state.documents.items.length - 1))] ?? null;
         if (isSelectedDocument) {
             applyCurrentDocument(null);
         }
@@ -3246,9 +3272,7 @@ export function openDeleteDataRowModal(rowIndex) {
     const tableName = state.dataBrowser.selectedTable;
     const numericIndex = Number(rowIndex);
     const hasNumericIndex = Number.isInteger(numericIndex) && numericIndex >= 0;
-    const row = hasNumericIndex
-        ? state.dataBrowser.table?.rows?.[numericIndex] ?? null
-        : getSelectedDataBrowserRow();
+    const row = hasNumericIndex ? (state.dataBrowser.table?.rows?.[numericIndex] ?? null) : getSelectedDataBrowserRow();
     const rowPreview = buildDeleteRowPreview(
         (state.dataBrowser.table?.columnMeta ?? [])
             .filter(column => column.visible)
@@ -3543,6 +3567,7 @@ export function setChartsHeightPreset(preset) {
     }
 
     state.charts.chartHeightPreset = nextPreset;
+    storeChartsHeightPreset(nextPreset);
     emitChange();
 }
 
@@ -4715,8 +4740,7 @@ export function openDataRowByIdentity(tableName, identity) {
 export function preserveCurrentDataRowSelectionForReload() {
     const tableName = state.dataBrowser.selectedTable ?? state.dataBrowser.table?.name ?? '';
     const row = getSelectedDataBrowserRow();
-    const rowIndex =
-        typeof state.dataBrowser.selectedRowIndex === 'number' ? state.dataBrowser.selectedRowIndex : null;
+    const rowIndex = typeof state.dataBrowser.selectedRowIndex === 'number' ? state.dataBrowser.selectedRowIndex : null;
 
     if (!tableName || !row) {
         return false;
@@ -5525,7 +5549,12 @@ export function getQueryMessages(snapshot = state) {
 
     return [
         ...snapshot.editor.result.statements.map(statement => ({
-            tone: statement.kind === 'resultSet' && statement.truncated ? 'warning' : statement.kind === 'resultSet' ? 'success' : inferStatusTone(statement.keyword),
+            tone:
+                statement.kind === 'resultSet' && statement.truncated
+                    ? 'warning'
+                    : statement.kind === 'resultSet'
+                      ? 'success'
+                      : inferStatusTone(statement.keyword),
             label: `${statement.keyword} #${statement.index + 1}`,
             value:
                 statement.kind === 'resultSet'

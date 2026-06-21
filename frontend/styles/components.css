@@ -981,6 +981,26 @@
     text-transform: uppercase;
 }
 
+.query-history-search {
+    display: block;
+    margin-top: var(--spacing-4);
+    position: relative;
+}
+
+.query-history-search__icon {
+    color: rgb(var(--rgb-on-surface-variant) / 0.55);
+    font-size: 1rem;
+    left: var(--spacing-3);
+    pointer-events: none;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.query-history-search__input {
+    padding-left: calc(var(--spacing-3) + 1rem + var(--spacing-2));
+}
+
 .query-history-list-scroll {
     flex: 1;
     min-height: 0;

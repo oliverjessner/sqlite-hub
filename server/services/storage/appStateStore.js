@@ -171,7 +171,6 @@ const CONNECTION_LOGO_EXTENSION_BY_FILE_EXTENSION = {
   ".png": "png",
   ".webp": "webp",
 };
-const QUERY_HISTORY_MIGRATION_KEY = "queryHistoryV1Migrated";
 const MEDIA_TAGGING_CONFIG_FIELDS = [
   {
     column: "tag_table",
@@ -320,8 +319,6 @@ class AppStateStore {
     if (!importedLegacyDatabase && this.shouldImportLegacyState()) {
       this.tryImportLegacyState();
     }
-
-    this.migrateLegacySqlHistory();
   }
 
   configureDatabase() {
@@ -1237,87 +1234,6 @@ class AppStateStore {
     };
   }
 
-  migrateLegacySqlHistory() {
-    if (this.getMetaValue(QUERY_HISTORY_MIGRATION_KEY) === "1") {
-      return;
-    }
-
-    const hasLegacyTable = Boolean(
-      this.db
-        .prepare(
-          "SELECT 1 AS exists_flag FROM sqlite_master WHERE type = 'table' AND name = 'sql_history'"
-        )
-        .get()
-    );
-
-    if (!hasLegacyTable) {
-      this.setMetaValue(QUERY_HISTORY_MIGRATION_KEY, "1");
-      return;
-    }
-
-    const legacyCount = Number(
-      this.db.prepare("SELECT COUNT(*) AS count FROM sql_history").get()?.count ?? 0
-    );
-
-    if (!legacyCount) {
-      this.setMetaValue(QUERY_HISTORY_MIGRATION_KEY, "1");
-      return;
-    }
-
-    const currentHistoryCount = Number(
-      this.db.prepare("SELECT COUNT(*) AS count FROM query_history").get()?.count ?? 0
-    );
-    const currentRunCount = Number(
-      this.db.prepare("SELECT COUNT(*) AS count FROM query_runs").get()?.count ?? 0
-    );
-
-    if (currentHistoryCount > 0 || currentRunCount > 0) {
-      this.setMetaValue(QUERY_HISTORY_MIGRATION_KEY, "1");
-      return;
-    }
-
-    const legacyRows = this.db
-      .prepare(`
-        SELECT
-          connectionId,
-          connectionLabel,
-          sql,
-          timingMs,
-          rowCount,
-          affectedRowCount,
-          executedAt
-        FROM sql_history
-        ORDER BY executedAt ASC, id ASC
-      `)
-      .all();
-
-    this.db.transaction(() => {
-      legacyRows.forEach((entry) => {
-        const databaseKey =
-          this.normalizeQueryHistoryText(entry.connectionId) ??
-          this.normalizeQueryHistoryText(entry.connectionLabel) ??
-          "legacy:default";
-        const rawSql = String(entry.sql ?? "");
-
-        if (!normalizeSql(rawSql)) {
-          return;
-        }
-
-        this.recordQueryExecutionInTransaction({
-          databaseKey,
-          rawSql,
-          status: "success",
-          durationMs: entry.timingMs,
-          rowCount: entry.rowCount,
-          affectedRows: entry.affectedRowCount,
-          executedAt: entry.executedAt ?? new Date().toISOString(),
-        });
-      });
-    })();
-
-    this.setMetaValue(QUERY_HISTORY_MIGRATION_KEY, "1");
-  }
-
   recordQueryExecution(entry = {}) {
     return this.db.transaction(() => this.recordQueryExecutionInTransaction(entry))();
   }
@@ -2143,7 +2059,7 @@ class AppStateStore {
 
     this.deleteConnectionLogo(existing?.logoPath);
 
-    return this.getState();
+    return this.getRecentConnections();
   }
 
   updateRecentConnection(id, updater) {

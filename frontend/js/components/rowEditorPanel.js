@@ -521,6 +521,7 @@ export function renderRowEditorPanel({
           ' type="button" ',
           saving || deleting ? "disabled" : "",
           ">",
+          '<span class="material-symbols-outlined text-sm">delete</span>',
           escapeHtml(deleting ? "Deleting..." : deleteLabel),
           "</button>",
         ].join("")

@@ -34,10 +34,11 @@ export function renderQueryHistorySearch({
     placeholder = 'Search SQL, titles, notes...',
 } = {}) {
     return `
-      <label class="mt-4 block">
+      <label class="query-history-search">
         <span class="sr-only">Search query history</span>
+        <span class="material-symbols-outlined query-history-search__icon" aria-hidden="true">search</span>
         <input
-          class="control-input w-full border border-outline-variant/20 bg-surface-container text-sm text-on-surface outline-none placeholder:text-on-surface-variant/35 focus:border-primary-container"
+          class="control-input query-history-search__input w-full border border-outline-variant/20 bg-surface-container text-sm text-on-surface outline-none placeholder:text-on-surface-variant/35 focus:border-primary-container"
           data-bind="${escapeHtml(bind)}"
           placeholder="${escapeHtml(placeholder)}"
           type="search"

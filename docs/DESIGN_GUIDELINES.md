@@ -14,14 +14,15 @@ Follow these rules exactly when creating or modifying UI controls.
 10. Use `standard-button` for normal actions.
 11. Use `signature-button` only for the primary yellow CTA in a context.
 12. Use `delete-button` only for destructive actions.
-13. `signature-button` must keep its hover state and chamfered corner.
-14. All visible clickable buttons must have a hover state.
-15. Disabled states must come from the shared component, not from local view CSS.
-16. All reusable checkboxes must use `standard-checkbox`.
-17. Do not build feature-specific checkbox shells or checkbox base styles.
-18. Inputs and selects must follow the shared base rules in `frontend/styles/base.css`.
-19. Ghost or transparent inputs must not use a white background, including unfocused state.
-20. When a new control pattern appears in multiple places, promote it to a shared component first, then migrate existing usages.
+13. Delete buttons must show the `delete` Material Symbol before the text label.
+14. `signature-button` must keep its hover state and chamfered corner.
+15. All visible clickable buttons must have a hover state.
+16. Disabled states must come from the shared component, not from local view CSS.
+17. All reusable checkboxes must use `standard-checkbox`.
+18. Do not build feature-specific checkbox shells or checkbox base styles.
+19. Inputs and selects must follow the shared base rules in `frontend/styles/base.css`.
+20. Ghost or transparent inputs must not use a white background, including unfocused state.
+21. When a new control pattern appears in multiple places, promote it to a shared component first, then migrate existing usages.
 
 ## Source of Truth
 

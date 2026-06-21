@@ -218,7 +218,7 @@ export function renderQueryHistoryDetail({
     "</button>",
     '<button class="delete-button" data-action="open-delete-query-history-modal" data-history-id="',
     escapeHtml(item.id),
-    '" type="button">Delete</button></div>',
+    '" type="button"><span class="material-symbols-outlined text-sm">delete</span>Delete</button></div>',
     '<div class="mt-6"><div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">SQL</div>',
     '<pre class="query-history-detail-sql custom-scrollbar mt-2 overflow-auto border border-outline-variant/10 bg-surface-container-lowest p-4 font-mono text-sm leading-6 text-on-surface"><code>',
     highlightSql(item.rawSql),

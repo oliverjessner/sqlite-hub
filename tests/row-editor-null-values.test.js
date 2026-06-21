@@ -82,6 +82,30 @@ test("row editor renders visible NULL and empty-string states", async () => {
   assert.doesNotMatch(html, /name="field:nullable_text"[\s\S]*?disabled/);
 });
 
+test("row editor delete button renders a trash icon", async () => {
+  const { renderRowEditorPanel } = await loadFrontendModule(
+    "../frontend/js/components/rowEditorPanel.js"
+  );
+  const html = renderRowEditorPanel({
+    title: "Values",
+    closeAction: "close",
+    formName: "save-data-row",
+    deleteAction: "delete-data-row",
+    deleteEnabled: true,
+    deleteRowIndex: 0,
+    editableFields: [
+      {
+        name: "title",
+        label: "title",
+        value: "Acme",
+      },
+    ],
+  });
+
+  assert.match(html, /class="delete-button"[^>]*data-action="delete-data-row"/);
+  assert.match(html, /<span class="material-symbols-outlined text-sm">delete<\/span>\s*Delete Row/);
+});
+
 test("data updates can change NULL to empty string and empty string to NULL", () => {
   const db = new Database(":memory:");
 

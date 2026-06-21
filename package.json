@@ -2,6 +2,7 @@
     "name": "sqlite-hub",
     "version": "1.1.2",
     "description": "SQLite-only local management app backend and SPA shell",
+    "license": "MIT",
     "main": "server/server.js",
     "bin": {
         "sqlite-hub": "bin/sqlite-hub.js"

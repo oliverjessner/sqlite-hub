@@ -207,13 +207,13 @@ class ConnectionManager {
   }
 
   removeRecentConnection(id) {
-    const state = this.appStateStore.removeRecentConnection(id);
+    const recentConnections = this.appStateStore.removeRecentConnection(id);
 
     if (this.current?.id === id) {
       this.closeCurrent();
     }
 
-    return state.recentConnections;
+    return recentConnections;
   }
 
   updateRecentConnection(id, { filePath, label, readOnly = false, logoUpload = null, clearLogo = false }) {
