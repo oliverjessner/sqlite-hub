@@ -19,16 +19,14 @@
     padding: var(--spacing-8);
 }
 
-.data-browser-row {
+.data-browser-row,
+.data-browser-row--odd,
+.documents-pane--collapsed {
     background: var(--color-surface-lowest);
 }
 
 .data-browser-row--even {
     background: var(--color-surface-low);
-}
-
-.data-browser-row--odd {
-    background: var(--color-surface-lowest);
 }
 
 .data-browser-row:hover {
@@ -56,7 +54,8 @@
     min-width: 0;
 }
 
-.table-designer-workspace__toolbar {
+.table-designer-workspace__toolbar,
+.media-tagging-preview__meta-header {
     align-items: center;
     display: flex;
     flex-wrap: wrap;
@@ -76,7 +75,9 @@
     margin-left: auto;
 }
 
-.table-designer-workspace__file-input {
+.table-designer-workspace__file-input,
+.documents-pane--collapsed .documents-pane__meta,
+.media-tagging-preview--meta-hidden .media-tagging-preview__meta {
     display: none;
 }
 
@@ -94,7 +95,10 @@
     flex: 0 0 34%;
 }
 
-.table-designer-workspace__bottom.is-collapsed {
+.table-designer-workspace__bottom.is-collapsed,
+.documents-create-button,
+.documents-pane__meta,
+.media-tagging-preview__meta-action {
     flex: 0 0 auto;
 }
 
@@ -141,6 +145,7 @@
     color: #000;
 }
 
+.structure-view,
 .charts-view {
     background: var(--color-surface);
     display: flex;
@@ -164,15 +169,8 @@
     padding: var(--spacing-4);
 }
 
-.structure-view {
-    background: var(--color-surface);
-    display: flex;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
-}
-
-.structure-view__sidebar {
+.structure-view__sidebar,
+.data-view__sidebar {
     background: var(--color-surface-low);
     border-right: 1px solid var(--border-medium);
 }
@@ -181,7 +179,8 @@
     align-items: flex-start;
 }
 
-.structure-view__detail {
+.structure-view__detail,
+.charts-view__detail {
     display: flex;
     flex: 1;
     flex-direction: column;
@@ -220,11 +219,6 @@
     grid-template-columns: 1fr;
     height: 100%;
     min-height: 0;
-}
-
-.data-view__sidebar {
-    background: var(--color-surface-low);
-    border-right: 1px solid var(--border-medium);
 }
 
 @media (min-width: 768px) {
@@ -346,10 +340,6 @@
     opacity: 1;
 }
 
-.documents-create-button {
-    flex: 0 0 auto;
-}
-
 .documents-workspace {
     display: grid;
     flex: 1;
@@ -398,25 +388,13 @@
     text-transform: uppercase;
 }
 
-.documents-pane--collapsed {
-    background: var(--color-surface-lowest);
-}
-
 .documents-pane--collapsed .documents-pane__header {
     justify-content: center;
-}
-
-.documents-pane--collapsed .documents-pane__meta {
-    display: none;
 }
 
 .documents-pane__toggle {
     flex: 0 1 auto;
     min-width: 0;
-}
-
-.documents-pane__meta {
-    flex: 0 0 auto;
 }
 
 .documents-editor-input {
@@ -637,14 +615,6 @@
     width: min(var(--subnavi-item-width), 100%);
 }
 
-.charts-view__detail {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-height: 0;
-    min-width: 0;
-}
-
 .charts-detail-scroll {
     scrollbar-gutter: stable;
 }
@@ -860,7 +830,8 @@
 }
 
 .media-tagging-form-grid,
-.media-tagging-query-grid {
+.media-tagging-query-grid,
+.media-tagging-issues {
     display: grid;
     gap: var(--spacing-4);
 }
@@ -1007,10 +978,6 @@
     grid-template-columns: minmax(0, 1fr);
 }
 
-.media-tagging-preview--meta-hidden .media-tagging-preview__meta {
-    display: none;
-}
-
 .media-tagging-preview__media {
     align-items: stretch;
     background:
@@ -1139,15 +1106,6 @@
     min-width: 0;
 }
 
-.media-tagging-audio-preview__eyebrow {
-    color: rgb(var(--rgb-on-surface) / 0.48);
-    font-family: var(--font-family-mono);
-    font-size: 0.625rem;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-}
-
 .media-tagging-audio-preview__title {
     color: var(--color-on-surface);
     font-family: var(--font-family-body);
@@ -1184,25 +1142,14 @@
     padding: var(--spacing-6);
 }
 
-.media-tagging-preview__meta-header {
-    align-items: center;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-4);
-    justify-content: space-between;
-}
-
-.media-tagging-preview__eyebrow {
+.media-tagging-preview__eyebrow,
+.media-tagging-audio-preview__eyebrow {
     color: rgb(var(--rgb-on-surface) / 0.48);
     font-family: var(--font-family-mono);
     font-size: 0.625rem;
     font-weight: 700;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-}
-
-.media-tagging-preview__meta-action {
-    flex: 0 0 auto;
 }
 
 .media-tagging-preview__meta-actions {
@@ -1473,11 +1420,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.media-tagging-issues {
-    display: grid;
-    gap: var(--spacing-4);
 }
 
 .media-tagging-issue {

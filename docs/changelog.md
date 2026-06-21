@@ -1,6 +1,6 @@
 # v1.2.1
 
-- remove unused css and duplicates
+- remove unused css and duplicates, css code rework
 - UX Audit from @corneliakocher
 
 # v1.1.2

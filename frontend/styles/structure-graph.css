@@ -128,7 +128,8 @@
     z-index: 3;
 }
 
-.structure-graph__edge-readout[hidden] {
+.structure-graph__edge-readout[hidden],
+.structure-graph.is-inspector-hidden .structure-graph__inspector {
     display: none;
 }
 
@@ -178,10 +179,6 @@
     overflow-x: hidden;
 }
 
-.structure-graph.is-inspector-hidden .structure-graph__inspector {
-    display: none;
-}
-
 .structure-graph__panel {
     display: flex;
     flex-direction: column;
@@ -196,7 +193,8 @@
     text-align: center;
 }
 
-.structure-graph__panel-heading {
+.structure-graph__panel-heading,
+.structure-graph__section-header {
     align-items: center;
     display: flex;
     gap: var(--spacing-4);
@@ -284,14 +282,8 @@
     text-transform: uppercase;
 }
 
-.structure-graph__section-header {
-    align-items: center;
-    display: flex;
-    gap: var(--spacing-4);
-    justify-content: space-between;
-}
-
-.structure-graph__column-list {
+.structure-graph__column-list,
+.structure-graph__join-condition-list {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-2);
@@ -375,12 +367,6 @@
 .structure-graph__join-arrow {
     color: #1ef6ff;
     font-size: 1rem;
-}
-
-.structure-graph__join-condition-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-2);
 }
 
 .structure-graph__join-condition {
