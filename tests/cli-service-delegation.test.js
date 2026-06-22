@@ -138,3 +138,50 @@ test("CLI marks saved query executions as cli", async () => {
   ]);
   assert.match(output.join("\n"), /Executing: Hype-Reversal/);
 });
+
+test("CLI delegates type generation to the shared command service and writes code to stdout", async () => {
+  const calls = [];
+  const connection = {
+    id: "db-one",
+    label: "Database One",
+  };
+  const databaseService = {
+    getDatabase(reference) {
+      calls.push(["getDatabase", reference]);
+      return connection;
+    },
+    listDatabases() {
+      calls.push(["listDatabases"]);
+      return [connection];
+    },
+    generateTableTypes(reference, tableName, target, options = {}) {
+      calls.push(["generateTableTypes", reference, tableName, target, options]);
+      return {
+        target: "typescript",
+        fileName: "User.ts",
+        code: "export interface User {}",
+        warnings: [],
+      };
+    },
+  };
+  const output = [];
+  const originalStdoutWrite = process.stdout.write;
+
+  process.stdout.write = value => {
+    output.push(String(value));
+    return true;
+  };
+
+  try {
+    await main(["--database:Database One", "--table:users", "--types:ts"], { databaseService });
+  } finally {
+    process.stdout.write = originalStdoutWrite;
+  }
+
+  assert.deepEqual(calls, [
+    ["listDatabases"],
+    ["getDatabase", "Database One"],
+    ["generateTableTypes", "db-one", "users", "ts", {}],
+  ]);
+  assert.equal(output.join(""), "export interface User {}\n");
+});

@@ -1,3 +1,4 @@
+import { renderGenerateTypesDropdown } from './generateTypesDropdown.js';
 import { showToast } from '../store.js';
 import { replaceChildrenFromRenderedMarkup } from '../utils/dom.js';
 import { escapeHtml, formatNumber } from '../utils/format.js';
@@ -430,6 +431,7 @@ export function renderInspector(tableData) {
           </button>
         </div>
         <div class="structure-graph__title">${escapeHtml(tableData.name)}</div>
+        ${renderGenerateTypesDropdown(tableData.name)}
       </div>
 
       <div class="structure-graph__summary">

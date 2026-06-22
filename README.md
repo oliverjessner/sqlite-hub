@@ -39,6 +39,7 @@ SQLite Hub keeps that workflow sharp:
 - inspect database health, storage metrics, and schema connectivity from one overview
 - filter, sort, page through, and export table data
 - inspect schema, structure, and relationships
+- generate TypeScript, Rust, Kotlin, or Swift types from table schemas
 - edit records in place with typed value previews and an SQL diff preview before saving
 - export tables and query results as CSV, TSV, Markdown, JSON, Parquet, or duplicate them as a table
 - copy result columns with formatting, headers, first-10 previews, TXT export, and Markdown todo export
@@ -80,6 +81,12 @@ The database overview combines operational and schema information for the active
 </p>
 
 Inspect tables, views, indexes, triggers, columns, declared types, primary keys, nullability, foreign keys, and DDL without losing pace. The searchable object list and relationship graph support fit, relayout, selection clearing, direct navigation to table data, and a hideable inspector/sidebar. Clicking a relationship edge opens a join preview with the mapped columns and a copyable SQL `JOIN` snippet. SQLite Hub remembers the last selected table while you move between views, and DDL can be copied directly from the inspector.
+
+### Generate Types
+
+Generate application types directly from a selected table schema in the Structure inspector. The `Generate Types` dropdown supports TypeScript, Rust, Kotlin, and Swift, then opens a preview modal where you can adjust property naming, nullable handling, JSON typing, default-value comments, generated columns, and hidden columns before copying or downloading the generated code.
+
+Type generation uses SQLite's declared column types plus schema constraints such as primary keys, foreign keys, `NOT NULL`, generated columns, defaults, and simple `CHECK (... IN (...))` value sets. SQLite remains dynamically typed, so the preview also surfaces warnings when a column has an unknown declared type or when a constraint cannot be safely converted into a static type. The same generator is available through the CLI and local API for automation.
 
 ### Data browser
 
@@ -218,12 +225,12 @@ Built around local SQLite files, not hosted dashboards or team complexity. The s
 
 SQLite Hub ships with a built-in CLI for starting the app, inspecting imported
 databases, executing raw or saved SQL, exporting query results, exporting single
-rows as JSON, and working with Markdown documents. See the
+rows as JSON, generating schema types, and working with Markdown documents. See the
 [CLI documentation](./docs/CLI.md) for commands, flags, and examples.
 
 ## API
 
-SQLite Hub also provides a local JSON API for app info, database metadata, tables, saved queries, exports, and documents. `/api/v1/info` returns the same app/version status as `sqlite-hub --info`; database data is protected by database-specific API tokens created in Settings. See the [API documentation](./docs/API.md) for authentication, endpoints, and examples.
+SQLite Hub also provides a local JSON API for app info, database metadata, tables, saved queries, exports, documents, and schema type generation. `/api/v1/info` returns the same app/version status as `sqlite-hub --info`; database data is protected by database-specific API tokens created in Settings. See the [API documentation](./docs/API.md) for authentication, endpoints, and examples.
 
 ## Changelog
 

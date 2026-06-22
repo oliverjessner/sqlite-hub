@@ -340,6 +340,13 @@ export function getStructureDetail(tableName) {
   return request(`/api/structure/${encodeURIComponent(tableName)}`);
 }
 
+export function generateStructureTypes(tableName, payload = {}) {
+  return request(`/api/structure/${encodeURIComponent(tableName)}/types`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export function getTableDesignerOverview() {
   return request("/api/table-designer");
 }

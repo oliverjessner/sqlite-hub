@@ -1,5 +1,6 @@
 import { clearInspector, renderDdlSection, renderInspector } from '../components/structureGraph.js';
 import { renderDropdownButton } from '../components/dropdownButton.js';
+import { renderGenerateTypesDropdown } from '../components/generateTypesDropdown.js';
 import { renderWorkspaceOpenDropdown } from '../components/workspaceOpenDropdown.js';
 import { escapeHtml, formatNumber } from '../utils/format.js';
 
@@ -136,6 +137,11 @@ function renderObjectInspector(detail) {
                   TABLE ${escapeHtml(detail.tableName)}
                 </div>
               `
+                : ''
+        }
+        ${
+            detail.type === 'table'
+                ? renderGenerateTypesDropdown(detail.name)
                 : ''
         }
       </div>

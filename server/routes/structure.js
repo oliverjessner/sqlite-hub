@@ -30,6 +30,28 @@ function createStructureRouter({ structureService }) {
     })
   );
 
+  router.post(
+    "/:tableName/types",
+    route((req, res) => {
+      const result = structureService.generateTableTypes(
+        req.params.tableName,
+        req.body?.target,
+        req.body?.options ?? {}
+      );
+      const { warnings, metadata, ...data } = result;
+
+      res.json(
+        successResponse({
+          message: "Types generated.",
+          data,
+          metadata,
+          warnings,
+          readOnly: true,
+        })
+      );
+    })
+  );
+
   return router;
 }
 

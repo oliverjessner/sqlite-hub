@@ -154,6 +154,42 @@ function createExternalApiRouter({ databaseService, tokenService, appInfoService
     })
   );
 
+  router.post(
+    "/databases/:databaseId/tables/:tableName/types",
+    route((req, res) => {
+      const target = String(req.body?.target ?? "").trim();
+
+      if (!["typescript", "rust", "kotlin", "swift"].includes(target)) {
+        throw new ValidationError(
+          `Unsupported type target "${req.body?.target}". Supported targets: typescript, rust, kotlin, swift.`,
+          { code: "INVALID_TYPE_TARGET" }
+        );
+      }
+
+      const result = databaseService.generateTableTypes(
+        req.params.databaseId,
+        req.params.tableName,
+        target,
+        req.body?.options ?? {}
+      );
+      const { warnings, metadata, ...data } = result;
+
+      res.json(
+        successResponse({
+          message: "Types generated.",
+          data,
+          metadata: {
+            databaseId: req.params.databaseId,
+            tableName: req.params.tableName,
+            ...metadata,
+          },
+          warnings,
+          readOnly: true,
+        })
+      );
+    })
+  );
+
   router.get(
     "/databases/:databaseId/queries",
     route((req, res) => {

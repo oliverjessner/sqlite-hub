@@ -522,6 +522,175 @@ function renderBackupSafetyForm(modal) {
   `;
 }
 
+function renderTypeGenerationSelect({ label, field, value, options = [] }) {
+    return renderSelectField({
+        label,
+        name: field,
+        value,
+        bind: 'type-generation-field',
+        options,
+    }).replace('<select ', `<select data-type-generation-field="${escapeHtml(field)}" `);
+}
+
+function renderTypeGenerationCheckbox({ label, field, checked }) {
+    return `
+      <label class="standard-checkbox">
+        <input
+          ${checked ? 'checked' : ''}
+          data-bind="type-generation-field"
+          data-type-generation-field="${escapeHtml(field)}"
+          type="checkbox"
+        />
+        <span>${escapeHtml(label)}</span>
+      </label>
+    `;
+}
+
+function renderTypeGenerationCodePreview(code) {
+    const text = String(code ?? '');
+    const normalized = text.includes('\n') || text.includes('\\n')
+        ? text.replace(/\\n/g, '\n')
+        : text
+              .replace(/\{\s*/g, '{\n  ')
+              .replace(/;\s*/g, ';\n  ')
+              .replace(/\s*\}\s*$/g, '\n}');
+
+    return normalized
+        .replace(/\r\n/g, '\n')
+        .split('\n')
+        .map(line => `<span class="block whitespace-pre">${line ? escapeHtml(line) : '&nbsp;'}</span>`)
+        .join('');
+}
+
+export function renderGenerateTypesForm(modal) {
+    const options = modal.options ?? {};
+    const result = modal.result ?? {};
+    const warnings = modal.warnings ?? [];
+    const target = modal.target ?? 'typescript';
+
+    return `
+    <div class="space-y-5">
+      <p class="text-sm leading-6 text-on-surface-variant/70">
+        Generate application types from the schema of "${escapeHtml(modal.tableName ?? '')}".
+      </p>
+      <div class="grid gap-5 xl:grid-cols-[24rem_minmax(0,1fr)]">
+        <div class="min-w-0 space-y-4">
+          <div class="space-y-4">
+            ${renderTypeGenerationSelect({
+                label: 'Target',
+                field: 'target',
+                value: target,
+                options: [
+                    { value: 'typescript', label: 'TypeScript' },
+                    { value: 'rust', label: 'Rust' },
+                    { value: 'kotlin', label: 'Kotlin' },
+                    { value: 'swift', label: 'Swift' },
+                ],
+            })}
+            ${renderTypeGenerationSelect({
+                label: 'Property naming',
+                field: 'propertyNaming',
+                value: options.propertyNaming ?? 'camel',
+                options: [
+                    { value: 'preserve', label: 'Preserve' },
+                    { value: 'camel', label: 'camelCase' },
+                    { value: 'pascal', label: 'PascalCase' },
+                    { value: 'snake', label: 'snake_case' },
+                ],
+            })}
+            ${renderTypeGenerationSelect({
+                label: 'Nullable handling',
+                field: 'nullableMode',
+                value: options.nullableMode ?? 'native',
+                options: [
+                    { value: 'native', label: 'Native' },
+                    { value: 'optional', label: 'Optional (TypeScript)' },
+                ],
+            })}
+            ${
+                target === 'typescript'
+                    ? renderTypeGenerationSelect({
+                          label: 'JSON type',
+                          field: 'jsonType',
+                          value: options.jsonType ?? 'unknown',
+                          options: [
+                              { value: 'unknown', label: 'unknown' },
+                              { value: 'record', label: 'Record<string, unknown>' },
+                              { value: 'json-value', label: 'JsonValue' },
+                          ],
+                      })
+                    : ''
+            }
+          </div>
+          <div class="grid gap-2">
+            ${renderTypeGenerationCheckbox({
+                label: 'Export declaration',
+                field: 'exportDeclaration',
+                checked: options.exportDeclaration !== false,
+            })}
+            ${renderTypeGenerationCheckbox({
+                label: 'Include default values as comments',
+                field: 'includeDefaultsAsComments',
+                checked: Boolean(options.includeDefaultsAsComments),
+            })}
+            ${renderTypeGenerationCheckbox({
+                label: 'Include generated columns',
+                field: 'includeGeneratedColumns',
+                checked: options.includeGeneratedColumns !== false,
+            })}
+            ${renderTypeGenerationCheckbox({
+                label: 'Include hidden columns',
+                field: 'includeHiddenColumns',
+                checked: Boolean(options.includeHiddenColumns),
+            })}
+          </div>
+        </div>
+        <div class="min-w-0 space-y-3">
+          <div class="flex items-center justify-between gap-3">
+            <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-primary-container">Code Preview</div>
+            <div class="truncate font-mono text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45">
+              ${escapeHtml(result.fileName ?? '')}
+            </div>
+          </div>
+          <pre class="type-generation-code-preview custom-scrollbar border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 font-mono text-xs leading-6 text-on-surface"><code>${renderTypeGenerationCodePreview(
+              modal.loading ? 'Generating...' : result.code ?? '',
+          )}</code></pre>
+          ${
+              warnings.length
+                  ? `<div class="space-y-2">${warnings
+                        .map(
+                            warning =>
+                                `<div class="border border-primary-container/15 bg-primary-container/10 px-3 py-2 text-xs leading-5 text-on-surface-variant/80">${escapeHtml(
+                                    warning,
+                                )}</div>`,
+                        )
+                        .join('')}</div>`
+                  : ''
+          }
+          ${renderError(modal.error)}
+        </div>
+      </div>
+      <div class="flex items-center justify-between gap-3 pt-2">
+        <button class="standard-button" data-action="close-modal" type="button">Cancel</button>
+        <div class="flex items-center gap-2">
+          <button class="standard-button" data-action="copy-generated-types" type="button" ${
+              result.code ? '' : 'disabled'
+          }>
+            <span class="material-symbols-outlined text-sm">content_copy</span>
+            Copy Code
+          </button>
+          <button class="signature-button" data-action="download-generated-types" type="button" ${
+              result.code ? '' : 'disabled'
+          }>
+            <span class="material-symbols-outlined text-sm">download</span>
+            Download
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderDeleteRowConfirmForm(modal) {
     const rowPreview = modal.rowPreview ?? [];
     const rowLabelMarkup = modal.rowLabel
@@ -1826,6 +1995,11 @@ export function renderModal(state) {
             title: 'Create a safety backup?',
             body: renderBackupSafetyForm(modal),
         },
+        'generate-types': {
+            eyebrow: 'Structure // Type generation',
+            title: 'Generate Types',
+            body: renderGenerateTypesForm(modal),
+        },
         'edit-connection': {
             eyebrow: 'Registry // Update saved SQLite target',
             title: 'Edit Connection',
@@ -1923,7 +2097,11 @@ export function renderModal(state) {
           modal.kind === 'row-update-preview' ||
           modal.kind === 'table-designer-constraints'
               ? 'max-w-3xl'
-              : modal.kind === 'query-export' || modal.kind === 'data-export' || modal.kind === 'backup-safety'
+              : modal.kind === 'generate-types'
+                ? 'max-w-6xl'
+              : modal.kind === 'query-export' ||
+                  modal.kind === 'data-export' ||
+                  modal.kind === 'backup-safety'
                 ? 'max-w-4xl'
                 : 'max-w-xl'
       } border border-outline-variant/20 bg-surface-container shadow-[0_24px_80px_rgba(0,0,0,0.45)]">

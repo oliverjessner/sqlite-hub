@@ -5,6 +5,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { DatabaseCommandService, getQueryTitle } = require('../server/services/databaseCommandService');
 const { buildAppInfo } = require('../server/services/appInfoService');
+const { FILE_EXTENSIONS } = require('../server/services/typeGenerationService');
 
 const DEFAULT_PORT = 4173;
 const EXPORT_FORMATS = new Set(['csv', 'tsv', 'md', 'json']);
@@ -27,6 +28,7 @@ Usage:
   sqlite-hub --database:"name" --documents:"Document Name" --export
   sqlite-hub --database:"name" --table:"table_name"
   sqlite-hub --database:"name" --table:"table_name" --export:"primary-key"
+  sqlite-hub --database:"name" --table:"table_name" --types:typescript
 
 Options:
   --help, -h                         Show this help text.
@@ -53,6 +55,21 @@ Options:
   --documents:"name" --export        Export a document as a Markdown file.
   --table:"table"                    Print table metadata.
   --table:"table" --export:"pk"      Export one row as JSON by primary key or rowid.
+  --types:typescript|ts|rust|rs|kotlin|kt|swift
+                                      Generate application types for --table.
+  --type-name:"name"                 Override generated type name.
+  --naming:preserve|camel|pascal|snake
+                                      Select generated property naming.
+  --nullable:native|optional          Select nullable handling. Optional is TypeScript only.
+  --comments                         Include schema comments.
+  --defaults-as-comments             Include default values in comments.
+  --json-type:unknown|record|json-value
+                                      Select TypeScript JSON mapping.
+  --include-generated                Include generated columns.
+  --include-hidden                   Include hidden columns.
+  --output:"file"                    Write generated types to a file.
+  --json                             Print generated type result as JSON.
+  --force                            Overwrite --output file if it exists.
 `);
 }
 
@@ -175,6 +192,18 @@ function parseCliArguments(argv) {
         documentName: null,
         documentExport: false,
         tableName: null,
+        typesTarget: null,
+        typeName: null,
+        naming: null,
+        nullableMode: null,
+        includeComments: false,
+        includeDefaultsAsComments: false,
+        includeGeneratedColumns: undefined,
+        includeHiddenColumns: false,
+        jsonType: null,
+        outputPath: null,
+        jsonOutput: false,
+        force: false,
     };
 
     for (let index = 0; index < argv.length; index += 1) {
@@ -384,6 +413,78 @@ function parseCliArguments(argv) {
             continue;
         }
 
+        if (flag === '--types') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.typesTarget = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--type-name') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.typeName = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--naming') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.naming = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--nullable') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.nullableMode = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--comments') {
+            options.includeComments = true;
+            continue;
+        }
+
+        if (flag === '--defaults-as-comments') {
+            options.includeDefaultsAsComments = true;
+            continue;
+        }
+
+        if (flag === '--include-generated') {
+            options.includeGeneratedColumns = true;
+            continue;
+        }
+
+        if (flag === '--include-hidden') {
+            options.includeHiddenColumns = true;
+            continue;
+        }
+
+        if (flag === '--json-type') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.jsonType = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--output') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.outputPath = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--json') {
+            options.jsonOutput = true;
+            continue;
+        }
+
+        if (flag === '--force') {
+            options.force = true;
+            continue;
+        }
+
         throw new Error(`Unknown argument: ${argument}`);
     }
 
@@ -406,7 +507,8 @@ function hasDatabaseOperation(options) {
         options.documentName ||
         options.documentExport ||
         options.exportTarget ||
-        options.tableName,
+        options.tableName ||
+        options.typesTarget,
     );
 }
 
@@ -624,6 +726,67 @@ function exportSavedQuery({ databaseService, conn, queryName, format }) {
     console.log(`Format: ${result.format}`);
     console.log(`Rows: ${result.rowCount}`);
     console.log(`File: ${outputPath}`);
+}
+
+function buildTypeOptions(options) {
+    const typeOptions = {};
+
+    if (options.typeName) typeOptions.typeName = options.typeName;
+    if (options.naming) typeOptions.propertyNaming = options.naming;
+    if (options.nullableMode) typeOptions.nullableMode = options.nullableMode;
+    if (options.includeComments) typeOptions.includeComments = true;
+    if (options.includeDefaultsAsComments) typeOptions.includeDefaultsAsComments = true;
+    if (options.includeGeneratedColumns !== undefined) {
+        typeOptions.includeGeneratedColumns = options.includeGeneratedColumns;
+    }
+    if (options.includeHiddenColumns) typeOptions.includeHiddenColumns = true;
+    if (options.jsonType) typeOptions.jsonType = options.jsonType;
+
+    return typeOptions;
+}
+
+function generateTypes({ databaseService, conn, tableName, options }) {
+    if (!tableName) {
+        throw new Error('--types requires --database and --table.');
+    }
+
+    if (options.jsonOutput && options.outputPath) {
+        throw new Error('--json cannot be combined with --output.');
+    }
+
+    const result = databaseService.generateTableTypes(
+        conn.id,
+        tableName,
+        options.typesTarget,
+        buildTypeOptions(options)
+    );
+
+    if (options.jsonOutput) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+    }
+
+    if (options.outputPath) {
+        const outputPath = path.resolve(process.cwd(), options.outputPath);
+        const expectedExtension = FILE_EXTENSIONS[result.target];
+
+        if (path.extname(outputPath) !== expectedExtension) {
+            throw new Error(`Output file for ${result.target} must use ${expectedExtension}.`);
+        }
+
+        if (!options.force && fs.existsSync(outputPath)) {
+            throw new Error(`Output file already exists: ${outputPath}`);
+        }
+
+        fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+        fs.writeFileSync(outputPath, result.code, 'utf8');
+        result.warnings.forEach(warning => console.error(`Warning: ${warning}`));
+        console.error(`Generated ${result.target} types: ${outputPath}`);
+        return;
+    }
+
+    result.warnings.forEach(warning => console.error(`Warning: ${warning}`));
+    process.stdout.write(`${result.code}\n`);
 }
 
 function listDocuments(databaseService, conn) {
@@ -877,9 +1040,20 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
             options.rawQuery ||
             options.showQuery ||
             options.showNotes ||
-            options.exportTarget
+            options.exportTarget ||
+            options.typesTarget
         ) {
             if (options.tableName) {
+                if (options.typesTarget) {
+                    generateTypes({
+                        databaseService,
+                        conn,
+                        tableName: options.tableName,
+                        options,
+                    });
+                    return;
+                }
+
                 if (options.exportTarget) {
                     exportTableRowAsJson({
                         databaseService,

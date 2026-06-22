@@ -88,6 +88,36 @@ test("parses row json export command", () => {
   assert.equal(options.exportTarget, "0a754aba373d34972998792a0be4333c");
 });
 
+test("parses type generation flags and aliases", () => {
+  const options = parseCliArguments([
+    "--database:db",
+    "--table:users",
+    "--types:ts",
+    "--type-name:User",
+    "--naming:camel",
+    "--nullable:optional",
+    "--comments",
+    "--defaults-as-comments",
+    "--json-type:record",
+    "--include-generated",
+    "--include-hidden",
+    "--output:User.ts",
+    "--force",
+  ]);
+
+  assert.equal(options.typesTarget, "ts");
+  assert.equal(options.typeName, "User");
+  assert.equal(options.naming, "camel");
+  assert.equal(options.nullableMode, "optional");
+  assert.equal(options.includeComments, true);
+  assert.equal(options.includeDefaultsAsComments, true);
+  assert.equal(options.jsonType, "record");
+  assert.equal(options.includeGeneratedColumns, true);
+  assert.equal(options.includeHiddenColumns, true);
+  assert.equal(options.outputPath, "User.ts");
+  assert.equal(options.force, true);
+});
+
 test("parses document commands", () => {
   const listOptions = parseCliArguments(["--database:db", "--documents"]);
   const showOptions = parseCliArguments(["--database:db", "--documents:Research Note"]);

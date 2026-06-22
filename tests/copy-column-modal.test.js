@@ -66,6 +66,44 @@ test("regular copy column preview stays read-only", async () => {
   assert.doesNotMatch(html, /name="editedText"/);
 });
 
+test("generate types modal renders left settings, right code preview, and stacked checkboxes", async () => {
+  const { renderGenerateTypesForm } = await loadModalModule();
+  const html = renderGenerateTypesForm({
+    kind: "generate-types",
+    tableName: "users",
+    target: "typescript",
+    options: {
+      exportDeclaration: true,
+      includeDefaultsAsComments: false,
+      includeGeneratedColumns: true,
+      includeHiddenColumns: false,
+      nullableMode: "native",
+      propertyNaming: "camel",
+      jsonType: "unknown",
+    },
+    result: {
+      fileName: "User.ts",
+      code: "export interface User {\\n  id: string;\\n}",
+    },
+    warnings: [],
+    loading: false,
+    error: null,
+  });
+
+  assert.match(html, /xl:grid-cols-\[24rem_minmax\(0,1fr\)\]/);
+  assert.match(html, /type-generation-code-preview custom-scrollbar/);
+  assert.match(html, /<div class="grid gap-2">\s*<label class="standard-checkbox">/);
+  assert.match(html, /<span class="block whitespace-pre">export interface User \{<\/span>/);
+  assert.match(html, /<span class="block whitespace-pre">  id: string;<\/span>/);
+  assert.match(html, /<span class="block whitespace-pre">\}<\/span>/);
+
+  const css = readFileSync(
+    path.resolve(__dirname, "../frontend/styles/components.css"),
+    "utf8"
+  );
+  assert.match(css, /\.type-generation-code-preview\s*\{[\s\S]*overflow-y: scroll;/);
+});
+
 test("modal footer close buttons are not right-aligned", () => {
   const source = readFileSync(
     path.resolve(__dirname, "../frontend/js/components/modal.js"),

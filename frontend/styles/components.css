@@ -438,6 +438,14 @@
     border: 1px solid var(--border-subtle);
 }
 
+.type-generation-code-preview {
+    display: block;
+    height: clamp(20rem, 50vh, 32rem);
+    overflow-x: hidden;
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
+}
+
 .standard-button,
 .signature-button,
 .delete-button,

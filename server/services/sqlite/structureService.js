@@ -1,11 +1,13 @@
 const { getRawStructureEntries, getTableDetail } = require("./introspection");
 const { quoteIdentifier } = require("../../utils/identifier");
 const { serializeRows } = require("../../utils/sqliteTypes");
+const { TypeGenerationService } = require("../typeGenerationService");
 
 class StructureService {
   constructor({ connectionManager, appStateStore }) {
     this.connectionManager = connectionManager;
     this.appStateStore = appStateStore;
+    this.typeGenerationService = new TypeGenerationService();
   }
 
   getStructureOverview() {
@@ -78,6 +80,11 @@ class StructureService {
       identityStrategy: table.identityStrategy,
       notSafelyUpdatable: table.notSafelyUpdatable,
     };
+  }
+
+  generateTableTypes(tableName, target, options = {}) {
+    const db = this.connectionManager.getActiveDatabase();
+    return this.typeGenerationService.generateTypesFromDatabase(db, tableName, target, options);
   }
 }
 

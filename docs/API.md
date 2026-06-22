@@ -34,6 +34,7 @@ GET  /api/v1/databases/:databaseId
 GET  /api/v1/databases/:databaseId/tables
 GET  /api/v1/databases/:databaseId/tables/:tableName
 POST /api/v1/databases/:databaseId/tables/:tableName/row
+POST /api/v1/databases/:databaseId/tables/:tableName/types
 
 GET  /api/v1/databases/:databaseId/queries
 GET  /api/v1/databases/:databaseId/queries/:queryName
@@ -73,6 +74,31 @@ Row lookup accepts a scalar key or a composite primary-key object:
 ```json
 { "key": { "id": 42, "locale": "en" } }
 ```
+
+`POST /api/v1/databases/:databaseId/tables/:tableName/types` generates
+application types from the declared SQLite schema. It is read-only, uses the
+same generation service as the Structure Inspector and CLI, and returns code as
+JSON without writing server-side files.
+
+```bash
+curl \
+  -X POST \
+  -H "Authorization: Bearer shub_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target": "typescript",
+    "options": {
+      "propertyNaming": "camel",
+      "nullableMode": "native",
+      "includeComments": true
+    }
+  }' \
+  http://127.0.0.1:4173/api/v1/databases/DATABASE_ID/tables/users/types
+```
+
+Supported targets are `typescript`, `rust`, `kotlin`, and `swift`. Warnings are
+returned in the top-level `warnings` array. Metadata includes column counts and
+CHECK-constraint counts.
 
 Successful responses use this envelope:
 

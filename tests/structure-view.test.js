@@ -58,3 +58,27 @@ test("structure toolbar groups graph format actions in a dropdown", async () => 
   assert.match(main, /Clear Selection/);
   assert.match(main, /data-structure-graph-action="clear"/);
 });
+
+test("structure inspector exposes generate types for selected tables", async () => {
+  const { renderStructureView } = await loadStructureViewModule();
+  const state = buildStructureState();
+  state.structure.detail = {
+    type: "table",
+    name: "companies",
+    tableName: "companies",
+    columns: [{ name: "id", visible: true, primaryKeyPosition: 1, declaredType: "INTEGER" }],
+    foreignKeys: [],
+    indexes: [],
+    triggers: [],
+    ddl: "CREATE TABLE companies (id INTEGER PRIMARY KEY)",
+  };
+  const { main } = renderStructureView(state);
+
+  assert.match(main, /Generate Types/);
+  assert.match(main, /data-action="open-generate-types-modal"/);
+  assert.match(main, /data-table-name="companies"/);
+  assert.match(main, /data-type-target="typescript"/);
+  assert.match(main, /data-type-target="rust"/);
+  assert.match(main, /data-type-target="kotlin"/);
+  assert.match(main, /data-type-target="swift"/);
+});

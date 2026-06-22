@@ -1,8 +1,9 @@
-# v1.2.1
+# v1.3.0
 
 - remove unused css and duplicates, css code rework
 - UX Audit from @corneliakocher
 - edit name and notes for backup
+- generate types from schema to typescript, kotlin, rust, swift
 
 # v1.1.2
 

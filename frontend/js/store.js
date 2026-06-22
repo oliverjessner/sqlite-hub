@@ -60,6 +60,10 @@ const UI_PREFERENCE_STORAGE_KEYS = {
 const QUERY_HISTORY_PAGE_SIZE = 30;
 const QUERY_HISTORY_RUN_LIMIT = 8;
 const CHART_HEIGHT_PRESETS = new Set(['small', 'medium', 'large']);
+const TYPE_GENERATION_TARGETS = new Set(['typescript', 'rust', 'kotlin', 'swift']);
+const TYPE_GENERATION_NAMING = new Set(['preserve', 'camel', 'pascal', 'snake']);
+const TYPE_GENERATION_NULLABLE = new Set(['native', 'optional']);
+const TYPE_GENERATION_JSON_TYPES = new Set(['unknown', 'record', 'json-value']);
 const EDITOR_RESULT_TABS = new Set(['results', 'performance', 'messages']);
 const COPY_COLUMN_MODES = new Set(['column', 'column-with-header', 'first-10', 'markdown-todo']);
 const TEXT_EXPORT_FORMAT_LABELS = {
@@ -4508,6 +4512,149 @@ export async function selectStructureEntry(name) {
     state.structure.selectedName = name;
     emitChange();
     await loadStructureDetail(++routeLoadVersion);
+}
+
+function getDefaultTypeGenerationOptions(target = 'typescript') {
+    const propertyNaming = target === 'rust' ? 'snake' : 'camel';
+
+    return {
+        typeName: '',
+        propertyNaming,
+        nullableMode: 'native',
+        includeComments: false,
+        includeDefaultsAsComments: false,
+        includeGeneratedColumns: true,
+        includeHiddenColumns: false,
+        exportDeclaration: true,
+        jsonType: 'unknown',
+    };
+}
+
+function normalizeTypeGenerationOptions(options = {}, target = 'typescript') {
+    const defaults = getDefaultTypeGenerationOptions(target);
+    const propertyNaming = TYPE_GENERATION_NAMING.has(options.propertyNaming)
+        ? options.propertyNaming
+        : defaults.propertyNaming;
+    const nullableMode =
+        TYPE_GENERATION_NULLABLE.has(options.nullableMode) && (target === 'typescript' || options.nullableMode !== 'optional')
+            ? options.nullableMode
+            : 'native';
+    const jsonType = TYPE_GENERATION_JSON_TYPES.has(options.jsonType) ? options.jsonType : 'unknown';
+
+    return {
+        ...defaults,
+        ...options,
+        propertyNaming,
+        nullableMode,
+        jsonType,
+        typeName: String(options.typeName ?? ''),
+    };
+}
+
+async function refreshTypeGenerationPreview() {
+    const modal = state.modal;
+
+    if (modal?.kind !== 'generate-types') {
+        return;
+    }
+
+    modal.loading = true;
+    modal.error = null;
+    emitChange();
+
+    try {
+        const options = { ...modal.options };
+
+        if (!String(options.typeName ?? '').trim()) {
+            delete options.typeName;
+        }
+
+        if (modal.target !== 'typescript') {
+            delete options.jsonType;
+        }
+
+        const response = await api.generateStructureTypes(modal.tableName, {
+            target: modal.target,
+            options,
+        });
+
+        if (state.modal?.kind !== 'generate-types') {
+            return;
+        }
+
+        state.modal.result = response.data;
+        state.modal.warnings = response.warnings ?? [];
+        state.modal.metadata = response.metadata ?? {};
+    } catch (error) {
+        if (state.modal?.kind !== 'generate-types') {
+            return;
+        }
+
+        state.modal.error = normalizeError(error);
+        state.modal.result = null;
+        state.modal.warnings = error.warnings ?? [];
+    } finally {
+        if (state.modal?.kind === 'generate-types') {
+            state.modal.loading = false;
+            emitChange();
+        }
+    }
+}
+
+export async function openGenerateTypesModal(tableName, target = 'typescript') {
+    const normalizedTableName = String(tableName ?? state.structure.selectedName ?? '').trim();
+    const normalizedTarget = TYPE_GENERATION_TARGETS.has(target) ? target : 'typescript';
+
+    if (!normalizedTableName) {
+        pushToast('Select a table before generating types.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind: 'generate-types',
+        tableName: normalizedTableName,
+        target: normalizedTarget,
+        options: getDefaultTypeGenerationOptions(normalizedTarget),
+        result: null,
+        warnings: [],
+        metadata: {},
+        loading: false,
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+    await refreshTypeGenerationPreview();
+}
+
+export async function updateGenerateTypesModal(field, value) {
+    if (state.modal?.kind !== 'generate-types') {
+        return;
+    }
+
+    if (field === 'target') {
+        const target = TYPE_GENERATION_TARGETS.has(value) ? value : 'typescript';
+        state.modal.target = target;
+        state.modal.options = normalizeTypeGenerationOptions(
+            {
+                ...state.modal.options,
+                propertyNaming: getDefaultTypeGenerationOptions(target).propertyNaming,
+            },
+            target,
+        );
+    } else if (field in state.modal.options) {
+        const booleanFields = new Set([
+            'includeComments',
+            'includeDefaultsAsComments',
+            'includeGeneratedColumns',
+            'includeHiddenColumns',
+            'exportDeclaration',
+        ]);
+        state.modal.options[field] = booleanFields.has(field) ? Boolean(value) : String(value ?? '');
+        state.modal.options = normalizeTypeGenerationOptions(state.modal.options, state.modal.target);
+    }
+
+    emitChange();
+    await refreshTypeGenerationPreview();
 }
 
 export function toggleStructureTablesPanel() {

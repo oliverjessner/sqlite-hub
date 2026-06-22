@@ -5,6 +5,7 @@ const { DataBrowserService } = require("./sqlite/dataBrowserService");
 const { ExportService } = require("./sqlite/exportService");
 const { getTableDetail } = require("./sqlite/introspection");
 const { SqlExecutor } = require("./sqlite/sqlExecutor");
+const { TypeGenerationService } = require("./typeGenerationService");
 
 function normalizeLookupValue(value, label) {
   const normalized = String(value ?? "").trim();
@@ -166,6 +167,7 @@ class DatabaseCommandService {
   constructor({ appStateStore, runtimeFactory } = {}) {
     this.appStateStore = appStateStore;
     this.runtimeFactory = runtimeFactory ?? ((connection, options) => this.createRuntime(connection, options));
+    this.typeGenerationService = new TypeGenerationService();
   }
 
   listDatabases() {
@@ -247,6 +249,18 @@ class DatabaseCommandService {
     const normalizedTableName = normalizeLookupValue(tableName, "Table name");
     return this.withDatabase(databaseReference, ({ runtime }) =>
       getTableDetail(runtime.db, normalizedTableName)
+    );
+  }
+
+  generateTableTypes(databaseReference, tableName, target, options = {}) {
+    const normalizedTableName = normalizeLookupValue(tableName, "Table name");
+    return this.withDatabase(databaseReference, ({ runtime }) =>
+      this.typeGenerationService.generateTypesFromDatabase(
+        runtime.db,
+        normalizedTableName,
+        target,
+        options
+      )
     );
   }
 

@@ -52,6 +52,20 @@ sqlite-hub --database:Billly --table:companies
 Table inspection prints metadata such as columns, primary keys, foreign keys,
 indexes, row count, and row identity strategy.
 
+Generate application types from a table schema:
+
+```bash
+sqlite-hub --database:Unit-00 --table:users --types:typescript
+sqlite-hub --database:Unit-00 --table:users --types:rust
+sqlite-hub --database:Unit-00 --table:users --types:typescript --json
+sqlite-hub --database:Unit-00 --table:users --types:typescript --output:User.ts
+```
+
+Aliases are available for common targets: `ts`, `rs`, and `kt`. Without
+`--output` or `--json`, the CLI writes only generated code to stdout so shell
+redirection works cleanly. Warnings are written to stderr. Use `--force` to
+overwrite an existing output file.
+
 ## SQL Editor
 
 Execute raw SQL through the same SQL Editor execution path used by the app:
@@ -166,6 +180,18 @@ sqlite-hub --database:Unit-00 --table:companies --export:0a754aba373d34972998792
 | `--database:name --documents:"document" --export`               | Export a document as Markdown                   |
 | `--database:name --table:"table"`                               | Print table metadata                            |
 | `--database:name --table:"table" --export:"pk"`                 | Export one row as JSON                          |
+| `--database:name --table:"table" --types:typescript\|ts\|rust\|rs\|kotlin\|kt\|swift` | Generate application types |
+| `--type-name:"name"`                                            | Override generated type name                    |
+| `--naming:preserve\|camel\|pascal\|snake`                       | Select property naming                          |
+| `--nullable:native\|optional`                                   | Select nullable handling                        |
+| `--comments`                                                    | Include schema comments                         |
+| `--defaults-as-comments`                                        | Include default values as comments              |
+| `--json-type:unknown\|record\|json-value`                       | Select TypeScript JSON mapping                  |
+| `--include-generated`                                           | Include generated columns                       |
+| `--include-hidden`                                              | Include hidden columns                          |
+| `--output:"file"`                                               | Write generated types to a file                 |
+| `--json`                                                        | Print generated type result as JSON             |
+| `--force`                                                       | Overwrite existing `--output` file              |
 
 Legacy aliases such as `--config`, `--database-path:name`,
 `--database-size:name`, `--database-lastopened:name`, `--database-tables:name`,

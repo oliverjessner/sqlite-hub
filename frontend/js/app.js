@@ -57,6 +57,7 @@ import {
     openDeleteSettingsApiTokenModal,
     openCreateBackupModal,
     openEditBackupModal,
+    openGenerateTypesModal,
     openDeleteBackupModal,
     openRestoreBackupModal,
     openDeleteQueryChartModal,
@@ -166,6 +167,7 @@ import {
     updateCurrentTableDesignerColumnField,
     updateCurrentTableDesignerConstraintField,
     updateCurrentTableDesignerField,
+    updateGenerateTypesModal,
     addCurrentTableDesignerColumn,
     applyCurrentMediaTaggingSelection,
     removeCurrentTableDesignerColumn,
@@ -2003,6 +2005,45 @@ function downloadTextFile({ text, filename, mimeType }) {
     URL.revokeObjectURL(url);
 }
 
+async function copyGeneratedTypes() {
+    const modal = getState().modal;
+    const code = modal?.kind === 'generate-types' ? String(modal.result?.code ?? '') : '';
+
+    if (!code) {
+        showToast('No generated code to copy.', 'alert');
+        return;
+    }
+
+    if (!navigator.clipboard?.writeText) {
+        showToast('Clipboard API is not available.', 'alert');
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(code);
+        showToast('Type definition copied to clipboard.', 'success');
+    } catch (error) {
+        showToast('Type definition could not be copied.', 'alert');
+    }
+}
+
+function downloadGeneratedTypes() {
+    const modal = getState().modal;
+    const result = modal?.kind === 'generate-types' ? modal.result : null;
+
+    if (!result?.code) {
+        showToast('No generated code to download.', 'alert');
+        return;
+    }
+
+    downloadTextFile({
+        text: result.code,
+        filename: result.fileName || 'types.txt',
+        mimeType: 'text/plain;charset=utf-8',
+    });
+    showToast('Type definition download started.', 'success');
+}
+
 function getSelectedDataBrowserRowForJson(state) {
     if (state.dataBrowser.selectedRow) {
         return state.dataBrowser.selectedRow;
@@ -2581,6 +2622,15 @@ async function handleAction(actionNode) {
             return;
         case 'open-table-in-sql-editor':
             await openTableInSqlEditor(actionNode.dataset.tableName);
+            return;
+        case 'open-generate-types-modal':
+            await openGenerateTypesModal(actionNode.dataset.tableName, actionNode.dataset.typeTarget);
+            return;
+        case 'copy-generated-types':
+            await copyGeneratedTypes();
+            return;
+        case 'download-generated-types':
+            downloadGeneratedTypes();
             return;
         case 'open-restore-backup-modal':
             openRestoreBackupModal(actionNode.dataset.backupId);
@@ -3227,6 +3277,15 @@ document.addEventListener('input', event => {
         return;
     }
 
+    if (bindNode.dataset.bind === 'type-generation-field') {
+        if (bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox') {
+            return;
+        }
+
+        void updateGenerateTypesModal(bindNode.dataset.typeGenerationField, bindNode.value);
+        return;
+    }
+
     if (bindNode.dataset.bind === 'copy-column-format-field') {
         updateCopyColumnModalFormatField(
             bindNode.dataset.field,
@@ -3395,6 +3454,13 @@ document.addEventListener('change', event => {
     const bindNode = event.target.closest('[data-bind]');
 
     if (!bindNode) {
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'type-generation-field') {
+        const nextValue =
+            bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox' ? bindNode.checked : bindNode.value;
+        void updateGenerateTypesModal(bindNode.dataset.typeGenerationField, nextValue);
         return;
     }
 

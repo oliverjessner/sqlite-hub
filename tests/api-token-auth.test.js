@@ -89,6 +89,26 @@ async function startApi(t) {
         },
       };
     },
+    generateTableTypes(databaseId, tableName, target, options = {}) {
+      serviceCalls.push(`${databaseId}:types:${tableName}:${target}:${options.propertyNaming ?? ""}`);
+      return {
+        target,
+        language: target,
+        tableName,
+        typeName: "Company",
+        fileName: "Company.ts",
+        code: "export interface Company {}",
+        warnings: ["SQLite uses dynamic typing."],
+        metadata: {
+          columnCount: 2,
+          generatedColumnCount: 0,
+          hiddenColumnCount: 0,
+          checkConstraintsFound: 0,
+          checkConstraintsApplied: 0,
+          checkConstraintsIgnored: 0,
+        },
+      };
+    },
   };
   const app = express();
 
@@ -256,6 +276,38 @@ test("query API rejects read-only raw SQL execution", async (t) => {
 
   assert.equal(response.status, 403);
   assert.equal(payload.error.code, "SQLITE_READONLY");
+});
+
+test("type generation API uses database token auth and returns warnings at top level", async (t) => {
+  const fixture = await startApi(t);
+  const created = fixture.tokenService.createToken(fixture.databaseA.id, "Automation");
+  const response = await fetch(
+    `${fixture.baseUrl}/databases/${fixture.databaseA.id}/tables/companies/types`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${created.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        target: "typescript",
+        options: {
+          propertyNaming: "camel",
+        },
+      }),
+    }
+  );
+  const payload = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(payload.message, "Types generated.");
+  assert.equal(payload.data.code, "export interface Company {}");
+  assert.equal(payload.data.warnings, undefined);
+  assert.deepEqual(payload.warnings, ["SQLite uses dynamic typing."]);
+  assert.equal(payload.metadata.columnCount, 2);
+  assert.deepEqual(fixture.serviceCalls, [
+    `${fixture.databaseA.id}:types:companies:typescript:camel`,
+  ]);
 });
 
 test("saved query API records executions as api", async (t) => {
