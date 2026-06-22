@@ -6,6 +6,27 @@ A focused local-first app for browsing, editing, and querying SQLite databases.
 
 SQLite Hub is built for developers and technical users who want a clean SQLite workflow without heavy database clients, cloud layers, or dashboard noise.
 
+## Install
+
+### Homebrew
+
+```bash
+brew tap oliverjessner/tap
+brew install sqlite-hub
+```
+
+### NPM
+
+```bash
+npm install -g sqlite-hub
+```
+
+## Alternative port
+
+```bash
+sqlite-hub --port:4174
+```
+
 ## Why SQLite Hub?
 
 Many database tools are powerful, but feel oversized when all you want is to inspect a local SQLite file, edit a few rows, and run a query fast.
@@ -192,27 +213,6 @@ The safety dialog lets you create the backup and continue, continue without crea
 ### Local-first
 
 Built around local SQLite files, not hosted dashboards or team complexity. The server binds explicitly to the IPv4 loopback interface, and API middleware rejects foreign hosts and cross-origin mutations while still allowing same-origin browser and local CLI requests.
-
-## Install
-
-### Homebrew
-
-```bash
-brew tap oliverjessner/tap
-brew install sqlite-hub
-```
-
-### NPM
-
-```bash
-npm install -g sqlite-hub
-```
-
-## Alternative port
-
-```bash
-sqlite-hub --port:4174
-```
 
 ## CLI
 

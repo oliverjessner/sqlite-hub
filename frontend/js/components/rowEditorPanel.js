@@ -176,6 +176,14 @@ function getFieldTimestampPreview(field = {}, tableMeta = {}) {
   });
 }
 
+function isNumberInputCompatibleValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return true;
+  }
+
+  return /^[-+]?(?:\d+|\d*\.\d+)(?:e[-+]?\d+)?$/i.test(String(value).trim());
+}
+
 function renderTimestampPreview(field = {}, tableMeta = {}) {
   const preview = getFieldTimestampPreview(field, tableMeta);
 
@@ -361,7 +369,9 @@ function renderEditableField(field, tableMeta = {}) {
   const baseBadges = withCheckBadge(Array.isArray(field.badges) ? field.badges : [], allowedValues);
   const badges = withEmailBadge(withFilePathBadge(withUrlBadge(baseBadges, url), filePathPreview), email);
   const jsonPreview = formatJsonPreview(field.value);
-  const inputType = field.inputType === "number" ? "number" : "text";
+  const canUseNumberInput =
+    field.inputType === "number" && isNumberInputCompatibleValue(getFieldRawValue(field));
+  const inputType = canUseNumberInput ? "number" : "text";
   const numberStep = field.numberStep === "1" ? "1" : "any";
   const valueState = getRowEditorValueState(getFieldRawValue(field));
 
