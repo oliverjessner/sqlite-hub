@@ -108,14 +108,17 @@ test("manual backup creates file, metadata, manifest, and survives connection re
   assert.equal(store.getBackup(backup.id).connectionId, null);
 });
 
-test("backup notes can be updated after creation and manifest stays in sync", async (t) => {
+test("backup details can be updated after creation and manifest stays in sync", async (t) => {
   const { backupService, connection, store } = createFixture(t);
 
   const backup = await backupService.createActiveBackup({
     name: "Before migration",
     notes: "Initial note",
   });
-  const updated = backupService.updateBackupNotes(backup.id, "Reviewed after restore test");
+  const updated = backupService.updateBackupDetails(backup.id, {
+    name: "Reviewed migration",
+    notes: "Reviewed after restore test",
+  });
   const manifestPath = path.join(
     backupService.backupRootDirectory,
     connection.id,
@@ -123,8 +126,11 @@ test("backup notes can be updated after creation and manifest stays in sync", as
   );
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 
+  assert.equal(updated.name, "Reviewed migration");
   assert.equal(updated.notes, "Reviewed after restore test");
+  assert.equal(store.getBackup(backup.id).name, "Reviewed migration");
   assert.equal(store.getBackup(backup.id).notes, "Reviewed after restore test");
+  assert.equal(manifest.backups[0].name, "Reviewed migration");
   assert.equal(manifest.backups[0].notes, "Reviewed after restore test");
 });
 

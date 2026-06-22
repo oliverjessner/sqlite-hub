@@ -63,7 +63,9 @@ test("backup manager renders backup rows with status and actions", async () => {
   assert.match(rendered, /v1\.1\.2/);
   assert.match(rendered, /SQLite/);
   assert.match(rendered, /v3\.50\.0/);
-  assert.match(rendered, /data-action="open-edit-backup-notes-modal"/);
+  assert.match(rendered, /PK \/\/ backup-one/);
+  assert.match(rendered, /data-action="open-edit-backup-modal"/);
+  assert.match(rendered, />\s*Edit\s*</);
   assert.match(rendered, /data-action="open-restore-backup-modal"/);
   assert.match(rendered, /data-action="download-backup"/);
   assert.match(rendered, /data-action="open-delete-backup-modal"/);
