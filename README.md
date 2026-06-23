@@ -256,7 +256,7 @@ rows as JSON, generating schema types, and working with Markdown documents. See 
 
 ## API
 
-SQLite Hub also provides a local JSON API for app info, database metadata, tables, saved queries, exports, documents, and schema type generation. `/api/v1/info` returns the same app/version status as `sqlite-hub --info`; database data is protected by database-specific API tokens created in Settings. See the [API documentation](./docs/API.md) for authentication, endpoints, and examples.
+SQLite Hub also provides a local JSON API for app info, database metadata, tables, saved queries, exports, documents, and schema type generation. `/api/v1/info` returns the same app/version status as `sqlite-hub --info`; database data is protected by database-specific API itokens created in Settings. See the [API documentation](./docs/API.md) for authentication, endpoints, and examples.
 
 ## Changelog
 
