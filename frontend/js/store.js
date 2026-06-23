@@ -868,6 +868,91 @@ function findDataBrowserRowIndexByIdentity(rows = [], identity) {
     return rows.findIndex(row => areRowIdentitiesEqual(row?.__identity, identity));
 }
 
+function coerceDataRouteIdentityValue(column, value) {
+    const text = String(value ?? '');
+    const affinity = String(column?.affinity ?? '').toUpperCase();
+
+    if (['INTEGER', 'REAL', 'NUMERIC'].includes(affinity) && text.trim() !== '') {
+        const numberValue = Number(text);
+
+        if (Number.isFinite(numberValue)) {
+            return numberValue;
+        }
+    }
+
+    return value;
+}
+
+function parseCompositeDataRoutePrimaryKey(rawValue) {
+    try {
+        const parsed = JSON.parse(rawValue);
+
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            return parsed;
+        }
+    } catch {
+        return null;
+    }
+
+    return null;
+}
+
+function buildDataRouteRowIdentity(table, rawPrimaryKey) {
+    const primaryKeyValue = String(rawPrimaryKey ?? '').trim();
+    const identityStrategy = table?.identityStrategy ?? null;
+
+    if (!primaryKeyValue || !identityStrategy) {
+        return null;
+    }
+
+    if (identityStrategy.type === 'rowid') {
+        const numberValue = Number(primaryKeyValue);
+
+        return {
+            kind: 'rowid',
+            values: {
+                rowid: Number.isInteger(numberValue) ? numberValue : primaryKeyValue,
+            },
+        };
+    }
+
+    if (identityStrategy.type !== 'primaryKey') {
+        return null;
+    }
+
+    const columns = identityStrategy.columns ?? [];
+
+    if (columns.length === 1) {
+        const columnName = columns[0];
+        const column = table?.columnMeta?.find(candidate => candidate.name === columnName);
+
+        return {
+            kind: 'primaryKey',
+            columns,
+            values: {
+                [columnName]: coerceDataRouteIdentityValue(column, primaryKeyValue),
+            },
+        };
+    }
+
+    const parsedValue = parseCompositeDataRoutePrimaryKey(primaryKeyValue);
+
+    if (!parsedValue || columns.some(columnName => !Object.prototype.hasOwnProperty.call(parsedValue, columnName))) {
+        return null;
+    }
+
+    return {
+        kind: 'primaryKey',
+        columns,
+        values: Object.fromEntries(
+            columns.map(columnName => {
+                const column = table?.columnMeta?.find(candidate => candidate.name === columnName);
+                return [columnName, coerceDataRouteIdentityValue(column, parsedValue[columnName])];
+            }),
+        ),
+    };
+}
+
 function clearDataBrowserRowSelectionState() {
     state.dataBrowser.selectedRowIndex = null;
     state.dataBrowser.selectedRow = null;
@@ -1960,8 +2045,9 @@ async function resolvePendingDataBrowserRow(version) {
     }
 }
 
-async function loadDataTable(version) {
+async function loadDataTable(version, options = {}) {
     const tableName = state.dataBrowser.selectedTable;
+    const routeRowPrimaryKey = options.rowPrimaryKey ?? null;
     const pageSize = normalizeDataPageSize(state.dataBrowser.pageSize, DEFAULT_DATA_PAGE_SIZE);
     const page = Math.max(1, Number(state.dataBrowser.page) || 1);
     const sortColumn = state.dataBrowser.sortColumn;
@@ -2015,6 +2101,15 @@ async function loadDataTable(version) {
             state.dataBrowser.searchColumn,
         );
         clearDataBrowserRowSelectionState();
+        const routeRowIdentity = buildDataRouteRowIdentity(state.dataBrowser.table, routeRowPrimaryKey);
+        if (routeRowPrimaryKey !== null && routeRowPrimaryKey !== undefined) {
+            state.dataBrowser.pendingOpenRow = routeRowIdentity
+                ? {
+                      tableName,
+                      identity: routeRowIdentity,
+                  }
+                : null;
+        }
         await resolvePendingDataBrowserRow(version);
     } catch (error) {
         if (version !== routeLoadVersion) {
@@ -2075,7 +2170,9 @@ async function loadData(version, route) {
             return;
         }
 
-        await loadDataTable(version);
+        await loadDataTable(version, {
+            rowPrimaryKey: route.params?.rowPrimaryKey ?? null,
+        });
     } catch (error) {
         if (version !== routeLoadVersion) {
             return;

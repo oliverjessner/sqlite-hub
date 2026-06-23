@@ -1,8 +1,29 @@
+function decodeRouteValue(value) {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
+}
+
 export function parseHash(hash = window.location.hash) {
     const normalized = hash.startsWith('#') ? hash.slice(1) : hash;
-    const [pathname = '/'] = normalized.split('?');
+    const queryIndex = normalized.indexOf('?');
+    const pathWithFragment = queryIndex >= 0 ? normalized.slice(0, queryIndex) : normalized;
+    const queryWithFragment = queryIndex >= 0 ? normalized.slice(queryIndex + 1) : '';
+    const pathFragmentIndex = pathWithFragment.indexOf('#');
+    const queryFragmentIndex = queryWithFragment.indexOf('#');
+    const pathname =
+        pathFragmentIndex >= 0 ? pathWithFragment.slice(0, pathFragmentIndex) : pathWithFragment || '/';
+    const routeFragment =
+        pathFragmentIndex >= 0
+            ? pathWithFragment.slice(pathFragmentIndex + 1)
+            : queryFragmentIndex >= 0
+              ? queryWithFragment.slice(queryFragmentIndex + 1)
+              : null;
     const cleanPath = pathname || '/';
     const segments = cleanPath.split('/').filter(Boolean);
+    const decodedRouteFragment = routeFragment ? decodeRouteValue(routeFragment) : null;
 
     if (segments.length === 0) {
         return { name: 'landing', path: '/', params: {} };
@@ -20,7 +41,7 @@ export function parseHash(hash = window.location.hash) {
                 name: 'charts',
                 path: cleanPath,
                 params: {
-                    historyId: segments[1] ? decodeURIComponent(segments[1]) : null,
+                    historyId: segments[1] ? decodeRouteValue(segments[1]) : null,
                 },
             };
         case 'documents':
@@ -28,7 +49,7 @@ export function parseHash(hash = window.location.hash) {
                 name: 'documents',
                 path: cleanPath,
                 params: {
-                    documentId: segments[1] ? decodeURIComponent(segments[1]) : null,
+                    documentId: segments[1] ? decodeRouteValue(segments[1]) : null,
                 },
             };
         case 'editor':
@@ -42,7 +63,8 @@ export function parseHash(hash = window.location.hash) {
                 name: 'data',
                 path: cleanPath,
                 params: {
-                    tableName: segments[1] ? decodeURIComponent(segments[1]) : null,
+                    tableName: segments[1] ? decodeRouteValue(segments[1]) : null,
+                    rowPrimaryKey: decodedRouteFragment,
                 },
             };
         case 'structure':
@@ -50,7 +72,7 @@ export function parseHash(hash = window.location.hash) {
                 name: 'structure',
                 path: cleanPath,
                 params: {
-                    tableName: segments[1] ? decodeURIComponent(segments[1]) : null,
+                    tableName: segments[1] ? decodeRouteValue(segments[1]) : null,
                 },
             };
         case 'table-designer':
@@ -59,7 +81,7 @@ export function parseHash(hash = window.location.hash) {
                 path: cleanPath,
                 params: {
                     isNew: segments[1] === 'new',
-                    tableName: segments[1] && segments[1] !== 'new' ? decodeURIComponent(segments[1]) : null,
+                    tableName: segments[1] && segments[1] !== 'new' ? decodeRouteValue(segments[1]) : null,
                 },
             };
         case 'media-tagging':

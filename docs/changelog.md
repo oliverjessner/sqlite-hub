@@ -4,6 +4,7 @@
 - UX Audit from @corneliakocher
 - edit name and notes for backup
 - generate types from schema to typescript, kotlin, rust, swift
+- open row editor drawer with id hash http://127.0.0.1:4180/#/data#14a06a1ffa23e08ae86becec0c5d8b38
 
 # v1.1.2
 
