@@ -15,7 +15,8 @@
         "start": "node bin/sqlite-hub.js",
         "dev": "node --watch server/server.js --port:4180",
         "prepack": "npm run build:css",
-        "publish": "bash scripts/publish_brew.sh && sleep 10 && npm login --auth-type=web && bash scripts/publish_npm.sh"
+        "publish": "bash scripts/publish_brew.sh && sleep 10 && npm login --auth-type=web && bash scripts/publish_npm.sh",
+        "screenshots": "node scripts/screenshot_sqlite_hub.js --width:1920 --height:1280"
     },
     "dependencies": {
         "better-sqlite3": "^12.10.1",
