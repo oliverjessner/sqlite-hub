@@ -139,11 +139,6 @@ function renderObjectInspector(detail) {
               `
                 : ''
         }
-        ${
-            detail.type === 'table'
-                ? renderGenerateTypesDropdown(detail.name)
-                : ''
-        }
       </div>
 
       <div class="structure-graph__summary">
@@ -257,6 +252,10 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
                       key: 'sql-editor',
                   },
               ],
+          })}
+          ${renderGenerateTypesDropdown({
+              selectedTableName: selectedGraphTable?.name ?? '',
+              hasTables: Boolean(graph.tables?.length),
           })}
           ${renderDropdownButton({
               icon: 'format_shapes',

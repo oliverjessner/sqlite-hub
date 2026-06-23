@@ -565,13 +565,18 @@ function renderTypeGenerationCodePreview(code) {
 export function renderGenerateTypesForm(modal) {
     const options = modal.options ?? {};
     const result = modal.result ?? {};
-    const warnings = modal.warnings ?? [];
     const target = modal.target ?? 'typescript';
+    const isAllTables = modal.scope === 'all';
+    const fileCount = result.files?.length ?? modal.tableNames?.length ?? 0;
+    const subjectLabel = isAllTables
+        ? `all ${fileCount || ''} tables`.replace(/\s+/g, ' ').trim()
+        : `the schema of "${modal.tableName ?? ''}"`;
+    const downloadLabel = result.files?.length ? 'Download Files' : 'Download';
 
     return `
     <div class="space-y-5">
       <p class="text-sm leading-6 text-on-surface-variant/70">
-        Generate application types from the schema of "${escapeHtml(modal.tableName ?? '')}".
+        Generate application types from ${escapeHtml(subjectLabel)}.
       </p>
       <div class="grid gap-5 xl:grid-cols-[24rem_minmax(0,1fr)]">
         <div class="min-w-0 space-y-4">
@@ -652,21 +657,21 @@ export function renderGenerateTypesForm(modal) {
               ${escapeHtml(result.fileName ?? '')}
             </div>
           </div>
-          <pre class="type-generation-code-preview custom-scrollbar border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 font-mono text-xs leading-6 text-on-surface"><code>${renderTypeGenerationCodePreview(
-              modal.loading ? 'Generating...' : result.code ?? '',
-          )}</code></pre>
           ${
-              warnings.length
-                  ? `<div class="space-y-2">${warnings
+              result.files?.length
+                  ? `<div class="flex flex-wrap gap-2">${result.files
                         .map(
-                            warning =>
-                                `<div class="border border-primary-container/15 bg-primary-container/10 px-3 py-2 text-xs leading-5 text-on-surface-variant/80">${escapeHtml(
-                                    warning,
-                                )}</div>`,
+                            file =>
+                                `<span class="border border-outline-variant/20 bg-surface-highest px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-on-surface-variant/70">${escapeHtml(
+                                    file.fileName ?? file.tableName ?? 'types',
+                                )}</span>`,
                         )
                         .join('')}</div>`
                   : ''
           }
+          <pre class="type-generation-code-preview custom-scrollbar border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 font-mono text-xs leading-6 text-on-surface"><code>${renderTypeGenerationCodePreview(
+              modal.loading ? 'Generating...' : result.code ?? '',
+          )}</code></pre>
           ${renderError(modal.error)}
         </div>
       </div>
@@ -683,7 +688,7 @@ export function renderGenerateTypesForm(modal) {
               result.code ? '' : 'disabled'
           }>
             <span class="material-symbols-outlined text-sm">download</span>
-            Download
+            ${escapeHtml(downloadLabel)}
           </button>
         </div>
       </div>
@@ -2090,7 +2095,7 @@ export function renderModal(state) {
 
     return `
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-4 backdrop-blur-sm">
-      <div class="w-full ${
+      <div class="app-modal-shell w-full ${
           modal.kind === 'chart-editor' ||
           modal.kind === 'document-insert-table' ||
           modal.kind === 'document-insert-note' ||
@@ -2105,7 +2110,7 @@ export function renderModal(state) {
                 ? 'max-w-4xl'
                 : 'max-w-xl'
       } border border-outline-variant/20 bg-surface-container shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
-        <div class="flex items-start justify-between gap-4 border-b border-outline-variant/10 bg-surface-container-low px-6 py-5">
+        <div class="shrink-0 flex items-start justify-between gap-4 border-b border-outline-variant/10 bg-surface-container-low px-6 py-5">
           <div>
             <div class="text-[10px] font-mono uppercase tracking-[0.26em] text-primary-container/70">
               ${escapeHtml(config.eyebrow)}
@@ -2122,7 +2127,7 @@ export function renderModal(state) {
             <span class="material-symbols-outlined">close</span>
           </button>
         </div>
-        <div class="space-y-5 px-6 py-6">${config.body}</div>
+        <div class="app-modal-body custom-scrollbar space-y-5 px-6 py-6">${config.body}</div>
       </div>
     </div>
   `;

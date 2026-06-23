@@ -4551,6 +4551,33 @@ function normalizeTypeGenerationOptions(options = {}, target = 'typescript') {
     };
 }
 
+function getStructureTableNames() {
+    return (state.structure.data?.grouped?.tables ?? [])
+        .filter(table => table?.type === 'table')
+        .map(table => String(table.name ?? '').trim())
+        .filter(Boolean);
+}
+
+function getTypeGenerationRequestOptions(modal) {
+    const options = { ...modal.options };
+
+    if (!String(options.typeName ?? '').trim()) {
+        delete options.typeName;
+    }
+
+    if (modal.target !== 'typescript') {
+        delete options.jsonType;
+    }
+
+    return options;
+}
+
+function combineGeneratedTypeFiles(files = []) {
+    return files
+        .map(file => [`// ${file.fileName}`, file.code].filter(Boolean).join('\n'))
+        .join('\n\n');
+}
+
 async function refreshTypeGenerationPreview() {
     const modal = state.modal;
 
@@ -4558,35 +4585,64 @@ async function refreshTypeGenerationPreview() {
         return;
     }
 
+    const requestId = (modal.previewRequestId ?? 0) + 1;
+    modal.previewRequestId = requestId;
     modal.loading = true;
     modal.error = null;
     emitChange();
 
     try {
-        const options = { ...modal.options };
+        const options = getTypeGenerationRequestOptions(modal);
+        const isAllTables = modal.scope === 'all';
+        const tableNames = isAllTables ? modal.tableNames : [modal.tableName];
 
-        if (!String(options.typeName ?? '').trim()) {
-            delete options.typeName;
+        if (!tableNames.length) {
+            throw new Error('No tables available for type generation.');
         }
 
-        if (modal.target !== 'typescript') {
-            delete options.jsonType;
-        }
+        const responses = await Promise.all(
+            tableNames.map(async tableName => {
+                const response = await api.generateStructureTypes(tableName, {
+                    target: modal.target,
+                    options,
+                });
 
-        const response = await api.generateStructureTypes(modal.tableName, {
-            target: modal.target,
-            options,
-        });
+                return {
+                    ...response.data,
+                    tableName,
+                    warnings: response.warnings ?? [],
+                    metadata: response.metadata ?? {},
+                };
+            }),
+        );
 
-        if (state.modal?.kind !== 'generate-types') {
+        if (state.modal?.kind !== 'generate-types' || state.modal.previewRequestId !== requestId) {
             return;
         }
 
-        state.modal.result = response.data;
-        state.modal.warnings = response.warnings ?? [];
-        state.modal.metadata = response.metadata ?? {};
+        if (isAllTables) {
+            state.modal.result = {
+                scope: 'all',
+                target: modal.target,
+                fileName: `${responses.length} files`,
+                files: responses,
+                code: combineGeneratedTypeFiles(responses),
+            };
+            state.modal.warnings = responses.flatMap(file =>
+                (file.warnings ?? []).map(warning => `${file.tableName}: ${warning}`),
+            );
+            state.modal.metadata = {
+                fileCount: responses.length,
+                columnCount: responses.reduce((count, file) => count + Number(file.metadata?.columnCount ?? 0), 0),
+            };
+        } else {
+            const [response] = responses;
+            state.modal.result = response;
+            state.modal.warnings = response.warnings ?? [];
+            state.modal.metadata = response.metadata ?? {};
+        }
     } catch (error) {
-        if (state.modal?.kind !== 'generate-types') {
+        if (state.modal?.kind !== 'generate-types' || state.modal.previewRequestId !== requestId) {
             return;
         }
 
@@ -4594,25 +4650,34 @@ async function refreshTypeGenerationPreview() {
         state.modal.result = null;
         state.modal.warnings = error.warnings ?? [];
     } finally {
-        if (state.modal?.kind === 'generate-types') {
+        if (state.modal?.kind === 'generate-types' && state.modal.previewRequestId === requestId) {
             state.modal.loading = false;
             emitChange();
         }
     }
 }
 
-export async function openGenerateTypesModal(tableName, target = 'typescript') {
-    const normalizedTableName = String(tableName ?? state.structure.selectedName ?? '').trim();
+export async function openGenerateTypesModal(tableName, target = 'typescript', scope = 'selected') {
     const normalizedTarget = TYPE_GENERATION_TARGETS.has(target) ? target : 'typescript';
+    const normalizedScope = scope === 'all' ? 'all' : 'selected';
+    const tableNames = getStructureTableNames();
+    const normalizedTableName = String(tableName ?? state.structure.selectedName ?? '').trim();
 
-    if (!normalizedTableName) {
+    if (normalizedScope === 'all' && !tableNames.length) {
+        pushToast('No tables available for type generation.', 'alert');
+        return;
+    }
+
+    if (normalizedScope === 'selected' && !normalizedTableName) {
         pushToast('Select a table before generating types.', 'alert');
         return;
     }
 
     state.modal = {
         kind: 'generate-types',
-        tableName: normalizedTableName,
+        scope: normalizedScope,
+        tableName: normalizedScope === 'all' ? '' : normalizedTableName,
+        tableNames: normalizedScope === 'all' ? tableNames : [],
         target: normalizedTarget,
         options: getDefaultTypeGenerationOptions(normalizedTarget),
         result: null,

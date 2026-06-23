@@ -2021,15 +2021,38 @@ async function copyGeneratedTypes() {
 
     try {
         await navigator.clipboard.writeText(code);
-        showToast('Type definition copied to clipboard.', 'success');
+        showToast(
+            modal.result?.files?.length ? 'Type definitions copied to clipboard.' : 'Type definition copied to clipboard.',
+            'success',
+        );
     } catch (error) {
-        showToast('Type definition could not be copied.', 'alert');
+        showToast(
+            modal.result?.files?.length
+                ? 'Type definitions could not be copied.'
+                : 'Type definition could not be copied.',
+            'alert',
+        );
     }
 }
 
 function downloadGeneratedTypes() {
     const modal = getState().modal;
     const result = modal?.kind === 'generate-types' ? modal.result : null;
+    const files = result?.files ?? [];
+
+    if (files.length) {
+        files.forEach((file, index) => {
+            window.setTimeout(() => {
+                downloadTextFile({
+                    text: file.code,
+                    filename: file.fileName || `${file.tableName || 'types'}.txt`,
+                    mimeType: 'text/plain;charset=utf-8',
+                });
+            }, index * 120);
+        });
+        showToast(`${files.length} type definition downloads started.`, 'success');
+        return;
+    }
 
     if (!result?.code) {
         showToast('No generated code to download.', 'alert');
@@ -2624,7 +2647,7 @@ async function handleAction(actionNode) {
             await openTableInSqlEditor(actionNode.dataset.tableName);
             return;
         case 'open-generate-types-modal':
-            await openGenerateTypesModal(actionNode.dataset.tableName, actionNode.dataset.typeTarget);
+            await openGenerateTypesModal(actionNode.dataset.tableName, actionNode.dataset.typeTarget, actionNode.dataset.typeScope);
             return;
         case 'copy-generated-types':
             await copyGeneratedTypes();

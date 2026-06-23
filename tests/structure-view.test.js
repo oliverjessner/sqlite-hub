@@ -59,7 +59,7 @@ test("structure toolbar groups graph format actions in a dropdown", async () => 
   assert.match(main, /data-structure-graph-action="clear"/);
 });
 
-test("structure inspector exposes generate types for selected tables", async () => {
+test("structure toolbar exposes generate types scope actions", async () => {
   const { renderStructureView } = await loadStructureViewModule();
   const state = buildStructureState();
   state.structure.detail = {
@@ -75,10 +75,10 @@ test("structure inspector exposes generate types for selected tables", async () 
   const { main } = renderStructureView(state);
 
   assert.match(main, /Generate Types/);
+  assert.match(main, /Selected table/);
+  assert.match(main, /All tables/);
   assert.match(main, /data-action="open-generate-types-modal"/);
   assert.match(main, /data-table-name="companies"/);
-  assert.match(main, /data-type-target="typescript"/);
-  assert.match(main, /data-type-target="rust"/);
-  assert.match(main, /data-type-target="kotlin"/);
-  assert.match(main, /data-type-target="swift"/);
+  assert.match(main, /data-type-scope="selected"/);
+  assert.match(main, /data-type-scope="all"/);
 });

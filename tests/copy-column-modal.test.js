@@ -102,6 +102,49 @@ test("generate types modal renders left settings, right code preview, and stacke
     "utf8"
   );
   assert.match(css, /\.type-generation-code-preview\s*\{[\s\S]*overflow-y: scroll;/);
+  assert.match(css, /\.app-modal-shell\s*\{[\s\S]*max-height: calc\(100dvh - var\(--spacing-8\)\);/);
+  assert.match(css, /\.app-modal-body\s*\{[\s\S]*overflow-y: auto;/);
+});
+
+test("generate types modal renders all-table file badges and download label", async () => {
+  const { renderGenerateTypesForm } = await loadModalModule();
+  const html = renderGenerateTypesForm({
+    kind: "generate-types",
+    scope: "all",
+    tableNames: ["users", "accounts"],
+    target: "typescript",
+    options: {
+      exportDeclaration: true,
+      includeDefaultsAsComments: false,
+      includeGeneratedColumns: true,
+      includeHiddenColumns: false,
+      nullableMode: "native",
+      propertyNaming: "camel",
+      jsonType: "unknown",
+    },
+    result: {
+      fileName: "2 files",
+      code: "// User.ts\nexport interface User {}\n\n// Account.ts\nexport interface Account {}",
+      files: [
+        { tableName: "users", fileName: "User.ts", code: "export interface User {}" },
+        { tableName: "accounts", fileName: "Account.ts", code: "export interface Account {}" },
+      ],
+    },
+    warnings: [
+      "users: SQLite uses dynamic typing. Generated types are based on declared column types and schema constraints.",
+      "accounts: warning two",
+    ],
+    loading: false,
+    error: null,
+  });
+
+  assert.match(html, /Generate application types from all 2 tables\./);
+  assert.match(html, /User\.ts/);
+  assert.match(html, /Account\.ts/);
+  assert.match(html, /Download Files/);
+  assert.doesNotMatch(html, /type-generation-warning-list/);
+  assert.doesNotMatch(html, /SQLite uses dynamic typing/);
+  assert.doesNotMatch(html, /accounts: warning two/);
 });
 
 test("modal footer close buttons are not right-aligned", () => {

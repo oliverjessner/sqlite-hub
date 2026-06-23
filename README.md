@@ -84,7 +84,7 @@ Inspect tables, views, indexes, triggers, columns, declared types, primary keys,
 
 ### Generate Types
 
-Generate application types directly from a selected table schema in the Structure inspector. The `Generate Types` dropdown supports TypeScript, Rust, Kotlin, and Swift, then opens a preview modal where you can adjust property naming, nullable handling, JSON typing, default-value comments, generated columns, and hidden columns before copying or downloading the generated code.
+Generate application types directly from the Structure toolbar for the selected table or for every table in the database. The `Generate Types` dropdown lets you choose `Selected table` or `All tables`; the preview modal supports TypeScript, Rust, Kotlin, and Swift, then lets you adjust property naming, nullable handling, JSON typing, default-value comments, generated columns, and hidden columns before copying or downloading the generated code. When all tables are selected, SQLite Hub creates one generated file per table.
 
 Type generation uses SQLite's declared column types plus schema constraints such as primary keys, foreign keys, `NOT NULL`, generated columns, defaults, and simple `CHECK (... IN (...))` value sets. SQLite remains dynamically typed, so the preview also surfaces warnings when a column has an unknown declared type or when a constraint cannot be safely converted into a static type. The same generator is available through the CLI and local API for automation.
 
