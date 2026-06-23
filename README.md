@@ -54,35 +54,11 @@ SQLite Hub keeps that workflow sharp:
 
 ## Features
 
-### Connections
-
-[![SQLite Hub connections](./frontend/assets/mockups/connections_1_1920.webp)](./frontend/assets/mockups/connections_1_1920.webp)
-
-Open an existing SQLite file with a native file picker or create a new database with a native save dialog from the Connections view. Manual absolute-path entry remains available as a fallback for both actions.
-
-Recent connections show file size, modification time, last-opened time, and access mode. Connections can be activated, relabeled, moved to another path, opened read-only, assigned a PNG/JPG/WEBP icon, reset to the default icon, or removed from the recent-connections registry without deleting the database file.
-
-<p>
-  <a href="./frontend/assets/mockups/connections_2_create_connection_modal_1920.webp"><img src="./frontend/assets/mockups/connections_2_create_connection_modal_1920.webp" alt="SQLite Hub create connection modal" width="49%"></a>
-  <a href="./frontend/assets/mockups/connections_3_open_connection_modal_1920.webp"><img src="./frontend/assets/mockups/connections_3_open_connection_modal_1920.webp" alt="SQLite Hub open connection modal" width="49%"></a>
-</p>
-
-### Overview
-
-The database overview combines operational and schema information for the active database:
-
-- file size, page count, table/view counts, index/trigger counts, journal mode, and foreign-key status
-- largest tables by row count and estimated size
-- database path, modification time, SQLite version, page size, freelist count, and encoding
-- schema-map statistics for foreign-key links, connected clusters, and isolated tables
-- integrity and quick-check results, access mode, user version, and schema version
-- shortcuts to the SQL Editor, Structure view, and the database location in Finder
-
 ### Structure view
 
 [![SQLite Hub relationship graph](./frontend/assets/mockups/structure_1_1920.webp)](./frontend/assets/mockups/structure_1_1920.webp)
 
-Inspect tables, views, indexes, triggers, columns, declared types, primary keys, nullability, foreign keys, and DDL without losing pace. The searchable object list and relationship graph support fit, relayout, selection clearing, direct navigation to table data, and a hideable inspector/sidebar. Clicking a relationship edge opens a join preview with the mapped columns and a copyable SQL `JOIN` snippet. SQLite Hub remembers the last selected table while you move between views, and DDL can be copied directly from the inspector.
+Inspect tables, views, indexes, triggers, columns, declared types, primary keys, nullability, foreign keys, and DDL without losing pace. The searchable object list and relationship graph support fit, relayout, selection clearing, direct navigation to table data, and a hideable inspector/sidebar. Clicking a relationship edge opens a join preview with the mapped columns and a copyable SQL `JOIN` snippet.
 
 ### Generate Types
 
@@ -91,15 +67,19 @@ Inspect tables, views, indexes, triggers, columns, declared types, primary keys,
   <a href="./frontend/assets/mockups/structure_3_generate_types_modal_1920.webp"><img src="./frontend/assets/mockups/structure_3_generate_types_modal_1920.webp" alt="SQLite Hub generate types for all tables" width="49%"></a>
 </p>
 
-Generate application types directly from the Structure toolbar for the selected table or for every table in the database. The `Generate Types` dropdown lets you choose `Selected table` or `All tables`; the preview modal supports TypeScript, Rust, Kotlin, and Swift, then lets you adjust property naming, nullable handling, JSON typing, default-value comments, generated columns, and hidden columns before copying or downloading the generated code. When all tables are selected, SQLite Hub creates one generated file per table.
+Generate application types directly from the Structure toolbar for the selected table or for every table in the database. The `Generate Types` dropdown lets you choose `Selected table` or `All tables`; the preview modal supports TypeScript, Rust, Kotlin, and Swift. When all tables are selected, SQLite Hub creates one generated file per table.
 
-Type generation uses SQLite's declared column types plus schema constraints such as primary keys, foreign keys, `NOT NULL`, generated columns, defaults, and simple `CHECK (... IN (...))` value sets. SQLite remains dynamically typed, so the preview also surfaces warnings when a column has an unknown declared type or when a constraint cannot be safely converted into a static type. The same generator is available through the CLI and local API for automation.
+Type generation uses SQLite's declared column types plus schema constraints such as primary keys, foreign keys, `NOT NULL`, generated columns, defaults, and simple `CHECK (... IN (...))` value sets.
+
+The same generator is available through the [CLI](./docs/CLI.md) and [local API](./docs/API.md) for automation.
 
 ### Data browser
 
 [![SQLite Hub data browser](./frontend/assets/mockups/data_1_1920.webp)](./frontend/assets/mockups/data_1_1920.webp)
 
-Scan rows, sort columns, move through local data quickly, and export full tables as CSV, TSV, Markdown, JSON, or Parquet. The Data browser also supports duplicating exports as a new table, searchable and hideable table navigation, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching.
+Scan rows, sort columns, move through local data quickly, and export full tables as CSV, TSV, Markdown, JSON, or Parquet.
+
+The Data browser also supports duplicating exports as a new table, searchable and hideable table navigation, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching.
 
 Wide tables keep their horizontal scroll position when sorting causes the grid to re-render. Cells use compact previews for long values, BLOBs, and detected file paths, while exports retain complete BLOB content.
 
@@ -126,9 +106,9 @@ The Row Editor adds contextual previews without changing the stored raw value:
 
 [![SQLite Hub SQL editor](./frontend/assets/mockups/sql_editor_1_1920.webp)](./frontend/assets/mockups/sql_editor_1_1920.webp)
 
-Write queries in a syntax-highlighted editor, execute them with the Run button or `Shift + Enter`, format SQL with the editor Format button, inspect results in the same workflow, and export result sets as CSV, TSV, Markdown, JSON, Parquet, or duplicate them as a table. Query drafts survive reloads, query history can be searched and saved, and direct single-table `SELECT` results can be edited or deleted from the result grid when a stable row identity is available.
+Write queries in a syntax-highlighted editor, execute them with the Run button or `Shift + Enter`, format SQL with the editor Format button, inspect results in the same workflow, and export result sets as CSV, TSV, Markdown, JSON, Parquet, or duplicate them as a table.
 
-Interactive result sets are limited to the first 5,000 rows to keep the application responsive. A visible notice and Messages entry indicate truncation; CSV, TSV, Markdown, JSON, Parquet, and duplicate-table exports execute without that interactive row limit and include complete BLOB values. Sorting wide results preserves the horizontal scroll position.
+Query drafts survive reloads, query history can be searched and saved, and direct single-table `SELECT` results can be edited or deleted from the result grid when a stable row identity is available.
 
 [![SQLite Hub query export](./frontend/assets/mockups/sql_editor_3_query_export_modal_1920.webp)](./frontend/assets/mockups/sql_editor_3_query_export_modal_1920.webp)
 
@@ -140,7 +120,9 @@ The bottom panel keeps separate tabs for:
 - Performance, including execution time, statement count, returned rows, affected rows, and serialized result memory size
 - Messages, including the executed query and statement updates/errors
 
-Potentially destructive statements are tracked in query history, and SQLite Hub keeps the active result tab instead of forcing you back to Results after every execution. Multi-statement SQL is reported statement by statement, including returned rows, affected rows, truncation warnings, executed SQL, errors, timing, and serialized result size.
+Potentially destructive statements are tracked in query history, and SQLite Hub keeps the active result tab instead of forcing you back to Results after every execution.
+
+Multi-statement SQL is reported statement by statement, including returned rows, affected rows, truncation warnings, executed SQL, errors, timing, and serialized result size.
 
 ### Query history
 
@@ -152,7 +134,7 @@ SQLite Hub stores query history per database. You can browse recent and saved ta
 
 [![SQLite Hub Markdown documents](./frontend/assets/mockups/documents_1_1920.webp)](./frontend/assets/mockups/documents_1_1920.webp)
 
-Documents are local Markdown notes scoped to the active database. SQLite Hub creates a document folder per database, keeps the sidebar fixed while the editor and preview panes scroll independently, and autosaves changes after a short debounce. You can create, rename, delete, import `.md` files, export the current document as Markdown, and toggle the editor or preview pane as needed.
+Documents are local Markdown notes scoped to the active database. SQLite Hub creates a document folder per database. You can import `.md` files, export the current document as Markdown.
 
 The preview supports regular Markdown, ordered and unordered lists, tables, code blocks, links, and clickable task-list checkboxes. Documents can also pull context from saved SQL Editor queries:
 
@@ -208,19 +190,11 @@ The queue supports tag search, tag creation/removal, parent tags, copying tags f
 
 [![SQLite Hub tagging queue](./frontend/assets/mockups/media_tagging_queue_1_1920.webp)](./frontend/assets/mockups/media_tagging_queue_1_1920.webp)
 
-### UI preferences
-
-SQLite Hub remembers common workspace preferences in local storage, including hidden panels, selected editor tabs, query drafts, chart panels, table row size, and Table Designer preview visibility.
-
 ### Settings
 
 [![SQLite Hub settings](./frontend/assets/mockups/settings_1_1920.webp)](./frontend/assets/mockups/settings_1_1920.webp)
 
-The Settings view reports the installed SQLite Hub version and the actual SQLite runtime version used to execute queries. It also keeps the custom-port CLI command, project website, and source repository available in the application.
-
-### Database quick picks
-
-The active database footer in the sidebar opens a quick-pick panel with the five most recent databases, so you can switch databases without going back to the Connections view.
+The Settings view reports the installed SQLite Hub version and the actual SQLite runtime version used to execute queries.
 
 ### Backup Manager
 
@@ -245,6 +219,28 @@ The safety dialog lets you create the backup and continue, continue without crea
 <p>
   <a href="./frontend/assets/mockups/backups_4_restore_backup_modal_1920.webp"><img src="./frontend/assets/mockups/backups_4_restore_backup_modal_1920.webp" alt="SQLite Hub restore backup modal" width="49%"></a>
   <a href="./frontend/assets/mockups/backups_5_delete_backup_modal_1920.webp"><img src="./frontend/assets/mockups/backups_5_delete_backup_modal_1920.webp" alt="SQLite Hub delete backup modal" width="49%"></a>
+</p>
+
+### Overview
+
+The database overview combines operational and schema information for the active database:
+
+- file size, page count, table/view counts, index/trigger counts, journal mode, and foreign-key status
+- largest tables by row count and estimated size
+- database path, modification time, SQLite version, page size, freelist count, and encoding
+- schema-map statistics for foreign-key links, connected clusters, and isolated tables
+- integrity and quick-check results, access mode, user version, and schema version
+- shortcuts to the SQL Editor, Structure view, and the database location in Finder
+
+### Connections
+
+[![SQLite Hub connections](./frontend/assets/mockups/connections_1_1920.webp)](./frontend/assets/mockups/connections_1_1920.webp)
+
+Recent connections show file size, modification time, last-opened time, and access mode. Connections can be activated, relabeled, moved to another path, opened read-only, assigned a PNG/JPG/WEBP icon, reset to the default icon, or removed from the recent-connections registry without deleting the database file.
+
+<p>
+  <a href="./frontend/assets/mockups/connections_2_create_connection_modal_1920.webp"><img src="./frontend/assets/mockups/connections_2_create_connection_modal_1920.webp" alt="SQLite Hub create connection modal" width="49%"></a>
+  <a href="./frontend/assets/mockups/connections_3_open_connection_modal_1920.webp"><img src="./frontend/assets/mockups/connections_3_open_connection_modal_1920.webp" alt="SQLite Hub open connection modal" width="49%"></a>
 </p>
 
 ### Local-first
