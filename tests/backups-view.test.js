@@ -161,9 +161,13 @@ test("backup manager renders compare results in the right drawer", async () => {
   assert.match(rendered.panel, /Backup Compare/);
   assert.match(rendered.panel, /Before migration/);
   assert.match(rendered.panel, /Customers/);
+  assert.doesNotMatch(rendered.panel, />\s*Base\s*</);
   assert.match(rendered.panel, /data-action="close-backup-diff-drawer"/);
   assert.match(rendered.panel, /query-history-icon-button/);
   assert.match(rendered.panel, /Schema changes/);
+  assert.match(rendered.panel, /mt-5 flex flex-col items-start gap-2/);
+  assert.match(rendered.panel, /charts-height-toggle/);
+  assert.match(rendered.panel, /standard-button charts-height-toggle__button/);
   assert.match(rendered.panel, /data-action="set-backup-diff-tab"/);
   assert.match(rendered.panel, /data-tab="schema"/);
   assert.match(rendered.panel, /data-tab="data"/);

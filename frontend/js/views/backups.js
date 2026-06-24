@@ -251,27 +251,27 @@ function renderBackupDiffSummary(summary = {}) {
 
 function renderBackupDiffTabs(activeTab) {
     return `
-    <div class="mt-5 flex flex-wrap items-center gap-2">
-      <button
-        class="standard-button ${activeTab === 'schema' ? 'is-active' : ''}"
-        aria-pressed="${activeTab === 'schema' ? 'true' : 'false'}"
-        data-action="set-backup-diff-tab"
-        data-tab="schema"
-        type="button"
-      >
-        <span class="material-symbols-outlined text-sm">schema</span>
-        Schema
-      </button>
-      <button
-        class="standard-button ${activeTab === 'data' ? 'is-active' : ''}"
-        aria-pressed="${activeTab === 'data' ? 'true' : 'false'}"
-        data-action="set-backup-diff-tab"
-        data-tab="data"
-        type="button"
-      >
-        <span class="material-symbols-outlined text-sm">table_rows</span>
-        Data
-      </button>
+    <div class="mt-5 flex flex-col items-start gap-2">
+      <div class="charts-height-toggle" role="group" aria-label="Backup diff view">
+        <button
+          class="standard-button charts-height-toggle__button ${activeTab === 'schema' ? 'is-active' : ''}"
+          aria-pressed="${activeTab === 'schema' ? 'true' : 'false'}"
+          data-action="set-backup-diff-tab"
+          data-tab="schema"
+          type="button"
+        >
+          Schema
+        </button>
+        <button
+          class="standard-button charts-height-toggle__button ${activeTab === 'data' ? 'is-active' : ''}"
+          aria-pressed="${activeTab === 'data' ? 'true' : 'false'}"
+          data-action="set-backup-diff-tab"
+          data-tab="data"
+          type="button"
+        >
+          Data
+        </button>
+      </div>
     </div>
   `;
 }
@@ -594,7 +594,6 @@ function renderBackupDiffDrawerBody(diffState) {
     return `
     <div class="custom-scrollbar min-h-0 flex-1 overflow-auto px-5 py-5">
       <div class="grid grid-cols-1 gap-3">
-        ${renderBackupDiffMetaItem('Base', diff.backup?.name || diffState.backupName || 'Backup')}
         ${renderBackupDiffMetaItem('Created', formatDateTime(diff.backup?.createdAt ?? diffState.backupCreatedAt))}
         ${renderBackupDiffMetaItem('Current', diff.current?.label || diffState.currentLabel || 'Current database')}
       </div>

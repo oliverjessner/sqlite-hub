@@ -3266,6 +3266,12 @@ document.addEventListener('keydown', event => {
         return;
     }
 
+    if (state.route.name === 'backups' && state.backups.diff?.visible) {
+        event.preventDefault();
+        closeBackupDiffDrawer();
+        return;
+    }
+
     if (state.editor.historySelectedId !== null || state.editor.historyDetail) {
         event.preventDefault();
         clearQueryHistorySelection();
