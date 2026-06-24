@@ -57,6 +57,8 @@ import {
     openDeleteSettingsApiTokenModal,
     openCreateBackupModal,
     openEditBackupModal,
+    openBackupDiffDrawer,
+    closeBackupDiffDrawer,
     openGenerateTypesModal,
     openDeleteBackupModal,
     openRestoreBackupModal,
@@ -133,6 +135,7 @@ import {
     setCopyColumnModalError,
     setCopyColumnModalEditedText,
     setCopyColumnModalSubmitting,
+    setBackupDiffTab,
     setRoute,
     setSettingsSection,
     saveQueryHistoryNotes,
@@ -2657,6 +2660,15 @@ async function handleAction(actionNode) {
             return;
         case 'open-restore-backup-modal':
             openRestoreBackupModal(actionNode.dataset.backupId);
+            return;
+        case 'open-compare-backup-drawer':
+            await openBackupDiffDrawer(actionNode.dataset.backupId);
+            return;
+        case 'set-backup-diff-tab':
+            setBackupDiffTab(actionNode.dataset.tab);
+            return;
+        case 'close-backup-diff-drawer':
+            closeBackupDiffDrawer();
             return;
         case 'open-edit-backup-modal':
             openEditBackupModal(actionNode.dataset.backupId);

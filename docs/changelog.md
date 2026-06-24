@@ -1,3 +1,7 @@
+# v1.4.0
+
+- Schema Diff / Database Diff
+
 # v1.3.0
 
 - remove unused css and duplicates, css code rework

@@ -3,11 +3,11 @@
 - Query Results as persistent Artifacts
 - SDK?
 - query perf, history, api history
-- Schema Diff / Database Diff
 - FTS5 Manager
 - Synthetic Data Generator
 - programmable triggers?
 - MCP
+- Data Pipeline Light/hook
 - Query/Scheme Analyzer mit Explain Query Plan
 - MD to pdf
 - Color update / Customization

@@ -275,6 +275,18 @@ const state = {
         loading: false,
         operationLoading: false,
         error: null,
+        diff: {
+            visible: false,
+            backupId: null,
+            backupName: '',
+            backupCreatedAt: null,
+            currentLabel: '',
+            activeTab: 'schema',
+            requestId: null,
+            loading: false,
+            error: null,
+            data: null,
+        },
     },
     settings: {
         data: { ...DEFAULT_SETTINGS },
@@ -553,6 +565,21 @@ function getMediaTaggingIssueKey(issue = {}) {
 
 function getMediaTaggingRouteErrorKey(error = {}) {
     return `route:${String(error.code ?? '').trim()}:${String(error.message ?? '').trim()}`;
+}
+
+function createEmptyBackupDiffState() {
+    return {
+        visible: false,
+        backupId: null,
+        backupName: '',
+        backupCreatedAt: null,
+        currentLabel: '',
+        activeTab: 'schema',
+        requestId: null,
+        loading: false,
+        error: null,
+        data: null,
+    };
 }
 
 function syncDismissedMediaTaggingIssues() {
@@ -1413,6 +1440,10 @@ function syncRouteContext() {
         state.documents.saveError = null;
     }
 
+    if (route.name !== 'backups') {
+        state.backups.diff = createEmptyBackupDiffState();
+    }
+
     if (route.name !== 'mediaTaggingSetup' && route.name !== 'mediaTaggingQueue') {
         state.mediaTagging.selectedTagKeys = [];
     }
@@ -1468,6 +1499,7 @@ async function refreshBackupsState() {
     if (!state.connections.active) {
         state.backups.items = [];
         state.backups.error = null;
+        state.backups.diff = createEmptyBackupDiffState();
         emitChange();
         return;
     }
@@ -2536,6 +2568,7 @@ function invalidateDatabaseCaches(options = {}) {
     }
 
     state.overview.data = null;
+    state.backups.diff = createEmptyBackupDiffState();
     state.dataBrowser.tables = [];
     if (!preserveDataBrowserState) {
         state.dataBrowser.selectedTable = null;
@@ -4153,6 +4186,9 @@ export async function submitDeleteBackupConfirmation() {
     try {
         const response = await api.deleteBackup(backupId);
         state.backups.items = state.backups.items.filter(item => String(item.id) !== String(backupId));
+        if (String(state.backups.diff.backupId ?? '') === String(backupId)) {
+            state.backups.diff = createEmptyBackupDiffState();
+        }
         closeModalInternal();
         pushToast(response.message || 'Backup deleted.', 'muted');
         return true;
@@ -4181,6 +4217,75 @@ export async function downloadBackup(backupId) {
         state.backups.operationLoading = false;
         emitChange();
     }
+}
+
+export async function openBackupDiffDrawer(backupId) {
+    const backup = state.backups.items.find(item => String(item.id) === String(backupId));
+
+    if (!backup) {
+        pushToast('The selected backup could not be loaded.', 'alert');
+        return null;
+    }
+
+    const requestId = crypto.randomUUID();
+    state.backups.diff = {
+        visible: true,
+        backupId: backup.id,
+        backupName: backup.name,
+        backupCreatedAt: backup.createdAt,
+        currentLabel: state.connections.active?.label ?? 'Current database',
+        activeTab: 'schema',
+        requestId,
+        loading: true,
+        error: null,
+        data: null,
+    };
+    state.backups.operationLoading = true;
+    emitChange();
+
+    try {
+        const response = await api.getBackupDiff(backup.id);
+
+        if (state.backups.diff.requestId === requestId) {
+            state.backups.diff.data = response.data ?? null;
+            state.backups.diff.backupName = response.data?.backup?.name ?? state.backups.diff.backupName;
+            state.backups.diff.backupCreatedAt = response.data?.backup?.createdAt ?? state.backups.diff.backupCreatedAt;
+            state.backups.diff.currentLabel = response.data?.current?.label ?? state.backups.diff.currentLabel;
+            state.backups.diff.error = null;
+        }
+
+        return response.data ?? null;
+    } catch (error) {
+        if (state.backups.diff.requestId === requestId) {
+            state.backups.diff.error = normalizeError(error);
+        } else {
+            pushToast(normalizeError(error).message || 'Backup comparison failed.', 'alert');
+        }
+
+        return null;
+    } finally {
+        state.backups.operationLoading = false;
+
+        if (state.backups.diff.requestId === requestId) {
+            state.backups.diff.loading = false;
+        }
+
+        emitChange();
+    }
+}
+
+export function setBackupDiffTab(tab) {
+    if (!state.backups.diff.visible) {
+        return;
+    }
+
+    state.backups.diff.activeTab = tab === 'data' ? 'data' : 'schema';
+    emitChange();
+}
+
+export function closeBackupDiffDrawer() {
+    state.backups.diff = createEmptyBackupDiffState();
+    emitChange();
 }
 
 export function openRestoreBackupModal(backupId) {

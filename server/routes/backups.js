@@ -27,6 +27,19 @@ function createBackupsRouter({ backupService }) {
     })
   );
 
+  router.get(
+    "/:backupId/diff",
+    route((req, res) => {
+      res.json(
+        successResponse({
+          data: backupService.diffBackupWithCurrent(req.params.backupId, {
+            sampleLimit: req.query.sampleLimit,
+          }),
+        })
+      );
+    })
+  );
+
   router.post(
     "/",
     route(async (req, res) => {

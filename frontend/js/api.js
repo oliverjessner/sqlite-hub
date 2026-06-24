@@ -153,6 +153,17 @@ export function getBackup(backupId) {
   return request(`/api/backups/${encodeURIComponent(backupId)}`);
 }
 
+export function getBackupDiff(backupId, options = {}) {
+  const params = new URLSearchParams();
+
+  if (options.sampleLimit !== undefined) {
+    params.set("sampleLimit", String(options.sampleLimit));
+  }
+
+  const query = params.toString();
+  return request(`/api/backups/${encodeURIComponent(backupId)}/diff${query ? `?${query}` : ""}`);
+}
+
 export function createBackup(payload = {}) {
   return request("/api/backups", {
     method: "POST",

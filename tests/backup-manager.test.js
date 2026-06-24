@@ -134,6 +134,145 @@ test("backup details can be updated after creation and manifest stays in sync", 
   assert.equal(manifest.backups[0].notes, "Reviewed after restore test");
 });
 
+test("backup diff compares a verified backup with the active database", async (t) => {
+  const { backupService, connectionManager } = createFixture(t);
+  const backup = await backupService.createActiveBackup({
+    name: "Before migration",
+  });
+  const db = connectionManager.getActiveDatabase();
+
+  db.exec(`
+    ALTER TABLE companies ADD COLUMN status TEXT DEFAULT 'trial';
+    UPDATE companies SET name = 'Acme Corp' WHERE id = 1;
+    DELETE FROM companies WHERE id = 2;
+    INSERT INTO companies (id, name, status) VALUES (3, 'Initech', 'active');
+    CREATE INDEX idx_companies_name ON companies(name);
+    CREATE VIEW company_names AS SELECT name FROM companies;
+  `);
+
+  const diff = backupService.diffBackupWithCurrent(backup.id, { sampleLimit: 1 });
+  const companies = diff.data.tables.find((table) => table.name === "companies");
+  const companiesSchema = diff.schema.changed.find((entry) => entry.name === "companies");
+
+  assert.equal(diff.backup.id, backup.id);
+  assert.equal(diff.backup.name, "Before migration");
+  assert.equal(diff.summary.schemaChanges, 3);
+  assert.equal(diff.summary.rowsAdded, 1);
+  assert.equal(diff.summary.rowsChanged, 1);
+  assert.equal(diff.summary.rowsRemoved, 1);
+  assert.equal(diff.summary.skippedTables, 0);
+  assert.equal(companies.status, "comparable");
+  assert.deepEqual(companies.keyColumns, ["id"]);
+  assert.equal(companies.samples.added.length, 1);
+  assert.equal(companies.samples.changed.length, 1);
+  assert.equal(companies.samples.removed.length, 1);
+  assert.equal(companies.samples.changed[0].columns[0].name, "name");
+  assert.equal(companies.samples.changed[0].columns[0].backup, "Acme");
+  assert.equal(companies.samples.changed[0].columns[0].current, "Acme Corp");
+  assert.ok(
+    companiesSchema.changes.some(
+      (change) => change.action === "added" && change.objectType === "column" && change.name === "status"
+    )
+  );
+  assert.ok(
+    companiesSchema.changes.some(
+      (change) =>
+        change.action === "added" && change.objectType === "index" && change.name === "idx_companies_name"
+    )
+  );
+  assert.ok(diff.schema.added.some((entry) => entry.type === "view" && entry.name === "company_names"));
+});
+
+test("backup diff validates sample limit", async (t) => {
+  const { backupService } = createFixture(t);
+  const backup = await backupService.createActiveBackup({
+    name: "Before migration",
+  });
+
+  assert.throws(
+    () => backupService.diffBackupWithCurrent(backup.id, { sampleLimit: 0 }),
+    /sampleLimit must be an integer/
+  );
+  assert.throws(
+    () => backupService.diffBackupWithCurrent(backup.id, { sampleLimit: "many" }),
+    /sampleLimit must be an integer/
+  );
+});
+
+test("backup diff skips common tables without a stable key", async (t) => {
+  const { backupService, connectionManager } = createFixture(t);
+  const db = connectionManager.getActiveDatabase();
+
+  db.exec(`
+    CREATE TABLE logs (message TEXT);
+    INSERT INTO logs (message) VALUES ('before');
+  `);
+
+  const backup = await backupService.createActiveBackup({
+    name: "Before log import",
+  });
+
+  db.exec("INSERT INTO logs (message) VALUES ('after');");
+
+  const diff = backupService.diffBackupWithCurrent(backup.id);
+  const logs = diff.data.tables.find((table) => table.name === "logs");
+
+  assert.equal(logs.status, "skipped");
+  assert.equal(logs.statusLabel, "No stable key");
+  assert.equal(diff.summary.skippedTables, 1);
+});
+
+test("backup diff can use non-null unique constraints as stable keys", async (t) => {
+  const { backupService, connectionManager } = createFixture(t);
+  const db = connectionManager.getActiveDatabase();
+
+  db.exec(`
+    CREATE TABLE tags (slug TEXT NOT NULL UNIQUE, label TEXT);
+    INSERT INTO tags (slug, label) VALUES ('alpha', 'Alpha'), ('beta', 'Beta');
+  `);
+
+  const backup = await backupService.createActiveBackup({
+    name: "Before tag update",
+  });
+
+  db.exec(`
+    UPDATE tags SET label = 'Alpha stable' WHERE slug = 'alpha';
+    DELETE FROM tags WHERE slug = 'beta';
+    INSERT INTO tags (slug, label) VALUES ('gamma', 'Gamma');
+  `);
+
+  const diff = backupService.diffBackupWithCurrent(backup.id);
+  const tags = diff.data.tables.find((table) => table.name === "tags");
+
+  assert.equal(tags.status, "comparable");
+  assert.deepEqual(tags.keyColumns, ["slug"]);
+  assert.equal(tags.added, 1);
+  assert.equal(tags.changed, 1);
+  assert.equal(tags.removed, 1);
+});
+
+test("backup diff works when the active database is opened read-only", async (t) => {
+  const { backupService, connection, connectionManager, directory } = createFixture(t);
+  const backup = await backupService.createActiveBackup({
+    name: "Before readonly check",
+  });
+  const db = connectionManager.getActiveDatabase();
+
+  db.exec("UPDATE companies SET name = 'Acme Corp' WHERE id = 1;");
+  connectionManager.openConnection({
+    filePath: path.join(directory, "source.sqlite"),
+    label: "Source",
+    id: connection.id,
+    makeActive: true,
+    readOnly: true,
+  });
+
+  const diff = backupService.diffBackupWithCurrent(backup.id);
+
+  assert.equal(connectionManager.getActiveConnection().readOnly, true);
+  assert.equal(diff.summary.rowsChanged, 1);
+});
+
 test("delete backup removes file, record, and manifest entry", async (t) => {
   const { backupService, store } = createFixture(t);
   const backup = await backupService.createActiveBackup({ name: "Manual backup" });

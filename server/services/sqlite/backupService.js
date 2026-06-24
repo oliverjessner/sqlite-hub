@@ -19,6 +19,10 @@ const {
   validateSqlitePath,
 } = require("../../utils/fileValidation");
 const { quoteIdentifier } = require("../../utils/identifier");
+const {
+  buildBackupDiff,
+  normalizeBackupDiffSampleLimit,
+} = require("./backupDiff");
 
 const BACKUP_TYPES = new Set([
   "manual",
@@ -392,6 +396,77 @@ class BackupService {
         new Date(backup.createdAt ?? Date.now())
       )}.sqlite`,
     };
+  }
+
+  backupBelongsToConnection(backup, connection) {
+    if (!backup || !connection) {
+      return false;
+    }
+
+    if (backup.connectionId && backup.connectionId === connection.id) {
+      return true;
+    }
+
+    if (backup.sourcePath && connection.path) {
+      return path.resolve(backup.sourcePath) === path.resolve(connection.path);
+    }
+
+    return false;
+  }
+
+  diffBackupWithCurrent(backupId, { sampleLimit } = {}) {
+    const normalizedSampleLimit = normalizeBackupDiffSampleLimit(sampleLimit);
+    const activeConnection = this.connectionManager.getActiveConnection();
+
+    if (!activeConnection) {
+      throw new DatabaseRequiredError("No active SQLite database selected for backup comparison.");
+    }
+
+    if (this.activeOperations.size > 0) {
+      throw new ConflictError("A backup operation is already running.");
+    }
+
+    const backup = this.getBackup(backupId);
+
+    if (backup.status !== "verified") {
+      throw new ValidationError("Only verified backups can be compared.");
+    }
+
+    if (!backup.fileExists) {
+      throw new NotFoundError("Backup file is missing.");
+    }
+
+    if (!this.backupBelongsToConnection(backup, activeConnection)) {
+      throw new ValidationError("Backup does not belong to the active database.");
+    }
+
+    let backupDb = null;
+
+    try {
+      backupDb = new Database(backup.path, {
+        readonly: true,
+        fileMustExist: true,
+      });
+
+      const quickCheck = readQuickCheckResult(backupDb);
+
+      if (quickCheck !== "ok") {
+        throw new ValidationError(`Backup verification failed: ${quickCheck}`);
+      }
+
+      return buildBackupDiff({
+        backupDb,
+        currentDb: this.connectionManager.getActiveDatabase(),
+        backup,
+        currentConnection: activeConnection,
+        comparedAt: new Date(),
+        sampleLimit: normalizedSampleLimit,
+      });
+    } catch (error) {
+      throw mapSqliteError(error);
+    } finally {
+      backupDb?.close();
+    }
   }
 
   deleteBackup(backupId) {

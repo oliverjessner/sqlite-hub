@@ -62,7 +62,17 @@ const MENU_SCENARIOS = [
   { slug: "table_designer", path: "/table-designer", drawers: [] },
   { slug: "media_tagging_setup", path: "/media-tagging", drawers: [] },
   { slug: "media_tagging_queue", path: "/media-tagging/queue", drawers: [] },
-  { slug: "backups", path: "/backups", drawers: [] },
+  {
+    slug: "backups",
+    path: "/backups",
+    drawers: [
+      {
+        extra: "compare_drawer",
+        selector: 'button[data-action="open-compare-backup-drawer"][data-backup-id]:not(:disabled)',
+        waitSelector: '#app-panel [data-action="close-backup-diff-drawer"]',
+      },
+    ],
+  },
   { slug: "settings", path: "/settings", drawers: [] },
 ];
 

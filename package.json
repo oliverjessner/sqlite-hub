@@ -1,6 +1,6 @@
 {
     "name": "sqlite-hub",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "description": "SQLite-only local management app backend and SPA shell",
     "license": "MIT",
     "main": "server/server.js",
@@ -16,7 +16,8 @@
         "dev": "node --watch server/server.js --port:4180",
         "prepack": "npm run build:css",
         "publish": "bash scripts/publish_brew.sh && sleep 10 && npm login --auth-type=web && bash scripts/publish_npm.sh",
-        "screenshots": "node scripts/screenshot_sqlite_hub.js --width:1920 --height:1280"
+        "screenshots": "node scripts/screenshot_sqlite_hub.js --width:1920 --height:1280",
+        "screenshots:backup-drawer": "node scripts/screenshot_backup_drawer.js"
     },
     "dependencies": {
         "better-sqlite3": "^12.10.1",
