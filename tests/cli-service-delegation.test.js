@@ -5,6 +5,7 @@ const { main } = require("../bin/sqlite-hub");
 
 test("CLI delegates database operations to the shared command service", async () => {
   const calls = [];
+  const accessLogs = [];
   const connection = {
     id: "db-one",
     label: "Database One",
@@ -23,13 +24,18 @@ test("CLI delegates database operations to the shared command service", async ()
       return [{ name: "companies" }];
     },
   };
+  const appStateStore = {
+    recordAccessLog(entry) {
+      accessLogs.push(entry);
+    },
+  };
   const output = [];
   const originalLog = console.log;
 
   console.log = (...values) => output.push(values.join(" "));
 
   try {
-    await main(["--database:Database One", "--tables"], { databaseService });
+    await main(["--database:Database One", "--tables"], { databaseService, appStateStore });
   } finally {
     console.log = originalLog;
   }
@@ -39,11 +45,18 @@ test("CLI delegates database operations to the shared command service", async ()
     ["getDatabase", "Database One"],
     ["listTables", "db-one"],
   ]);
+  assert.equal(accessLogs.length, 1);
+  assert.equal(accessLogs[0].source, "cli");
+  assert.equal(accessLogs[0].action, "cli.tables.list");
+  assert.equal(accessLogs[0].databaseKey, "db-one");
+  assert.equal(accessLogs[0].status, "success");
+  assert.equal(accessLogs[0].metadata.databaseLabel, "Database One");
   assert.match(output.join("\n"), /companies/);
 });
 
 test("CLI marks raw query executions as cli", async () => {
   const calls = [];
+  const accessLogs = [];
   const connection = {
     id: "db-one",
     label: "Database One",
@@ -70,13 +83,21 @@ test("CLI marks raw query executions as cli", async () => {
       };
     },
   };
+  const appStateStore = {
+    recordAccessLog(entry) {
+      accessLogs.push(entry);
+    },
+  };
   const output = [];
   const originalLog = console.log;
 
   console.log = (...values) => output.push(values.join(" "));
 
   try {
-    await main(["--database:Database One", "--query:SELECT 1"], { databaseService });
+    await main(["--database", "Database One", "--query", "SELECT 1"], {
+      databaseService,
+      appStateStore,
+    });
   } finally {
     console.log = originalLog;
   }
@@ -86,6 +107,8 @@ test("CLI marks raw query executions as cli", async () => {
     ["getDatabase", "Database One"],
     ["executeRawQuery", "db-one", "SELECT 1", { storeName: null, executedBy: "cli" }],
   ]);
+  assert.equal(accessLogs[0].action, "cli.query.execute");
+  assert.deepEqual(accessLogs[0].metadata.flags, ["--database", "--query"]);
   assert.match(output.join("\n"), /History ID: 7/);
 });
 

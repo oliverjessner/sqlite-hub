@@ -45,6 +45,13 @@ const MAX_CONNECTION_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_DOCUMENT_CONTENT_BYTES = 5 * 1024 * 1024;
 const MAX_DOCUMENT_FILENAME_LENGTH = 160;
 const QUERY_EXECUTION_SOURCES = new Set(["api", "cli", "user", "mcp"]);
+const ACCESS_LOG_SOURCES = new Set(["api", "cli"]);
+const ACCESS_LOG_STATUSES = new Set(["success", "error"]);
+const MAX_ACCESS_LOG_TEXT_LENGTH = 500;
+const MAX_ACCESS_LOG_METADATA_BYTES = 16 * 1024;
+const ACTIVITY_LOG_KINDS = new Set(["all", "query", "access"]);
+const ACTIVITY_LOG_ACTORS = new Set(["user", "cli", "api", "mcp"]);
+const ACTIVITY_LOG_DESTRUCTIVE_FILTERS = new Set(["all", "yes", "no"]);
 const CONNECTION_LOGO_EXTENSION_BY_MIME_TYPE = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -142,6 +149,80 @@ function requireQueryExecutionSource(value) {
   }
 
   return normalized;
+}
+
+function normalizeAccessLogText(value, fallback = null) {
+  const normalized = String(value ?? fallback ?? "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return normalized ? normalized.slice(0, MAX_ACCESS_LOG_TEXT_LENGTH) : null;
+}
+
+function requireAccessLogText(value, label) {
+  const normalized = normalizeAccessLogText(value);
+
+  if (!normalized) {
+    throw new ValidationError(`${label} is required.`);
+  }
+
+  return normalized;
+}
+
+function normalizeAccessLogSource(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+
+  if (!ACCESS_LOG_SOURCES.has(normalized)) {
+    throw new ValidationError(`Unsupported access log source: ${value}`);
+  }
+
+  return normalized;
+}
+
+function normalizeAccessLogStatus(value) {
+  const normalized = String(value ?? "success").trim().toLowerCase();
+
+  if (!ACCESS_LOG_STATUSES.has(normalized)) {
+    throw new ValidationError(`Unsupported access log status: ${value}`);
+  }
+
+  return normalized;
+}
+
+function normalizeAccessLogInteger(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const normalized = Number(value);
+  return Number.isInteger(normalized) && normalized >= 0 ? normalized : null;
+}
+
+function normalizeAccessLogMetadata(metadata = {}) {
+  const safeMetadata =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? metadata
+      : {};
+
+  let serialized = "{}";
+
+  try {
+    serialized = JSON.stringify(safeMetadata, (_key, value) =>
+      typeof value === "bigint" ? String(value) : value
+    );
+  } catch {
+    serialized = JSON.stringify({ serializationError: true });
+  }
+
+  if (Buffer.byteLength(serialized, "utf8") <= MAX_ACCESS_LOG_METADATA_BYTES) {
+    return serialized;
+  }
+
+  return JSON.stringify({
+    truncated: true,
+    originalBytes: Buffer.byteLength(serialized, "utf8"),
+  });
 }
 
 function normalizeDocumentTitle(value, filename) {
@@ -487,6 +568,29 @@ class AppStateStore {
 
       CREATE INDEX IF NOT EXISTS idx_api_tokens_database_created
       ON api_tokens(database_key, created_at DESC, id ASC);
+
+      CREATE TABLE IF NOT EXISTS access_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT NOT NULL CHECK(source IN ('api', 'cli')),
+        action TEXT NOT NULL,
+        database_key TEXT,
+        target_type TEXT,
+        target_name TEXT,
+        status TEXT NOT NULL CHECK(status IN ('success', 'error')),
+        started_at TEXT NOT NULL,
+        duration_ms INTEGER,
+        error_message TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_access_log_started
+      ON access_log(started_at DESC, id DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_access_log_source_started
+      ON access_log(source, started_at DESC, id DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_access_log_database_started
+      ON access_log(database_key, started_at DESC, id DESC);
 
       CREATE TABLE IF NOT EXISTS backups (
         id TEXT PRIMARY KEY,
@@ -1707,6 +1811,532 @@ class AppStateStore {
     return {
       item,
       charts: this.getQueryHistoryChartsByHistoryId(item.id),
+    };
+  }
+
+  decorateAccessLogRow(row = {}) {
+    let metadata = {};
+
+    try {
+      metadata = JSON.parse(row.metadata_json ?? row.metadataJson ?? "{}");
+    } catch {
+      metadata = {};
+    }
+
+    return {
+      id: Number(row.id ?? 0),
+      source: String(row.source ?? ""),
+      action: String(row.action ?? ""),
+      databaseKey: row.database_key ?? row.databaseKey ?? null,
+      targetType: row.target_type ?? row.targetType ?? null,
+      targetName: row.target_name ?? row.targetName ?? null,
+      status: String(row.status ?? ""),
+      startedAt: row.started_at ?? row.startedAt ?? null,
+      durationMs:
+        row.duration_ms === null || row.duration_ms === undefined
+          ? null
+          : Number(row.duration_ms),
+      errorMessage: row.error_message ?? row.errorMessage ?? null,
+      metadata,
+    };
+  }
+
+  recordAccessLog(entry = {}) {
+    const source = normalizeAccessLogSource(entry.source);
+    const action = requireAccessLogText(entry.action, "Access log action");
+    const databaseKey = normalizeAccessLogText(entry.databaseKey);
+    const targetType = normalizeAccessLogText(entry.targetType);
+    const targetName = normalizeAccessLogText(entry.targetName);
+    const status = normalizeAccessLogStatus(entry.status);
+    const startedAt = normalizeAccessLogText(entry.startedAt) ?? new Date().toISOString();
+    const durationMs = normalizeAccessLogInteger(entry.durationMs);
+    const errorMessage = normalizeAccessLogText(entry.errorMessage);
+    const metadataJson = normalizeAccessLogMetadata(entry.metadata);
+
+    const result = this.db
+      .prepare(`
+        INSERT INTO access_log (
+          source,
+          action,
+          database_key,
+          target_type,
+          target_name,
+          status,
+          started_at,
+          duration_ms,
+          error_message,
+          metadata_json
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        source,
+        action,
+        databaseKey,
+        targetType,
+        targetName,
+        status,
+        startedAt,
+        durationMs,
+        errorMessage,
+        metadataJson
+      );
+
+    return this.getAccessLogEntry(result.lastInsertRowid);
+  }
+
+  getAccessLogEntry(logId) {
+    const row = this.db
+      .prepare(`
+        SELECT
+          id,
+          source,
+          action,
+          database_key,
+          target_type,
+          target_name,
+          status,
+          started_at,
+          duration_ms,
+          error_message,
+          metadata_json
+        FROM access_log
+        WHERE id = ?
+      `)
+      .get(Number(logId));
+
+    if (!row) {
+      throw new NotFoundError(`Access log entry not found: ${logId}`);
+    }
+
+    return this.decorateAccessLogRow(row);
+  }
+
+  listAccessLogs(options = {}) {
+    const filters = [];
+    const params = [];
+    const source = options.source ? normalizeAccessLogSource(options.source) : null;
+    const status = options.status ? normalizeAccessLogStatus(options.status) : null;
+    const databaseKey = normalizeAccessLogText(options.databaseKey);
+    const limit = Math.max(1, Math.min(200, Number(options.limit) || 100));
+    const offset = Math.max(0, Number(options.offset) || 0);
+
+    if (source) {
+      filters.push("source = ?");
+      params.push(source);
+    }
+
+    if (status) {
+      filters.push("status = ?");
+      params.push(status);
+    }
+
+    if (databaseKey) {
+      filters.push("database_key = ?");
+      params.push(databaseKey);
+    }
+
+    const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+    const rows = this.db
+      .prepare(`
+        SELECT
+          id,
+          source,
+          action,
+          database_key,
+          target_type,
+          target_name,
+          status,
+          started_at,
+          duration_ms,
+          error_message,
+          metadata_json
+        FROM access_log
+        ${whereClause}
+        ORDER BY started_at DESC, id DESC
+        LIMIT ? OFFSET ?
+      `)
+      .all(...params, limit, offset)
+      .map((row) => this.decorateAccessLogRow(row));
+    const total = Number(
+      this.db
+        .prepare(`SELECT COUNT(*) AS count FROM access_log ${whereClause}`)
+        .get(...params)?.count ?? 0
+    );
+
+    return {
+      items: rows,
+      total,
+      limit,
+      offset,
+      hasMore: offset + rows.length < total,
+    };
+  }
+
+  normalizeActivityLogKind(value) {
+    const normalized = String(value ?? "all").trim().toLowerCase();
+    return ACTIVITY_LOG_KINDS.has(normalized) ? normalized : "all";
+  }
+
+  normalizeActivityLogActor(value) {
+    const normalized = String(value ?? "all").trim().toLowerCase();
+    return ACTIVITY_LOG_ACTORS.has(normalized) ? normalized : null;
+  }
+
+  normalizeActivityLogDestructive(value) {
+    const normalized = String(value ?? "all").trim().toLowerCase();
+    return ACTIVITY_LOG_DESTRUCTIVE_FILTERS.has(normalized) ? normalized : "all";
+  }
+
+  normalizeActivityLogTimestamp(value) {
+    const normalized = normalizeAccessLogText(value);
+
+    if (!normalized) {
+      return null;
+    }
+
+    const timestamp = new Date(normalized).getTime();
+    return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
+  }
+
+  decorateQueryRunLogRow(row = {}) {
+    let tablesDetected = [];
+
+    try {
+      tablesDetected = JSON.parse(row.tables_detected ?? "[]");
+    } catch {
+      tablesDetected = [];
+    }
+
+    return {
+      id: `query:${Number(row.run_id ?? 0)}`,
+      kind: "query",
+      source: "query_history",
+      action: "query.execute",
+      databaseKey: row.database_key ?? null,
+      targetType: "query",
+      targetName: row.title || buildAutoTitle(row.raw_sql ?? "", {
+        queryType: row.query_type ?? "other",
+        tablesDetected,
+      }),
+      status: String(row.status ?? ""),
+      occurredAt: row.executed_at ?? null,
+      durationMs:
+        row.duration_ms === null || row.duration_ms === undefined
+          ? null
+          : Number(row.duration_ms),
+      errorMessage: row.error_message ?? null,
+      executedBy: normalizeQueryExecutionSource(row.executed_by ?? "user"),
+      queryType: row.query_type ?? "other",
+      destructive: Boolean(row.is_destructive),
+      historyId: Number(row.history_id ?? 0),
+      runId: Number(row.run_id ?? 0),
+      rowCount:
+        row.row_count === null || row.row_count === undefined
+          ? null
+          : Number(row.row_count),
+      affectedRows:
+        row.affected_rows === null || row.affected_rows === undefined
+          ? null
+          : Number(row.affected_rows),
+      preview: buildSqlPreview(row.raw_sql ?? ""),
+      rawSql: row.raw_sql ?? "",
+      metadata: {
+        tablesDetected,
+        saved: Boolean(row.is_saved),
+        favorite: Boolean(row.is_favorite),
+      },
+    };
+  }
+
+  decorateAccessLogForActivity(row = {}) {
+    const entry = this.decorateAccessLogRow(row);
+
+    return {
+      id: `access:${entry.id}`,
+      kind: "access",
+      source: entry.source,
+      action: entry.action,
+      databaseKey: entry.databaseKey,
+      targetType: entry.targetType,
+      targetName: entry.targetName,
+      status: entry.status,
+      occurredAt: entry.startedAt,
+      durationMs: entry.durationMs,
+      errorMessage: entry.errorMessage,
+      executedBy: null,
+      queryType: null,
+      destructive: null,
+      historyId: null,
+      runId: null,
+      rowCount: null,
+      affectedRows: null,
+      preview: entry.action,
+      rawSql: "",
+      metadata: entry.metadata,
+    };
+  }
+
+  buildActivityQueryFilters(options = {}) {
+    const filters = [];
+    const params = [];
+    const databaseKey = normalizeAccessLogText(options.databaseKey);
+    const status = options.status ? normalizeAccessLogStatus(options.status) : null;
+    const actor = this.normalizeActivityLogActor(options.actor);
+    const queryType = normalizeAccessLogText(options.queryType);
+    const destructive = this.normalizeActivityLogDestructive(options.destructive);
+    const from = this.normalizeActivityLogTimestamp(options.from);
+    const to = this.normalizeActivityLogTimestamp(options.to);
+    const search = normalizeAccessLogText(options.search);
+
+    if (databaseKey) {
+      filters.push("q.database_key = ?");
+      params.push(databaseKey);
+    }
+
+    if (status) {
+      filters.push("runs.status = ?");
+      params.push(status);
+    }
+
+    if (actor) {
+      filters.push("runs.executed_by = ?");
+      params.push(actor);
+    }
+
+    if (queryType) {
+      filters.push("q.query_type = ?");
+      params.push(queryType);
+    }
+
+    if (destructive === "yes") {
+      filters.push("q.is_destructive = 1");
+    } else if (destructive === "no") {
+      filters.push("q.is_destructive = 0");
+    }
+
+    if (from) {
+      filters.push("runs.executed_at >= ?");
+      params.push(from);
+    }
+
+    if (to) {
+      filters.push("runs.executed_at <= ?");
+      params.push(to);
+    }
+
+    if (search) {
+      const searchPattern = `%${search.toLowerCase()}%`;
+      filters.push(`
+        (
+          LOWER(COALESCE(q.title, '')) LIKE ?
+          OR LOWER(q.raw_sql) LIKE ?
+          OR LOWER(COALESCE(q.notes, '')) LIKE ?
+          OR LOWER(q.tables_detected) LIKE ?
+          OR LOWER(COALESCE(runs.error_message, '')) LIKE ?
+        )
+      `);
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+    }
+
+    return {
+      whereSql: filters.length ? `WHERE ${filters.join(" AND ")}` : "",
+      params,
+    };
+  }
+
+  buildActivityAccessFilters(options = {}) {
+    const filters = [];
+    const params = [];
+    const databaseKey = normalizeAccessLogText(options.databaseKey);
+    const status = options.status ? normalizeAccessLogStatus(options.status) : null;
+    const actor = this.normalizeActivityLogActor(options.actor);
+    const queryType = normalizeAccessLogText(options.queryType);
+    const destructive = this.normalizeActivityLogDestructive(options.destructive);
+    const from = this.normalizeActivityLogTimestamp(options.from);
+    const to = this.normalizeActivityLogTimestamp(options.to);
+    const search = normalizeAccessLogText(options.search);
+
+    if (queryType || destructive !== "all") {
+      return {
+        whereSql: "WHERE 1 = 0",
+        params: [],
+      };
+    }
+
+    if (databaseKey) {
+      filters.push("database_key = ?");
+      params.push(databaseKey);
+    }
+
+    if (status) {
+      filters.push("status = ?");
+      params.push(status);
+    }
+
+    if (actor) {
+      if (actor !== "api" && actor !== "cli") {
+        return {
+          whereSql: "WHERE 1 = 0",
+          params: [],
+        };
+      }
+
+      filters.push("source = ?");
+      params.push(actor);
+    }
+
+    if (from) {
+      filters.push("started_at >= ?");
+      params.push(from);
+    }
+
+    if (to) {
+      filters.push("started_at <= ?");
+      params.push(to);
+    }
+
+    if (search) {
+      const searchPattern = `%${search.toLowerCase()}%`;
+      filters.push(`
+        (
+          LOWER(action) LIKE ?
+          OR LOWER(COALESCE(target_type, '')) LIKE ?
+          OR LOWER(COALESCE(target_name, '')) LIKE ?
+          OR LOWER(COALESCE(error_message, '')) LIKE ?
+          OR LOWER(metadata_json) LIKE ?
+        )
+      `);
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+    }
+
+    return {
+      whereSql: filters.length ? `WHERE ${filters.join(" AND ")}` : "",
+      params,
+    };
+  }
+
+  listQueryRunLogs(options = {}) {
+    const { whereSql, params } = this.buildActivityQueryFilters(options);
+
+    return {
+      items: this.db
+        .prepare(`
+          SELECT
+            runs.id AS run_id,
+            runs.history_id,
+            runs.executed_at,
+            runs.executed_by,
+            runs.duration_ms,
+            runs.row_count,
+            runs.status,
+            runs.error_message,
+            runs.affected_rows,
+            q.database_key,
+            q.raw_sql,
+            q.title,
+            q.notes,
+            q.query_type,
+            q.tables_detected,
+            q.is_favorite,
+            q.is_saved,
+            q.is_destructive
+          FROM query_runs runs
+          INNER JOIN query_history q
+            ON q.id = runs.history_id
+          ${whereSql}
+          ORDER BY runs.executed_at DESC, runs.id DESC
+        `)
+        .all(...params)
+        .map((row) => this.decorateQueryRunLogRow(row)),
+      total: Number(
+        this.db
+          .prepare(`
+            SELECT COUNT(*) AS count
+            FROM query_runs runs
+            INNER JOIN query_history q
+              ON q.id = runs.history_id
+            ${whereSql}
+          `)
+          .get(...params)?.count ?? 0
+      ),
+    };
+  }
+
+  listAccessActivityLogs(options = {}) {
+    const { whereSql, params } = this.buildActivityAccessFilters(options);
+
+    return {
+      items: this.db
+        .prepare(`
+          SELECT
+            id,
+            source,
+            action,
+            database_key,
+            target_type,
+            target_name,
+            status,
+            started_at,
+            duration_ms,
+            error_message,
+            metadata_json
+          FROM access_log
+          ${whereSql}
+          ORDER BY started_at DESC, id DESC
+        `)
+        .all(...params)
+        .map((row) => this.decorateAccessLogForActivity(row)),
+      total: Number(
+        this.db
+          .prepare(`SELECT COUNT(*) AS count FROM access_log ${whereSql}`)
+          .get(...params)?.count ?? 0
+      ),
+    };
+  }
+
+  listActivityLogs(options = {}) {
+    const kind = this.normalizeActivityLogKind(options.kind);
+    const limit = Math.max(1, Math.min(200, Number(options.limit) || 100));
+    const offset = Math.max(0, Number(options.offset) || 0);
+    const queryLogs =
+      kind === "access"
+        ? { items: [], total: 0 }
+        : this.listQueryRunLogs(options);
+    const accessLogs =
+      kind === "query"
+        ? { items: [], total: 0 }
+        : this.listAccessActivityLogs(options);
+    const allItems = [...queryLogs.items, ...accessLogs.items].sort((left, right) => {
+      const leftTime = Date.parse(left.occurredAt ?? "") || 0;
+      const rightTime = Date.parse(right.occurredAt ?? "") || 0;
+
+      if (rightTime !== leftTime) {
+        return rightTime - leftTime;
+      }
+
+      return String(right.id).localeCompare(String(left.id));
+    });
+    const items = allItems.slice(offset, offset + limit);
+    const total = queryLogs.total + accessLogs.total;
+
+    return {
+      items,
+      total,
+      limit,
+      offset,
+      hasMore: offset + items.length < total,
+      filters: {
+        kind,
+        actor: this.normalizeActivityLogActor(options.actor) ?? "all",
+        status: options.status ? normalizeAccessLogStatus(options.status) : "all",
+        databaseKey: normalizeAccessLogText(options.databaseKey),
+        queryType: normalizeAccessLogText(options.queryType) ?? "all",
+        destructive: this.normalizeActivityLogDestructive(options.destructive),
+        from: this.normalizeActivityLogTimestamp(options.from),
+        to: this.normalizeActivityLogTimestamp(options.to),
+        search: normalizeAccessLogText(options.search) ?? "",
+      },
     };
   }
 

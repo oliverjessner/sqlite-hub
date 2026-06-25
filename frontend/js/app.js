@@ -48,6 +48,7 @@ import {
     initializeApp,
     insertMarkdownIntoLastOpenDocument,
     loadMoreQueryHistory,
+    loadMoreLogs,
     openModal,
     openOverviewInFinder,
     openQueryHistoryInEditor,
@@ -77,6 +78,7 @@ import {
     openDataRowUpdatePreview,
     openEditorRowUpdatePreview,
     refreshCurrentRoute,
+    refreshLogs,
     refreshBackups,
     refreshMediaTaggingPreview,
     removeConnection,
@@ -94,6 +96,9 @@ import {
     selectQueryHistoryItem,
     selectStructureEntry,
     setDocumentsSearchQuery,
+    setLogFilter,
+    setLogSearchInput,
+    applyLogSearch,
     setTableDesignerSearchQuery,
     setTableDesignerSqlPreviewVisibility,
     toggleTableDesignerTablesPanel,
@@ -182,6 +187,7 @@ import { renderDataRowEditorPanel, renderDataView } from './views/data.js';
 import { renderDocumentsView } from './views/documents.js';
 import { renderEditorView } from './views/editor.js';
 import { renderLandingView } from './views/landing.js';
+import { renderLogsView, renderLogTable } from './views/logs.js';
 import { renderMediaTaggingView } from './views/mediaTagging.js';
 import { renderOverviewView } from './views/overview.js';
 import { renderSettingsView } from './views/settings.js';
@@ -200,6 +206,7 @@ import {
     detectFilePathValue,
     getPathTypeLabel,
 } from './utils/filePathPreview.js';
+import { clearInputForEscape } from './utils/inputClear.js';
 import { formatSqlQuery } from './utils/sqlFormatter.js';
 import {
     buildDataRowEditorJsonObject,
@@ -272,6 +279,7 @@ const ROUTE_TITLE_SEGMENTS = {
     mediaTaggingSetup: 'Media Tagging',
     mediaTaggingQueue: 'Tagging Queue',
     settings: 'Settings',
+    logs: 'Logs',
     notFound: 'Not Found',
 };
 
@@ -973,6 +981,92 @@ function patchChartsDetailUi(state, { preserveCharts = false } = {}) {
     return true;
 }
 
+function getLogsActiveDatabaseId(state) {
+    return String(state.connections?.active?.id ?? state.logs?.metadata?.activeDatabase?.id ?? '');
+}
+
+function syncLogsFilterControls(state) {
+    const filters = state.logs?.filters ?? {};
+
+    for (const button of shellRefs.view.querySelectorAll('[data-action="set-log-filter"][data-field][data-value]')) {
+        if (!(button instanceof HTMLElement)) {
+            continue;
+        }
+
+        const field = button.dataset.field;
+        const value = button.dataset.value;
+        const active = String(filters[field] ?? '') === String(value ?? '');
+
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+}
+
+function syncLogsMetaStrip(state) {
+    const logs = state.logs ?? {};
+    const values = {
+        visible: formatNumber((logs.items ?? []).length),
+        matched: formatNumber(logs.total ?? 0),
+        scope: logs.metadata?.activeDatabase?.label ?? 'Active Database',
+    };
+
+    for (const [key, value] of Object.entries(values)) {
+        const node = shellRefs.view.querySelector(`[data-logs-meta="${key}"]`);
+
+        if (node instanceof HTMLElement) {
+            node.textContent = value;
+            node.title = value;
+        }
+    }
+}
+
+function patchLogsTableUi(state) {
+    const logsView = shellRefs.view.querySelector('[data-logs-view]');
+
+    if (!(logsView instanceof HTMLElement)) {
+        return false;
+    }
+
+    const activeDatabaseId = getLogsActiveDatabaseId(state);
+
+    if (String(logsView.dataset.logsActiveDatabaseId ?? '') !== activeDatabaseId) {
+        return false;
+    }
+
+    const currentTable = logsView.querySelector('[data-logs-table]');
+
+    if (!(currentTable instanceof HTMLElement)) {
+        return false;
+    }
+
+    const currentScrollNode = currentTable.querySelector('[data-logs-table-scroll]');
+    const scrollState =
+        currentScrollNode instanceof HTMLElement
+            ? {
+                  left: currentScrollNode.scrollLeft,
+                  top: currentScrollNode.scrollTop,
+              }
+            : null;
+    const patched = replaceElementFromRenderedMarkup(currentTable, renderLogTable(state.logs ?? {}));
+
+    if (!patched) {
+        return false;
+    }
+
+    if (scrollState) {
+        const nextScrollNode = logsView.querySelector('[data-logs-table-scroll]');
+
+        if (nextScrollNode instanceof HTMLElement) {
+            nextScrollNode.scrollLeft = scrollState.left;
+            nextScrollNode.scrollTop = scrollState.top;
+        }
+    }
+
+    syncLogsFilterControls(state);
+    syncLogsMetaStrip(state);
+    return true;
+}
+
 function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -1118,6 +1212,8 @@ function resolveView(state) {
             return renderMediaTaggingView(state, { subView: 'queue' });
         case 'settings':
             return renderSettingsView(state);
+        case 'logs':
+            return renderLogsView(state);
         default:
             return renderNotFoundView();
     }
@@ -1403,6 +1499,7 @@ function renderApp(state) {
         'editorResults',
         'data',
         'charts',
+        'logs',
         'documents',
         'structure',
         'tableDesigner',
@@ -1457,8 +1554,8 @@ function renderApp(state) {
         pendingNewTableDesignerAutofocus = false;
     }
 
-    const canPatchChartsMain =
-        mainChanged && previousRouteName === 'charts' && state.route.name === 'charts';
+    const canPatchChartsMain = mainChanged && previousRouteName === 'charts' && state.route.name === 'charts';
+    const canPatchLogsMain = mainChanged && previousRouteName === 'logs' && state.route.name === 'logs';
     let mainPatched = false;
     let preservedChartsDom = false;
 
@@ -1482,6 +1579,10 @@ function renderApp(state) {
         if (!mainPatched) {
             preservedChartsDom = false;
         }
+    }
+
+    if (!mainPatched && canPatchLogsMain) {
+        mainPatched = patchLogsTableUi(state);
     }
 
     if (mainChanged) {
@@ -2428,6 +2529,15 @@ async function handleAction(actionNode) {
         case 'refresh-view':
             await refreshCurrentRoute();
             return;
+        case 'refresh-logs':
+            await refreshLogs();
+            return;
+        case 'set-log-filter':
+            await setLogFilter(actionNode.dataset.field, actionNode.dataset.value);
+            return;
+        case 'load-more-logs':
+            await loadMoreLogs();
+            return;
         case 'set-settings-section':
             setSettingsSection(actionNode.dataset.section);
             return;
@@ -3236,6 +3346,11 @@ document.addEventListener('keydown', event => {
         return;
     }
 
+    if (target instanceof HTMLInputElement && clearInputForEscape(target)) {
+        event.preventDefault();
+        return;
+    }
+
     if (state.modal) {
         event.preventDefault();
         closeModal();
@@ -3351,6 +3466,11 @@ document.addEventListener('input', event => {
 
     if (bindNode.dataset.bind === 'documents-search') {
         setDocumentsSearchQuery(bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'logs-search') {
+        setLogSearchInput(bindNode.value);
         return;
     }
 
@@ -3649,6 +3769,9 @@ document.addEventListener('submit', async event => {
     const formData = submitter ? new FormData(form, submitter) : new FormData(form);
 
     switch (form.dataset.form) {
+        case 'logs-search':
+            await applyLogSearch(String(formData.get('search') ?? ''));
+            return;
         case 'create-api-token':
             await createSettingsApiToken(String(formData.get('name') ?? ''));
             return;

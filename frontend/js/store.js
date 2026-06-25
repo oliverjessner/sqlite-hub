@@ -59,6 +59,13 @@ const UI_PREFERENCE_STORAGE_KEYS = {
 };
 const QUERY_HISTORY_PAGE_SIZE = 30;
 const QUERY_HISTORY_RUN_LIMIT = 8;
+const LOG_PAGE_SIZE = 80;
+const LOG_KINDS = new Set(['all', 'query', 'access']);
+const LOG_RANGES = new Set(['1h', '24h', '7d', '30d', 'all']);
+const LOG_ACTORS = new Set(['all', 'user', 'cli', 'api', 'mcp']);
+const LOG_STATUSES = new Set(['all', 'success', 'error']);
+const LOG_QUERY_TYPES = new Set(['all', 'select', 'insert', 'update', 'delete', 'pragma', 'create', 'alter', 'drop', 'other']);
+const LOG_DESTRUCTIVE_FILTERS = new Set(['all', 'yes', 'no']);
 const CHART_HEIGHT_PRESETS = new Set(['small', 'medium', 'large']);
 const TYPE_GENERATION_TARGETS = new Set(['typescript', 'rust', 'kotlin', 'swift']);
 const TYPE_GENERATION_NAMING = new Set(['preserve', 'camel', 'pascal', 'snake']);
@@ -258,6 +265,24 @@ function storeQueryHistoryTab(tab) {
     }
 }
 
+function normalizeSetValue(value, allowedValues, fallback) {
+    const normalized = String(value ?? fallback).trim().toLowerCase();
+    return allowedValues.has(normalized) ? normalized : fallback;
+}
+
+function normalizeLogFilters(filters = {}) {
+    return {
+        kind: normalizeSetValue(filters.kind, LOG_KINDS, 'all'),
+        range: normalizeSetValue(filters.range, LOG_RANGES, 'all'),
+        actor: normalizeSetValue(filters.actor, LOG_ACTORS, 'all'),
+        status: normalizeSetValue(filters.status, LOG_STATUSES, 'all'),
+        queryType: normalizeSetValue(filters.queryType, LOG_QUERY_TYPES, 'all'),
+        destructive: normalizeSetValue(filters.destructive, LOG_DESTRUCTIVE_FILTERS, 'all'),
+        searchInput: String(filters.searchInput ?? filters.search ?? ''),
+        search: String(filters.search ?? filters.searchInput ?? '').trim(),
+    };
+}
+
 const state = {
     ready: false,
     route: { name: 'landing', path: '/', params: {} },
@@ -307,6 +332,18 @@ const state = {
         data: null,
         loading: false,
         error: null,
+    },
+    logs: {
+        items: [],
+        total: 0,
+        limit: LOG_PAGE_SIZE,
+        offset: 0,
+        hasMore: false,
+        loading: false,
+        loadingMore: false,
+        error: null,
+        filters: normalizeLogFilters(),
+        metadata: null,
     },
     dataBrowser: {
         tables: [],
@@ -622,6 +659,7 @@ function requiresActiveDatabase(routeName) {
     return [
         'overview',
         'backups',
+        'logs',
         'data',
         'editor',
         'editorResults',
@@ -1290,6 +1328,7 @@ function resolveQueryHistorySql(historyId) {
 
 function clearRouteSlices() {
     state.overview.error = null;
+    state.logs.error = null;
     state.dataBrowser.error = null;
     state.dataBrowser.saveError = null;
     state.charts.error = null;
@@ -1309,6 +1348,15 @@ function setMissingDatabaseState() {
     state.overview.loading = false;
     state.overview.data = null;
     state.overview.error = error;
+
+    state.logs.loading = false;
+    state.logs.loadingMore = false;
+    state.logs.items = [];
+    state.logs.total = 0;
+    state.logs.offset = 0;
+    state.logs.hasMore = false;
+    state.logs.error = error;
+    state.logs.metadata = null;
 
     state.dataBrowser.loading = false;
     state.dataBrowser.tableLoading = false;
@@ -1495,6 +1543,65 @@ async function refreshSettingsState() {
     }
 }
 
+function buildLogRequestOptions({ append = false } = {}) {
+    const filters = normalizeLogFilters(state.logs.filters);
+
+    return {
+        ...filters,
+        search: filters.search,
+        limit: state.logs.limit,
+        offset: append ? state.logs.items.length : 0,
+    };
+}
+
+async function loadLogs(options = {}) {
+    const append = Boolean(options.append);
+
+    if (append && (state.logs.loading || state.logs.loadingMore || !state.logs.hasMore)) {
+        return;
+    }
+
+    if (append) {
+        state.logs.loadingMore = true;
+    } else {
+        state.logs.loading = true;
+        state.logs.offset = 0;
+        state.logs.error = null;
+    }
+
+    emitChange();
+
+    try {
+        const response = await api.getLogs(buildLogRequestOptions({ append }));
+        const data = response.data ?? {};
+        const items = Array.isArray(data.items) ? data.items : [];
+
+        state.logs.items = append ? [...state.logs.items, ...items] : items;
+        state.logs.total = Number(data.total ?? state.logs.items.length);
+        state.logs.limit = Number(data.limit ?? state.logs.limit);
+        state.logs.offset = Number(data.offset ?? 0);
+        state.logs.hasMore = Boolean(data.hasMore);
+        state.logs.metadata = response.metadata ?? data.filters ?? null;
+        state.logs.filters = normalizeLogFilters({
+            ...state.logs.filters,
+            ...(data.filters ?? {}),
+            ...(response.metadata ?? {}),
+        });
+        state.logs.error = null;
+    } catch (error) {
+        state.logs.error = normalizeError(error);
+        if (!append) {
+            state.logs.items = [];
+            state.logs.total = 0;
+            state.logs.hasMore = false;
+        }
+    } finally {
+        state.logs.loading = false;
+        state.logs.loadingMore = false;
+        emitChange();
+    }
+}
+
 async function refreshBackupsState() {
     if (!state.connections.active) {
         state.backups.items = [];
@@ -1550,6 +1657,48 @@ export function setSettingsSection(section) {
 
     state.settings.section = normalizedSection;
     emitChange();
+}
+
+export async function setLogFilter(field, value) {
+    if (!Object.prototype.hasOwnProperty.call(state.logs.filters, field)) {
+        return;
+    }
+
+    state.logs.filters = normalizeLogFilters({
+        ...state.logs.filters,
+        [field]: value,
+    });
+    state.logs.items = [];
+    state.logs.total = 0;
+    state.logs.hasMore = false;
+    await loadLogs();
+}
+
+export function setLogSearchInput(value) {
+    state.logs.filters = normalizeLogFilters({
+        ...state.logs.filters,
+        searchInput: value,
+    });
+}
+
+export async function applyLogSearch(value = state.logs.filters.searchInput) {
+    state.logs.filters = normalizeLogFilters({
+        ...state.logs.filters,
+        searchInput: value,
+        search: value,
+    });
+    state.logs.items = [];
+    state.logs.total = 0;
+    state.logs.hasMore = false;
+    await loadLogs();
+}
+
+export async function refreshLogs() {
+    await loadLogs();
+}
+
+export async function loadMoreLogs() {
+    await loadLogs({ append: true });
 }
 
 export async function checkSettingsAppVersion() {
@@ -2670,6 +2819,9 @@ async function loadRouteData(route, options = {}) {
             return;
         case 'backups':
             await refreshBackupsState();
+            return;
+        case 'logs':
+            await loadLogs();
             return;
         case 'data':
             await loadData(version, route);

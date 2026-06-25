@@ -958,191 +958,489 @@ async function startAndOpen(port) {
 
 function requireDatabaseName(options) {
     if (!options.databaseName) {
-        console.error('Error: this command requires --database:"name".');
-        process.exit(1);
+        throw new Error('this command requires --database:"name".');
     }
 
     return options.databaseName;
 }
 
-async function main(argv = process.argv.slice(2), dependencies = {}) {
-    const options = parseCliArguments(argv);
-    const port = options.port ?? DEFAULT_PORT;
+function readCliFlags(argv = []) {
+    return argv
+        .filter(argument => String(argument ?? '').startsWith('-'))
+        .map(argument => splitArgument(argument).flag)
+        .filter(Boolean);
+}
+
+function describeCliAccess(options, argv = []) {
+    const metadata = {
+        flags: readCliFlags(argv),
+    };
+    const entry = {
+        source: 'cli',
+        action: 'cli.open',
+        targetType: 'app',
+        targetName: 'server',
+        metadata,
+    };
+
+    if (!options) {
+        return {
+            ...entry,
+            action: 'cli.parse',
+            targetType: 'command',
+            targetName: 'arguments',
+        };
+    }
+
+    if (options.exportFormat) metadata.exportFormat = options.exportFormat;
+    if (options.typesTarget) metadata.typesTarget = options.typesTarget;
+    if (options.outputPath) metadata.hasOutputPath = true;
+    if (options.jsonOutput) metadata.jsonOutput = true;
+    if (options.force) metadata.force = true;
 
     if (options.help) {
-        printHelp();
-        return;
+        return {
+            ...entry,
+            action: 'cli.help',
+            targetType: 'app',
+            targetName: 'help',
+        };
     }
 
     if (options.version) {
-        const { version } = require('../package.json');
-        console.log(`SQLite Hub CLI version ${version}`);
-        return;
+        return {
+            ...entry,
+            action: 'cli.version',
+            targetType: 'app',
+            targetName: 'version',
+        };
     }
 
     if (options.info) {
-        await printInfo(port, dependencies);
-        return;
+        return {
+            ...entry,
+            action: 'cli.info',
+            targetType: 'app',
+            targetName: 'info',
+        };
     }
 
     if (options.open) {
-        await startAndOpen(port);
+        return entry;
+    }
+
+    if (options.documents) {
+        if (options.documentExport) {
+            return {
+                ...entry,
+                action: 'cli.document.export',
+                targetType: 'document',
+                targetName: options.documentName || 'document',
+            };
+        }
+
+        if (options.documentName) {
+            return {
+                ...entry,
+                action: 'cli.document.get',
+                targetType: 'document',
+                targetName: options.documentName,
+            };
+        }
+
+        return {
+            ...entry,
+            action: 'cli.documents.list',
+            targetType: 'database',
+            targetName: options.databaseName,
+        };
+    }
+
+    if (options.tableName) {
+        if (options.typesTarget) {
+            return {
+                ...entry,
+                action: 'cli.table.types.generate',
+                targetType: 'table',
+                targetName: options.tableName,
+            };
+        }
+
+        if (options.exportTarget) {
+            return {
+                ...entry,
+                action: 'cli.table.row.export',
+                targetType: 'table',
+                targetName: options.tableName,
+            };
+        }
+
+        return {
+            ...entry,
+            action: 'cli.table.get',
+            targetType: 'table',
+            targetName: options.tableName,
+        };
+    }
+
+    if (options.exportTarget) {
+        return {
+            ...entry,
+            action: 'cli.query.export',
+            targetType: 'query',
+            targetName: options.exportTarget,
+        };
+    }
+
+    if (options.executeQuery) {
+        return {
+            ...entry,
+            action: 'cli.query.execute.saved',
+            targetType: 'query',
+            targetName: options.executeQuery,
+        };
+    }
+
+    if (options.rawQuery) {
+        return {
+            ...entry,
+            action: 'cli.query.execute',
+            targetType: 'query',
+            targetName: options.storeName || 'raw query',
+            metadata: {
+                ...metadata,
+                hasStoreName: Boolean(options.storeName),
+            },
+        };
+    }
+
+    if (options.showQuery) {
+        return {
+            ...entry,
+            action: 'cli.query.get',
+            targetType: 'query',
+            targetName: options.showQuery,
+        };
+    }
+
+    if (options.showNotes) {
+        return {
+            ...entry,
+            action: 'cli.query.notes.get',
+            targetType: 'query',
+            targetName: options.showNotes,
+        };
+    }
+
+    if (options.queries) {
+        return {
+            ...entry,
+            action: 'cli.queries.list',
+            targetType: 'database',
+            targetName: options.databaseName,
+        };
+    }
+
+    if (options.tables) {
+        return {
+            ...entry,
+            action: 'cli.tables.list',
+            targetType: 'database',
+            targetName: options.databaseName,
+        };
+    }
+
+    if (options.pathInfo) {
+        return {
+            ...entry,
+            action: 'cli.database.path',
+            targetType: 'database',
+            targetName: options.databaseName,
+        };
+    }
+
+    if (options.sizeInfo) {
+        return {
+            ...entry,
+            action: 'cli.database.size',
+            targetType: 'database',
+            targetName: options.databaseName,
+        };
+    }
+
+    if (options.lastOpenedInfo) {
+        return {
+            ...entry,
+            action: 'cli.database.lastopened',
+            targetType: 'database',
+            targetName: options.databaseName,
+        };
+    }
+
+    if (options.databaseList && !options.databaseName) {
+        return {
+            ...entry,
+            action: 'cli.databases.list',
+            targetType: 'app',
+            targetName: 'databases',
+        };
+    }
+
+    if (options.databaseName) {
+        return {
+            ...entry,
+            action: 'cli.database.get',
+            targetType: 'database',
+            targetName: options.databaseName,
+        };
+    }
+
+    return entry;
+}
+
+function recordCliAccess({ appStateStore, entry, startedAtMs, error }) {
+    if (!appStateStore?.recordAccessLog || !entry) {
         return;
     }
 
-    if (options.storeName && !options.rawQuery) {
-        throw new Error('--store requires --query:"sql".');
-    }
-
-    const databaseService =
-        dependencies.databaseService ??
-        new DatabaseCommandService({
-            appStateStore: dependencies.appStateStore ?? createAppStateStore(),
+    try {
+        appStateStore.recordAccessLog({
+            ...entry,
+            status: error ? 'error' : 'success',
+            startedAt: new Date(startedAtMs).toISOString(),
+            durationMs: Date.now() - startedAtMs,
+            errorMessage: error ? error.message : null,
         });
-    const connections = databaseService.listDatabases();
+    } catch {
+        // Access logging must not change CLI behavior or command output.
+    }
+}
 
-    if (options.databaseList && !options.databaseName && !hasDatabaseOperation(options)) {
-        printDatabaseList(connections);
-        return;
+async function main(argv = process.argv.slice(2), dependencies = {}) {
+    const startedAtMs = Date.now();
+    let options = null;
+    let accessEntry = describeCliAccess(null, argv);
+    let accessLogStore = dependencies.appStateStore ?? null;
+    let databaseService = dependencies.databaseService ?? null;
+    let commandError = null;
+
+    function getAccessLogStore() {
+        if (dependencies.disableAccessLog) {
+            return null;
+        }
+
+        if (accessLogStore) {
+            return accessLogStore;
+        }
+
+        if (databaseService?.appStateStore) {
+            accessLogStore = databaseService.appStateStore;
+            return accessLogStore;
+        }
+
+        if (!dependencies.databaseService) {
+            accessLogStore = createAppStateStore();
+            return accessLogStore;
+        }
+
+        return null;
     }
 
-    if (options.databaseName || hasDatabaseOperation(options)) {
-        const dbName = requireDatabaseName(options);
-        const conn = databaseService.getDatabase(dbName);
+    try {
+        options = parseCliArguments(argv);
+        accessEntry = describeCliAccess(options, argv);
+        const port = options.port ?? DEFAULT_PORT;
 
-        if (options.documents) {
-            if (options.documentName) {
-                if (options.documentExport) {
-                    exportDocumentMarkdown({
-                        databaseService,
-                        conn,
-                        documentName: options.documentName,
-                    });
-                } else {
-                    showDocumentMarkdown({
-                        databaseService,
-                        conn,
-                        documentName: options.documentName,
-                    });
-                }
-                return;
-            }
-
-            listDocuments(databaseService, conn);
+        if (options.help) {
+            printHelp();
             return;
         }
 
-        if (
-            options.tableName ||
-            options.tables ||
-            options.queries ||
-            options.executeQuery ||
-            options.rawQuery ||
-            options.showQuery ||
-            options.showNotes ||
-            options.exportTarget ||
-            options.typesTarget
-        ) {
-            if (options.tableName) {
-                if (options.typesTarget) {
-                    generateTypes({
-                        databaseService,
-                        conn,
-                        tableName: options.tableName,
-                        options,
-                    });
+        if (options.version) {
+            const { version } = require('../package.json');
+            console.log(`SQLite Hub CLI version ${version}`);
+            return;
+        }
+
+        if (options.info) {
+            await printInfo(port, dependencies);
+            return;
+        }
+
+        if (options.open) {
+            await startAndOpen(port);
+            return;
+        }
+
+        if (options.storeName && !options.rawQuery) {
+            throw new Error('--store requires --query:"sql".');
+        }
+
+        databaseService =
+            databaseService ??
+            new DatabaseCommandService({
+                appStateStore: getAccessLogStore(),
+            });
+        const connections = databaseService.listDatabases();
+
+        if (options.databaseList && !options.databaseName && !hasDatabaseOperation(options)) {
+            printDatabaseList(connections);
+            return;
+        }
+
+        if (options.databaseName || hasDatabaseOperation(options)) {
+            const dbName = requireDatabaseName(options);
+            const conn = databaseService.getDatabase(dbName);
+            accessEntry.databaseKey = conn.id;
+            accessEntry.metadata = {
+                ...(accessEntry.metadata ?? {}),
+                databaseLabel: conn.label ?? null,
+            };
+
+            if (options.documents) {
+                if (options.documentName) {
+                    if (options.documentExport) {
+                        exportDocumentMarkdown({
+                            databaseService,
+                            conn,
+                            documentName: options.documentName,
+                        });
+                    } else {
+                        showDocumentMarkdown({
+                            databaseService,
+                            conn,
+                            documentName: options.documentName,
+                        });
+                    }
+                    return;
+                }
+
+                listDocuments(databaseService, conn);
+                return;
+            }
+
+            if (
+                options.tableName ||
+                options.tables ||
+                options.queries ||
+                options.executeQuery ||
+                options.rawQuery ||
+                options.showQuery ||
+                options.showNotes ||
+                options.exportTarget ||
+                options.typesTarget
+            ) {
+                if (options.tableName) {
+                    if (options.typesTarget) {
+                        generateTypes({
+                            databaseService,
+                            conn,
+                            tableName: options.tableName,
+                            options,
+                        });
+                        return;
+                    }
+
+                    if (options.exportTarget) {
+                        exportTableRowAsJson({
+                            databaseService,
+                            conn,
+                            tableName: options.tableName,
+                            exportTarget: options.exportTarget,
+                        });
+                    } else {
+                        printTableInfo(databaseService.getTable(conn.id, options.tableName));
+                    }
+
                     return;
                 }
 
                 if (options.exportTarget) {
-                    exportTableRowAsJson({
+                    exportSavedQuery({
                         databaseService,
                         conn,
-                        tableName: options.tableName,
-                        exportTarget: options.exportTarget,
+                        queryName: options.exportTarget,
+                        format: options.exportFormat,
                     });
-                } else {
-                    printTableInfo(databaseService.getTable(conn.id, options.tableName));
+                    return;
                 }
 
+                if (options.executeQuery) {
+                    executeSavedQuery({
+                        databaseService,
+                        conn,
+                        queryName: options.executeQuery,
+                    });
+                    return;
+                }
+
+                if (options.rawQuery) {
+                    executeRawQuery({
+                        databaseService,
+                        conn,
+                        sql: options.rawQuery,
+                        storeName: options.storeName,
+                    });
+                    return;
+                }
+
+                if (options.showQuery) {
+                    showSavedQuery({ databaseService, conn, queryName: options.showQuery });
+                    return;
+                }
+
+                if (options.showNotes) {
+                    showSavedQueryNotes({ databaseService, conn, queryName: options.showNotes });
+                    return;
+                }
+
+                if (options.queries) {
+                    listSavedQueries(databaseService, conn);
+                    return;
+                }
+
+                if (options.tables) {
+                    printTables(conn, databaseService.listTables(conn.id));
+                    return;
+                }
+            }
+
+            if (options.pathInfo) {
+                console.log(conn.path);
                 return;
             }
 
-            if (options.exportTarget) {
-                exportSavedQuery({
-                    databaseService,
-                    conn,
-                    queryName: options.exportTarget,
-                    format: options.exportFormat,
-                });
+            if (options.sizeInfo) {
+                console.log(formatSize(conn.sizeBytes));
                 return;
             }
 
-            if (options.executeQuery) {
-                executeSavedQuery({
-                    databaseService,
-                    conn,
-                    queryName: options.executeQuery,
-                });
+            if (options.lastOpenedInfo) {
+                console.log(conn.lastOpenedAt);
                 return;
             }
 
-            if (options.rawQuery) {
-                executeRawQuery({
-                    databaseService,
-                    conn,
-                    sql: options.rawQuery,
-                    storeName: options.storeName,
-                });
-                return;
-            }
-
-            if (options.showQuery) {
-                showSavedQuery({ databaseService, conn, queryName: options.showQuery });
-                return;
-            }
-
-            if (options.showNotes) {
-                showSavedQueryNotes({ databaseService, conn, queryName: options.showNotes });
-                return;
-            }
-
-            if (options.queries) {
-                listSavedQueries(databaseService, conn);
-                return;
-            }
-
-            if (options.tables) {
-                printTables(conn, databaseService.listTables(conn.id));
-                return;
-            }
-        }
-
-        if (options.pathInfo) {
-            console.log(conn.path);
+            printSingleDatabaseInfo(conn);
             return;
         }
 
-        if (options.sizeInfo) {
-            console.log(formatSize(conn.sizeBytes));
+        if (options.databaseList) {
+            printDatabaseList(connections);
             return;
         }
 
-        if (options.lastOpenedInfo) {
-            console.log(conn.lastOpenedAt);
-            return;
-        }
-
-        printSingleDatabaseInfo(conn);
-        return;
+        await startAndOpen(port);
+    } catch (error) {
+        commandError = error;
+        throw error;
+    } finally {
+        recordCliAccess({
+            appStateStore: getAccessLogStore(),
+            entry: accessEntry,
+            startedAtMs,
+            error: commandError,
+        });
     }
-
-    if (options.databaseList) {
-        printDatabaseList(connections);
-        return;
-    }
-
-    await startAndOpen(port);
 }
 
 if (require.main === module) {

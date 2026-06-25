@@ -57,6 +57,10 @@ bearer token and include `databaseId` plus `sql` in the JSON body. Add `store`
 or `name` to title the history item and mark it as saved. Raw query execution is
 rejected with HTTP `403` when the target database is marked read-only.
 
+Every `/api/v1` request is also recorded in the local Access Log with its API
+action, database id when available, target type/name, status, duration, and API
+token name/id. Tokens and request payloads are not stored in the Access Log.
+
 ```bash
 curl \
   -H "Authorization: Bearer shub_..." \

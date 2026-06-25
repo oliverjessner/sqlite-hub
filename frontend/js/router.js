@@ -91,6 +91,8 @@ export function parseHash(hash = window.location.hash) {
             return { name: 'mediaTaggingSetup', path: '/media-tagging', params: {} };
         case 'settings':
             return { name: 'settings', path: '/settings', params: {} };
+        case 'logs':
+            return { name: 'logs', path: '/logs', params: {} };
         default:
             return { name: 'notFound', path: cleanPath, params: {} };
     }

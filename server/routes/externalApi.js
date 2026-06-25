@@ -29,6 +29,223 @@ function readStoreName(req) {
   ).trim();
 }
 
+function decodePathPart(value = "") {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function readPathParts(req) {
+  return String(req.path ?? "")
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map(decodePathPart);
+}
+
+function buildExternalApiAccessDescriptor(req) {
+  const method = String(req.method ?? "GET").toUpperCase();
+  const parts = readPathParts(req);
+
+  if (parts[0] === "info") {
+    return {
+      action: "api.info.get",
+      targetType: "app",
+      targetName: "info",
+    };
+  }
+
+  if (parts[0] === "query") {
+    return {
+      action: "api.query.execute",
+      databaseKey: readDatabaseId(req),
+      targetType: "query",
+      targetName: readStoreName(req) || "raw query",
+    };
+  }
+
+  if (parts[0] !== "databases") {
+    return {
+      action: `api.${method.toLowerCase()}`,
+      targetType: "request",
+      targetName: req.path,
+    };
+  }
+
+  const databaseKey = parts[1] ?? "";
+  const collection = parts[2] ?? "";
+  const itemName = parts[3] ?? "";
+  const subAction = parts[4] ?? "";
+
+  if (!collection) {
+    return {
+      action: "api.database.get",
+      databaseKey,
+      targetType: "database",
+      targetName: databaseKey,
+    };
+  }
+
+  if (collection === "tables") {
+    if (!itemName) {
+      return {
+        action: "api.tables.list",
+        databaseKey,
+        targetType: "database",
+        targetName: databaseKey,
+      };
+    }
+
+    if (subAction === "row") {
+      return {
+        action: "api.table.row.export",
+        databaseKey,
+        targetType: "table",
+        targetName: itemName,
+      };
+    }
+
+    if (subAction === "types") {
+      return {
+        action: "api.table.types.generate",
+        databaseKey,
+        targetType: "table",
+        targetName: itemName,
+      };
+    }
+
+    return {
+      action: "api.table.get",
+      databaseKey,
+      targetType: "table",
+      targetName: itemName,
+    };
+  }
+
+  if (collection === "queries") {
+    if (!itemName) {
+      return {
+        action: "api.queries.list",
+        databaseKey,
+        targetType: "database",
+        targetName: databaseKey,
+      };
+    }
+
+    if (subAction === "execute") {
+      return {
+        action: "api.query.execute.saved",
+        databaseKey,
+        targetType: "query",
+        targetName: itemName,
+      };
+    }
+
+    if (subAction === "export") {
+      return {
+        action: "api.query.export",
+        databaseKey,
+        targetType: "query",
+        targetName: itemName,
+      };
+    }
+
+    if (subAction === "notes") {
+      return {
+        action: "api.query.notes.get",
+        databaseKey,
+        targetType: "query",
+        targetName: itemName,
+      };
+    }
+
+    return {
+      action: "api.query.get",
+      databaseKey,
+      targetType: "query",
+      targetName: itemName,
+    };
+  }
+
+  if (collection === "documents") {
+    if (!itemName) {
+      return {
+        action: "api.documents.list",
+        databaseKey,
+        targetType: "database",
+        targetName: databaseKey,
+      };
+    }
+
+    if (subAction === "export") {
+      return {
+        action: "api.document.export",
+        databaseKey,
+        targetType: "document",
+        targetName: itemName,
+      };
+    }
+
+    return {
+      action: "api.document.get",
+      databaseKey,
+      targetType: "document",
+      targetName: itemName,
+    };
+  }
+
+  return {
+    action: `api.${collection}.${method.toLowerCase()}`,
+    databaseKey,
+    targetType: collection,
+    targetName: itemName || databaseKey,
+  };
+}
+
+function createExternalApiAccessLogger(appStateStore) {
+  return (req, res, next) => {
+    const startedAtMs = Date.now();
+    const startedAt = new Date(startedAtMs).toISOString();
+
+    res.on("finish", () => {
+      if (!appStateStore?.recordAccessLog) {
+        return;
+      }
+
+      const descriptor = buildExternalApiAccessDescriptor(req);
+      const failed = res.statusCode >= 400;
+
+      try {
+        appStateStore.recordAccessLog({
+          source: "api",
+          action: descriptor.action,
+          databaseKey: descriptor.databaseKey,
+          targetType: descriptor.targetType,
+          targetName: descriptor.targetName,
+          status: failed ? "error" : "success",
+          startedAt,
+          durationMs: Date.now() - startedAtMs,
+          errorMessage: failed ? req.accessLogError || `HTTP ${res.statusCode}` : null,
+          metadata: {
+            method: req.method,
+            path: req.path,
+            route: req.route?.path ? String(req.route.path) : null,
+            statusCode: res.statusCode,
+            apiTokenId: req.apiToken?.id ?? null,
+            apiTokenName: req.apiToken?.name ?? null,
+          },
+        });
+      } catch {
+        // Access logging must not change API behavior.
+      }
+    });
+
+    next();
+  };
+}
+
 function authenticateDatabaseRequest(req, tokenService, databaseId) {
   const token = readBearerToken(req.get("authorization"));
 
@@ -41,8 +258,17 @@ function authenticateDatabaseRequest(req, tokenService, databaseId) {
   return tokenService.authenticate(databaseId, token);
 }
 
-function createExternalApiRouter({ databaseService, tokenService, appInfoService = buildAppInfo }) {
+function createExternalApiRouter({
+  databaseService,
+  tokenService,
+  appStateStore = null,
+  appInfoService = buildAppInfo,
+}) {
   const router = express.Router();
+
+  if (appStateStore?.recordAccessLog) {
+    router.use(createExternalApiAccessLogger(appStateStore));
+  }
 
   router.get(
     "/info",
@@ -335,6 +561,11 @@ function createExternalApiRouter({ databaseService, tokenService, appInfoService
       );
     })
   );
+
+  router.use((error, req, res, next) => {
+    req.accessLogError = error?.message ?? null;
+    next(error);
+  });
 
   return router;
 }

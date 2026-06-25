@@ -216,6 +216,33 @@ export function getDbStatus() {
   return request("/api/db/status");
 }
 
+export function getLogs(options = {}) {
+  const params = new URLSearchParams();
+
+  [
+    "kind",
+    "range",
+    "actor",
+    "status",
+    "queryType",
+    "destructive",
+    "from",
+    "to",
+    "search",
+    "limit",
+    "offset",
+  ].forEach((key) => {
+    const value = options[key];
+
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, String(value));
+    }
+  });
+
+  const query = params.toString();
+  return request(`/api/logs${query ? `?${query}` : ""}`);
+}
+
 export function executeSql(sql) {
   return request("/api/sql/execute", {
     method: "POST",

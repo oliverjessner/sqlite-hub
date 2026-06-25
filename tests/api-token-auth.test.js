@@ -118,6 +118,7 @@ async function startApi(t) {
     createExternalApiRouter({
       databaseService,
       tokenService,
+      appStateStore: store,
       appInfoService: async ({ port, url }) => ({
         packageName: "sqlite-hub",
         appVersion: "1.0.1",
@@ -308,6 +309,39 @@ test("type generation API uses database token auth and returns warnings at top l
   assert.deepEqual(fixture.serviceCalls, [
     `${fixture.databaseA.id}:types:companies:typescript:camel`,
   ]);
+});
+
+test("API access history records non-query endpoints", async (t) => {
+  const fixture = await startApi(t);
+  const created = fixture.tokenService.createToken(fixture.databaseA.id, "Automation");
+  const response = await fetch(
+    `${fixture.baseUrl}/databases/${fixture.databaseA.id}/tables/companies/types`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${created.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        target: "typescript",
+        options: {
+          propertyNaming: "camel",
+        },
+      }),
+    }
+  );
+  await response.json();
+
+  const log = fixture.store.listAccessLogs({ source: "api", databaseKey: fixture.databaseA.id }).items[0];
+
+  assert.equal(response.status, 200);
+  assert.equal(log.action, "api.table.types.generate");
+  assert.equal(log.targetType, "table");
+  assert.equal(log.targetName, "companies");
+  assert.equal(log.status, "success");
+  assert.equal(log.metadata.method, "POST");
+  assert.equal(log.metadata.statusCode, 200);
+  assert.equal(log.metadata.apiTokenName, "Automation");
 });
 
 test("saved query API records executions as api", async (t) => {

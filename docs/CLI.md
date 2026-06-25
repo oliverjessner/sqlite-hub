@@ -4,6 +4,10 @@ SQLite Hub ships with a built-in CLI that lets you start the app, inspect
 imported databases, execute raw or saved SQL, export query results, and work
 with Markdown documents from the terminal.
 
+CLI commands are recorded in the local Access Log with their action, target,
+database id when available, status, and duration. Raw SQL text is still handled
+by Query History for executed queries and is not duplicated in the Access Log.
+
 ## Start The App
 
 ```bash

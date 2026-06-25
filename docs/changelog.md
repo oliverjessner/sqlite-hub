@@ -1,6 +1,10 @@
+# v1.4.1
+
+- logs for everything
+
 # v1.4.0
 
-- Schema Diff / Database Diff
+- Schema Diff / Database Diff in backups
 
 # v1.3.0
 

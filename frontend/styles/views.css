@@ -690,6 +690,14 @@
     color: var(--color-on-primary);
 }
 
+.logs-detail-badge-row {
+    width: auto;
+}
+
+.logs-detail-badge-row .status-badge {
+    min-width: 0;
+}
+
 .query-chart-card {
     --query-chart-height: 450px;
     background: var(--color-surface-low);

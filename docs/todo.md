@@ -1,7 +1,6 @@
 # Maybe
 
 - MCP
-- query perf, history, api history
 - Data Pipeline Light/hook
 - Query Results as persistent Artifacts
 - SDK?

@@ -36,6 +36,7 @@ const { createSettingsRouter } = require("./routes/settings");
 const { createExportRouter } = require("./routes/export");
 const { createDocumentsRouter } = require("./routes/documents");
 const { createExternalApiRouter } = require("./routes/externalApi");
+const { createLogsRouter } = require("./routes/logs");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const FRONTEND_ROOT = path.join(PACKAGE_ROOT, "frontend");
@@ -133,11 +134,13 @@ app.use(
 );
 app.use("/api/export", createExportRouter({ exportService }));
 app.use("/api/documents", createDocumentsRouter({ appStateStore, connectionManager }));
+app.use("/api/logs", createLogsRouter({ appStateStore, connectionManager }));
 app.use(
   "/api/v1",
   createExternalApiRouter({
     databaseService: databaseCommandService,
     tokenService: apiTokenService,
+    appStateStore,
   })
 );
 
