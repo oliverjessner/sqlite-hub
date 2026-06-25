@@ -7,6 +7,20 @@
     "bin": {
         "sqlite-hub": "bin/sqlite-hub.js"
     },
+    "files": [
+        "bin/",
+        "docs/",
+        "examples/",
+        "frontend/",
+        "server/data/.gitkeep",
+        "server/data/db_logos/.gitkeep",
+        "server/middleware/",
+        "server/routes/",
+        "server/server.js",
+        "server/services/",
+        "server/utils/",
+        "tailwind.config.cjs"
+    ],
     "scripts": {
         "build": "npm run build:css",
         "build:css": "tailwindcss -i ./frontend/styles/tailwind.css -o ./frontend/styles/tailwind.generated.css --minify",
@@ -15,7 +29,7 @@
         "start": "node bin/sqlite-hub.js",
         "dev": "node --watch server/server.js --port:4180",
         "prepack": "npm run build:css",
-        "publish": "bash scripts/publish_brew.sh && sleep 10 && npm login --auth-type=web && bash scripts/publish_npm.sh",
+        "publish": "bash scripts/publish_brew.sh && sleep 10 && bash scripts/publish_npm.sh",
         "screenshots": "node scripts/screenshot_sqlite_hub.js --width:1920 --height:1280",
         "screenshots:backup-drawer": "node scripts/screenshot_backup_drawer.js"
     },

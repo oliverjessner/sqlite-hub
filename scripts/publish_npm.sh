@@ -162,7 +162,11 @@ ensure_npm_auth() {
   fi
 
   info "Checking npm auth"
-  npm whoami >/dev/null
+  if ! npm whoami >/dev/null 2>&1; then
+    echo "npm authentication is missing or expired." >&2
+    echo "Run 'npm login --auth-type=legacy' or configure an npm auth token, then retry." >&2
+    exit 1
+  fi
 }
 
 ensure_version_not_published() {
