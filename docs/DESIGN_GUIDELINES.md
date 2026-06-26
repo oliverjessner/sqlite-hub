@@ -39,6 +39,16 @@ Follow these rules exactly when creating or modifying UI controls.
 - Prefer migration over local override.
 - Prefer shared component updates over per-view fixes.
 
+## UX behavior
+
+- All drawers must close with `Escape`.
+- All modal windows must close with `Escape`.
+- Open dropdowns and menu popovers must close with `Escape`.
+- Focused text-like input elements must clear their value with `Escape` before any parent drawer, modal, dropdown, or selection state handles the key.
+- Search inputs must clear with `Escape` and dispatch the same input/update behavior as manual clearing.
+- Do not clear multiline textareas with `Escape` unless the textarea is explicitly built as a search field.
+- If an input is already empty, `Escape` may continue to the next applicable close/clear behavior.
+
 ## History elements
 
 - Query history panels, such as SQL Editor and Charts history, are always placed on the right side.
