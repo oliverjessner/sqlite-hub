@@ -3277,11 +3277,65 @@ class AppStateStore {
       tokenPrefix: String(row.token_prefix ?? row.tokenPrefix ?? ""),
       createdAt: row.created_at ?? row.createdAt ?? null,
       lastUsedAt: row.last_used_at ?? row.lastUsedAt ?? null,
+      callCount: Number(row.callCount ?? 0),
+      lastCallAt: row.lastCallAt ?? null,
     };
+  }
+
+  listApiTokenUsageStats(databaseKey) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+    const statsByTokenId = new Map();
+    const rows = this.db
+      .prepare(
+        `
+          SELECT started_at, metadata_json
+          FROM access_log
+          WHERE source = 'api'
+            AND database_key = ?
+          ORDER BY started_at DESC, id DESC
+        `
+      )
+      .all(normalizedDatabaseKey);
+
+    rows.forEach((row) => {
+      let metadata = {};
+
+      try {
+        metadata = JSON.parse(row.metadata_json ?? "{}");
+      } catch {
+        metadata = {};
+      }
+
+      const tokenId = String(metadata.apiTokenId ?? "").trim();
+
+      if (!tokenId) {
+        return;
+      }
+
+      const current = statsByTokenId.get(tokenId) ?? {
+        callCount: 0,
+        lastCallAt: null,
+      };
+      const startedAt = row.started_at ?? null;
+
+      current.callCount += 1;
+
+      if (
+        startedAt &&
+        (!current.lastCallAt || Date.parse(startedAt) > Date.parse(current.lastCallAt))
+      ) {
+        current.lastCallAt = startedAt;
+      }
+
+      statsByTokenId.set(tokenId, current);
+    });
+
+    return statsByTokenId;
   }
 
   listApiTokens(databaseKey) {
     const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+    const usageStatsByTokenId = this.listApiTokenUsageStats(normalizedDatabaseKey);
 
     return this.db
       .prepare(
@@ -3293,7 +3347,15 @@ class AppStateStore {
         `
       )
       .all(normalizedDatabaseKey)
-      .map((row) => this.decorateApiTokenRow(row));
+      .map((row) => {
+        const usageStats = usageStatsByTokenId.get(String(row.id ?? "")) ?? {};
+
+        return this.decorateApiTokenRow({
+          ...row,
+          callCount: usageStats.callCount ?? 0,
+          lastCallAt: usageStats.lastCallAt ?? null,
+        });
+      });
   }
 
   createApiToken({ databaseKey, name, tokenHash, tokenPrefix }) {

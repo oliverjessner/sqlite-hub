@@ -1,6 +1,6 @@
 import { renderPageHeader } from '../components/pageHeader.js';
 import { renderTextInput } from '../components/formControls.js';
-import { escapeHtml } from '../utils/format.js';
+import { escapeHtml, formatNumber } from '../utils/format.js';
 
 function renderSettingsNavigation(activeSection) {
     const items = [
@@ -124,12 +124,19 @@ function renderSettingsContent(state) {
     const tokenItems = apiTokens.length
         ? apiTokens
               .map(
-                  token => `
+                  token => {
+                      const callCount = Number(token.callCount ?? 0);
+                      const lastCallAt = token.lastCallAt ? token.lastCallAt : 'never';
+
+                      return `
                 <div class="flex flex-col gap-3 border border-outline-variant/10 bg-surface-container-high px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div class="min-w-0">
                     <div class="truncate text-sm font-semibold text-on-surface">${escapeHtml(token.name)}</div>
                     <div class="mt-1 font-mono text-[10px] text-on-surface-variant/60">
                       ${escapeHtml(token.tokenPrefix)}... · Created ${escapeHtml(token.createdAt ?? 'unknown')}
+                    </div>
+                    <div class="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/50">
+                      API calls ${escapeHtml(formatNumber(callCount))} · Last call ${escapeHtml(lastCallAt)}
                     </div>
                   </div>
                   <button
@@ -143,7 +150,8 @@ function renderSettingsContent(state) {
                     Delete
                   </button>
                 </div>
-              `,
+              `;
+                  },
               )
               .join('')
         : '<div class="text-sm text-on-surface-variant">No API tokens exist for this database.</div>';

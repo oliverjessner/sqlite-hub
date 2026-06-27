@@ -16,6 +16,7 @@ export const SYNTHETIC_GENERATOR_TYPES = [
     { value: 'timestamp', label: 'Timestamp' },
     { value: 'uuid', label: 'UUID' },
     { value: 'oneOf', label: 'One Of' },
+    { value: 'existingForeignKey', label: 'Existing FK' },
 ];
 
 const GENERATOR_VALUES = new Set(SYNTHETIC_GENERATOR_TYPES.map(type => type.value));
@@ -24,6 +25,54 @@ function normalizeColumnName(value) {
     return String(value ?? '')
         .trim()
         .toLowerCase();
+}
+
+function hasBooleanAllowedValues(column = {}) {
+    const values = (column.allowedValues ?? []).map(value => String(value));
+    const uniqueValues = new Set(values);
+
+    return uniqueValues.size === 2 && uniqueValues.has('0') && uniqueValues.has('1');
+}
+
+function hasBooleanIntegerRange(column = {}) {
+    return Number(column.integerRange?.min) === 0 && Number(column.integerRange?.max) === 1;
+}
+
+function isBooleanLikeColumn(column = {}, normalizedName = '') {
+    return (
+        /(^is_|^has_|enabled$|active$|archived$|published$|deleted$|visible$|boolean|bool)/.test(normalizedName) ||
+        hasBooleanAllowedValues(column) ||
+        hasBooleanIntegerRange(column)
+    );
+}
+
+function getForeignKeyInfo(foreignKeys = [], columnName) {
+    const singleColumnForeignKey = foreignKeys.find(
+        foreignKey =>
+            (foreignKey.mappings?.length ?? 0) === 1 && foreignKey.mappings?.[0]?.from === columnName,
+    );
+
+    if (singleColumnForeignKey) {
+        return {
+            kind: 'single',
+            foreignKey: singleColumnForeignKey,
+            mapping: singleColumnForeignKey.mappings[0],
+        };
+    }
+
+    const compositeForeignKey = foreignKeys.find(foreignKey =>
+        (foreignKey.mappings ?? []).some(mapping => mapping.from === columnName),
+    );
+
+    if (compositeForeignKey) {
+        return {
+            kind: 'composite',
+            foreignKey: compositeForeignKey,
+            mapping: compositeForeignKey.mappings.find(mapping => mapping.from === columnName) ?? null,
+        };
+    }
+
+    return null;
 }
 
 export function isIntegerPrimaryKeyColumn(column = {}) {
@@ -43,12 +92,30 @@ export function getSyntheticGeneratorLabel(value) {
     return SYNTHETIC_GENERATOR_TYPES.find(type => type.value === value)?.label ?? 'Skip';
 }
 
+function normalizeIntegerRange(column = {}) {
+    const min = Number(column.integerRange?.min);
+    const max = Number(column.integerRange?.max);
+
+    return {
+        min: Number.isSafeInteger(min) ? min : null,
+        max: Number.isSafeInteger(max) ? max : null,
+    };
+}
+
+function getDefaultIntegerOptions(column = {}) {
+    const range = normalizeIntegerRange(column);
+    const min = range.min ?? (range.max !== null && range.max < 1 ? range.max - 999 : 1);
+    const max = range.max ?? (range.min !== null && range.min > 1000 ? range.min + 999 : 1000);
+
+    return { min, max };
+}
+
 export function getDefaultSyntheticOptions(generator, column = {}) {
     switch (generator) {
         case 'static':
             return { value: '' };
         case 'randomInteger':
-            return { min: 1, max: 1000 };
+            return getDefaultIntegerOptions(column);
         case 'randomDecimal':
             return { min: 0, max: 1000, decimals: 2 };
         case 'boolean':
@@ -62,7 +129,7 @@ export function getDefaultSyntheticOptions(generator, column = {}) {
     }
 }
 
-export function suggestSyntheticGeneratorForColumn(column = {}) {
+export function suggestSyntheticGeneratorForColumn(column = {}, foreignKeys = []) {
     const name = normalizeColumnName(column.name);
     const declaredType = String(column.declaredType ?? '').toUpperCase();
     const affinity = String(column.affinity ?? '').toUpperCase();
@@ -75,8 +142,14 @@ export function suggestSyntheticGeneratorForColumn(column = {}) {
         return 'skip';
     }
 
-    if ((column.allowedValues ?? []).length) {
-        return 'oneOf';
+    const foreignKeyInfo = getForeignKeyInfo(foreignKeys, column.name);
+
+    if (foreignKeyInfo?.kind === 'single') {
+        return 'existingForeignKey';
+    }
+
+    if (foreignKeyInfo?.kind === 'composite') {
+        return 'skip';
     }
 
     if (/(^|_)email$/.test(name) || name.includes('email_address')) {
@@ -115,8 +188,12 @@ export function suggestSyntheticGeneratorForColumn(column = {}) {
         return 'uuid';
     }
 
-    if (/(^is_|^has_|enabled$|active$|archived$|published$|deleted$|visible$)/.test(name)) {
+    if (isBooleanLikeColumn(column, name)) {
         return 'boolean';
+    }
+
+    if ((column.allowedValues ?? []).length) {
+        return 'oneOf';
     }
 
     if (/(date|time|created_at|updated_at|timestamp)/.test(name) || /DATE|TIME/.test(declaredType)) {
@@ -138,17 +215,26 @@ export function suggestSyntheticGeneratorForColumn(column = {}) {
     return 'skip';
 }
 
-export function buildSyntheticDataMappings(columns = []) {
+export function buildSyntheticDataMappings(columns = [], foreignKeys = []) {
     return columns
         .filter(column => column.visible && !column.generated)
         .map(column => {
-            const generator = suggestSyntheticGeneratorForColumn(column);
+            const foreignKeyInfo = getForeignKeyInfo(foreignKeys, column.name);
+            const generator = suggestSyntheticGeneratorForColumn(column, foreignKeys);
+            const note =
+                foreignKeyInfo?.kind === 'single'
+                    ? `Existing ${foreignKeyInfo.foreignKey.referencedTable}.${foreignKeyInfo.mapping.to}`
+                    : foreignKeyInfo?.kind === 'composite'
+                      ? 'Composite FK unsupported'
+                      : isIntegerPrimaryKeyColumn(column)
+                        ? 'Auto increment / skipped'
+                        : '';
 
             return {
                 columnName: column.name,
                 generator,
                 options: getDefaultSyntheticOptions(generator, column),
-                note: isIntegerPrimaryKeyColumn(column) ? 'Auto increment / skipped' : '',
+                note,
             };
         });
 }

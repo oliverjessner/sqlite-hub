@@ -280,7 +280,7 @@ class DataBrowserService {
   previewSyntheticRows(tableName, payload = {}) {
     const db = this.connectionManager.getActiveDatabase();
     const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
-    const preview = buildSyntheticRows(tableDetail, payload, { limit: PREVIEW_ROW_COUNT });
+    const preview = buildSyntheticRows(db, tableDetail, payload, { limit: PREVIEW_ROW_COUNT });
 
     return {
       tableName: tableDetail.name,

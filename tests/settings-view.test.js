@@ -78,6 +78,8 @@ test("settings view scopes API token controls to the active database", async () 
           name: "Automation",
           tokenPrefix: "shub_example",
           createdAt: "2026-06-15T10:00:00.000Z",
+          callCount: 12,
+          lastCallAt: "2026-06-25T11:00:00.000Z",
         },
       ],
       createdApiToken: null,
@@ -95,6 +97,7 @@ test("settings view scopes API token controls to the active database", async () 
   assert.match(rendered.main, /sm:grid-cols-\[minmax\(0,1fr\)_9rem\]/);
   assert.equal((rendered.main.match(/w-full self-center justify-center/g) ?? []).length, 2);
   assert.match(rendered.main, /shub_example\.\.\./);
+  assert.match(rendered.main, /API calls 12 · Last call 2026-06-25T11:00:00\.000Z/);
   assert.match(rendered.main, /data-api-token-name/);
   assert.match(rendered.main, /data-form="create-api-token"/);
   assert.match(rendered.main, /name="name"/);

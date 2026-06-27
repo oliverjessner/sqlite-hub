@@ -160,35 +160,66 @@ function normalizeIdentifier(value) {
   return text.toLowerCase();
 }
 
-function parseSqlStringList(text = "") {
+function parseSqlStringLiteral(text = "", startIndex = 0) {
+  let value = "";
+  let index = startIndex + 1;
+
+  while (index < text.length) {
+    if (text[index] === "'") {
+      if (text[index + 1] === "'") {
+        value += "'";
+        index += 2;
+        continue;
+      }
+
+      return {
+        value,
+        nextIndex: index + 1,
+      };
+    }
+
+    value += text[index];
+    index += 1;
+  }
+
+  return null;
+}
+
+function parseSqlSimpleListValues(text = "") {
   const values = [];
   let index = 0;
 
   while (index < text.length) {
-    if (text[index] !== "'") {
+    const character = text[index];
+
+    if (/\s|,/.test(character)) {
       index += 1;
       continue;
     }
 
-    let value = "";
-    index += 1;
+    if (character === "'") {
+      const parsed = parseSqlStringLiteral(text, index);
 
-    while (index < text.length) {
-      if (text[index] === "'") {
-        if (text[index + 1] === "'") {
-          value += "'";
-          index += 2;
-          continue;
-        }
-
-        index += 1;
-        values.push(value);
-        break;
+      if (!parsed) {
+        return [];
       }
 
-      value += text[index];
-      index += 1;
+      values.push(parsed.value);
+      index = parsed.nextIndex;
+      continue;
     }
+
+    const commaIndex = text.indexOf(",", index);
+    const endIndex = commaIndex === -1 ? text.length : commaIndex;
+    const token = text.slice(index, endIndex).trim();
+    const number = parseSqlNumberToken(token);
+
+    if (number === null) {
+      return [];
+    }
+
+    values.push(number);
+    index = endIndex;
   }
 
   return values;
@@ -219,7 +250,7 @@ function findColumnInListExpression(expression, columnName) {
       continue;
     }
 
-    const values = parseSqlStringList(expression.slice(openIndex + 1, closeIndex));
+    const values = parseSqlSimpleListValues(expression.slice(openIndex + 1, closeIndex));
 
     if (values.length) {
       return values;
@@ -227,6 +258,137 @@ function findColumnInListExpression(expression, columnName) {
   }
 
   return [];
+}
+
+const SQL_IDENTIFIER_SOURCE =
+  '(?:"(?:[^"]|"")+"|`(?:[^`]|``)+`|\\[[^\\]]+\\]|[A-Za-z_][A-Za-z0-9_$]*)';
+const SQL_NUMBER_SOURCE = "[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:e[+-]?\\d+)?";
+const SQL_NUMBER_EXACT_PATTERN = new RegExp(`^${SQL_NUMBER_SOURCE}$`, "i");
+
+function parseSqlNumberToken(value) {
+  const text = String(value ?? "").trim();
+
+  if (!SQL_NUMBER_EXACT_PATTERN.test(text)) {
+    return null;
+  }
+
+  const number = Number(text);
+
+  return Number.isFinite(number) ? number : null;
+}
+
+function tokenMatchesColumn(token, columnName) {
+  return normalizeIdentifier(token) === normalizeIdentifier(columnName);
+}
+
+function applyIntegerLowerBound(range, value, inclusive) {
+  const min = inclusive ? Math.ceil(value) : Math.floor(value) + 1;
+
+  range.min = range.min === null ? min : Math.max(range.min, min);
+}
+
+function applyIntegerUpperBound(range, value, inclusive) {
+  const max = inclusive ? Math.floor(value) : Math.ceil(value) - 1;
+
+  range.max = range.max === null ? max : Math.min(range.max, max);
+}
+
+function applyIntegerComparison(range, operator, value) {
+  switch (operator) {
+    case ">":
+      applyIntegerLowerBound(range, value, false);
+      break;
+    case ">=":
+      applyIntegerLowerBound(range, value, true);
+      break;
+    case "<":
+      applyIntegerUpperBound(range, value, false);
+      break;
+    case "<=":
+      applyIntegerUpperBound(range, value, true);
+      break;
+    case "=":
+      applyIntegerLowerBound(range, value, true);
+      applyIntegerUpperBound(range, value, true);
+      break;
+    default:
+      break;
+  }
+}
+
+function reverseComparisonOperator(operator) {
+  return {
+    ">": "<",
+    ">=": "<=",
+    "<": ">",
+    "<=": ">=",
+    "=": "=",
+  }[operator];
+}
+
+function findColumnIntegerRangeInExpression(expression, columnName) {
+  const range = { min: null, max: null };
+  let found = false;
+  const betweenPattern = new RegExp(
+    `(${SQL_IDENTIFIER_SOURCE})\\s+BETWEEN\\s+(${SQL_NUMBER_SOURCE})\\s+AND\\s+(${SQL_NUMBER_SOURCE})`,
+    "gi"
+  );
+  const comparisonPattern = new RegExp(
+    `(${SQL_IDENTIFIER_SOURCE}|${SQL_NUMBER_SOURCE})\\s*(<=|>=|=|<|>)\\s*(${SQL_IDENTIFIER_SOURCE}|${SQL_NUMBER_SOURCE})`,
+    "gi"
+  );
+  let match;
+
+  while ((match = betweenPattern.exec(expression))) {
+    const identifier = match[1];
+    const min = parseSqlNumberToken(match[2]);
+    const max = parseSqlNumberToken(match[3]);
+
+    if (!tokenMatchesColumn(identifier, columnName) || min === null || max === null) {
+      continue;
+    }
+
+    applyIntegerLowerBound(range, min, true);
+    applyIntegerUpperBound(range, max, true);
+    found = true;
+  }
+
+  while ((match = comparisonPattern.exec(expression))) {
+    const left = match[1];
+    const operator = match[2];
+    const right = match[3];
+    const leftIsColumn = tokenMatchesColumn(left, columnName);
+    const rightIsColumn = tokenMatchesColumn(right, columnName);
+
+    if (leftIsColumn) {
+      const value = parseSqlNumberToken(right);
+
+      if (value !== null) {
+        applyIntegerComparison(range, operator, value);
+        found = true;
+      }
+      continue;
+    }
+
+    if (rightIsColumn) {
+      const value = parseSqlNumberToken(left);
+      const reversedOperator = reverseComparisonOperator(operator);
+
+      if (value !== null && reversedOperator) {
+        applyIntegerComparison(range, reversedOperator, value);
+        found = true;
+      }
+    }
+  }
+
+  if (!found) {
+    return null;
+  }
+
+  return {
+    ...(range.min !== null ? { min: range.min } : {}),
+    ...(range.max !== null ? { max: range.max } : {}),
+  };
 }
 
 function parseCheckAllowedValues(ddl = "", columns = []) {
@@ -254,6 +416,42 @@ function parseCheckAllowedValues(ddl = "", columns = []) {
   });
 
   return allowedValuesByColumn;
+}
+
+function parseCheckIntegerRanges(ddl = "", columns = []) {
+  const integerRangesByColumn = new Map();
+  const expressions = extractCheckExpressions(ddl);
+
+  columns
+    .filter((column) => column.affinity === "INTEGER")
+    .forEach((column) => {
+      const range = { min: null, max: null };
+
+      expressions.forEach((expression) => {
+        const expressionRange = findColumnIntegerRangeInExpression(expression, column.name);
+
+        if (!expressionRange) {
+          return;
+        }
+
+        if (Number.isSafeInteger(expressionRange.min)) {
+          range.min = range.min === null ? expressionRange.min : Math.max(range.min, expressionRange.min);
+        }
+
+        if (Number.isSafeInteger(expressionRange.max)) {
+          range.max = range.max === null ? expressionRange.max : Math.min(range.max, expressionRange.max);
+        }
+      });
+
+      if (range.min !== null || range.max !== null) {
+        integerRangesByColumn.set(column.name, {
+          ...(range.min !== null ? { min: range.min } : {}),
+          ...(range.max !== null ? { max: range.max } : {}),
+        });
+      }
+    });
+
+  return integerRangesByColumn;
 }
 
 function groupForeignKeys(rows) {
@@ -336,11 +534,17 @@ function getTableDetail(db, tableName, options = {}) {
     .map((column) => normalizeColumn(column, visibleSet))
     .sort((left, right) => left.cid - right.cid);
   const allowedValuesByColumn = parseCheckAllowedValues(entry.sql, columns);
+  const integerRangesByColumn = parseCheckIntegerRanges(entry.sql, columns);
 
-  columns = columns.map((column) => ({
-    ...column,
-    allowedValues: allowedValuesByColumn.get(column.name) ?? [],
-  }));
+  columns = columns.map((column) => {
+    const integerRange = integerRangesByColumn.get(column.name);
+
+    return {
+      ...column,
+      allowedValues: allowedValuesByColumn.get(column.name) ?? [],
+      ...(integerRange ? { integerRange } : {}),
+    };
+  });
 
   const foreignKeys = groupForeignKeys(
     db.prepare(`PRAGMA foreign_key_list(${quoteIdentifier(tableName)})`).all()

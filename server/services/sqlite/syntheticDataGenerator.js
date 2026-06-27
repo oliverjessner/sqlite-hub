@@ -4,7 +4,7 @@ const { quoteIdentifier } = require("../../utils/identifier");
 
 const DEFAULT_ROW_COUNT = 100;
 const MAX_ROW_COUNT = 10000;
-const PREVIEW_ROW_COUNT = 10;
+const PREVIEW_ROW_COUNT = 3;
 const GENERATOR_TYPES = new Set([
   "skip",
   "static",
@@ -23,6 +23,7 @@ const GENERATOR_TYPES = new Set([
   "timestamp",
   "uuid",
   "oneOf",
+  "existingForeignKey",
 ]);
 
 const FIRST_NAMES = [
@@ -122,7 +123,58 @@ function normalizeName(value) {
     .toLowerCase();
 }
 
-function suggestGeneratorForColumn(column) {
+function hasBooleanAllowedValues(column) {
+  const values = (column.allowedValues ?? []).map((value) => String(value));
+  const uniqueValues = new Set(values);
+
+  return uniqueValues.size === 2 && uniqueValues.has("0") && uniqueValues.has("1");
+}
+
+function hasBooleanIntegerRange(column) {
+  return Number(column.integerRange?.min) === 0 && Number(column.integerRange?.max) === 1;
+}
+
+function isBooleanLikeColumn(column, normalizedName) {
+  return (
+    /(^is_|^has_|enabled$|active$|archived$|published$|deleted$|visible$|boolean|bool)/.test(
+      normalizedName
+    ) ||
+    hasBooleanAllowedValues(column) ||
+    hasBooleanIntegerRange(column)
+  );
+}
+
+function getForeignKeyInfo(tableDetail, columnName) {
+  const foreignKeys = tableDetail?.foreignKeys ?? [];
+  const singleColumnForeignKey = foreignKeys.find(
+    (foreignKey) =>
+      (foreignKey.mappings?.length ?? 0) === 1 && foreignKey.mappings?.[0]?.from === columnName
+  );
+
+  if (singleColumnForeignKey) {
+    return {
+      kind: "single",
+      foreignKey: singleColumnForeignKey,
+      mapping: singleColumnForeignKey.mappings[0],
+    };
+  }
+
+  const compositeForeignKey = foreignKeys.find((foreignKey) =>
+    (foreignKey.mappings ?? []).some((mapping) => mapping.from === columnName)
+  );
+
+  if (compositeForeignKey) {
+    return {
+      kind: "composite",
+      foreignKey: compositeForeignKey,
+      mapping: compositeForeignKey.mappings.find((mapping) => mapping.from === columnName) ?? null,
+    };
+  }
+
+  return null;
+}
+
+function suggestGeneratorForColumn(column, tableDetail = null) {
   const name = normalizeName(column.name);
   const declaredType = String(column.declaredType ?? "").toUpperCase();
   const affinity = String(column.affinity ?? "").toUpperCase();
@@ -135,8 +187,14 @@ function suggestGeneratorForColumn(column) {
     return "skip";
   }
 
-  if ((column.allowedValues ?? []).length) {
-    return "oneOf";
+  const foreignKeyInfo = getForeignKeyInfo(tableDetail, column.name);
+
+  if (foreignKeyInfo?.kind === "single") {
+    return "existingForeignKey";
+  }
+
+  if (foreignKeyInfo?.kind === "composite") {
+    return "skip";
   }
 
   if (/(^|_)email$/.test(name) || name.includes("email_address")) {
@@ -175,11 +233,12 @@ function suggestGeneratorForColumn(column) {
     return "uuid";
   }
 
-  if (
-    /(^is_|^has_|enabled$|active$|archived$|published$|deleted$|visible$)/.test(name) ||
-    JSON.stringify(column.allowedValues ?? []) === JSON.stringify(["0", "1"])
-  ) {
+  if (isBooleanLikeColumn(column, name)) {
     return "boolean";
+  }
+
+  if ((column.allowedValues ?? []).length) {
+    return "oneOf";
   }
 
   if (/(date|time|created_at|updated_at|timestamp)/.test(name) || /DATE|TIME/.test(declaredType)) {
@@ -219,6 +278,37 @@ function toInteger(value, fallback, label) {
   }
 
   return number;
+}
+
+function normalizeIntegerRange(column = {}) {
+  const min = Number(column.integerRange?.min);
+  const max = Number(column.integerRange?.max);
+
+  return {
+    min: Number.isSafeInteger(min) ? min : null,
+    max: Number.isSafeInteger(max) ? max : null,
+  };
+}
+
+function getDefaultIntegerOptions(column = {}) {
+  const range = normalizeIntegerRange(column);
+  const min =
+    range.min ??
+    (range.max !== null && range.max < 1
+      ? range.max - 999
+      : 1);
+  const max =
+    range.max ??
+    (range.min !== null && range.min > 1000
+      ? range.min + 999
+      : 1000);
+
+  return {
+    min,
+    max,
+    rangeMin: range.min,
+    rangeMax: range.max,
+  };
 }
 
 function normalizeCommaValues(value, fallback = []) {
@@ -264,16 +354,44 @@ function normalizeTimestampOptions(options = {}) {
   };
 }
 
-function normalizeGeneratorOptions(generator, column, options = {}) {
+function normalizeExistingForeignKeyOptions(tableDetail, column) {
+  const foreignKeyInfo = getForeignKeyInfo(tableDetail, column.name);
+
+  if (foreignKeyInfo?.kind === "composite") {
+    throw new ValidationError(
+      `${column.name} is part of a composite foreign key. Synthetic FK generation supports single-column foreign keys only.`
+    );
+  }
+
+  if (foreignKeyInfo?.kind !== "single") {
+    throw new ValidationError(`${column.name} does not have a single-column foreign key.`);
+  }
+
+  return {
+    referencedTable: foreignKeyInfo.foreignKey.referencedTable,
+    referencedColumn: foreignKeyInfo.mapping.to,
+  };
+}
+
+function normalizeGeneratorOptions(generator, column, options = {}, tableDetail = null) {
   switch (generator) {
     case "static":
       return { value: options.value ?? "" };
     case "randomInteger": {
-      const min = toInteger(options.min, 1, "Integer min");
-      const max = toInteger(options.max, 1000, "Integer max");
+      const defaults = getDefaultIntegerOptions(column);
+      const min = toInteger(options.min, defaults.min, "Integer min");
+      const max = toInteger(options.max, defaults.max, "Integer max");
 
       if (min > max) {
         throw new ValidationError("Integer min must be less than or equal to max.");
+      }
+
+      if (defaults.rangeMin !== null && min < defaults.rangeMin) {
+        throw new ValidationError(`Integer min must be greater than or equal to ${defaults.rangeMin}.`);
+      }
+
+      if (defaults.rangeMax !== null && max > defaults.rangeMax) {
+        throw new ValidationError(`Integer max must be less than or equal to ${defaults.rangeMax}.`);
       }
 
       return { min, max };
@@ -306,6 +424,8 @@ function normalizeGeneratorOptions(generator, column, options = {}) {
       return normalizeTimestampOptions(options);
     case "oneOf":
       return { values: normalizeCommaValues(options.values, column.allowedValues ?? []) };
+    case "existingForeignKey":
+      return normalizeExistingForeignKeyOptions(tableDetail, column);
     default:
       return {};
   }
@@ -330,7 +450,7 @@ function normalizeMappings(tableDetail, mappings = []) {
 
   return candidateColumns.map((column) => {
     const provided = providedMappings.get(column.name) ?? {};
-    const requestedGenerator = provided.generator ?? suggestGeneratorForColumn(column);
+    const requestedGenerator = provided.generator ?? suggestGeneratorForColumn(column, tableDetail);
     const generator = GENERATOR_TYPES.has(requestedGenerator) ? requestedGenerator : null;
 
     if (!generator) {
@@ -338,6 +458,12 @@ function normalizeMappings(tableDetail, mappings = []) {
     }
 
     if (generator === "skip" && !canSkipColumn(column)) {
+      if (getForeignKeyInfo(tableDetail, column.name)?.kind === "composite") {
+        throw new ValidationError(
+          `${column.name} is part of a composite foreign key. Synthetic FK generation supports single-column foreign keys only.`
+        );
+      }
+
       throw new ValidationError(
         `${column.name} is required and cannot be skipped without a default value.`
       );
@@ -347,9 +473,58 @@ function normalizeMappings(tableDetail, mappings = []) {
       column,
       columnName: column.name,
       generator,
-      options: normalizeGeneratorOptions(generator, column, provided.options ?? {}),
+      options: normalizeGeneratorOptions(generator, column, provided.options ?? {}, tableDetail),
     };
   });
+}
+
+function buildForeignKeyPoolKey(options) {
+  return `${options.referencedTable}\u0000${options.referencedColumn}`;
+}
+
+function resolveForeignKeyPools(db, mappings) {
+  const pools = new Map();
+  const foreignKeyMappings = mappings.filter((mapping) => mapping.generator === "existingForeignKey");
+
+  foreignKeyMappings.forEach((mapping) => {
+    const poolKey = buildForeignKeyPoolKey(mapping.options);
+
+    mapping.options.poolKey = poolKey;
+
+    if (pools.has(poolKey)) {
+      return;
+    }
+
+    const rows = db
+      .prepare(
+        [
+          "SELECT DISTINCT",
+          `${quoteIdentifier(mapping.options.referencedColumn)} AS value`,
+          "FROM",
+          quoteIdentifier(mapping.options.referencedTable),
+          "WHERE",
+          `${quoteIdentifier(mapping.options.referencedColumn)} IS NOT NULL`,
+          "LIMIT 1000",
+        ].join(" ")
+      )
+      .all();
+
+    pools.set(poolKey, {
+      values: rows.map((row) => row.value),
+    });
+  });
+
+  foreignKeyMappings.forEach((mapping) => {
+    const pool = pools.get(mapping.options.poolKey);
+
+    if (!pool?.values?.length && mapping.column.notNull && !hasDefaultValue(mapping.column)) {
+      throw new ValidationError(
+        `${mapping.columnName} references ${mapping.options.referencedTable}.${mapping.options.referencedColumn}, but no parent values exist.`
+      );
+    }
+  });
+
+  return pools;
 }
 
 function buildPerson(index) {
@@ -386,7 +561,7 @@ function buildTimestamp(options) {
   return value.toISOString().slice(0, 19).replace("T", " ");
 }
 
-function generateValue(mapping, index) {
+function generateValue(mapping, index, context = {}) {
   const person = buildPerson(index);
   const serial = index + 1;
 
@@ -426,22 +601,53 @@ function generateValue(mapping, index) {
       return randomUUID();
     case "oneOf":
       return randomItem(mapping.options.values);
+    case "existingForeignKey": {
+      const pool = context.foreignKeyPools?.get(mapping.options.poolKey);
+
+      if (pool?.values?.length) {
+        return randomItem(pool.values);
+      }
+
+      return null;
+    }
     case "skip":
     default:
       return null;
   }
 }
 
-function buildSyntheticRows(tableDetail, payload = {}, options = {}) {
+function serializeMappingOptions(options = {}) {
+  const { poolKey, ...publicOptions } = options;
+
+  return publicOptions;
+}
+
+function shouldInsertMapping(mapping, context = {}) {
+  if (mapping.generator === "skip") {
+    return false;
+  }
+
+  if (mapping.generator !== "existingForeignKey") {
+    return true;
+  }
+
+  const pool = context.foreignKeyPools?.get(mapping.options.poolKey);
+
+  return Boolean(pool?.values?.length) || !hasDefaultValue(mapping.column);
+}
+
+function buildSyntheticRows(db, tableDetail, payload = {}, options = {}) {
   const rowCount = normalizeRowCount(payload.rowCount);
   const limit = Number.isInteger(options.limit) ? Math.min(options.limit, rowCount) : rowCount;
   const mappings = normalizeMappings(tableDetail, payload.mappings);
+  const foreignKeyPools = resolveForeignKeyPools(db, mappings);
+  const context = { foreignKeyPools };
   const columns = mappings.map((mapping) => mapping.columnName);
   const rows = Array.from({ length: limit }, (_value, index) =>
     Object.fromEntries(
       mappings.map((mapping) => [
         mapping.columnName,
-        mapping.generator === "skip" ? null : generateValue(mapping, index),
+        shouldInsertMapping(mapping, context) ? generateValue(mapping, index, context) : null,
       ])
     )
   );
@@ -454,7 +660,7 @@ function buildSyntheticRows(tableDetail, payload = {}, options = {}) {
     mappings: mappings.map((mapping) => ({
       columnName: mapping.columnName,
       generator: mapping.generator,
-      options: mapping.options,
+      options: serializeMappingOptions(mapping.options),
     })),
   };
 }
@@ -462,7 +668,9 @@ function buildSyntheticRows(tableDetail, payload = {}, options = {}) {
 function insertSyntheticRows(db, tableDetail, payload = {}) {
   const rowCount = normalizeRowCount(payload.rowCount);
   const mappings = normalizeMappings(tableDetail, payload.mappings);
-  const insertMappings = mappings.filter((mapping) => mapping.generator !== "skip");
+  const foreignKeyPools = resolveForeignKeyPools(db, mappings);
+  const context = { foreignKeyPools };
+  const insertMappings = mappings.filter((mapping) => shouldInsertMapping(mapping, context));
 
   if (!insertMappings.length) {
     const insertDefault = db.prepare(
@@ -496,7 +704,7 @@ function insertSyntheticRows(db, tableDetail, payload = {}) {
   );
   const insertMany = db.transaction(() => {
     for (let index = 0; index < rowCount; index += 1) {
-      statement.run(insertMappings.map((mapping) => generateValue(mapping, index)));
+      statement.run(insertMappings.map((mapping) => generateValue(mapping, index, context)));
     }
   });
 

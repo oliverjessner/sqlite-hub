@@ -77,6 +77,57 @@ test("settings routes create and delete tokens for the active database", async (
   assert.match(created.data.token, /^shub_/);
   assert.equal(created.metadata.apiTokens.length, 1);
   assert.equal(created.metadata.apiTokens[0].token, undefined);
+  assert.equal(created.metadata.apiTokens[0].callCount, 0);
+  assert.equal(created.metadata.apiTokens[0].lastCallAt, null);
+
+  store.recordAccessLog({
+    source: "api",
+    action: "api.databases.get",
+    databaseKey: connection.id,
+    targetType: "database",
+    targetName: connection.id,
+    status: "success",
+    startedAt: "2026-06-25T10:00:00.000Z",
+    metadata: {
+      apiTokenId: created.data.id,
+      apiTokenName: "Settings token",
+    },
+  });
+  store.recordAccessLog({
+    source: "api",
+    action: "api.tables.list",
+    databaseKey: connection.id,
+    targetType: "tables",
+    targetName: connection.id,
+    status: "success",
+    startedAt: "2026-06-25T11:00:00.000Z",
+    metadata: {
+      apiTokenId: created.data.id,
+      apiTokenName: "Settings token",
+    },
+  });
+  store.recordAccessLog({
+    source: "cli",
+    action: "cli.tables.list",
+    databaseKey: connection.id,
+    targetType: "tables",
+    targetName: connection.id,
+    status: "success",
+    startedAt: "2026-06-25T12:00:00.000Z",
+    metadata: {
+      apiTokenId: created.data.id,
+    },
+  });
+
+  const settingsResponse = await fetch(baseUrl);
+  const settingsPayload = await settingsResponse.json();
+  const tokenWithUsage = settingsPayload.metadata.apiTokens.find(
+    (token) => token.id === created.data.id
+  );
+
+  assert.equal(settingsResponse.status, 200);
+  assert.equal(tokenWithUsage.callCount, 2);
+  assert.equal(tokenWithUsage.lastCallAt, "2026-06-25T11:00:00.000Z");
 
   const deleteResponse = await fetch(`${baseUrl}/api-tokens/${created.data.id}`, {
     method: "DELETE",

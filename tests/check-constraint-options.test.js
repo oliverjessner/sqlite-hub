@@ -88,3 +88,32 @@ test("table detail exposes string options from simple CHECK IN constraints", () 
     db.close();
   }
 });
+
+test("table detail exposes integer ranges from simple CHECK constraints", () => {
+  const db = new Database(":memory:");
+
+  try {
+    db.exec(`
+      CREATE TABLE constrained_numbers (
+        id INTEGER PRIMARY KEY,
+        priority INTEGER CHECK (priority BETWEEN 2 AND 7),
+        score INTEGER CHECK (score >= -5 AND score < 5),
+        flag INTEGER CHECK (flag IN (0, 1)),
+        severity INTEGER CHECK (severity IN (1, 2, 3)),
+        quota INTEGER,
+        CHECK (10 <= quota AND quota <= 20)
+      );
+    `);
+
+    const tableDetail = getTableDetail(db, "constrained_numbers");
+    const columns = new Map(tableDetail.columns.map((column) => [column.name, column]));
+
+    assert.deepEqual(columns.get("priority").integerRange, { min: 2, max: 7 });
+    assert.deepEqual(columns.get("score").integerRange, { min: -5, max: 4 });
+    assert.deepEqual(columns.get("flag").allowedValues, [0, 1]);
+    assert.deepEqual(columns.get("severity").allowedValues, [1, 2, 3]);
+    assert.deepEqual(columns.get("quota").integerRange, { min: 10, max: 20 });
+  } finally {
+    db.close();
+  }
+});

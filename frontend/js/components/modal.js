@@ -887,13 +887,13 @@ function formatSyntheticPreviewValue(value) {
 }
 
 function renderSyntheticPreview(modal) {
-    const rows = modal.previewRows ?? [];
+    const rows = (modal.previewRows ?? []).slice(0, 3);
     const columns = modal.previewColumns?.length ? modal.previewColumns : (modal.columns ?? []).map(column => column.name);
 
     if (!rows.length) {
         return `
           <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 text-sm text-on-surface-variant/55">
-            Preview creates up to 10 rows without writing to the database.
+            Preview creates up to 3 rows without writing to the database.
           </div>
         `;
     }

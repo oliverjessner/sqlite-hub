@@ -257,6 +257,11 @@ test("query API executes raw SQL with a database token", async (t) => {
   assert.deepEqual(fixture.serviceCalls, [
     `${fixture.databaseA.id}:query:SELECT 1:Stored API Query:api`,
   ]);
+
+  const log = fixture.store.listAccessLogs({ source: "api", databaseKey: fixture.databaseA.id }).items[0];
+
+  assert.equal(log.metadata.apiTokenId, created.id);
+  assert.equal(log.metadata.apiTokenName, "Automation");
 });
 
 test("query API rejects read-only raw SQL execution", async (t) => {

@@ -3089,7 +3089,7 @@ export function openGenerateDataModal() {
         tableName,
         columns,
         rowCount: 100,
-        mappings: buildSyntheticDataMappings(columns),
+        mappings: buildSyntheticDataMappings(columns, table.foreignKeys ?? []),
         previewColumns: columns.map(column => column.name),
         previewRows: [],
         previewLoading: false,

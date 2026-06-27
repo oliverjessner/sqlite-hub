@@ -255,7 +255,10 @@ function authenticateDatabaseRequest(req, tokenService, databaseId) {
     });
   }
 
-  return tokenService.authenticate(databaseId, token);
+  const apiToken = tokenService.authenticate(databaseId, token);
+
+  req.apiToken = apiToken;
+  return apiToken;
 }
 
 function createExternalApiRouter({
