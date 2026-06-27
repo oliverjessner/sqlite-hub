@@ -3106,7 +3106,13 @@ export function updateGenerateDataModal(field, value, options = {}) {
     }
 
     if (field === 'rowCount') {
-        state.modal.rowCount = String(value ?? '');
+        const nextValue = String(value ?? '');
+
+        if (state.modal.rowCount === nextValue) {
+            return;
+        }
+
+        state.modal.rowCount = nextValue;
         state.modal.error = null;
         resetGenerateDataPreview(state.modal);
         if (options.notify !== false) {
@@ -3132,12 +3138,23 @@ export function updateGenerateDataMapping(columnName, field, value, options = {}
 
     if (field === 'generator') {
         const generator = normalizeSyntheticGeneratorType(value, mapping.generator);
+
+        if (mapping.generator === generator) {
+            return;
+        }
+
         mapping.generator = generator;
         mapping.options = getDefaultSyntheticOptions(generator, column ?? {});
     } else {
+        const nextValue = value;
+
+        if ((mapping.options ?? {})[field] === nextValue) {
+            return;
+        }
+
         mapping.options = {
             ...(mapping.options ?? {}),
-            [field]: value,
+            [field]: nextValue,
         };
     }
 

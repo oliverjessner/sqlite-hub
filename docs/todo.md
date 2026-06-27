@@ -1,9 +1,8 @@
 # Maybe
 
+- Query/Scheme Analyzer mit Explain Query Plan
 - MCP
-- Data Pipeline Light/hook
+- Data Pipeline Light/hook, programmable triggers?
 - Query Results as persistent Artifacts
 - SDK?
-- programmable triggers?
-- Query/Scheme Analyzer mit Explain Query Plan
 - MD to pdf

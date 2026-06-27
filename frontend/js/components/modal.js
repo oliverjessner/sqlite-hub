@@ -936,9 +936,6 @@ export function renderGenerateDataForm(modal) {
 
     return `
     <form class="generate-data-modal-form" data-form="generate-data">
-      <p class="text-sm leading-6 text-on-surface-variant/70">
-        Create test rows for "${escapeHtml(modal.tableName ?? '')}".
-      </p>
       <div class="synthetic-generator-count-row">
         <label class="block space-y-2">
           <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">Rows</span>
@@ -955,7 +952,7 @@ export function renderGenerateDataForm(modal) {
           />
         </label>
         <div class="flex items-end text-sm leading-6 text-on-surface-variant/60">
-          Generated locally from the current table schema. Insert validates required columns before writing.
+          Create test rows for "${escapeHtml(modal.tableName ?? '')}".
         </div>
       </div>
       <div class="synthetic-generator-grid custom-scrollbar">

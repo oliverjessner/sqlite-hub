@@ -204,6 +204,7 @@ test("generate data modal renders schema mappings and preview controls", async (
   });
 
   assert.match(html, /Create test rows for "contacts"\./);
+  assert.doesNotMatch(html, /Generated locally from the current table schema/);
   assert.match(html, /data-form="generate-data"/);
   assert.match(html, /data-bind="generate-data-field"/);
   assert.match(html, /data-action="preview-generate-data"/);
