@@ -1,6 +1,6 @@
 import { renderPageHeader } from '../components/pageHeader.js';
 import { renderTextInput } from '../components/formControls.js';
-import { escapeHtml, formatNumber } from '../utils/format.js';
+import { escapeHtml, formatCompactDateTime, formatNumber } from '../utils/format.js';
 
 function renderSettingsNavigation(activeSection) {
     const items = [
@@ -90,6 +90,81 @@ function renderVersionCheckStatus(settings) {
     `;
 }
 
+function renderApiTokenRow(token, tokenSaving) {
+    const callCount = Number(token.callCount ?? 0);
+    const createdAt = token.createdAt ? formatCompactDateTime(token.createdAt) : 'Unknown';
+    const lastCallAt = token.lastCallAt ? formatCompactDateTime(token.lastCallAt) : 'Never';
+
+    return `
+      <div class="grid grid-cols-1 gap-4 border-t border-outline-variant/10 bg-surface-container-high px-4 py-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(8rem,0.75fr)_7rem_minmax(8rem,0.85fr)_8rem] xl:items-center">
+        <div class="min-w-0">
+          <div class="truncate text-sm font-semibold text-on-surface" title="${escapeHtml(token.name)}">
+            ${escapeHtml(token.name)}
+          </div>
+          <div
+            class="mt-2 inline-flex max-w-full border border-outline-variant/10 bg-surface-container-lowest px-3 py-1 font-mono text-[11px] text-primary-container"
+            title="${escapeHtml(token.tokenPrefix ?? '')}"
+          >
+            <span class="truncate">${escapeHtml(token.tokenPrefix)}...</span>
+          </div>
+        </div>
+        <div>
+          <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/45 xl:hidden">Created</div>
+          <div class="mt-1 font-mono text-[11px] text-on-surface-variant/75 xl:mt-0" title="${escapeHtml(token.createdAt ?? 'unknown')}">
+            ${escapeHtml(createdAt)}
+          </div>
+        </div>
+        <div>
+          <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/45 xl:hidden">Calls</div>
+          <div class="mt-1 font-mono text-lg font-bold text-on-surface xl:mt-0">
+            ${escapeHtml(formatNumber(callCount))}
+          </div>
+        </div>
+        <div>
+          <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/45 xl:hidden">Last Call</div>
+          <div class="mt-1 font-mono text-[11px] text-on-surface-variant/75 xl:mt-0" title="${escapeHtml(token.lastCallAt ?? 'never')}">
+            ${escapeHtml(lastCallAt)}
+          </div>
+        </div>
+        <div class="flex xl:justify-end">
+          <button
+            class="delete-button"
+            data-action="open-delete-api-token-modal"
+            data-token-id="${escapeHtml(token.id)}"
+            type="button"
+            ${tokenSaving ? 'disabled' : ''}
+          >
+            <span class="material-symbols-outlined text-sm">delete</span>
+            Delete
+          </button>
+        </div>
+      </div>
+    `;
+}
+
+function renderApiTokenRows(apiTokens, tokenSaving) {
+    if (!apiTokens.length) {
+        return `
+          <div class="border border-outline-variant/10 bg-surface-container-high px-4 py-5 text-sm text-on-surface-variant">
+            No API tokens exist for this database.
+          </div>
+        `;
+    }
+
+    return `
+      <div class="overflow-hidden border border-outline-variant/10">
+        <div class="hidden bg-surface-container-highest px-4 py-3 font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/55 xl:grid xl:grid-cols-[minmax(0,1.35fr)_minmax(8rem,0.75fr)_7rem_minmax(8rem,0.85fr)_8rem]">
+          <div>Token</div>
+          <div>Created</div>
+          <div>Calls</div>
+          <div>Last Call</div>
+          <div class="text-right">Actions</div>
+        </div>
+        ${apiTokens.map(token => renderApiTokenRow(token, tokenSaving)).join('')}
+      </div>
+    `;
+}
+
 function renderSettingsContent(state) {
     if (state.settings.loading && !state.settings.appVersion) {
         return `
@@ -121,40 +196,7 @@ function renderSettingsContent(state) {
     const apiTokens = state.settings.apiTokens ?? [];
     const createdApiToken = state.settings.createdApiToken;
     const tokenSaving = Boolean(state.settings.tokenSaving);
-    const tokenItems = apiTokens.length
-        ? apiTokens
-              .map(
-                  token => {
-                      const callCount = Number(token.callCount ?? 0);
-                      const lastCallAt = token.lastCallAt ? token.lastCallAt : 'never';
-
-                      return `
-                <div class="flex flex-col gap-3 border border-outline-variant/10 bg-surface-container-high px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div class="min-w-0">
-                    <div class="truncate text-sm font-semibold text-on-surface">${escapeHtml(token.name)}</div>
-                    <div class="mt-1 font-mono text-[10px] text-on-surface-variant/60">
-                      ${escapeHtml(token.tokenPrefix)}... · Created ${escapeHtml(token.createdAt ?? 'unknown')}
-                    </div>
-                    <div class="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/50">
-                      API calls ${escapeHtml(formatNumber(callCount))} · Last call ${escapeHtml(lastCallAt)}
-                    </div>
-                  </div>
-                  <button
-                    class="delete-button"
-                    data-action="open-delete-api-token-modal"
-                    data-token-id="${escapeHtml(token.id)}"
-                    type="button"
-                    ${tokenSaving ? 'disabled' : ''}
-                  >
-                    <span class="material-symbols-outlined text-sm">delete</span>
-                    Delete
-                  </button>
-                </div>
-              `;
-                  },
-              )
-              .join('')
-        : '<div class="text-sm text-on-surface-variant">No API tokens exist for this database.</div>';
+    const tokenItems = renderApiTokenRows(apiTokens, tokenSaving);
     const tokenSection = tokenDatabase
         ? `
           <div class="space-y-5">

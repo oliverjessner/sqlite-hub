@@ -27,12 +27,10 @@ const {
 const DEFAULT_STATE = {
   recentConnections: [],
   activeConnectionId: null,
-  sqlHistory: [],
   settings: {
     defaultPageSize: 50,
     maxPageSize: 200,
     maxRecentConnections: 12,
-    maxSqlHistory: 100,
     busyTimeoutMs: 5000,
     csvDelimiter: ",",
   },
@@ -52,6 +50,7 @@ const MAX_ACCESS_LOG_METADATA_BYTES = 16 * 1024;
 const ACTIVITY_LOG_KINDS = new Set(["all", "query", "access"]);
 const ACTIVITY_LOG_ACTORS = new Set(["user", "cli", "api", "mcp"]);
 const ACTIVITY_LOG_DESTRUCTIVE_FILTERS = new Set(["all", "yes", "no"]);
+const REMOVED_SETTING_KEYS = new Set(["maxSqlHistory"]);
 const CONNECTION_LOGO_EXTENSION_BY_MIME_TYPE = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -364,6 +363,30 @@ function readUtf8File(fileUrl) {
   }
 }
 
+function pickLatestTimestamp(...timestamps) {
+  return timestamps.reduce((latest, timestamp) => {
+    const normalizedTimestamp = String(timestamp ?? "").trim();
+
+    if (!normalizedTimestamp) {
+      return latest;
+    }
+
+    const timestampMs = Date.parse(normalizedTimestamp);
+
+    if (!Number.isFinite(timestampMs)) {
+      return latest ?? normalizedTimestamp;
+    }
+
+    const latestMs = Date.parse(latest ?? "");
+
+    if (!latest || !Number.isFinite(latestMs) || timestampMs > latestMs) {
+      return normalizedTimestamp;
+    }
+
+    return latest;
+  }, null);
+}
+
 class AppStateStore {
   constructor(filePath, options = {}) {
     this.filePath = normalizeStateStorePath(filePath, "App state database path");
@@ -431,24 +454,15 @@ class AppStateStore {
         logoPath TEXT
       );
 
-      CREATE TABLE IF NOT EXISTS sql_history (
-        id TEXT PRIMARY KEY,
-        connectionId TEXT,
-        connectionLabel TEXT,
-        sql TEXT NOT NULL,
-        statementCount INTEGER NOT NULL DEFAULT 0,
-        resultKind TEXT,
-        affectedRowCount INTEGER NOT NULL DEFAULT 0,
-        rowCount INTEGER NOT NULL DEFAULT 0,
-        timingMs INTEGER NOT NULL DEFAULT 0,
-        executedAt TEXT NOT NULL
-      );
+      DROP INDEX IF EXISTS idx_sql_history_executed_at;
+
+      DROP TABLE IF EXISTS sql_history;
+
+      DELETE FROM settings
+      WHERE key = 'maxSqlHistory';
 
       CREATE INDEX IF NOT EXISTS idx_recent_connections_last_opened
       ON recent_connections(lastOpenedAt DESC, id ASC);
-
-      CREATE INDEX IF NOT EXISTS idx_sql_history_executed_at
-      ON sql_history(executedAt DESC, id ASC);
 
       CREATE TABLE IF NOT EXISTS query_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -776,25 +790,6 @@ class AppStateStore {
               )
               .all()
           : [],
-        sqlHistory: tables.has("sql_history")
-          ? legacyDb
-              .prepare(`
-                SELECT
-                  id,
-                  connectionId,
-                  connectionLabel,
-                  sql,
-                  statementCount,
-                  resultKind,
-                  affectedRowCount,
-                  rowCount,
-                  timingMs,
-                  executedAt
-                FROM sql_history
-                ORDER BY executedAt DESC, id ASC
-              `)
-              .all()
-          : [],
         activeConnectionId: tables.has("app_meta")
           ? legacyDb
               .prepare("SELECT value FROM app_meta WHERE key = ?")
@@ -833,34 +828,13 @@ class AppStateStore {
         readOnly = excluded.readOnly,
         logoPath = excluded.logoPath
     `);
-    const insertHistory = this.db.prepare(`
-      INSERT INTO sql_history (
-        id,
-        connectionId,
-        connectionLabel,
-        sql,
-        statementCount,
-        resultKind,
-        affectedRowCount,
-        rowCount,
-        timingMs,
-        executedAt
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        connectionId = excluded.connectionId,
-        connectionLabel = excluded.connectionLabel,
-        sql = excluded.sql,
-        statementCount = excluded.statementCount,
-        resultKind = excluded.resultKind,
-        affectedRowCount = excluded.affectedRowCount,
-        rowCount = excluded.rowCount,
-        timingMs = excluded.timingMs,
-        executedAt = excluded.executedAt
-    `);
 
     this.db.transaction(() => {
       for (const [key, value] of Object.entries(legacyState.settings ?? {})) {
+        if (REMOVED_SETTING_KEYS.has(key)) {
+          continue;
+        }
+
         const normalizedValue =
           typeof value === "string" ? this.parseStoredValue(value) : value;
 
@@ -877,21 +851,6 @@ class AppStateStore {
           connection.sizeBytes ?? null,
           connection.readOnly ? 1 : 0,
           this.normalizeLogoPath(connection.logoPath)
-        );
-      }
-
-      for (const entry of legacyState.sqlHistory ?? []) {
-        insertHistory.run(
-          entry.id,
-          entry.connectionId ?? null,
-          entry.connectionLabel ?? null,
-          entry.sql ?? "",
-          Number(entry.statementCount ?? 0),
-          entry.resultKind ?? null,
-          Number(entry.affectedRowCount ?? 0),
-          Number(entry.rowCount ?? 0),
-          Number(entry.timingMs ?? 0),
-          entry.executedAt ?? new Date().toISOString()
         );
       }
 
@@ -2902,30 +2861,10 @@ class AppStateStore {
     });
   }
 
-  trimSqlHistory() {
-    const maxSqlHistory = Number(
-      this.getSettings().maxSqlHistory ?? DEFAULT_STATE.settings.maxSqlHistory
-    );
-
-    const staleRows = this.db
-      .prepare(`
-        SELECT id
-        FROM sql_history
-        ORDER BY executedAt DESC, id ASC
-        LIMIT -1 OFFSET ?
-      `)
-      .all(maxSqlHistory);
-
-    for (const row of staleRows) {
-      this.db.prepare("DELETE FROM sql_history WHERE id = ?").run(row.id);
-    }
-  }
-
   getState() {
     return structuredClone({
       recentConnections: this.getRecentConnections(),
       activeConnectionId: this.getActiveConnectionId(),
-      sqlHistory: this.getSqlHistory(),
       settings: this.getSettings(),
     });
   }
@@ -3170,75 +3109,6 @@ class AppStateStore {
     return this.getMetaValue("activeConnectionId");
   }
 
-  addSqlHistory(entry) {
-    this.db.transaction(() => {
-      this.db
-        .prepare(`
-          INSERT INTO sql_history (
-            id,
-            connectionId,
-            connectionLabel,
-            sql,
-            statementCount,
-            resultKind,
-            affectedRowCount,
-            rowCount,
-            timingMs,
-            executedAt
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `)
-        .run(
-          entry.id,
-          entry.connectionId ?? null,
-          entry.connectionLabel ?? null,
-          entry.sql,
-          Number(entry.statementCount ?? 0),
-          entry.resultKind ?? null,
-          Number(entry.affectedRowCount ?? 0),
-          Number(entry.rowCount ?? 0),
-          Number(entry.timingMs ?? 0),
-          entry.executedAt
-        );
-
-      this.trimSqlHistory();
-    })();
-
-    return this.getSqlHistory();
-  }
-
-  clearSqlHistory() {
-    this.db.prepare("DELETE FROM sql_history").run();
-    return [];
-  }
-
-  getSqlHistory() {
-    return this.db
-      .prepare(`
-        SELECT
-          id,
-          connectionId,
-          connectionLabel,
-          sql,
-          statementCount,
-          resultKind,
-          affectedRowCount,
-          rowCount,
-          timingMs,
-          executedAt
-        FROM sql_history
-        ORDER BY executedAt DESC, id ASC
-      `)
-      .all()
-      .map((entry) => ({
-        ...entry,
-        statementCount: Number(entry.statementCount ?? 0),
-        affectedRowCount: Number(entry.affectedRowCount ?? 0),
-        rowCount: Number(entry.rowCount ?? 0),
-        timingMs: Number(entry.timingMs ?? 0),
-      }));
-  }
-
   getSettings() {
     const rows = this.db.prepare("SELECT key, value FROM settings").all();
     const parsedSettings = Object.fromEntries(
@@ -3333,11 +3203,31 @@ class AppStateStore {
     return statsByTokenId;
   }
 
+  getDatabaseApiQueryRunUsageStats(databaseKey) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+    const row = this.db
+      .prepare(
+        `
+          SELECT COUNT(*) AS call_count, MAX(runs.executed_at) AS last_call_at
+          FROM query_runs runs
+          INNER JOIN query_history q
+            ON q.id = runs.history_id
+          WHERE runs.executed_by = 'api'
+            AND q.database_key = ?
+        `
+      )
+      .get(normalizedDatabaseKey);
+
+    return {
+      callCount: Number(row?.call_count ?? 0),
+      lastCallAt: row?.last_call_at ?? null,
+    };
+  }
+
   listApiTokens(databaseKey) {
     const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
     const usageStatsByTokenId = this.listApiTokenUsageStats(normalizedDatabaseKey);
-
-    return this.db
+    const rows = this.db
       .prepare(
         `
           SELECT id, database_key, name, token_prefix, created_at, last_used_at
@@ -3346,16 +3236,38 @@ class AppStateStore {
           ORDER BY created_at DESC, id ASC
         `
       )
-      .all(normalizedDatabaseKey)
-      .map((row) => {
-        const usageStats = usageStatsByTokenId.get(String(row.id ?? "")) ?? {};
+      .all(normalizedDatabaseKey);
+    const accessLogCallCount = Array.from(usageStatsByTokenId.values()).reduce(
+      (total, stats) => total + Number(stats.callCount ?? 0),
+      0
+    );
+    const apiQueryRunUsageStats = this.getDatabaseApiQueryRunUsageStats(normalizedDatabaseKey);
+    const useSingleTokenQueryRunFallback =
+      rows.length === 1 &&
+      accessLogCallCount === 0 &&
+      apiQueryRunUsageStats.callCount > 0;
 
-        return this.decorateApiTokenRow({
-          ...row,
-          callCount: usageStats.callCount ?? 0,
-          lastCallAt: usageStats.lastCallAt ?? null,
-        });
+    return rows.map((row) => {
+      const tokenId = String(row.id ?? "");
+      const usageStats = usageStatsByTokenId.get(tokenId) ?? {};
+      let callCount = Number(usageStats.callCount ?? 0);
+      let lastCallAt = pickLatestTimestamp(usageStats.lastCallAt, row.last_used_at);
+
+      if (!callCount && row.last_used_at) {
+        callCount = 1;
+      }
+
+      if (useSingleTokenQueryRunFallback) {
+        callCount = Math.max(callCount, apiQueryRunUsageStats.callCount);
+        lastCallAt = pickLatestTimestamp(lastCallAt, apiQueryRunUsageStats.lastCallAt);
+      }
+
+      return this.decorateApiTokenRow({
+        ...row,
+        callCount,
+        lastCallAt,
       });
+    });
   }
 
   createApiToken({ databaseKey, name, tokenHash, tokenPrefix }) {

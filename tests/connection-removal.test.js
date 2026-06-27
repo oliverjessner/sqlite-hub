@@ -19,7 +19,15 @@ function createStore(t) {
   return { directory, store };
 }
 
-test("removing a recent connection does not require legacy sql_history", (t) => {
+function tableExists(store, tableName) {
+  return Boolean(
+    store.db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(tableName)
+  );
+}
+
+test("app state no longer creates legacy sql_history for connection removal", (t) => {
   const { directory, store } = createStore(t);
   const firstConnection = {
     id: "db-one",
@@ -41,7 +49,8 @@ test("removing a recent connection does not require legacy sql_history", (t) => 
 
   store.upsertRecentConnection(firstConnection);
   store.upsertRecentConnection(secondConnection, { makeActive: false });
-  store.db.exec("DROP TABLE sql_history");
+
+  assert.equal(tableExists(store, "sql_history"), false);
 
   const remaining = manager.removeRecentConnection(firstConnection.id);
 

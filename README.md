@@ -79,6 +79,8 @@ The same generator is available through the [CLI](./docs/CLI.md) and [local API]
 
 Scan rows, sort columns, move through local data quickly, and export full tables as CSV, TSV, Markdown, JSON, or Parquet.
 
+Use `Generate` in the Data browser to create local synthetic test rows from the current table schema. The generator respects required columns, foreign keys, simple `CHECK` constraints, and shows a preview before insertion.
+
 The Data browser also supports duplicating exports as a new table, searchable and hideable table navigation, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching.
 
 Wide tables keep their horizontal scroll position when sorting causes the grid to re-render. Cells use compact previews for long values, BLOBs, and detected file paths, while exports retain complete BLOB content.

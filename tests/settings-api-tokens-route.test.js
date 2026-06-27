@@ -146,3 +146,48 @@ test("settings routes create and delete tokens for the active database", async (
   assert.equal(versionCheck.data.updateAvailable, true);
   assert.equal(versionCheck.metadata.appVersion, require("../package.json").version);
 });
+
+test("settings token usage falls back to API query runs when access log is missing", (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-settings-token-fallback-"));
+  const store = new AppStateStore(path.join(directory, "state.db"));
+  const connection = {
+    id: "db-active",
+    label: "Active Database",
+    path: path.join(directory, "active.db"),
+    lastOpenedAt: new Date().toISOString(),
+    lastModifiedAt: new Date().toISOString(),
+    sizeBytes: 0,
+    readOnly: false,
+    logoPath: null,
+  };
+
+  t.after(() => {
+    store.db.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  store.upsertRecentConnection(connection);
+
+  const tokenService = new ApiTokenService({ appStateStore: store });
+  const created = tokenService.createToken(connection.id, "Settings token");
+
+  store.db
+    .prepare("UPDATE api_tokens SET last_used_at = ? WHERE id = ?")
+    .run("2026-06-21T08:50:29.064Z", created.id);
+  store.recordQueryExecution({
+    databaseKey: connection.id,
+    rawSql: "SELECT 1",
+    status: "success",
+    executedBy: "api",
+    executedAt: "2026-06-21T08:50:29.191Z",
+    durationMs: 3,
+    rowCount: 1,
+  });
+
+  const tokenWithUsage = tokenService
+    .listTokens(connection.id)
+    .find((token) => token.id === created.id);
+
+  assert.equal(tokenWithUsage.callCount, 1);
+  assert.equal(tokenWithUsage.lastCallAt, "2026-06-21T08:50:29.191Z");
+});

@@ -96,8 +96,15 @@ test("settings view scopes API token controls to the active database", async () 
   assert.match(rendered.main, /Copy ID/);
   assert.match(rendered.main, /sm:grid-cols-\[minmax\(0,1fr\)_9rem\]/);
   assert.equal((rendered.main.match(/w-full self-center justify-center/g) ?? []).length, 2);
+  assert.match(rendered.main, /<div>Token<\/div>/);
+  assert.match(rendered.main, /<div>Created<\/div>/);
+  assert.match(rendered.main, /<div>Calls<\/div>/);
+  assert.match(rendered.main, /<div>Last Call<\/div>/);
+  assert.match(rendered.main, /<div class="text-right">Actions<\/div>/);
   assert.match(rendered.main, /shub_example\.\.\./);
-  assert.match(rendered.main, /API calls 12 · Last call 2026-06-25T11:00:00\.000Z/);
+  assert.match(rendered.main, /title="2026-06-15T10:00:00\.000Z"/);
+  assert.match(rendered.main, /title="2026-06-25T11:00:00\.000Z"/);
+  assert.match(rendered.main, />\s*12\s*<\/div>/);
   assert.match(rendered.main, /data-api-token-name/);
   assert.match(rendered.main, /data-form="create-api-token"/);
   assert.match(rendered.main, /name="name"/);
