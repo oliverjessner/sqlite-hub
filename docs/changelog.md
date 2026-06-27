@@ -1,5 +1,6 @@
 # v1.4.1
 
+- synthetic data generation
 - logs for everything
 
 # v1.4.0

@@ -65,6 +65,7 @@ import {
     openRestoreBackupModal,
     openDeleteQueryChartModal,
     openDataExportModal,
+    openGenerateDataModal,
     openDeleteDocumentModal,
     openQueryExportModal,
     openDataRowByIdentity,
@@ -131,7 +132,9 @@ import {
     submitBackupSafetyChoice,
     submitCreateBackupConfirmation,
     submitEditBackupConfirmation,
+    submitGenerateDataRows,
     submitRowUpdatePreviewConfirmation,
+    previewGenerateDataRows,
     setQueryHistoryPanelVisibility,
     sortDataTableByColumn,
     sortEditorResultsByColumn,
@@ -175,6 +178,8 @@ import {
     updateCurrentTableDesignerColumnField,
     updateCurrentTableDesignerConstraintField,
     updateCurrentTableDesignerField,
+    updateGenerateDataMapping,
+    updateGenerateDataModal,
     updateGenerateTypesModal,
     addCurrentTableDesignerColumn,
     applyCurrentMediaTaggingSelection,
@@ -2988,6 +2993,12 @@ async function handleAction(actionNode) {
         case 'open-data-export-modal':
             openDataExportModal();
             return;
+        case 'open-generate-data-modal':
+            openGenerateDataModal();
+            return;
+        case 'preview-generate-data':
+            await previewGenerateDataRows();
+            return;
         case 'export-data-format': {
             const format = actionNode.dataset.exportFormat;
             const filename = getExportFilenameFromAction(actionNode);
@@ -3442,6 +3453,20 @@ document.addEventListener('input', event => {
         return;
     }
 
+    if (bindNode.dataset.bind === 'generate-data-field') {
+        updateGenerateDataModal(bindNode.dataset.field, bindNode.value, { notify: false });
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'generate-data-mapping') {
+        if (bindNode instanceof HTMLSelectElement) {
+            return;
+        }
+
+        updateGenerateDataMapping(bindNode.dataset.columnName, bindNode.dataset.field, bindNode.value, { notify: false });
+        return;
+    }
+
     if (bindNode.dataset.bind === 'copy-column-format-field') {
         updateCopyColumnModalFormatField(
             bindNode.dataset.field,
@@ -3622,6 +3647,16 @@ document.addEventListener('change', event => {
         const nextValue =
             bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox' ? bindNode.checked : bindNode.value;
         void updateGenerateTypesModal(bindNode.dataset.typeGenerationField, nextValue);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'generate-data-field') {
+        updateGenerateDataModal(bindNode.dataset.field, bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'generate-data-mapping') {
+        updateGenerateDataMapping(bindNode.dataset.columnName, bindNode.dataset.field, bindNode.value);
         return;
     }
 
@@ -3902,6 +3937,9 @@ document.addEventListener('submit', async event => {
         }
         case 'apply-row-update-preview':
             await submitRowUpdatePreviewConfirmation();
+            return;
+        case 'generate-data':
+            await submitGenerateDataRows();
             return;
         case 'create-media-tagging-tag-table':
             await submitCreateMediaTaggingTagTable();

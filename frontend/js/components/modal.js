@@ -17,6 +17,7 @@ import {
     MEDIA_TAGGING_DEFAULT_TAG_TABLE,
     MEDIA_TAGGING_DEFAULT_TAG_TABLE_SQL,
 } from '../lib/mediaTaggingDefaults.js';
+import { SYNTHETIC_GENERATOR_TYPES, getSyntheticGeneratorLabel } from '../utils/syntheticData.js';
 
 function renderField({ label, name, type = 'text', placeholder = '', value = '' }) {
     return `
@@ -693,6 +694,338 @@ export function renderGenerateTypesForm(modal) {
         </div>
       </div>
     </div>
+  `;
+}
+
+function renderSyntheticGeneratorOptions(value) {
+    return SYNTHETIC_GENERATOR_TYPES.map(
+        type =>
+            `<option value="${escapeHtml(type.value)}" ${String(type.value) === String(value) ? 'selected' : ''}>${escapeHtml(
+                type.label,
+            )}</option>`,
+    ).join('');
+}
+
+function renderSyntheticOptionInput({
+    columnName,
+    option,
+    type = 'text',
+    value = '',
+    min = null,
+    max = null,
+    step = null,
+    placeholder = '',
+}) {
+    const attributes = [
+        `class="control-input w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"`,
+        placeholder ? `aria-label="${escapeHtml(placeholder)}"` : '',
+        `data-bind="generate-data-mapping"`,
+        `data-column-name="${escapeHtml(columnName)}"`,
+        `data-field="${escapeHtml(option)}"`,
+        placeholder ? `placeholder="${escapeHtml(placeholder)}"` : '',
+        `type="${escapeHtml(type)}"`,
+        `value="${escapeHtml(value)}"`,
+        min !== null ? `min="${escapeHtml(min)}"` : '',
+        max !== null ? `max="${escapeHtml(max)}"` : '',
+        step !== null ? `step="${escapeHtml(step)}"` : '',
+    ].filter(Boolean);
+
+    return `<input ${attributes.join(' ')} />`;
+}
+
+function renderSyntheticOptionSelect({ columnName, option, value = '', options = [] }) {
+    return `
+      <select
+        class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+        data-bind="generate-data-mapping"
+        data-column-name="${escapeHtml(columnName)}"
+        data-field="${escapeHtml(option)}"
+      >
+        ${options
+            .map(
+                item =>
+                    `<option value="${escapeHtml(item.value)}" ${String(item.value) === String(value) ? 'selected' : ''}>${escapeHtml(
+                        item.label,
+                    )}</option>`,
+            )
+            .join('')}
+      </select>
+    `;
+}
+
+function renderSyntheticMappingOptions(mapping) {
+    const options = mapping.options ?? {};
+    const columnName = mapping.columnName;
+
+    switch (mapping.generator) {
+        case 'static':
+            return renderSyntheticOptionInput({
+                columnName,
+                option: 'value',
+                value: options.value ?? '',
+                placeholder: 'Value',
+            });
+        case 'randomInteger':
+            return `
+              <div class="synthetic-generator-options-grid synthetic-generator-options-grid--two">
+                ${renderSyntheticOptionInput({
+                    columnName,
+                    option: 'min',
+                    type: 'number',
+                    value: options.min ?? 1,
+                    step: 1,
+                    placeholder: 'Min',
+                })}
+                ${renderSyntheticOptionInput({
+                    columnName,
+                    option: 'max',
+                    type: 'number',
+                    value: options.max ?? 1000,
+                    step: 1,
+                    placeholder: 'Max',
+                })}
+              </div>
+            `;
+        case 'randomDecimal':
+            return `
+              <div class="synthetic-generator-options-grid synthetic-generator-options-grid--three">
+                ${renderSyntheticOptionInput({
+                    columnName,
+                    option: 'min',
+                    type: 'number',
+                    value: options.min ?? 0,
+                    step: '0.01',
+                    placeholder: 'Min',
+                })}
+                ${renderSyntheticOptionInput({
+                    columnName,
+                    option: 'max',
+                    type: 'number',
+                    value: options.max ?? 1000,
+                    step: '0.01',
+                    placeholder: 'Max',
+                })}
+                ${renderSyntheticOptionInput({
+                    columnName,
+                    option: 'decimals',
+                    type: 'number',
+                    value: options.decimals ?? 2,
+                    min: 0,
+                    max: 8,
+                    step: 1,
+                    placeholder: 'Decimals',
+                })}
+              </div>
+            `;
+        case 'boolean':
+            return renderSyntheticOptionInput({
+                columnName,
+                option: 'trueProbability',
+                type: 'number',
+                value: options.trueProbability ?? 50,
+                min: 0,
+                max: 100,
+                step: 1,
+                placeholder: 'True %',
+            });
+        case 'timestamp':
+            return `
+              <div class="synthetic-generator-options-grid synthetic-generator-options-grid--timestamp">
+                ${renderSyntheticOptionSelect({
+                    columnName,
+                    option: 'range',
+                    value: options.range ?? 'last30',
+                    options: [
+                        { value: 'last30', label: 'Last 30 days' },
+                        { value: 'last365', label: 'Last 365 days' },
+                        { value: 'custom', label: 'Custom' },
+                    ],
+                })}
+                ${
+                    options.range === 'custom'
+                        ? `${renderSyntheticOptionInput({
+                              columnName,
+                              option: 'from',
+                              type: 'datetime-local',
+                              value: options.from ?? '',
+                              placeholder: 'From',
+                          })}
+                          ${renderSyntheticOptionInput({
+                              columnName,
+                              option: 'to',
+                              type: 'datetime-local',
+                              value: options.to ?? '',
+                              placeholder: 'To',
+                          })}`
+                        : ''
+                }
+              </div>
+            `;
+        case 'oneOf':
+            return renderSyntheticOptionInput({
+                columnName,
+                option: 'values',
+                value: options.values ?? '',
+                placeholder: 'Comma values',
+            });
+        case 'skip':
+        default:
+            return `<span class="font-mono text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45">No options</span>`;
+    }
+}
+
+function formatSyntheticPreviewValue(value) {
+    if (value === null || value === undefined) {
+        return 'NULL';
+    }
+
+    if (typeof value === 'object') {
+        return JSON.stringify(value);
+    }
+
+    return String(value);
+}
+
+function renderSyntheticPreview(modal) {
+    const rows = modal.previewRows ?? [];
+    const columns = modal.previewColumns?.length ? modal.previewColumns : (modal.columns ?? []).map(column => column.name);
+
+    if (!rows.length) {
+        return `
+          <div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 text-sm text-on-surface-variant/55">
+            Preview creates up to 10 rows without writing to the database.
+          </div>
+        `;
+    }
+
+    return `
+      <div class="synthetic-generator-preview">
+        <table>
+          <thead>
+            <tr>
+              ${columns.map(column => `<th>${escapeHtml(column)}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows
+                .map(
+                    row => `
+                  <tr>
+                    ${columns
+                        .map(
+                            column =>
+                                `<td title="${escapeHtml(formatSyntheticPreviewValue(row[column]))}">${escapeHtml(
+                                    truncateMiddle(formatSyntheticPreviewValue(row[column]), 56),
+                                )}</td>`,
+                        )
+                        .join('')}
+                  </tr>
+                `,
+                )
+                .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+}
+
+export function renderGenerateDataForm(modal) {
+    const columns = modal.columns ?? [];
+    const mappings = modal.mappings ?? [];
+    const disabledAttribute = modal.submitting || modal.previewLoading ? 'disabled aria-disabled="true"' : '';
+
+    return `
+    <form class="generate-data-modal-form" data-form="generate-data">
+      <p class="text-sm leading-6 text-on-surface-variant/70">
+        Create test rows for "${escapeHtml(modal.tableName ?? '')}".
+      </p>
+      <div class="synthetic-generator-count-row">
+        <label class="block space-y-2">
+          <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">Rows</span>
+          <input
+            class="control-input w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+            data-bind="generate-data-field"
+            data-field="rowCount"
+            max="10000"
+            min="1"
+            name="rowCount"
+            step="1"
+            type="number"
+            value="${escapeHtml(modal.rowCount ?? 100)}"
+          />
+        </label>
+        <div class="flex items-end text-sm leading-6 text-on-surface-variant/60">
+          Generated locally from the current table schema. Insert validates required columns before writing.
+        </div>
+      </div>
+      <div class="synthetic-generator-grid custom-scrollbar">
+        <div class="synthetic-generator-grid__header">
+          <div>Column</div>
+          <div>SQLite Type</div>
+          <div>Generator</div>
+          <div>Options</div>
+        </div>
+        ${
+            columns.length
+                ? mappings
+                      .map(mapping => {
+                          const column = columns.find(item => item.name === mapping.columnName) ?? {};
+                          const sqliteType = column.declaredType || column.affinity || 'ANY';
+
+                          return `
+                            <div class="synthetic-generator-grid__row">
+                              <div class="min-w-0">
+                                <div class="synthetic-generator-column-name">${escapeHtml(mapping.columnName)}</div>
+                                ${
+                                    mapping.note
+                                        ? `<div class="synthetic-generator-column-note">${escapeHtml(mapping.note)}</div>`
+                                        : ''
+                                }
+                              </div>
+                              <div class="synthetic-generator-sqlite-type">
+                                ${escapeHtml(sqliteType)}
+                                ${column.notNull ? '<span>NOT NULL</span>' : ''}
+                              </div>
+                              <div>
+                                <select
+                                  class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+                                  data-bind="generate-data-mapping"
+                                  data-column-name="${escapeHtml(mapping.columnName)}"
+                                  data-field="generator"
+                                  title="${escapeHtml(getSyntheticGeneratorLabel(mapping.generator))}"
+                                >
+                                  ${renderSyntheticGeneratorOptions(mapping.generator)}
+                                </select>
+                              </div>
+                              <div class="min-w-0">
+                                ${renderSyntheticMappingOptions(mapping)}
+                              </div>
+                            </div>
+                          `;
+                      })
+                      .join('')
+                : `<div class="px-4 py-6 text-sm text-on-surface-variant/55">No writable columns available.</div>`
+        }
+      </div>
+      <div class="space-y-3">
+        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-primary-container">Preview</div>
+        ${renderSyntheticPreview(modal)}
+      </div>
+      ${renderError(modal.error)}
+      <div class="flex items-center justify-between gap-3 pt-2">
+        <button class="standard-button" data-action="close-modal" type="button">Cancel</button>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <button class="standard-button" data-action="preview-generate-data" type="button" ${disabledAttribute}>
+            <span class="material-symbols-outlined text-sm">visibility</span>
+            ${modal.previewLoading ? 'Previewing...' : 'Preview'}
+          </button>
+          <button class="signature-button" type="submit" ${modal.submitting ? 'disabled aria-disabled="true"' : ''}>
+            <span class="material-symbols-outlined text-sm">auto_awesome</span>
+            ${modal.submitting ? 'Inserting...' : 'Insert Rows'}
+          </button>
+        </div>
+      </div>
+    </form>
   `;
 }
 
@@ -2005,6 +2338,11 @@ export function renderModal(state) {
             title: 'Generate Types',
             body: renderGenerateTypesForm(modal),
         },
+        'generate-data': {
+            eyebrow: 'Data Browser // Synthetic rows',
+            title: 'Generate Synthetic Data',
+            body: renderGenerateDataForm(modal),
+        },
         'edit-connection': {
             eyebrow: 'Registry // Update saved SQLite target',
             title: 'Edit Connection',
@@ -2093,6 +2431,11 @@ export function renderModal(state) {
         return '';
     }
 
+    const modalBodyClass =
+        modal.kind === 'generate-data'
+            ? 'app-modal-body app-modal-body--no-scroll px-6 py-6'
+            : 'app-modal-body custom-scrollbar space-y-5 px-6 py-6';
+
     return `
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-4 backdrop-blur-sm">
       <div class="app-modal-shell w-full ${
@@ -2102,7 +2445,7 @@ export function renderModal(state) {
           modal.kind === 'row-update-preview' ||
           modal.kind === 'table-designer-constraints'
               ? 'max-w-3xl'
-              : modal.kind === 'generate-types'
+              : modal.kind === 'generate-types' || modal.kind === 'generate-data'
                 ? 'max-w-6xl'
               : modal.kind === 'query-export' ||
                   modal.kind === 'data-export' ||
@@ -2127,7 +2470,7 @@ export function renderModal(state) {
             <span class="material-symbols-outlined">close</span>
           </button>
         </div>
-        <div class="app-modal-body custom-scrollbar space-y-5 px-6 py-6">${config.body}</div>
+        <div class="${modalBodyClass}">${config.body}</div>
       </div>
     </div>
   `;

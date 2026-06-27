@@ -73,6 +73,7 @@ const MENU_SCENARIOS = [
       },
     ],
   },
+  { slug: "logs", path: "/logs", drawers: [] },
   { slug: "settings", path: "/settings", drawers: [] },
 ];
 

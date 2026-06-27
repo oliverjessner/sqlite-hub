@@ -518,6 +518,20 @@ export function previewDataTableRowUpdate(tableName, payload) {
   });
 }
 
+export function previewSyntheticDataRows(tableName, payload) {
+  return request(`/api/data/${encodeURIComponent(tableName)}/generate/preview`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function insertSyntheticDataRows(tableName, payload) {
+  return request(`/api/data/${encodeURIComponent(tableName)}/generate/insert`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export function deleteDataTableRow(tableName, payload) {
   return request(`/api/data/${encodeURIComponent(tableName)}/rows`, {
     method: "DELETE",

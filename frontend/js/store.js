@@ -23,6 +23,11 @@ import { MEDIA_TAGGING_DEFAULT_MAPPING_TABLE, MEDIA_TAGGING_DEFAULT_TAG_TABLE } 
 import { buildTextExportFilename } from './utils/exportFilenames.js';
 import { toggleMarkdownTodoLine } from './utils/markdownDocuments.js';
 import { buildRiskySqlBackupContext, detectRiskySqlOperations } from './utils/riskySql.js';
+import {
+    buildSyntheticDataMappings,
+    getDefaultSyntheticOptions,
+    normalizeSyntheticGeneratorType,
+} from './utils/syntheticData.js';
 
 const listeners = new Set();
 const DEFAULT_SETTINGS = {
@@ -3042,6 +3047,169 @@ export function openDataExportModal() {
         submitting: false,
     };
     emitChange();
+}
+
+function getGenerateDataModalColumn(modal, columnName) {
+    return (modal?.columns ?? []).find(column => column.name === columnName) ?? null;
+}
+
+function resetGenerateDataPreview(modal) {
+    if (!modal) {
+        return;
+    }
+
+    modal.previewRows = [];
+    modal.previewColumns = (modal.columns ?? []).map(column => column.name);
+}
+
+function buildGenerateDataPayload(modal) {
+    return {
+        rowCount: Number(modal.rowCount ?? 100),
+        mappings: (modal.mappings ?? []).map(mapping => ({
+            columnName: mapping.columnName,
+            generator: mapping.generator,
+            options: { ...(mapping.options ?? {}) },
+        })),
+    };
+}
+
+export function openGenerateDataModal() {
+    const table = state.dataBrowser.table;
+    const tableName = table?.name ?? state.dataBrowser.selectedTable;
+
+    if (!tableName || !table) {
+        pushToast('Select a table before generating rows.', 'alert');
+        return;
+    }
+
+    const columns = (table.columnMeta ?? []).filter(column => column.visible && !column.generated);
+
+    state.modal = {
+        kind: 'generate-data',
+        tableName,
+        columns,
+        rowCount: 100,
+        mappings: buildSyntheticDataMappings(columns),
+        previewColumns: columns.map(column => column.name),
+        previewRows: [],
+        previewLoading: false,
+        previewRequestId: 0,
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+export function updateGenerateDataModal(field, value, options = {}) {
+    if (state.modal?.kind !== 'generate-data') {
+        return;
+    }
+
+    if (field === 'rowCount') {
+        state.modal.rowCount = String(value ?? '');
+        state.modal.error = null;
+        resetGenerateDataPreview(state.modal);
+        if (options.notify !== false) {
+            emitChange();
+        }
+    }
+}
+
+export function updateGenerateDataMapping(columnName, field, value, options = {}) {
+    const modal = state.modal;
+
+    if (modal?.kind !== 'generate-data') {
+        return;
+    }
+
+    const mapping = (modal.mappings ?? []).find(item => item.columnName === columnName);
+
+    if (!mapping) {
+        return;
+    }
+
+    const column = getGenerateDataModalColumn(modal, columnName);
+
+    if (field === 'generator') {
+        const generator = normalizeSyntheticGeneratorType(value, mapping.generator);
+        mapping.generator = generator;
+        mapping.options = getDefaultSyntheticOptions(generator, column ?? {});
+    } else {
+        mapping.options = {
+            ...(mapping.options ?? {}),
+            [field]: value,
+        };
+    }
+
+    modal.error = null;
+    resetGenerateDataPreview(modal);
+    if (options.notify !== false) {
+        emitChange();
+    }
+}
+
+export async function previewGenerateDataRows() {
+    const modal = state.modal;
+
+    if (modal?.kind !== 'generate-data') {
+        return null;
+    }
+
+    const requestId = (modal.previewRequestId ?? 0) + 1;
+    modal.previewRequestId = requestId;
+    modal.previewLoading = true;
+    modal.error = null;
+    emitChange();
+
+    try {
+        const response = await api.previewSyntheticDataRows(modal.tableName, buildGenerateDataPayload(modal));
+
+        if (state.modal?.kind !== 'generate-data' || state.modal.previewRequestId !== requestId) {
+            return null;
+        }
+
+        state.modal.previewColumns = response.data?.columns ?? [];
+        state.modal.previewRows = response.data?.rows ?? [];
+        state.modal.error = null;
+        return response.data;
+    } catch (error) {
+        if (state.modal?.kind === 'generate-data' && state.modal.previewRequestId === requestId) {
+            state.modal.error = normalizeError(error);
+        }
+
+        return null;
+    } finally {
+        if (state.modal?.kind === 'generate-data' && state.modal.previewRequestId === requestId) {
+            state.modal.previewLoading = false;
+            emitChange();
+        }
+    }
+}
+
+export async function submitGenerateDataRows() {
+    const modal = state.modal;
+
+    if (modal?.kind !== 'generate-data') {
+        return null;
+    }
+
+    startModalSubmission();
+
+    try {
+        const response = await api.insertSyntheticDataRows(modal.tableName, buildGenerateDataPayload(modal));
+
+        if (state.modal?.kind === 'generate-data') {
+            closeModalInternal();
+        }
+
+        pushToast(response.message || `Generated ${response.data?.insertedRowCount ?? modal.rowCount} rows for ${modal.tableName}.`, 'success');
+        await loadDataTable(++routeLoadVersion);
+        clearDataBrowserRowSelectionState();
+        return response.data;
+    } catch (error) {
+        withModalError(error);
+        return null;
+    }
 }
 
 export function openCopyColumnModal({ scope = 'editor', columnName = '', mode = 'column' } = {}) {

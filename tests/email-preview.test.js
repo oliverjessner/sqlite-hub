@@ -65,6 +65,32 @@ test("data table renders an email icon for email cells", async () => {
 
   assert.match(rendered, /alternate_email/);
   assert.match(rendered, /oli@example\.com/);
+  assert.match(rendered, /data-action="open-generate-data-modal"/);
+  assert.match(rendered, />\s*Generate\s*<\/button>/);
+});
+
+test("data table generate button is disabled until a table is selected", async () => {
+  const { renderDataView } = await loadDataViewModule();
+  const rendered = renderDataView({
+    connections: {
+      active: { readOnly: false },
+    },
+    dataBrowser: {
+      error: null,
+      loading: false,
+      page: 1,
+      pageSize: 50,
+      selectedRowIndex: null,
+      selectedTable: null,
+      tableSearchQuery: "",
+      tables: [],
+      tablesVisible: true,
+      table: null,
+    },
+  }).main;
+
+  assert.match(rendered, /data-action="open-generate-data-modal"/);
+  assert.match(rendered, /disabled aria-disabled="true"/);
 });
 
 test("row editor renders an email badge for email fields", async () => {

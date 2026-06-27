@@ -147,6 +147,84 @@ test("generate types modal renders all-table file badges and download label", as
   assert.doesNotMatch(html, /accounts: warning two/);
 });
 
+test("generate data modal renders schema mappings and preview controls", async () => {
+  const { renderGenerateDataForm, renderModal } = await loadModalModule();
+  const modal = {
+    kind: "generate-data",
+    tableName: "contacts",
+    columns: [
+      {
+        name: "id",
+        visible: true,
+        primaryKeyPosition: 1,
+        declaredType: "INTEGER",
+        affinity: "INTEGER",
+      },
+      {
+        name: "email",
+        visible: true,
+        declaredType: "TEXT",
+        affinity: "TEXT",
+        notNull: true,
+      },
+    ],
+    rowCount: 100,
+    mappings: [
+      { columnName: "id", generator: "skip", options: {}, note: "Auto increment / skipped" },
+      { columnName: "email", generator: "email", options: {} },
+    ],
+    previewColumns: ["id", "email"],
+    previewRows: [{ id: null, email: "ada.lovelace.1@example.test" }],
+    previewLoading: false,
+    submitting: false,
+    error: null,
+  };
+  const html = renderGenerateDataForm(modal);
+  const shellHtml = renderModal({
+    modal,
+    connections: {
+      recent: [],
+    },
+    charts: {
+      result: null,
+      detail: null,
+    },
+    documents: {
+      selectedId: null,
+    },
+    editor: {
+      result: null,
+    },
+    mediaTagging: {
+      config: null,
+    },
+    tableDesigner: {
+      draft: null,
+    },
+  });
+
+  assert.match(html, /Create test rows for "contacts"\./);
+  assert.match(html, /data-form="generate-data"/);
+  assert.match(html, /data-bind="generate-data-field"/);
+  assert.match(html, /data-action="preview-generate-data"/);
+  assert.match(html, /Insert Rows/);
+  assert.match(html, /Auto increment \/ skipped/);
+  assert.match(html, /<option value="email" selected>Email<\/option>/);
+  assert.match(html, /ada\.lovelace\.1@example\.test/);
+  assert.match(shellHtml, /app-modal-body app-modal-body--no-scroll/);
+  assert.match(shellHtml, /synthetic-generator-grid custom-scrollbar/);
+  assert.doesNotMatch(shellHtml, /synthetic-generator-preview custom-scrollbar/);
+
+  const css = readFileSync(
+    path.resolve(__dirname, "../frontend/styles/components.css"),
+    "utf8"
+  );
+  assert.match(css, /\.app-modal-body--no-scroll\s*\{[\s\S]*overflow: hidden;/);
+  assert.match(css, /\.synthetic-generator-grid\s*\{[\s\S]*max-height: min\(44dvh, 34rem\);[\s\S]*overflow: auto;/);
+  const generateDataFormCss = css.match(/\.generate-data-modal-form\s*\{[\s\S]*?\}/)?.[0] ?? "";
+  assert.doesNotMatch(generateDataFormCss, /height: 100%;/);
+});
+
 test("modal footer close buttons are not right-aligned", () => {
   const source = readFileSync(
     path.resolve(__dirname, "../frontend/js/components/modal.js"),

@@ -6,6 +6,11 @@ const {
   serializeRows,
 } = require("../../utils/sqliteTypes");
 const { getRawStructureEntries, getTableDetail } = require("./introspection");
+const {
+  PREVIEW_ROW_COUNT,
+  buildSyntheticRows,
+  insertSyntheticRows,
+} = require("./syntheticDataGenerator");
 const { normalizeTableFilter } = require("./tableFilter");
 const { buildTableOrderClause, normalizeTableSort } = require("./tableSort");
 
@@ -270,6 +275,30 @@ class DataBrowserService {
       identity,
       affectedRowCount: result.changes,
     };
+  }
+
+  previewSyntheticRows(tableName, payload = {}) {
+    const db = this.connectionManager.getActiveDatabase();
+    const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
+    const preview = buildSyntheticRows(tableDetail, payload, { limit: PREVIEW_ROW_COUNT });
+
+    return {
+      tableName: tableDetail.name,
+      rowCount: preview.rowCount,
+      previewRowCount: preview.previewRowCount,
+      columns: preview.columns,
+      rows: serializeRows(preview.rows),
+      mappings: preview.mappings,
+    };
+  }
+
+  insertSyntheticRows(tableName, payload = {}) {
+    this.connectionManager.assertWritable();
+
+    const db = this.connectionManager.getActiveDatabase();
+    const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
+
+    return insertSyntheticRows(db, tableDetail, payload);
   }
 
   buildWhereClause(tableDetail, identity) {

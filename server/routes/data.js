@@ -56,6 +56,36 @@ function createDataRouter({ dataBrowserService }) {
     })
   );
 
+  router.post(
+    "/:tableName/generate/preview",
+    route((req, res) => {
+      const data = dataBrowserService.previewSyntheticRows(req.params.tableName, req.body ?? {});
+
+      res.json(
+        successResponse({
+          message: "Synthetic data preview generated.",
+          data,
+          readOnly: false,
+        })
+      );
+    })
+  );
+
+  router.post(
+    "/:tableName/generate/insert",
+    route((req, res) => {
+      const data = dataBrowserService.insertSyntheticRows(req.params.tableName, req.body ?? {});
+
+      res.json(
+        successResponse({
+          message: `Generated ${data.insertedRowCount} rows for ${data.tableName}.`,
+          data,
+          readOnly: false,
+        })
+      );
+    })
+  );
+
   router.patch(
     "/:tableName/rows",
     route((req, res) => {

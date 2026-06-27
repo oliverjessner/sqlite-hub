@@ -1,12 +1,6 @@
 import { renderStatusBadge } from '../components/badges.js';
 import { renderTextInput } from '../components/formControls.js';
-import {
-    escapeHtml,
-    formatCompactDateTime,
-    formatDurationMs,
-    formatNumber,
-    truncateMiddle,
-} from '../utils/format.js';
+import { escapeHtml, formatCompactDateTime, formatDurationMs, formatNumber, truncateMiddle } from '../utils/format.js';
 
 const FILTERS = {
     range: [
@@ -99,9 +93,7 @@ function renderLogMetaStrip(logs) {
                     </div>
                     <div class="mt-1 max-w-[18rem] truncate font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-on-surface" data-logs-meta="${escapeHtml(
                         label.toLowerCase(),
-                    )}" title="${escapeHtml(
-                        value,
-                    )}">
+                    )}" title="${escapeHtml(value)}">
                       ${escapeHtml(value)}
                     </div>
                   </div>
@@ -172,7 +164,7 @@ function renderLogFilters(logs) {
 function renderLogPreview(item) {
     if (item.kind === 'query') {
         return `
-          <div class="mt-2 max-w-4xl truncate font-mono text-[11px] text-on-surface-variant/60" title="${escapeHtml(
+          <div class="mt-2 max-w-2xl truncate font-mono text-[11px] text-on-surface-variant/60" title="${escapeHtml(
               item.rawSql ?? '',
           )}">
             ${escapeHtml(item.preview || item.rawSql || 'SQL query')}
@@ -192,7 +184,11 @@ function renderLogPreview(item) {
 }
 
 function getActorTextClass(actor) {
-    return ['api', 'cli', 'mcp'].includes(String(actor ?? '').trim().toLowerCase())
+    return ['api', 'cli', 'mcp'].includes(
+        String(actor ?? '')
+            .trim()
+            .toLowerCase(),
+    )
         ? 'text-primary-container'
         : 'text-on-surface-variant/70';
 }
@@ -236,11 +232,7 @@ function renderLogRow(item) {
                   ? `<div class="query-history-badge-row query-history-badge-row--compact logs-detail-badge-row mt-3">${detailBadges}</div>`
                   : ''
           }
-          ${
-              item.errorMessage
-                  ? `<div class="mt-2 text-xs text-error">${escapeHtml(item.errorMessage)}</div>`
-                  : ''
-          }
+          ${item.errorMessage ? `<div class="mt-2 text-xs text-error">${escapeHtml(item.errorMessage)}</div>` : ''}
         </td>
         <td class="px-4 py-4 font-mono text-[11px] text-on-surface-variant/70" title="${escapeHtml(target)}">
           ${escapeHtml(truncateMiddle(target, 42))}

@@ -137,6 +137,16 @@ function renderWorkspaceHeader(state) {
           }
         </div>
         <div class="flex flex-wrap items-center justify-end gap-3">
+          <button
+            class="standard-button"
+            data-action="open-generate-data-modal"
+            title="${table ? 'Generate synthetic test rows for this table' : 'Select a table before generating rows'}"
+            type="button"
+            ${table ? '' : 'disabled aria-disabled="true"'}
+          >
+            <span class="material-symbols-outlined text-sm">auto_awesome</span>
+            Generate
+          </button>
           ${
               table
                   ? renderWorkspaceOpenDropdown({
