@@ -269,7 +269,7 @@ SQLite Hub also provides a local JSON API for app info, database metadata, table
 
 ## MCP
 
-SQLite Hub includes a local stdio MCP server for agents such as Codex. It exposes the shared API/CLI service layer as guarded tools for schema inspection, read-only queries, query-plan explanation, backups, type generation, documents, and chart creation. See the [MCP documentation](./docs/MCP.md) for setup, tool names, and security boundaries.
+SQLite Hub includes a local MCP server for agents such as Codex. When SQLite Hub is running, the MCP endpoint is available at `/mcp`; a stdio fallback is also available through `sqlite-hub-mcp`. It exposes the shared API/CLI service layer as guarded tools for schema inspection, read-only queries, query-plan explanation, backups, type generation, documents, and chart creation. See the [MCP documentation](./docs/MCP.md) for setup, tool names, and security boundaries.
 
 ## Changelog
 

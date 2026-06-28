@@ -23,6 +23,8 @@ const { TableDesignerService } = require("./services/sqlite/tableDesignerService
 const { MediaTaggingService } = require("./services/sqlite/mediaTaggingService");
 const { ApiTokenService } = require("./services/apiTokenService");
 const { DatabaseCommandService } = require("./services/databaseCommandService");
+const { createMcpServices } = require("./mcp/stdioServer");
+const { createMcpHttpRouter } = require("./mcp/httpRouter");
 const { createConnectionsRouter } = require("./routes/connections");
 const { createBackupsRouter } = require("./routes/backups");
 const { createOverviewRouter } = require("./routes/overview");
@@ -71,6 +73,7 @@ const tableDesignerService = new TableDesignerService({ connectionManager });
 const mediaTaggingService = new MediaTaggingService({ connectionManager, appStateStore });
 const apiTokenService = new ApiTokenService({ appStateStore });
 const databaseCommandService = new DatabaseCommandService({ appStateStore });
+const mcpServices = createMcpServices({ appStateStore, transport: "http" });
 
 connectionManager.initialize();
 
@@ -84,6 +87,16 @@ app.use(
 app.use("/api", localRequestSecurity);
 app.use(
   "/api",
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+app.use("/mcp", localRequestSecurity);
+app.use(
+  "/mcp",
   rateLimit({
     windowMs: 60 * 1000,
     max: 300,
@@ -143,6 +156,7 @@ app.use(
     appStateStore,
   })
 );
+app.use("/mcp", createMcpHttpRouter({ services: mcpServices }));
 
 // auth: public favicon response; it exposes no application data.
 app.get("/favicon.ico", (req, res) => {
@@ -254,6 +268,7 @@ module.exports = {
   apiTokenService,
   connectionManager,
   databaseCommandService,
+  mcpServices,
   DEFAULT_HOST,
   DEFAULT_PORT,
   parsePortArgument,

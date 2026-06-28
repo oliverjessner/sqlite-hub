@@ -1,6 +1,7 @@
 # v2.0.0
 
 - mcp
+- mcp http endpoint starts with sqlite hub
 
 # v1.5.0
 

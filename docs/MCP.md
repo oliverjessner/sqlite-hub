@@ -4,7 +4,29 @@ SQLite Hub ships a local MCP server so agents can inspect and automate the same 
 
 The MCP server uses the shared SQLite Hub service layer. API, CLI, and MCP calls all go through the same database registry, query execution, type generation, backup, document, and chart logic.
 
-## Start
+## Start With SQLite Hub
+
+When SQLite Hub is running, the MCP server is available on the same local web server:
+
+```toml
+[mcp_servers.sqlitehub]
+url = "http://127.0.0.1:4173/mcp"
+startup_timeout_sec = 10
+tool_timeout_sec = 60
+```
+
+If SQLite Hub is started with a custom port, use that port in the URL:
+
+```toml
+[mcp_servers.sqlitehub]
+url = "http://127.0.0.1:PORT/mcp"
+startup_timeout_sec = 10
+tool_timeout_sec = 60
+```
+
+The Settings `MCP` tab shows a copyable Codex config with the active host and port.
+
+## Stdio Fallback
 
 When SQLite Hub is installed from npm, use:
 
@@ -12,7 +34,7 @@ When SQLite Hub is installed from npm, use:
 sqlite-hub-mcp
 ```
 
-For a local checkout, point Codex at the script directly:
+For a local checkout, Codex can also spawn the stdio server directly:
 
 ```toml
 [mcp_servers.sqlitehub]
@@ -22,7 +44,7 @@ startup_timeout_sec = 10
 tool_timeout_sec = 60
 ```
 
-The server uses stdio transport. It is intended for local agents running on the same machine as SQLite Hub. It does not expose a network listener and does not require API tokens for local stdio use.
+The stdio fallback is intended for local agents running on the same machine as SQLite Hub. It does not expose a network listener and does not require API tokens for local stdio use.
 
 ## Tools
 
@@ -64,11 +86,13 @@ These statements are blocked in `run_readonly_query`:
 
 Backups are always created through SQLite Hub's managed backup service. Chart creation stores chart metadata only. The MCP server does not write arbitrary local files.
 
+The HTTP MCP endpoint runs on SQLite Hub's existing loopback server. It is local-only and uses the same localhost request guard as the internal API. API tokens are not exposed through MCP tool responses.
+
 ## Settings Status
 
 The Settings view has an `MCP` tab. It shows whether the MCP server is running, whether an agent is connected, active client count, the last connection time, last tool call, transport, exposed tools, and a copyable Codex config example.
 
-For stdio, connection state is tracked from MCP `initialize` and tool calls. When the MCP process exits cleanly, SQLite Hub marks the session as disconnected.
+For HTTP, connection state is tracked from MCP `initialize` and tool calls against `/mcp`. For stdio, connection state is tracked from MCP `initialize` and tool calls in the spawned process. When the stdio MCP process exits cleanly, SQLite Hub marks the session as disconnected.
 
 ## Example Prompts
 
