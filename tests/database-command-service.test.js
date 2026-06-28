@@ -172,3 +172,35 @@ test("raw query execution is blocked for read-only connections", (t) => {
     /read-only database/
   );
 });
+
+test("database command service creates verified backups for automation", async (t) => {
+  const { connection, service, store } = createFixture(t, { readOnly: true });
+  const backup = await service.createBackup(connection.id, {
+    name: "CLI safety backup",
+    notes: "Created from automation",
+    context: "cli",
+  });
+  const stored = store.getBackup(backup.id);
+
+  assert.equal(backup.status, "verified");
+  assert.equal(backup.connectionId, connection.id);
+  assert.equal(backup.name, "CLI safety backup");
+  assert.equal(backup.notes, "Created from automation");
+  assert.equal(fs.existsSync(backup.path), true);
+  assert.equal(stored.status, "verified");
+  assert.equal(stored.connectionId, connection.id);
+});
+
+test("database command service lists managed backups for automation", async (t) => {
+  const { connection, service } = createFixture(t);
+  const created = await service.createBackup(connection.id, {
+    name: "Automation backup",
+  });
+  const backups = service.listBackups(connection.id);
+
+  assert.equal(backups.length, 1);
+  assert.equal(backups[0].id, created.id);
+  assert.equal(backups[0].name, "Automation backup");
+  assert.equal(backups[0].status, "verified");
+  assert.equal(backups[0].fileExists, true);
+});

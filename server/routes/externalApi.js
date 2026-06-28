@@ -124,6 +124,15 @@ function buildExternalApiAccessDescriptor(req) {
     };
   }
 
+  if (collection === "backups") {
+    return {
+      action: method === "GET" ? "api.backups.list" : "api.backup.create",
+      databaseKey,
+      targetType: "database",
+      targetName: databaseKey,
+    };
+  }
+
   if (collection === "queries") {
     if (!itemName) {
       return {
@@ -355,6 +364,46 @@ function createExternalApiRouter({
         successResponse({
           data: databaseService.getTable(req.params.databaseId, req.params.tableName),
           metadata: { databaseId: req.params.databaseId },
+        })
+      );
+    })
+  );
+
+  router.get(
+    "/databases/:databaseId/backups",
+    route((req, res) => {
+      const backups = databaseService.listBackups(req.params.databaseId);
+
+      res.json(
+        successResponse({
+          data: {
+            items: backups,
+          },
+          metadata: {
+            databaseId: req.params.databaseId,
+            total: backups.length,
+          },
+        })
+      );
+    })
+  );
+
+  router.post(
+    "/databases/:databaseId/backups",
+    route(async (req, res) => {
+      const backup = await databaseService.createBackup(req.params.databaseId, {
+        name: req.body?.name,
+        notes: req.body?.notes,
+        context: req.body?.context ?? "api",
+      });
+
+      res.json(
+        successResponse({
+          message: "Backup created and verified.",
+          data: backup,
+          metadata: {
+            databaseId: req.params.databaseId,
+          },
         })
       );
     })

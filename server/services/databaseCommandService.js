@@ -1,6 +1,7 @@
 const path = require("node:path");
 const { NotFoundError, ReadOnlyError, ValidationError } = require("../utils/errors");
 const { ConnectionManager } = require("./sqlite/connectionManager");
+const { BackupService } = require("./sqlite/backupService");
 const { DataBrowserService } = require("./sqlite/dataBrowserService");
 const { ExportService } = require("./sqlite/exportService");
 const { getTableDetail } = require("./sqlite/introspection");
@@ -241,6 +242,17 @@ class DatabaseCommandService {
     }
   }
 
+  async withDatabaseAsync(databaseReference, callback, options = {}) {
+    const connection = this.getDatabase(databaseReference);
+    const runtime = this.runtimeFactory(connection, options);
+
+    try {
+      return await callback({ connection, runtime });
+    } finally {
+      runtime.close?.();
+    }
+  }
+
   listTables(databaseReference) {
     return this.withDatabase(databaseReference, ({ runtime }) => runtime.dataBrowserService.listTables());
   }
@@ -379,6 +391,39 @@ class DatabaseCommandService {
       },
       storedQuery,
     };
+  }
+
+  async createBackup(databaseReference, options = {}) {
+    const backupOptions = {
+      name: normalizeOptionalValue(options.name),
+      notes: normalizeOptionalValue(options.notes),
+      type: normalizeOptionalValue(options.type) ?? "manual",
+      context: normalizeOptionalValue(options.context) ?? "automation",
+    };
+
+    return this.withDatabaseAsync(
+      databaseReference,
+      async ({ runtime }) => {
+        const backupService = new BackupService({
+          appStateStore: this.appStateStore,
+          connectionManager: runtime.connectionManager,
+        });
+
+        return backupService.createActiveBackup(backupOptions);
+      },
+      { readOnly: true }
+    );
+  }
+
+  listBackups(databaseReference) {
+    return this.withDatabase(databaseReference, ({ connection, runtime }) => {
+      const backupService = new BackupService({
+        appStateStore: this.appStateStore,
+        connectionManager: runtime.connectionManager,
+      });
+
+      return backupService.listBackups({ connectionId: connection.id });
+    });
   }
 
   exportSavedQuery(databaseReference, queryName, format = "csv") {

@@ -89,6 +89,35 @@ async function startApi(t) {
         },
       };
     },
+    async createBackup(databaseId, options = {}) {
+      serviceCalls.push(
+        `${databaseId}:backup:${options.name ?? ""}:${options.notes ?? ""}:${options.context ?? ""}`
+      );
+      return {
+        id: "backup-one",
+        connectionId: databaseId,
+        name: options.name || "Manual backup",
+        notes: options.notes || null,
+        status: "verified",
+        sizeBytes: 4096,
+        path: "/tmp/backup.sqlite",
+        fileExists: true,
+      };
+    },
+    listBackups(databaseId) {
+      serviceCalls.push(`${databaseId}:backups:list`);
+      return [
+        {
+          id: "backup-one",
+          connectionId: databaseId,
+          name: "Before API import",
+          status: "verified",
+          sizeBytes: 4096,
+          path: "/tmp/backup.sqlite",
+          fileExists: true,
+        },
+      ];
+    },
     generateTableTypes(databaseId, tableName, target, options = {}) {
       serviceCalls.push(`${databaseId}:types:${tableName}:${target}:${options.propertyNaming ?? ""}`);
       return {
@@ -314,6 +343,68 @@ test("type generation API uses database token auth and returns warnings at top l
   assert.deepEqual(fixture.serviceCalls, [
     `${fixture.databaseA.id}:types:companies:typescript:camel`,
   ]);
+});
+
+test("backup API creates a verified backup with a database token", async (t) => {
+  const fixture = await startApi(t);
+  const created = fixture.tokenService.createToken(fixture.databaseA.id, "Automation");
+  const response = await fetch(
+    `${fixture.baseUrl}/databases/${fixture.databaseA.id}/backups`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${created.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Before API import",
+        notes: "Triggered from external API",
+      }),
+    }
+  );
+  const payload = await response.json();
+  const log = fixture.store.listAccessLogs({ source: "api", databaseKey: fixture.databaseA.id }).items[0];
+
+  assert.equal(response.status, 200);
+  assert.equal(payload.message, "Backup created and verified.");
+  assert.equal(payload.data.id, "backup-one");
+  assert.equal(payload.data.name, "Before API import");
+  assert.equal(payload.data.status, "verified");
+  assert.equal(payload.metadata.databaseId, fixture.databaseA.id);
+  assert.deepEqual(fixture.serviceCalls, [
+    `${fixture.databaseA.id}:backup:Before API import:Triggered from external API:api`,
+  ]);
+  assert.equal(log.action, "api.backup.create");
+  assert.equal(log.targetType, "database");
+  assert.equal(log.targetName, fixture.databaseA.id);
+  assert.equal(log.metadata.apiTokenName, "Automation");
+});
+
+test("backup API lists managed backups with a database token", async (t) => {
+  const fixture = await startApi(t);
+  const created = fixture.tokenService.createToken(fixture.databaseA.id, "Automation");
+  const response = await fetch(
+    `${fixture.baseUrl}/databases/${fixture.databaseA.id}/backups`,
+    {
+      headers: {
+        Authorization: `Bearer ${created.token}`,
+      },
+    }
+  );
+  const payload = await response.json();
+  const log = fixture.store.listAccessLogs({ source: "api", databaseKey: fixture.databaseA.id }).items[0];
+
+  assert.equal(response.status, 200);
+  assert.equal(payload.data.items.length, 1);
+  assert.equal(payload.data.items[0].id, "backup-one");
+  assert.equal(payload.data.items[0].status, "verified");
+  assert.equal(payload.metadata.databaseId, fixture.databaseA.id);
+  assert.equal(payload.metadata.total, 1);
+  assert.deepEqual(fixture.serviceCalls, [`${fixture.databaseA.id}:backups:list`]);
+  assert.equal(log.action, "api.backups.list");
+  assert.equal(log.targetType, "database");
+  assert.equal(log.targetName, fixture.databaseA.id);
+  assert.equal(log.metadata.apiTokenName, "Automation");
 });
 
 test("API access history records non-query endpoints", async (t) => {

@@ -20,6 +20,8 @@ Use plain JavaScript and existing local patterns. Frontend modules use ES module
 ## Testing Guidelines
 
 Tests use the built-in Node test runner (`node:test`) with `node:assert/strict`. Name files `feature-name.test.js` and keep fixtures local to each test unless reuse is clearly helpful. Add focused tests for backend services, routes, state changes, and rendered view markup when behavior changes. Run the relevant focused test first, then `npm test` before handing off.
+You can use the test database id:conn_c3b310c3373fda5a
+for all tests.
 
 ## Commit & Pull Request Guidelines
 

@@ -135,6 +135,30 @@ test("parses document commands", () => {
   assert.equal(compactExportOptions.documentExport, true);
 });
 
+test("parses backup commands", () => {
+  const listOptions = parseCliArguments(["--database:db", "--backups"]);
+  const defaultOptions = parseCliArguments(["--database:db", "--backup"]);
+  const namedOptions = parseCliArguments([
+    "--database:db",
+    "--backup:Before migration",
+    "--backup-notes:Before importing SQL",
+  ]);
+  const explicitNameOptions = parseCliArguments([
+    "--database:db",
+    "--backup-name:Nightly checkpoint",
+  ]);
+
+  assert.equal(listOptions.backups, true);
+  assert.equal(listOptions.backup, false);
+  assert.equal(defaultOptions.backup, true);
+  assert.equal(defaultOptions.backupName, null);
+  assert.equal(namedOptions.backup, true);
+  assert.equal(namedOptions.backupName, "Before migration");
+  assert.equal(namedOptions.backupNotes, "Before importing SQL");
+  assert.equal(explicitNameOptions.backup, true);
+  assert.equal(explicitNameOptions.backupName, "Nightly checkpoint");
+});
+
 test("validates export formats", () => {
   assert.equal(normalizeExportFormat("csv"), "csv");
   assert.equal(normalizeExportFormat("TSV"), "tsv");

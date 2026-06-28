@@ -36,6 +36,9 @@ GET  /api/v1/databases/:databaseId/tables/:tableName
 POST /api/v1/databases/:databaseId/tables/:tableName/row
 POST /api/v1/databases/:databaseId/tables/:tableName/types
 
+GET  /api/v1/databases/:databaseId/backups
+POST /api/v1/databases/:databaseId/backups
+
 GET  /api/v1/databases/:databaseId/queries
 GET  /api/v1/databases/:databaseId/queries/:queryName
 GET  /api/v1/databases/:databaseId/queries/:queryName/notes
@@ -103,6 +106,29 @@ curl \
 Supported targets are `typescript`, `rust`, `kotlin`, and `swift`. Warnings are
 returned in the top-level `warnings` array. Metadata includes column counts and
 CHECK-constraint counts.
+
+`GET /api/v1/databases/:databaseId/backups` lists managed backups for the
+token's database.
+
+```bash
+curl \
+  -H "Authorization: Bearer shub_..." \
+  http://127.0.0.1:4173/api/v1/databases/DATABASE_ID/backups
+```
+
+`POST /api/v1/databases/:databaseId/backups` creates and verifies a managed
+backup for the token's database. The request body may include `name` and `notes`.
+Backup creation uses SQLite's backup API and is allowed for read-only database
+connections because the source database is only read.
+
+```bash
+curl \
+  -X POST \
+  -H "Authorization: Bearer shub_..." \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Before import","notes":"Before loading vendor data"}' \
+  http://127.0.0.1:4173/api/v1/databases/DATABASE_ID/backups
+```
 
 Successful responses use this envelope:
 

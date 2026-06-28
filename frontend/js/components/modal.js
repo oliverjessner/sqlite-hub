@@ -226,7 +226,7 @@ function renderEditConnectionForm(modal) {
                 label: 'Upload image',
                 name: 'logoFile',
                 accept: '.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp',
-                helpText: 'Allowed formats: PNG, JPG, WEBP. The file is stored in db_logos.',
+                helpText: 'Allowed formats: PNG, JPG, WEBP.',
             })}
             ${
                 connection.logoUrl
@@ -549,12 +549,13 @@ function renderTypeGenerationCheckbox({ label, field, checked }) {
 
 function renderTypeGenerationCodePreview(code) {
     const text = String(code ?? '');
-    const normalized = text.includes('\n') || text.includes('\\n')
-        ? text.replace(/\\n/g, '\n')
-        : text
-              .replace(/\{\s*/g, '{\n  ')
-              .replace(/;\s*/g, ';\n  ')
-              .replace(/\s*\}\s*$/g, '\n}');
+    const normalized =
+        text.includes('\n') || text.includes('\\n')
+            ? text.replace(/\\n/g, '\n')
+            : text
+                  .replace(/\{\s*/g, '{\n  ')
+                  .replace(/;\s*/g, ';\n  ')
+                  .replace(/\s*\}\s*$/g, '\n}');
 
     return normalized
         .replace(/\r\n/g, '\n')
@@ -671,7 +672,7 @@ export function renderGenerateTypesForm(modal) {
                   : ''
           }
           <pre class="type-generation-code-preview custom-scrollbar border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 font-mono text-xs leading-6 text-on-surface"><code>${renderTypeGenerationCodePreview(
-              modal.loading ? 'Generating...' : result.code ?? '',
+              modal.loading ? 'Generating...' : (result.code ?? ''),
           )}</code></pre>
           ${renderError(modal.error)}
         </div>
@@ -888,7 +889,9 @@ function formatSyntheticPreviewValue(value) {
 
 function renderSyntheticPreview(modal) {
     const rows = (modal.previewRows ?? []).slice(0, 3);
-    const columns = modal.previewColumns?.length ? modal.previewColumns : (modal.columns ?? []).map(column => column.name);
+    const columns = modal.previewColumns?.length
+        ? modal.previewColumns
+        : (modal.columns ?? []).map(column => column.name);
 
     if (!rows.length) {
         return `
@@ -2444,11 +2447,9 @@ export function renderModal(state) {
               ? 'max-w-3xl'
               : modal.kind === 'generate-types' || modal.kind === 'generate-data'
                 ? 'max-w-6xl'
-              : modal.kind === 'query-export' ||
-                  modal.kind === 'data-export' ||
-                  modal.kind === 'backup-safety'
-                ? 'max-w-4xl'
-                : 'max-w-xl'
+                : modal.kind === 'query-export' || modal.kind === 'data-export' || modal.kind === 'backup-safety'
+                  ? 'max-w-4xl'
+                  : 'max-w-xl'
       } border border-outline-variant/20 bg-surface-container shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
         <div class="shrink-0 flex items-start justify-between gap-4 border-b border-outline-variant/10 bg-surface-container-low px-6 py-5">
           <div>

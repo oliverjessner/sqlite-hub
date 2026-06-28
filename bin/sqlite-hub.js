@@ -26,6 +26,9 @@ Usage:
   sqlite-hub --database:"name" --documents
   sqlite-hub --database:"name" --documents:"Document Name"
   sqlite-hub --database:"name" --documents:"Document Name" --export
+  sqlite-hub --database:"name" --backups
+  sqlite-hub --database:"name" --backup
+  sqlite-hub --database:"name" --backup:"Before migration"
   sqlite-hub --database:"name" --table:"table_name"
   sqlite-hub --database:"name" --table:"table_name" --export:"primary-key"
   sqlite-hub --database:"name" --table:"table_name" --types:typescript
@@ -53,6 +56,10 @@ Options:
   --documents                        List Markdown documents for the selected database.
   --documents:"name"                 Print a document's Markdown content.
   --documents:"name" --export        Export a document as a Markdown file.
+  --backups                          List managed backups for the selected database.
+  --backup                           Create and verify a managed backup.
+  --backup:"name"                    Create a backup with a custom name.
+  --backup-notes:"text"              Add notes to a created backup.
   --table:"table"                    Print table metadata.
   --table:"table" --export:"pk"      Export one row as JSON by primary key or rowid.
   --types:typescript|ts|rust|rs|kotlin|kt|swift
@@ -191,6 +198,10 @@ function parseCliArguments(argv) {
         documents: false,
         documentName: null,
         documentExport: false,
+        backups: false,
+        backup: false,
+        backupName: null,
+        backupNotes: null,
         tableName: null,
         typesTarget: null,
         typeName: null,
@@ -383,6 +394,39 @@ function parseCliArguments(argv) {
             continue;
         }
 
+        if (flag === '--backups') {
+            options.backups = true;
+            continue;
+        }
+
+        if (flag === '--backup') {
+            const parsed = takeOptionalFlagValue(value, argv, index);
+
+            options.backup = true;
+            if (parsed.hasValue) {
+                options.backupName = parsed.value;
+            }
+
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--backup-name') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.backup = true;
+            options.backupName = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--backup-notes') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.backup = true;
+            options.backupNotes = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
         if (flag === '--export') {
             if (options.documents && options.documentName && value === undefined) {
                 const nextValue = argv[index + 1];
@@ -506,6 +550,8 @@ function hasDatabaseOperation(options) {
         options.documents ||
         options.documentName ||
         options.documentExport ||
+        options.backups ||
+        options.backup ||
         options.exportTarget ||
         options.tableName ||
         options.typesTarget,
@@ -825,6 +871,58 @@ function exportDocumentMarkdown({ databaseService, conn, documentName }) {
     console.log(`Characters: ${result.document.contentLength}`);
     console.log(`File: ${outputPath}`);
 }
+
+function listManagedBackups({ databaseService, conn, options }) {
+    const backups = databaseService.listBackups(conn.id);
+
+    if (options.jsonOutput) {
+        console.log(JSON.stringify({ items: backups, total: backups.length }, null, 2));
+        return;
+    }
+
+    if (backups.length === 0) {
+        console.log(`No backups found for ${conn.label}.`);
+        return;
+    }
+
+    console.log(`\nBackups for ${conn.label} (${backups.length}):`);
+    console.log('─'.repeat(60));
+
+    backups.forEach((backup, index) => {
+        const fileState = backup.fileExists ? 'available' : 'missing';
+        console.log(`${index + 1}. ${backup.name}`);
+        console.log(`   ID: ${backup.id}`);
+        console.log(`   Status: ${backup.status} (${fileState})`);
+        console.log(`   Size: ${formatSize(backup.sizeBytes)}`);
+        console.log(`   Created: ${backup.createdAt}`);
+        console.log(`   File: ${backup.path}`);
+        if (backup.notes) {
+            console.log(`   Notes: ${backup.notes}`);
+        }
+        console.log('');
+    });
+}
+
+async function createManagedBackup({ databaseService, conn, options }) {
+    const backup = await databaseService.createBackup(conn.id, {
+        name: options.backupName,
+        notes: options.backupNotes,
+        context: 'cli',
+    });
+
+    if (options.jsonOutput) {
+        console.log(JSON.stringify(backup, null, 2));
+        return;
+    }
+
+    console.log(`Backup created: ${backup.name}`);
+    console.log(`Status: ${backup.status}`);
+    console.log(`Database: ${conn.label}`);
+    console.log(`Size: ${formatSize(backup.sizeBytes)}`);
+    console.log(`File: ${backup.path}`);
+    console.log(`ID: ${backup.id}`);
+}
+
 function exportTableRowAsJson({ databaseService, conn, tableName, exportTarget }) {
     const result = databaseService.getTableRow(conn.id, tableName, exportTarget);
     const outputPath = path.resolve(process.cwd(), result.filename);
@@ -1056,6 +1154,29 @@ function describeCliAccess(options, argv = []) {
         };
     }
 
+    if (options.backups) {
+        return {
+            ...entry,
+            action: 'cli.backups.list',
+            targetType: 'database',
+            targetName: options.databaseName,
+        };
+    }
+
+    if (options.backup) {
+        return {
+            ...entry,
+            action: 'cli.backup.create',
+            targetType: 'database',
+            targetName: options.databaseName,
+            metadata: {
+                ...metadata,
+                hasBackupName: Boolean(options.backupName),
+                hasBackupNotes: Boolean(options.backupNotes),
+            },
+        };
+    }
+
     if (options.tableName) {
         if (options.typesTarget) {
             return {
@@ -1276,6 +1397,10 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
             throw new Error('--store requires --query:"sql".');
         }
 
+        if (options.backup && options.backups) {
+            throw new Error('--backup and --backups cannot be combined.');
+        }
+
         databaseService =
             databaseService ??
             new DatabaseCommandService({
@@ -1296,6 +1421,16 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
                 ...(accessEntry.metadata ?? {}),
                 databaseLabel: conn.label ?? null,
             };
+
+            if (options.backups) {
+                listManagedBackups({ databaseService, conn, options });
+                return;
+            }
+
+            if (options.backup) {
+                await createManagedBackup({ databaseService, conn, options });
+                return;
+            }
 
             if (options.documents) {
                 if (options.documentName) {

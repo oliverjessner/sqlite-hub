@@ -70,6 +70,20 @@ Aliases are available for common targets: `ts`, `rs`, and `kt`. Without
 redirection works cleanly. Warnings are written to stderr. Use `--force` to
 overwrite an existing output file.
 
+Create a verified managed backup for a database:
+
+```bash
+sqlite-hub --database:Unit-00 --backups
+sqlite-hub --database:Unit-00 --backup
+sqlite-hub --database:Unit-00 --backup:"Before import" --backup-notes:"Before loading vendor data"
+sqlite-hub --database:Unit-00 --backup:"Nightly checkpoint" --json
+```
+
+Backup creation uses the same SQLite backup API and verification path as the UI
+Backup Manager. It works for read-only database connections because the source
+database is only read. `--backups` lists the managed backups for the selected
+database; add `--json` for structured output.
+
 ## SQL Editor
 
 Execute raw SQL through the same SQL Editor execution path used by the app:
@@ -182,6 +196,10 @@ sqlite-hub --database:Unit-00 --table:companies --export:0a754aba373d34972998792
 | `--database:name --documents`                                   | List Markdown documents for a database          |
 | `--database:name --documents:"document"`                        | Print a document's Markdown content             |
 | `--database:name --documents:"document" --export`               | Export a document as Markdown                   |
+| `--database:name --backups`                                     | List managed backups for a database             |
+| `--database:name --backup`                                      | Create and verify a managed backup              |
+| `--database:name --backup:"name"`                               | Create a managed backup with a custom name      |
+| `--backup-notes:"text"`                                         | Add notes to a backup created by `--backup`     |
 | `--database:name --table:"table"`                               | Print table metadata                            |
 | `--database:name --table:"table" --export:"pk"`                 | Export one row as JSON                          |
 | `--database:name --table:"table" --types:typescript\|ts\|rust\|rs\|kotlin\|kt\|swift` | Generate application types |

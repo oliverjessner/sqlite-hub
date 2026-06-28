@@ -208,3 +208,134 @@ test("CLI delegates type generation to the shared command service and writes cod
   ]);
   assert.equal(output.join(""), "export interface User {}\n");
 });
+
+test("CLI delegates backup creation to the shared command service", async () => {
+  const calls = [];
+  const accessLogs = [];
+  const connection = {
+    id: "db-one",
+    label: "Database One",
+  };
+  const databaseService = {
+    getDatabase(reference) {
+      calls.push(["getDatabase", reference]);
+      return connection;
+    },
+    listDatabases() {
+      calls.push(["listDatabases"]);
+      return [connection];
+    },
+    async createBackup(reference, options = {}) {
+      calls.push(["createBackup", reference, options]);
+      return {
+        id: "backup-one",
+        name: options.name,
+        status: "verified",
+        sizeBytes: 2048,
+        path: "/tmp/backup.sqlite",
+      };
+    },
+  };
+  const appStateStore = {
+    recordAccessLog(entry) {
+      accessLogs.push(entry);
+    },
+  };
+  const output = [];
+  const originalLog = console.log;
+
+  console.log = (...values) => output.push(values.join(" "));
+
+  try {
+    await main(
+      [
+        "--database:Database One",
+        "--backup:Before import",
+        "--backup-notes:Created before API import",
+      ],
+      { databaseService, appStateStore }
+    );
+  } finally {
+    console.log = originalLog;
+  }
+
+  assert.deepEqual(calls, [
+    ["listDatabases"],
+    ["getDatabase", "Database One"],
+    [
+      "createBackup",
+      "db-one",
+      {
+        name: "Before import",
+        notes: "Created before API import",
+        context: "cli",
+      },
+    ],
+  ]);
+  assert.equal(accessLogs[0].action, "cli.backup.create");
+  assert.equal(accessLogs[0].databaseKey, "db-one");
+  assert.equal(accessLogs[0].metadata.hasBackupName, true);
+  assert.equal(accessLogs[0].metadata.hasBackupNotes, true);
+  assert.match(output.join("\n"), /Backup created: Before import/);
+  assert.match(output.join("\n"), /Status: verified/);
+});
+
+test("CLI delegates backup listing to the shared command service", async () => {
+  const calls = [];
+  const accessLogs = [];
+  const connection = {
+    id: "db-one",
+    label: "Database One",
+  };
+  const databaseService = {
+    getDatabase(reference) {
+      calls.push(["getDatabase", reference]);
+      return connection;
+    },
+    listDatabases() {
+      calls.push(["listDatabases"]);
+      return [connection];
+    },
+    listBackups(reference) {
+      calls.push(["listBackups", reference]);
+      return [
+        {
+          id: "backup-one",
+          name: "Before import",
+          status: "verified",
+          fileExists: true,
+          sizeBytes: 1024,
+          createdAt: "2026-06-28T10:00:00.000Z",
+          path: "/tmp/backup.sqlite",
+          notes: "Before import notes",
+        },
+      ];
+    },
+  };
+  const appStateStore = {
+    recordAccessLog(entry) {
+      accessLogs.push(entry);
+    },
+  };
+  const output = [];
+  const originalLog = console.log;
+
+  console.log = (...values) => output.push(values.join(" "));
+
+  try {
+    await main(["--database:Database One", "--backups"], { databaseService, appStateStore });
+  } finally {
+    console.log = originalLog;
+  }
+
+  assert.deepEqual(calls, [
+    ["listDatabases"],
+    ["getDatabase", "Database One"],
+    ["listBackups", "db-one"],
+  ]);
+  assert.equal(accessLogs[0].action, "cli.backups.list");
+  assert.equal(accessLogs[0].databaseKey, "db-one");
+  assert.match(output.join("\n"), /Backups for Database One \(1\)/);
+  assert.match(output.join("\n"), /Before import/);
+  assert.match(output.join("\n"), /Status: verified \(available\)/);
+});
