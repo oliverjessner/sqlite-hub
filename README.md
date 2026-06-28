@@ -39,6 +39,7 @@ SQLite Hub keeps that workflow sharp:
 - inspect database health, storage metrics, and schema connectivity from one overview
 - filter, sort, page through, and export table data
 - inspect schema, structure, and relationships
+- analyze individual tables with a deterministic local advisor
 - generate TypeScript, Rust, Kotlin, or Swift types from table schemas
 - edit records in place with typed value previews and an SQL diff preview before saving
 - export tables and query results as CSV, TSV, Markdown, JSON, Parquet, or duplicate them as a table
@@ -72,6 +73,12 @@ Generate application types directly from the Structure toolbar for the selected 
 Type generation uses SQLite's declared column types plus schema constraints such as primary keys, foreign keys, `NOT NULL`, generated columns, defaults, and simple `CHECK (... IN (...))` value sets.
 
 The same generator is available through the [CLI](./docs/CLI.md) and [local API](./docs/API.md) for automation.
+
+### Table Advisor
+
+The Table Advisor analyzes one table at a time and produces a deterministic, local health report. It does not call an external service; the result is derived from SQLite schema metadata, indexes, foreign keys, row counts, and column profiles from the active database.
+
+For each table, SQLite Hub calculates a score, lists findings by severity, shows the evidence behind each finding, and includes copyable SQL suggestions where a direct fix is useful. The advisor can flag missing primary keys, foreign-key-like columns without constraints, join/filter columns without indexes, likely-unique values without a UNIQUE index, enum-like columns that could use a `CHECK` constraint, mostly-null columns, empty strings mixed with nullable text, timestamp columns that need defaults or update logic, and generic column names that hide intent.
 
 ### Data browser
 
