@@ -1,3 +1,7 @@
+# v2.0.0
+
+- mcp
+
 # v1.5.0
 
 - synthetic data generation

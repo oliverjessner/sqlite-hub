@@ -1,4 +1,5 @@
 const express = require("express");
+const path = require("node:path");
 const { AppError, DatabaseRequiredError, route, successResponse } = require("../utils/errors");
 const {
   checkLatestAppVersion,
@@ -7,6 +8,8 @@ const {
   readSettingsMetadata,
   readSqliteVersion,
 } = require("../services/appInfoService");
+const { McpStatusService } = require("../services/mcpStatusService");
+const { MCP_TOOL_DEFINITIONS } = require("../services/mcpToolService");
 
 function getActiveTokenContext({ connectionManager, tokenService }) {
   const activeDatabase = connectionManager?.getActiveConnection?.() ?? null;
@@ -31,6 +34,37 @@ function buildSettingsMetadata(context) {
   return {
     ...readSettingsMetadata(),
     ...getActiveTokenContext(context),
+  };
+}
+
+function buildMcpCodexConfig() {
+  const serverPath = path.resolve(__dirname, "../../bin/sqlite-hub-mcp.js");
+
+  return [
+    "[mcp_servers.sqlitehub]",
+    'command = "node"',
+    `args = [${JSON.stringify(serverPath)}]`,
+    "startup_timeout_sec = 10",
+    "tool_timeout_sec = 60",
+  ].join("\n");
+}
+
+function buildMcpSettingsStatus(appStateStore) {
+  const statusService = new McpStatusService({
+    appStateStore,
+    exposedTools: MCP_TOOL_DEFINITIONS,
+    transport: "stdio",
+  });
+  const status = statusService.getStatus();
+
+  return {
+    ...status,
+    toolDetails: MCP_TOOL_DEFINITIONS.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+    })),
+    command: `node ${path.resolve(__dirname, "../../bin/sqlite-hub-mcp.js")}`,
+    codexConfig: buildMcpCodexConfig(),
   };
 }
 
@@ -89,6 +123,17 @@ function createSettingsRouter({ appStateStore, connectionManager, tokenService, 
     })
   );
 
+  router.get(
+    "/mcp",
+    route((req, res) => {
+      res.json(
+        successResponse({
+          data: buildMcpSettingsStatus(appStateStore),
+        })
+      );
+    })
+  );
+
   router.post(
     "/api-tokens",
     route((req, res) => {
@@ -126,6 +171,8 @@ function createSettingsRouter({ appStateStore, connectionManager, tokenService, 
 
 module.exports = {
   createSettingsRouter,
+  buildMcpCodexConfig,
+  buildMcpSettingsStatus,
   buildSettingsMetadata,
   checkLatestAppVersion,
   compareSemver,

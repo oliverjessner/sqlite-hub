@@ -340,6 +340,29 @@
     opacity: 1;
 }
 
+.settings-mcp-config-input {
+    background: var(--color-surface-lowest);
+    border: 1px solid var(--border-medium);
+    color: var(--color-on-surface);
+    display: block;
+    height: 220px;
+    min-height: 220px;
+    padding: var(--spacing-4);
+    resize: vertical;
+    width: 100%;
+}
+
+.settings-mcp-config-input:focus {
+    border-color: var(--primary-alpha-35);
+    box-shadow: var(--focus-ring-inset);
+    outline: none;
+}
+
+.settings-mcp-config-input::selection {
+    background: var(--color-primary-container);
+    color: var(--color-on-primary);
+}
+
 .documents-workspace {
     display: grid;
     flex: 1;

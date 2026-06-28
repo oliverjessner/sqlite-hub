@@ -5,7 +5,8 @@
     "license": "MIT",
     "main": "server/server.js",
     "bin": {
-        "sqlite-hub": "bin/sqlite-hub.js"
+        "sqlite-hub": "bin/sqlite-hub.js",
+        "sqlite-hub-mcp": "bin/sqlite-hub-mcp.js"
     },
     "files": [
         "bin/",
@@ -15,6 +16,7 @@
         "server/data/.gitkeep",
         "server/data/db_logos/.gitkeep",
         "server/middleware/",
+        "server/mcp/",
         "server/routes/",
         "server/server.js",
         "server/services/",

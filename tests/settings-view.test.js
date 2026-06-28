@@ -35,6 +35,7 @@ test("settings view shows SQLite runtime version and custom port command", async
   assert.match(rendered.main, /No version check has been run yet\./);
   assert.match(rendered.main, /data-section="information"/);
   assert.match(rendered.main, /data-section="api-tokens"/);
+  assert.match(rendered.main, /data-section="mcp"/);
   assert.doesNotMatch(rendered.main, /data-form="create-api-token"/);
 });
 
@@ -115,4 +116,63 @@ test("settings view scopes API token controls to the active database", async () 
   assert.doesNotMatch(rendered.main, /sqlite-hub --port:PORT/);
   assert.doesNotMatch(rendered.main, /Open Github/);
   assert.doesNotMatch(rendered.main, /token_hash/);
+});
+
+test("settings MCP tab renders status, tools, and Codex config", async () => {
+  const { renderSettingsView } = await loadSettingsViewModule();
+  const rendered = renderSettingsView({
+    settings: {
+      loading: false,
+      error: null,
+      section: "mcp",
+      mcpStatusLoading: false,
+      mcpStatusError: null,
+      mcpStatus: {
+        enabled: true,
+        serverRunning: true,
+        connected: true,
+        activeClientCount: 1,
+        lastConnectedAt: "2026-06-28T10:15:00.000Z",
+        lastDisconnectedAt: null,
+        lastToolCallAt: "2026-06-28T10:16:12.000Z",
+        lastToolName: "get_schema",
+        transport: "stdio",
+        exposedTools: ["list_connections", "get_schema", "run_readonly_query"],
+        toolDetails: [
+          {
+            name: "list_connections",
+            description: "List imported SQLite Hub database connections.",
+          },
+          {
+            name: "get_schema",
+            description: "Return schema metadata.",
+          },
+          {
+            name: "run_readonly_query",
+            description: "Run a guarded read-only query.",
+          },
+        ],
+        command: "node /tmp/sqlite-hub/bin/sqlite-hub-mcp.js",
+        codexConfig:
+          '[mcp_servers.sqlitehub]\ncommand = "node"\nargs = ["/tmp/sqlite-hub/bin/sqlite-hub-mcp.js"]',
+        error: null,
+      },
+    },
+  });
+
+  assert.match(rendered.main, /Agents \/\/ Local MCP access/);
+  assert.match(rendered.main, /data-section="mcp"/);
+  assert.match(rendered.main, /MCP Status/);
+  assert.match(rendered.main, /Agent Connected/);
+  assert.match(rendered.main, /MCP Server/);
+  assert.match(rendered.main, /Running/);
+  assert.match(rendered.main, /Active clients/);
+  assert.match(rendered.main, /get_schema/);
+  assert.match(rendered.main, /list_connections/);
+  assert.match(rendered.main, /run_readonly_query/);
+  assert.match(rendered.main, /data-mcp-config/);
+  assert.match(rendered.main, /settings-mcp-config-input/);
+  assert.match(rendered.main, /data-action="copy-mcp-config"/);
+  assert.match(rendered.main, /\[mcp_servers\.sqlitehub\]/);
+  assert.match(rendered.main, /Read-only queries are limited to SELECT, PRAGMA, and EXPLAIN/);
 });

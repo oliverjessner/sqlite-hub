@@ -6,6 +6,7 @@ function renderSettingsNavigation(activeSection) {
     const items = [
         { id: 'information', icon: 'info', label: 'Information' },
         { id: 'api-tokens', icon: 'key', label: 'API Tokens' },
+        { id: 'mcp', icon: 'hub', label: 'MCP' },
     ];
 
     return `
@@ -86,6 +87,187 @@ function renderVersionCheckStatus(settings) {
           </div>
           ${releaseLink}
         </div>
+      </div>
+    `;
+}
+
+function renderMcpTimestamp(value) {
+    return value ? formatCompactDateTime(value) : 'Never';
+}
+
+function renderMcpStatusSummary(status) {
+    if (status?.error) {
+        return {
+            label: 'Server Error',
+            icon: 'error',
+            badgeClass: 'status-badge border-error/30 bg-error-container/20 text-error',
+            message: status.error,
+        };
+    }
+
+    if (status?.connected) {
+        return {
+            label: 'Agent Connected',
+            icon: 'check_circle',
+            badgeClass: 'status-badge status-badge--success',
+            message: `Last tool call: ${status.lastToolName || 'none'} at ${renderMcpTimestamp(status.lastToolCallAt)}`,
+        };
+    }
+
+    if (status?.enabled) {
+        return {
+            label: 'Waiting For Agent',
+            icon: 'radio_button_unchecked',
+            badgeClass: 'status-badge',
+            message: status.lastConnectedAt
+                ? `Last agent connection: ${renderMcpTimestamp(status.lastConnectedAt)}`
+                : 'No MCP agent connected yet.',
+        };
+    }
+
+    return {
+        label: 'Stopped',
+        icon: 'block',
+        badgeClass: 'status-badge',
+        message: 'No MCP agent connected yet.',
+    };
+}
+
+function renderMcpMetric(label, value) {
+    return `
+      <div class="border border-outline-variant/10 bg-surface-container-high px-4 py-3">
+        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/55">
+          ${escapeHtml(label)}
+        </div>
+        <div class="mt-2 break-words font-mono text-sm text-on-surface">
+          ${escapeHtml(value)}
+        </div>
+      </div>
+    `;
+}
+
+function renderMcpSection(settings) {
+    if (settings.mcpStatusLoading && !settings.mcpStatus) {
+        return `
+          <div class="flex min-h-[240px] items-center justify-center border border-outline-variant/10 bg-surface-container-low">
+            <div class="text-center text-on-surface-variant/40">
+              <span class="material-symbols-outlined mb-3 text-4xl">progress_activity</span>
+              <p class="font-mono text-[10px] uppercase tracking-[0.22em]">LOADING_MCP_STATUS</p>
+            </div>
+          </div>
+        `;
+    }
+
+    if (settings.mcpStatusError) {
+        return `
+          <div class="border border-error/20 bg-error-container/10 px-6 py-5 text-sm text-on-surface">
+            <div class="font-body text-xs font-bold uppercase tracking-[0.18em] text-error">
+              ${escapeHtml(settings.mcpStatusError.code ?? 'MCP_STATUS_FAILED')}
+            </div>
+            <div class="mt-2">${escapeHtml(settings.mcpStatusError.message ?? 'MCP status could not be loaded.')}</div>
+          </div>
+        `;
+    }
+
+    const status = settings.mcpStatus ?? {};
+    const summary = renderMcpStatusSummary(status);
+    const tools = status.toolDetails?.length
+        ? status.toolDetails
+        : (status.exposedTools ?? []).map(name => ({ name, description: '' }));
+    const codexConfig = status.codexConfig ?? '';
+    const command = status.command ?? 'sqlite-hub-mcp';
+
+    return `
+      <div class="space-y-6">
+        <section class="shell-section overflow-hidden">
+          <div class="flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-highest px-4 py-2">
+            <span class="text-[10px] font-bold uppercase tracking-[0.25em]">MCP Status</span>
+            <span class="material-symbols-outlined text-xs text-primary-container">hub</span>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex flex-col gap-3 border border-outline-variant/10 bg-surface-container-high px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div class="min-w-0">
+                <div class="flex items-center gap-3">
+                  <span class="material-symbols-outlined text-base text-primary-container">${summary.icon}</span>
+                  <span class="${summary.badgeClass}">${escapeHtml(summary.label)}</span>
+                </div>
+                <div class="mt-2 text-sm leading-6 text-on-surface-variant">
+                  ${escapeHtml(summary.message)}
+                </div>
+              </div>
+              <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/60">
+                ${escapeHtml(status.transport ?? 'unknown')}
+              </div>
+            </div>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+              ${renderMcpMetric('MCP Server', status.serverRunning ? 'Running' : 'Stopped')}
+              ${renderMcpMetric('Agent connected', status.connected ? 'Yes' : 'No')}
+              ${renderMcpMetric('Active clients', String(status.activeClientCount ?? 0))}
+              ${renderMcpMetric('Last connected', renderMcpTimestamp(status.lastConnectedAt))}
+              ${renderMcpMetric('Last disconnected', renderMcpTimestamp(status.lastDisconnectedAt))}
+              ${renderMcpMetric('Last tool call', status.lastToolCallAt ? renderMcpTimestamp(status.lastToolCallAt) : 'Never')}
+              ${renderMcpMetric('Last tool name', status.lastToolName ?? 'None')}
+              ${renderMcpMetric('Transport', status.transport ?? 'unknown')}
+              ${renderMcpMetric('Exposed tools', String(status.exposedTools?.length ?? tools.length))}
+            </div>
+          </div>
+        </section>
+
+        <section class="shell-section overflow-hidden">
+          <div class="flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-highest px-4 py-2">
+            <span class="text-[10px] font-bold uppercase tracking-[0.25em]">Tools</span>
+            <span class="material-symbols-outlined text-xs text-primary-container">construction</span>
+          </div>
+          <div class="grid grid-cols-1 gap-3 p-6 md:grid-cols-2">
+            ${tools
+                .map(
+                    tool => `
+                  <div class="border border-outline-variant/10 bg-surface-container-high px-4 py-3">
+                    <div class="font-mono text-xs font-bold text-primary-container">${escapeHtml(tool.name)}</div>
+                    <div class="mt-2 text-sm leading-6 text-on-surface-variant">${escapeHtml(tool.description || 'SQLite Hub MCP tool.')}</div>
+                  </div>
+                `,
+                )
+                .join('')}
+          </div>
+        </section>
+
+        <section class="shell-section overflow-hidden">
+          <div class="flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-highest px-4 py-2">
+            <span class="text-[10px] font-bold uppercase tracking-[0.25em]">Codex Setup</span>
+            <span class="material-symbols-outlined text-xs text-primary-container">terminal</span>
+          </div>
+          <div class="space-y-4 p-6">
+            <div>
+              <div class="text-[10px] font-mono uppercase tracking-[0.2em] text-on-surface-variant/60">
+                Local_Command
+              </div>
+              <div class="mt-3 border border-outline-variant/10 bg-surface-container-high px-4 py-3 font-mono text-sm text-primary-container">
+                ${escapeHtml(command)}
+              </div>
+            </div>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+              <textarea class="settings-mcp-config-input custom-scrollbar control-input font-mono text-xs leading-6" readonly data-mcp-config>${escapeHtml(codexConfig)}</textarea>
+              <button class="standard-button self-start" data-action="copy-mcp-config" type="button">
+                <span class="material-symbols-outlined text-sm">content_copy</span>
+                Copy Config
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="shell-section overflow-hidden">
+          <div class="flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-highest px-4 py-2">
+            <span class="text-[10px] font-bold uppercase tracking-[0.25em]">Security</span>
+            <span class="material-symbols-outlined text-xs text-primary-container">shield</span>
+          </div>
+          <div class="space-y-2 p-6 text-sm leading-6 text-on-surface-variant">
+            <div>Read-only queries are limited to SELECT, PRAGMA, and EXPLAIN.</div>
+            <div>Mutating SQL statements are blocked server-side before execution.</div>
+            <div>Destructive actions must use existing SQLite Hub safety mechanisms such as verified backups.</div>
+            <div>Local stdio MCP is allowed because it runs on the same machine as SQLite Hub and does not expose network credentials.</div>
+          </div>
+        </section>
       </div>
     `;
 }
@@ -188,7 +370,8 @@ function renderSettingsContent(state) {
     `;
     }
 
-    const activeSection = state.settings.section === 'api-tokens' ? 'api-tokens' : 'information';
+    const activeSection =
+        state.settings.section === 'api-tokens' ? 'api-tokens' : state.settings.section === 'mcp' ? 'mcp' : 'information';
     const appVersion = escapeHtml(state.settings.appVersion ?? '0.0.0');
     const sqliteVersion = escapeHtml(state.settings.sqliteVersion ?? 'unknown');
     const versionCheckLoading = Boolean(state.settings.versionCheckLoading);
@@ -377,11 +560,12 @@ function renderSettingsContent(state) {
         </div>
       </section>
     `;
+    const mcpSection = renderMcpSection(state.settings);
 
     return `
       <div class="space-y-6">
         ${renderSettingsNavigation(activeSection)}
-        ${activeSection === 'api-tokens' ? apiTokensSection : informationSection}
+        ${activeSection === 'api-tokens' ? apiTokensSection : activeSection === 'mcp' ? mcpSection : informationSection}
       </div>
     `;
 }
@@ -396,7 +580,9 @@ export function renderSettingsView(state) {
               subtitle:
                   state.settings.section === 'api-tokens'
                       ? 'Security // Database API access'
-                      : 'Application // Build + Credits',
+                      : state.settings.section === 'mcp'
+                        ? 'Agents // Local MCP access'
+                        : 'Application // Build + Credits',
           })}
           ${renderSettingsContent(state)}
         </div>

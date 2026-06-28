@@ -558,6 +558,10 @@ export function checkAppVersion() {
   return request("/api/settings/version-check");
 }
 
+export function getSettingsMcpStatus() {
+  return request("/api/settings/mcp");
+}
+
 export function createApiToken(name) {
   return request("/api/settings/api-tokens", {
     method: "POST",

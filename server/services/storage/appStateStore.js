@@ -1004,6 +1004,54 @@ class AppStateStore {
       .run(key, String(value));
   }
 
+  getJsonMetaValue(key, fallback = null) {
+    const value = this.getMetaValue(key);
+
+    if (!value) {
+      return fallback;
+    }
+
+    try {
+      return JSON.parse(value);
+    } catch {
+      return fallback;
+    }
+  }
+
+  setJsonMetaValue(key, value) {
+    this.setMetaValue(key, JSON.stringify(value ?? null));
+  }
+
+  getMcpStatus(defaultStatus = {}) {
+    const storedStatus = this.getJsonMetaValue("mcpStatus", {});
+    return {
+      ...defaultStatus,
+      ...(storedStatus && typeof storedStatus === "object" && !Array.isArray(storedStatus)
+        ? storedStatus
+        : {}),
+    };
+  }
+
+  setMcpStatus(status, defaultStatus = {}) {
+    const nextStatus = {
+      ...defaultStatus,
+      ...(status && typeof status === "object" && !Array.isArray(status) ? status : {}),
+    };
+
+    this.setJsonMetaValue("mcpStatus", nextStatus);
+    return nextStatus;
+  }
+
+  patchMcpStatus(patch, defaultStatus = {}) {
+    return this.setMcpStatus(
+      {
+        ...this.getMcpStatus(defaultStatus),
+        ...(patch && typeof patch === "object" && !Array.isArray(patch) ? patch : {}),
+      },
+      defaultStatus
+    );
+  }
+
   normalizeQueryHistoryText(value) {
     const text = String(value ?? "").trim();
     return text ? text : null;

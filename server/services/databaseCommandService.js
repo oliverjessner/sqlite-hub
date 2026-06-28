@@ -4,9 +4,11 @@ const { ConnectionManager } = require("./sqlite/connectionManager");
 const { BackupService } = require("./sqlite/backupService");
 const { DataBrowserService } = require("./sqlite/dataBrowserService");
 const { ExportService } = require("./sqlite/exportService");
-const { getTableDetail } = require("./sqlite/introspection");
-const { SqlExecutor } = require("./sqlite/sqlExecutor");
+const { getTableDetail, listSchema } = require("./sqlite/introspection");
+const { OverviewService } = require("./sqlite/overviewService");
+const { SqlExecutor, splitSqlStatements } = require("./sqlite/sqlExecutor");
 const { TypeGenerationService } = require("./typeGenerationService");
+const { detectQueryType } = require("./storage/queryHistoryUtils");
 
 function normalizeLookupValue(value, label) {
   const normalized = String(value ?? "").trim();
@@ -63,6 +65,99 @@ function normalizeMarkdownExportFilename(filename, fallback = "document.md") {
   }
 
   return normalizedFilename;
+}
+
+function stripSqlTerminators(sql) {
+  return String(sql ?? "").trim().replace(/;+\s*$/g, "").trim();
+}
+
+function removeLeadingSqlComments(sql) {
+  let text = String(sql ?? "").trim();
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    const nextText = text
+      .replace(/^--[^\n]*(?:\n|$)/, "")
+      .replace(/^\/\*[\s\S]*?\*\//, "")
+      .trim();
+
+    if (nextText !== text) {
+      changed = true;
+      text = nextText;
+    }
+  }
+
+  return text;
+}
+
+function explainInnerSql(statement) {
+  return removeLeadingSqlComments(statement)
+    .replace(/^EXPLAIN\s+QUERY\s+PLAN\s+/i, "")
+    .replace(/^EXPLAIN\s+/i, "")
+    .trim();
+}
+
+function isAllowedReadonlyStatement(statement) {
+  const text = removeLeadingSqlComments(statement);
+  const queryType = detectQueryType(text);
+
+  if (queryType === "select" || queryType === "pragma") {
+    return true;
+  }
+
+  if (/^EXPLAIN\b/i.test(text)) {
+    const innerType = detectQueryType(explainInnerSql(text));
+    return innerType === "select" || innerType === "pragma";
+  }
+
+  return false;
+}
+
+function assertReadOnlySql(db, sql) {
+  const statements = splitSqlStatements(sql);
+
+  if (!statements.length) {
+    throw new ValidationError("No executable SQL statements were found.");
+  }
+
+  statements.forEach((statement, index) => {
+    if (!isAllowedReadonlyStatement(statement)) {
+      throw new ValidationError(
+        `Statement ${index + 1} is not allowed for read-only MCP queries. Only SELECT, PRAGMA, and EXPLAIN statements are allowed.`,
+        { code: "MCP_READONLY_SQL_REQUIRED" }
+      );
+    }
+
+    const prepared = db.prepare(statement);
+
+    if (!prepared.reader) {
+      throw new ValidationError(
+        `Statement ${index + 1} does not return rows and is blocked by the read-only query guard.`,
+        { code: "MCP_READONLY_SQL_REQUIRED" }
+      );
+    }
+  });
+
+  return statements;
+}
+
+function buildExplainQueryPlanSql(sql) {
+  const stripped = stripSqlTerminators(sql);
+
+  if (/^EXPLAIN\s+QUERY\s+PLAN\b/i.test(removeLeadingSqlComments(stripped))) {
+    return stripped;
+  }
+
+  return `EXPLAIN QUERY PLAN ${stripped}`;
+}
+
+function buildQueryPlanHints(rows = []) {
+  return rows
+    .map((row) => String(row.detail ?? row["QUERY PLAN"] ?? "").trim())
+    .filter(Boolean)
+    .filter((detail) => /\bSCAN\b/i.test(detail) && !/\bUSING\s+(?:COVERING\s+)?INDEX\b/i.test(detail))
+    .map((detail) => `Review whether an index would help: ${detail}`);
 }
 
 function coerceIdentityValue(column, value) {
@@ -216,6 +311,7 @@ class DatabaseCommandService {
         connectionManager,
         sqlExecutor,
       }),
+      overviewService: new OverviewService({ connectionManager }),
       sqlExecutor,
       close() {
         connectionManager.closeCurrent();
@@ -257,11 +353,42 @@ class DatabaseCommandService {
     return this.withDatabase(databaseReference, ({ runtime }) => runtime.dataBrowserService.listTables());
   }
 
+  getDatabaseOverview(databaseReference) {
+    return this.withDatabase(databaseReference, ({ runtime }) => runtime.overviewService.getOverview());
+  }
+
   getTable(databaseReference, tableName) {
     const normalizedTableName = normalizeLookupValue(tableName, "Table name");
     return this.withDatabase(databaseReference, ({ runtime }) =>
       getTableDetail(runtime.db, normalizedTableName)
     );
+  }
+
+  getSchema(databaseReference) {
+    return this.withDatabase(databaseReference, ({ runtime }) => listSchema(runtime.db));
+  }
+
+  getIndexes(databaseReference, tableName = null) {
+    const normalizedTableName = normalizeOptionalValue(tableName);
+
+    if (normalizedTableName) {
+      return this.getTable(databaseReference, normalizedTableName).indexes ?? [];
+    }
+
+    return this.getSchema(databaseReference).indexes ?? [];
+  }
+
+  getForeignKeys(databaseReference, tableName = null) {
+    const normalizedTableName = normalizeOptionalValue(tableName);
+
+    if (normalizedTableName) {
+      return this.getTable(databaseReference, normalizedTableName).foreignKeys ?? [];
+    }
+
+    return this.getSchema(databaseReference).tables.map((table) => ({
+      tableName: table.name,
+      foreignKeys: table.foreignKeys ?? [],
+    }));
   }
 
   generateTableTypes(databaseReference, tableName, target, options = {}) {
@@ -274,6 +401,98 @@ class DatabaseCommandService {
         options
       )
     );
+  }
+
+  generateTypes(databaseReference, { tableName = null, allTables = false, target, options = {} } = {}) {
+    const normalizedTableName = normalizeOptionalValue(tableName);
+
+    return this.withDatabase(databaseReference, ({ runtime }) => {
+      const tables = allTables || !normalizedTableName
+        ? runtime.dataBrowserService.listTables().map((table) => table.name)
+        : [normalizedTableName];
+      const files = tables.map((name) =>
+        this.typeGenerationService.generateTypesFromDatabase(runtime.db, name, target, options)
+      );
+
+      return {
+        target: files[0]?.target ?? target,
+        files,
+        warnings: files.flatMap((file) =>
+          (file.warnings ?? []).map((warning) => `${file.tableName}: ${warning}`)
+        ),
+      };
+    });
+  }
+
+  executeReadOnlyQuery(databaseReference, sql, options = {}) {
+    return this.withDatabase(databaseReference, ({ runtime }) => {
+      const statements = assertReadOnlySql(runtime.db, sql);
+      const result = runtime.sqlExecutor.execute(sql, {
+        executedBy: options.executedBy ?? "mcp",
+        maxRows: options.maxRows ?? 500,
+        persistHistory: options.persistHistory,
+        requireReader: true,
+      });
+
+      return {
+        statementsValidated: statements.length,
+        result,
+      };
+    });
+  }
+
+  explainQueryPlan(databaseReference, sql) {
+    return this.withDatabase(databaseReference, ({ runtime }) => {
+      assertReadOnlySql(runtime.db, sql);
+      const explainSql = buildExplainQueryPlanSql(sql);
+      const rows = runtime.db.prepare(explainSql).all();
+
+      return {
+        sql: explainSql,
+        rows,
+        hints: buildQueryPlanHints(rows),
+      };
+    });
+  }
+
+  createChartFromQuery(databaseReference, { sql, name, chartType = "bar", config, resultColumns, tableVisible = true } = {}) {
+    const normalizedSql = normalizeLookupValue(sql, "SQL");
+
+    if (/^EXPLAIN\b/i.test(removeLeadingSqlComments(normalizedSql)) || detectQueryType(normalizedSql) !== "select") {
+      throw new ValidationError("Charts can only be created from read-only SELECT queries.", {
+        code: "CHART_SELECT_QUERY_REQUIRED",
+      });
+    }
+
+    return this.withDatabase(databaseReference, ({ connection, runtime }) => {
+      assertReadOnlySql(runtime.db, normalizedSql);
+      const result = runtime.sqlExecutor.execute(normalizedSql, {
+        executedBy: "mcp",
+        maxRows: 500,
+        requireReader: true,
+      });
+      const chart = this.appStateStore.createQueryHistoryChart({
+        databaseKey: connection.id,
+        queryHistoryId: result.historyId,
+        name,
+        chartType,
+        config,
+        resultColumns: resultColumns ?? result.columns.map((column) => ({
+          name: column,
+          type: "unknown",
+        })),
+        tableVisible,
+      });
+
+      return {
+        chart,
+        queryHistoryId: result.historyId,
+        export: {
+          png: false,
+          message: "Charts are saved in SQLite Hub. PNG export is available from the Charts UI.",
+        },
+      };
+    });
   }
 
   getTableRow(databaseReference, tableName, exportTarget) {
@@ -440,6 +659,22 @@ class DatabaseCommandService {
     return this.appStateStore.listDatabaseDocuments(connection.id);
   }
 
+  readDocuments(databaseReference, documentName = null) {
+    const normalizedDocumentName = normalizeOptionalValue(documentName);
+
+    if (normalizedDocumentName) {
+      return {
+        items: [this.getDocument(databaseReference, normalizedDocumentName)],
+      };
+    }
+
+    return {
+      items: this.listDocuments(databaseReference).map((document) =>
+        this.appStateStore.getDatabaseDocument(this.getDatabase(databaseReference).id, document.id)
+      ),
+    };
+  }
+
   findDocument(databaseReference, documentName) {
     const connection = this.getDatabase(databaseReference);
     const normalizedDocumentName = normalizeLookupValue(documentName, "Document name").toLowerCase();
@@ -494,8 +729,10 @@ class DatabaseCommandService {
 
 module.exports = {
   DatabaseCommandService,
+  assertReadOnlySql,
   buildIdentityFromExportTarget,
   buildRowJsonObject,
+  isAllowedReadonlyStatement,
   getDocumentTitle,
   getQueryTitle,
   normalizeMarkdownExportFilename,

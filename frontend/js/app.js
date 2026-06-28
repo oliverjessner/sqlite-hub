@@ -2577,6 +2577,16 @@ async function handleAction(actionNode) {
             }
             return;
         }
+        case 'copy-mcp-config': {
+            const configNode = document.querySelector('[data-mcp-config]');
+            const config = configNode instanceof HTMLTextAreaElement ? configNode.value : '';
+
+            if (config && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(config);
+                showToast('MCP config copied.', 'success');
+            }
+            return;
+        }
         case 'open-row-editor-url':
             openRowEditorUrl(actionNode);
             return;

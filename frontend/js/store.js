@@ -332,6 +332,9 @@ const state = {
         versionCheck: null,
         versionCheckLoading: false,
         versionCheckError: null,
+        mcpStatus: null,
+        mcpStatusLoading: false,
+        mcpStatusError: null,
     },
     overview: {
         data: null,
@@ -1568,6 +1571,22 @@ async function refreshSettingsState() {
     }
 }
 
+async function refreshSettingsMcpStatus() {
+    state.settings.mcpStatusLoading = true;
+    state.settings.mcpStatusError = null;
+    emitChange();
+
+    try {
+        const response = await api.getSettingsMcpStatus();
+        state.settings.mcpStatus = response.data ?? null;
+    } catch (error) {
+        state.settings.mcpStatusError = normalizeError(error);
+    } finally {
+        state.settings.mcpStatusLoading = false;
+        emitChange();
+    }
+}
+
 function buildLogRequestOptions({ append = false } = {}) {
     const filters = normalizeLogFilters(state.logs.filters);
 
@@ -1674,7 +1693,8 @@ export async function createSettingsApiToken(name) {
 }
 
 export function setSettingsSection(section) {
-    const normalizedSection = section === 'api-tokens' ? 'api-tokens' : 'information';
+    const normalizedSection =
+        section === 'api-tokens' ? 'api-tokens' : section === 'mcp' ? 'mcp' : 'information';
 
     if (state.settings.section === normalizedSection) {
         return;
@@ -1726,7 +1746,9 @@ export async function loadMoreLogs() {
     await loadLogs({ append: true });
 }
 
-export async function checkSettingsAppVersion() {
+export async function checkSettingsAppVersion(options = {}) {
+    const silent = Boolean(options.silent);
+
     state.settings.versionCheckLoading = true;
     state.settings.versionCheckError = null;
     emitChange();
@@ -1736,14 +1758,18 @@ export async function checkSettingsAppVersion() {
         const result = response.data ?? null;
 
         state.settings.versionCheck = result;
-        pushToast(
-            result?.updateAvailable ? `SQLite Hub v${result.latestVersion} is available.` : 'SQLite Hub is up to date.',
-            'success',
-        );
+        if (!silent) {
+            pushToast(
+                result?.updateAvailable ? `SQLite Hub v${result.latestVersion} is available.` : 'SQLite Hub is up to date.',
+                'success',
+            );
+        }
         return result;
     } catch (error) {
         state.settings.versionCheckError = normalizeError(error);
-        pushToast('Version check failed.', 'alert');
+        if (!silent) {
+            pushToast('Version check failed.', 'alert');
+        }
         return null;
     } finally {
         state.settings.versionCheckLoading = false;
@@ -2964,6 +2990,8 @@ async function loadRouteData(route, options = {}) {
             return;
         case 'settings':
             await refreshSettingsState();
+            await refreshSettingsMcpStatus();
+            await checkSettingsAppVersion({ silent: true });
             return;
         default:
     }
