@@ -15,7 +15,7 @@ SQLite Hub is a local-first Node/Express app with a browser SPA. Backend code li
 
 ## Coding Style & Naming Conventions
 
-Use plain JavaScript and existing local patterns. Frontend modules use ES modules; backend modules mostly use CommonJS. Prefer small, focused functions and reuse existing components before adding new UI primitives. Keep UI work aligned with `docs/DESIGN_GUIDELINES.md`; shared button, input, drawer, modal, and Escape-key behavior should stay consistent. Use descriptive camelCase for functions and variables, PascalCase only for classes/services, and route/view files named by feature, for example `tableAdvisor.js`.
+Use plain JavaScript and existing local patterns. Frontend modules use ES modules; backend modules mostly use CommonJS. Prefer small, focused functions and reuse existing components before adding new UI primitives. Keep UI work aligned with `/docs/guidelines/DESIGN.md`; shared button, input, drawer, modal, and Escape-key behavior should stay consistent. Use descriptive camelCase for functions and variables, PascalCase only for classes/services, and route/view files named by feature, for example `tableAdvisor.js`.
 
 ## Testing Guidelines
 
