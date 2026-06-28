@@ -4,6 +4,7 @@
 - logs for everything in the log menu
 - in api tokens you can now see last used and amount of api calls
 - removed legacy tables
+- new menu/view order
 
 # v1.4.0
 

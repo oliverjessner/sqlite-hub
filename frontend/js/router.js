@@ -84,6 +84,14 @@ export function parseHash(hash = window.location.hash) {
                     tableName: segments[1] && segments[1] !== 'new' ? decodeRouteValue(segments[1]) : null,
                 },
             };
+        case 'table-advisor':
+            return {
+                name: 'tableAdvisor',
+                path: cleanPath,
+                params: {
+                    tableName: segments[1] ? decodeRouteValue(segments[1]) : null,
+                },
+            };
         case 'media-tagging':
             if (segments[1] === 'queue') {
                 return { name: 'mediaTaggingQueue', path: '/media-tagging/queue', params: {} };

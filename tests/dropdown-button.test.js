@@ -88,6 +88,12 @@ test("workspace open dropdown renders navigation and SQL editor actions", async 
         target: tableName => `/structure/${encodeURIComponent(tableName)}`,
       },
       {
+        icon: "troubleshoot",
+        key: "table-advisor",
+        label: "Table Advisor",
+        target: tableName => `/table-advisor/${encodeURIComponent(tableName)}`,
+      },
+      {
         key: "sql-editor",
       },
     ],
@@ -96,6 +102,8 @@ test("workspace open dropdown renders navigation and SQL editor actions", async 
   assert.match(markup, /data-dropdown-button/);
   assert.match(markup, /data-action="navigate"/);
   assert.match(markup, /data-to="\/structure\/companies"/);
+  assert.match(markup, /data-to="\/table-advisor\/companies"/);
+  assert.match(markup, /Table Advisor/);
   assert.match(markup, /data-action="open-table-in-sql-editor"/);
   assert.match(markup, /data-table-name="companies"/);
 });

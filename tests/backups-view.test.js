@@ -60,6 +60,9 @@ test("backup manager renders backup rows with status and actions", async () => {
   ).main;
 
   assert.match(rendered, /Before migration/);
+  assert.match(rendered, /Total backup usage/);
+  assert.match(rendered, /1\.0 KB/);
+  assert.match(rendered, /1 \/\/ 1 available/);
   assert.match(rendered, /Verified/);
   assert.match(rendered, /SQLite Hub/);
   assert.match(rendered, /v1\.1\.2/);
@@ -80,6 +83,53 @@ test("backup manager renders backup rows with status and actions", async () => {
   assert.match(rendered, /data-action="open-restore-backup-modal"/);
   assert.match(rendered, /data-action="download-backup"/);
   assert.match(rendered, /data-action="open-delete-backup-modal"/);
+});
+
+test("backup manager usage summary excludes missing backup files", async () => {
+  const { renderBackupsView } = await loadModule();
+  const rendered = renderBackupsView(
+    createState({
+      backups: {
+        items: [
+          {
+            id: "backup-one",
+            name: "Available backup",
+            notes: "",
+            sizeBytes: 1024,
+            status: "verified",
+            fileExists: true,
+            fileName: "available.sqlite",
+            path: "/tmp/available.sqlite",
+            connectionId: "db-one",
+            sourcePath: "/tmp/source.sqlite",
+            createdAt: "2026-06-21T11:42:18.000Z",
+          },
+          {
+            id: "backup-two",
+            name: "Missing backup",
+            notes: "",
+            sizeBytes: 2048,
+            status: "failed",
+            fileExists: false,
+            fileName: "missing.sqlite",
+            path: "/tmp/missing.sqlite",
+            connectionId: "db-one",
+            sourcePath: "/tmp/source.sqlite",
+            createdAt: "2026-06-21T11:43:18.000Z",
+          },
+        ],
+        loading: false,
+        operationLoading: false,
+        error: null,
+      },
+    })
+  ).main;
+  const usageSummary = rendered.slice(0, rendered.indexOf('<div class="overflow-auto'));
+
+  assert.match(usageSummary, /Total backup usage/);
+  assert.match(usageSummary, /1\.0 KB/);
+  assert.match(usageSummary, /2 \/\/ 1 available \/\/ 1 missing/);
+  assert.doesNotMatch(usageSummary, /2\.0 KB/);
 });
 
 test("backup manager renders compare results in the right drawer", async () => {

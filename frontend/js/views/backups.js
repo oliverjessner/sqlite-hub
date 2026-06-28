@@ -73,6 +73,57 @@ function renderBackupMetadata(backup) {
     `;
 }
 
+function getBackupsUsageSummary(items = []) {
+    return items.reduce(
+        (summary, backup) => {
+            const sizeBytes = Number(backup.sizeBytes ?? 0);
+            const fileExists = backup.fileExists !== false;
+
+            summary.backupCount += 1;
+
+            if (fileExists) {
+                summary.availableCount += 1;
+                summary.totalSizeBytes += Number.isFinite(sizeBytes) && sizeBytes > 0 ? sizeBytes : 0;
+            } else {
+                summary.missingCount += 1;
+            }
+
+            return summary;
+        },
+        {
+            totalSizeBytes: 0,
+            backupCount: 0,
+            availableCount: 0,
+            missingCount: 0,
+        },
+    );
+}
+
+function renderBackupUsageSummary(state) {
+    const summary = getBackupsUsageSummary(state.backups.items);
+    const details = [
+        `${formatNumber(summary.availableCount)} available`,
+        summary.missingCount ? `${formatNumber(summary.missingCount)} missing` : '',
+    ]
+        .filter(Boolean)
+        .join(' // ');
+
+    return `
+    <div class="mb-4 grid gap-3 border border-outline-variant/10 bg-surface-container-low px-4 py-4 md:grid-cols-[minmax(14rem,1fr)_minmax(10rem,0.45fr)]">
+      <div class="min-w-0">
+        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/55">Total backup usage</div>
+        <div class="mt-1 font-body text-2xl font-black uppercase text-primary-container">${escapeHtml(formatBytes(summary.totalSizeBytes))}</div>
+      </div>
+      <div class="min-w-0 border border-outline-variant/10 bg-surface-container-lowest px-3 py-2">
+        <div class="font-mono text-[9px] uppercase tracking-[0.16em] text-on-surface-variant/45">Backups</div>
+        <div class="mt-1 font-mono text-[10px] uppercase tracking-[0.1em] text-on-surface/80">
+          ${escapeHtml(formatNumber(summary.backupCount))}${details ? ` // ${escapeHtml(details)}` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderBackupRows(state) {
     return state.backups.items
         .map(backup => {
@@ -186,6 +237,7 @@ function renderBackupsBody(state) {
     }
 
     return `
+    ${renderBackupUsageSummary(state)}
     <div class="overflow-auto border border-outline-variant/10 bg-surface-container-low">
       <div class="grid min-w-[76rem] grid-cols-[minmax(18rem,1.2fr)_minmax(17rem,0.85fr)_minmax(18rem,1fr)_14rem] gap-5 border-b border-outline-variant/10 bg-surface-container px-4 py-3 font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant/55">
         <div>Backup</div>

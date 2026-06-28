@@ -67,6 +67,8 @@ test("data table renders an email icon for email cells", async () => {
   assert.match(rendered, /oli@example\.com/);
   assert.match(rendered, /data-action="open-generate-data-modal"/);
   assert.match(rendered, />\s*Generate\s*<\/button>/);
+  assert.match(rendered, /data-to="\/table-advisor\/contacts"/);
+  assert.match(rendered, /Table Advisor/);
 });
 
 test("data table generate button is disabled until a table is selected", async () => {

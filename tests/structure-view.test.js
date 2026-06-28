@@ -49,6 +49,8 @@ test("structure toolbar groups graph format actions in a dropdown", async () => 
   assert.match(main, /Open companies/);
   assert.match(main, /data-to="\/data\/companies"/);
   assert.match(main, /data-to="\/table-designer\/companies"/);
+  assert.match(main, /data-to="\/table-advisor\/companies"/);
+  assert.match(main, /Table Advisor/);
   assert.match(main, /data-action="open-table-in-sql-editor"/);
   assert.match(main, /Format graph/);
   assert.match(main, /Fit Graph/);

@@ -11,6 +11,7 @@ const {
   buildSyntheticRows,
   insertSyntheticRows,
 } = require("./syntheticDataGenerator");
+const { analyzeTable } = require("./tableAdvisor");
 const { normalizeTableFilter } = require("./tableFilter");
 const { buildTableOrderClause, normalizeTableSort } = require("./tableSort");
 
@@ -299,6 +300,12 @@ class DataBrowserService {
     const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
 
     return insertSyntheticRows(db, tableDetail, payload);
+  }
+
+  analyzeTable(tableName) {
+    const db = this.connectionManager.getActiveDatabase();
+
+    return analyzeTable(db, tableName);
   }
 
   buildWhereClause(tableDetail, identity) {

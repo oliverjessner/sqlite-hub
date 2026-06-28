@@ -249,6 +249,12 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
                       target: tableName => `/table-designer/${encodeURIComponent(tableName)}`,
                   },
                   {
+                      icon: 'troubleshoot',
+                      key: 'table-advisor',
+                      label: 'Table Advisor',
+                      target: tableName => `/table-advisor/${encodeURIComponent(tableName)}`,
+                  },
+                  {
                       key: 'sql-editor',
                   },
               ],

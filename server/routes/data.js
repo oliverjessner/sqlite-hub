@@ -21,6 +21,21 @@ function createDataRouter({ dataBrowserService }) {
   );
 
   router.get(
+    "/:tableName/advisor",
+    route((req, res) => {
+      const data = dataBrowserService.analyzeTable(req.params.tableName);
+
+      res.json(
+        successResponse({
+          message: "Table analysis complete.",
+          data,
+          readOnly: true,
+        })
+      );
+    })
+  );
+
+  router.get(
     "/:tableName",
     route((req, res) => {
       const data = dataBrowserService.getTableData(req.params.tableName, {

@@ -34,3 +34,12 @@ test("data table route keeps table name and row primary key separate", async () 
   assert.equal(route.params.tableName, "companies");
   assert.equal(route.params.rowPrimaryKey, "abc 123");
 });
+
+test("table advisor route supports an optional table name", async () => {
+  const { parseHash } = await loadRouterModule();
+  const route = parseHash("#/table-advisor/users");
+
+  assert.equal(route.name, "tableAdvisor");
+  assert.equal(route.path, "/table-advisor/users");
+  assert.equal(route.params.tableName, "users");
+});

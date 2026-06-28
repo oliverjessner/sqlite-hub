@@ -374,6 +374,15 @@ const state = {
         error: null,
         saveError: null,
     },
+    tableAdvisor: {
+        tables: [],
+        selectedTableName: null,
+        result: null,
+        loading: false,
+        analysisLoading: false,
+        error: null,
+        analysisError: null,
+    },
     editor: {
         sqlText: readStoredString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft),
         editorPanelVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.sqlEditorEditorVisible, true),
@@ -672,6 +681,7 @@ function requiresActiveDatabase(routeName) {
         'documents',
         'structure',
         'tableDesigner',
+        'tableAdvisor',
         'mediaTaggingSetup',
         'mediaTaggingQueue',
     ].includes(routeName);
@@ -1341,6 +1351,8 @@ function clearRouteSlices() {
     state.charts.resultError = null;
     state.tableDesigner.error = null;
     state.tableDesigner.saveError = null;
+    state.tableAdvisor.error = null;
+    state.tableAdvisor.analysisError = null;
     state.structure.error = null;
     state.mediaTagging.error = null;
     state.documents.error = null;
@@ -1402,6 +1414,14 @@ function setMissingDatabaseState() {
     state.tableDesigner.supportedTypes = [];
     state.tableDesigner.error = error;
     state.tableDesigner.saveError = null;
+
+    state.tableAdvisor.loading = false;
+    state.tableAdvisor.analysisLoading = false;
+    state.tableAdvisor.tables = [];
+    state.tableAdvisor.selectedTableName = null;
+    state.tableAdvisor.result = null;
+    state.tableAdvisor.error = error;
+    state.tableAdvisor.analysisError = null;
 
     state.mediaTagging.loading = false;
     state.mediaTagging.previewLoading = false;
@@ -2378,6 +2398,94 @@ async function loadData(version, route) {
     }
 }
 
+async function loadTableAdvisorResult(version, tableName) {
+    if (!tableName) {
+        state.tableAdvisor.result = null;
+        state.tableAdvisor.analysisError = null;
+        state.tableAdvisor.analysisLoading = false;
+        return;
+    }
+
+    state.tableAdvisor.analysisLoading = true;
+    state.tableAdvisor.analysisError = null;
+    state.tableAdvisor.result = null;
+    emitChange();
+
+    try {
+        const response = await api.analyzeTableAdvisor(tableName);
+
+        if (version !== routeLoadVersion) {
+            return;
+        }
+
+        state.tableAdvisor.result = response.data ?? null;
+        state.tableAdvisor.analysisError = null;
+    } catch (error) {
+        if (version !== routeLoadVersion) {
+            return;
+        }
+
+        state.tableAdvisor.result = null;
+        state.tableAdvisor.analysisError = normalizeError(error);
+    } finally {
+        if (version === routeLoadVersion) {
+            state.tableAdvisor.analysisLoading = false;
+            emitChange();
+        }
+    }
+}
+
+async function loadTableAdvisor(version, route) {
+    state.tableAdvisor.loading = true;
+    state.tableAdvisor.error = null;
+    state.tableAdvisor.analysisError = null;
+    emitChange();
+
+    try {
+        const response = await api.getDataTables();
+
+        if (version !== routeLoadVersion) {
+            return;
+        }
+
+        const tables = response.data?.tables ?? [];
+        const requestedTableName = route.params?.tableName ?? null;
+        const selectedTableName =
+            requestedTableName && tables.some(table => table.name === requestedTableName)
+                ? requestedTableName
+                : (state.tableAdvisor.selectedTableName && tables.some(table => table.name === state.tableAdvisor.selectedTableName)
+                      ? state.tableAdvisor.selectedTableName
+                      : (tables[0]?.name ?? null));
+
+        state.tableAdvisor.tables = tables;
+        state.tableAdvisor.selectedTableName = selectedTableName;
+        state.tableAdvisor.error = null;
+
+        if (!selectedTableName) {
+            state.tableAdvisor.result = null;
+            return;
+        }
+
+        state.tableAdvisor.loading = false;
+        emitChange();
+        await loadTableAdvisorResult(version, selectedTableName);
+    } catch (error) {
+        if (version !== routeLoadVersion) {
+            return;
+        }
+
+        state.tableAdvisor.tables = [];
+        state.tableAdvisor.selectedTableName = null;
+        state.tableAdvisor.result = null;
+        state.tableAdvisor.error = normalizeError(error);
+    } finally {
+        if (version === routeLoadVersion) {
+            state.tableAdvisor.loading = false;
+            emitChange();
+        }
+    }
+}
+
 async function loadStructureDetail(version) {
     const entry = getCurrentStructureEntry(state);
 
@@ -2846,6 +2954,9 @@ async function loadRouteData(route, options = {}) {
             return;
         case 'tableDesigner':
             await loadTableDesigner(version, route);
+            return;
+        case 'tableAdvisor':
+            await loadTableAdvisor(version, route);
             return;
         case 'mediaTaggingSetup':
         case 'mediaTaggingQueue':

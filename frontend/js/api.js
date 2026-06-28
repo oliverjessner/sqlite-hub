@@ -497,6 +497,10 @@ export function getDataTable(tableName, options = {}) {
   return request(`/api/data/${encodeURIComponent(tableName)}${query ? `?${query}` : ""}`);
 }
 
+export function analyzeTableAdvisor(tableName) {
+  return request(`/api/data/${encodeURIComponent(tableName)}/advisor`);
+}
+
 export function getDataTableRow(tableName, payload) {
   return request(`/api/data/${encodeURIComponent(tableName)}/row`, {
     method: "POST",

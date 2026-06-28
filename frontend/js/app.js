@@ -197,6 +197,7 @@ import { renderMediaTaggingView } from './views/mediaTagging.js';
 import { renderOverviewView } from './views/overview.js';
 import { renderSettingsView } from './views/settings.js';
 import { renderStructureView } from './views/structure.js';
+import { renderTableAdvisorView } from './views/tableAdvisor.js';
 import { renderTableDesignerView } from './views/tableDesigner.js';
 import { replaceChildrenFromRenderedMarkup, replaceElementFromRenderedMarkup } from './utils/dom.js';
 import {
@@ -275,6 +276,7 @@ const ROUTE_TITLE_SEGMENTS = {
     backups: 'Backups',
     overview: 'Overview',
     data: 'Data',
+    tableAdvisor: 'Table Advisor',
     structure: 'Structure',
     editor: 'SQL Editor',
     editorResults: 'SQL Editor',
@@ -1211,6 +1213,8 @@ function resolveView(state) {
             return renderStructureView(state);
         case 'tableDesigner':
             return renderTableDesignerView(state);
+        case 'tableAdvisor':
+            return renderTableAdvisorView(state);
         case 'mediaTaggingSetup':
             return renderMediaTaggingView(state, { subView: 'setup' });
         case 'mediaTaggingQueue':
@@ -1508,6 +1512,7 @@ function renderApp(state) {
         'documents',
         'structure',
         'tableDesigner',
+        'tableAdvisor',
         'mediaTaggingSetup',
         'mediaTaggingQueue',
     ].includes(state.route.name);
@@ -3066,6 +3071,30 @@ async function handleAction(actionNode) {
                 showToast('SQL preview copied.', 'success');
             } catch (error) {
                 showToast('Clipboard access failed.', 'alert');
+            }
+            return;
+        }
+        case 'copy-table-advisor-sql': {
+            const issueId = actionNode.dataset.issueId;
+            const advisor = getState().tableAdvisor;
+            const issue = (advisor.result?.issues ?? []).find(item => item.id === issueId);
+            const sql = String(issue?.sql ?? '');
+
+            if (!sql.trim()) {
+                showToast('No advisor SQL to copy.', 'alert');
+                return;
+            }
+
+            if (!navigator.clipboard?.writeText) {
+                showToast('Clipboard API is not available.', 'alert');
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(sql);
+                showToast('Advisor SQL copied.', 'success');
+            } catch (error) {
+                showToast('Advisor SQL could not be copied.', 'alert');
             }
             return;
         }

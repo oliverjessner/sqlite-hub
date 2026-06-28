@@ -52,6 +52,12 @@ function renderWorkspaceToolbar(state) {
               target: name => `/structure/${encodeURIComponent(name)}`,
             },
             {
+              icon: "troubleshoot",
+              key: "table-advisor",
+              label: "Table Advisor",
+              target: name => `/table-advisor/${encodeURIComponent(name)}`,
+            },
+            {
               key: "sql-editor",
             },
           ],

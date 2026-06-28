@@ -3,13 +3,36 @@ import { renderConnectionLogo } from './connectionLogo.js';
 
 const sidebarItems = [
     { label: 'Connections', href: '#/connections', key: 'connections', icon: 'database' },
-    { label: 'Overview', href: '#/overview', key: 'overview', icon: 'dashboard' },
     { label: 'Data', href: '#/data', key: 'data', icon: 'table_rows' },
-    { label: 'Structure', href: '#/structure', key: 'structure', icon: 'account_tree' },
     { label: 'SQL_Editor', href: '#/editor', key: 'editor', icon: 'terminal' },
-    { label: 'Charts', href: '#/charts', key: 'charts', icon: 'bar_chart' },
-    { label: 'Documents', href: '#/documents', key: 'documents', icon: 'description' },
-    { label: 'Table_Designer', href: '#/table-designer', key: 'tableDesigner', icon: 'table_chart' },
+    {
+        label: 'SCHEMA',
+        key: 'schema',
+        icon: 'account_tree',
+        children: [
+            { label: 'STRUCTURE', href: '#/structure', key: 'structure' },
+            { label: 'ADVISOR', href: '#/table-advisor', key: 'tableAdvisor' },
+            { label: 'DESIGNER', href: '#/table-designer', key: 'tableDesigner' },
+        ],
+    },
+    {
+        label: 'Insights',
+        key: 'insights',
+        icon: 'monitoring',
+        children: [
+            { label: 'CHARTS', href: '#/charts', key: 'charts' },
+            { label: 'OVERVIEW', href: '#/overview', key: 'overview' },
+        ],
+    },
+    {
+        label: 'Workspace',
+        key: 'workspace',
+        icon: 'folder_open',
+        children: [
+            { label: 'DOCUMENTS', href: '#/documents', key: 'documents' },
+            { label: 'BACKUPS', href: '#/backups', key: 'backups' },
+        ],
+    },
     {
         label: 'MEDIA_TAGGING',
         key: 'mediaTagging',
@@ -19,7 +42,6 @@ const sidebarItems = [
             { label: 'TAGGING_QUEUE', href: '#/media-tagging/queue', key: 'mediaTaggingQueue' },
         ],
     },
-    { label: 'Backups', href: '#/backups', key: 'backups', icon: 'inventory_2' },
     { label: 'Settings', href: '#/settings', key: 'settings', icon: 'settings' },
 ];
 
@@ -34,6 +56,18 @@ function getActiveSidebarKey(routeName) {
 
     if (routeName === 'mediaTaggingSetup' || routeName === 'mediaTaggingQueue') {
         return 'mediaTagging';
+    }
+
+    if (routeName === 'structure' || routeName === 'tableAdvisor' || routeName === 'tableDesigner') {
+        return 'schema';
+    }
+
+    if (routeName === 'charts' || routeName === 'overview') {
+        return 'insights';
+    }
+
+    if (routeName === 'documents' || routeName === 'backups') {
+        return 'workspace';
     }
 
     return routeName;
@@ -140,7 +174,7 @@ function renderConnectionQuickPicker(state) {
 
 export function renderSidebar(state) {
     const activeKey = getActiveSidebarKey(state.route.name);
-    const expandedKey = activeKey === 'mediaTagging' ? 'mediaTagging' : null;
+    const expandedKey = sidebarItems.some(item => item.key === activeKey && item.children) ? activeKey : null;
 
     return `
     <nav class="sidebar-links">
