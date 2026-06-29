@@ -88,11 +88,13 @@ Scan rows, sort columns, move through local data quickly, and export full tables
 
 Use `Generate` in the Data browser to create local synthetic test rows from the current table schema. The generator respects required columns, foreign keys, simple `CHECK` constraints, and shows a preview before insertion.
 
+[![SQLite Hub synthetic data generator](./frontend/assets/mockups/data_3_generate_data_modal_1920.webp)](./frontend/assets/mockups/data_3_generate_data_modal_1920.webp)
+
 The Data browser also supports duplicating exports as a new table, searchable and hideable table navigation, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching.
 
 Wide tables keep their horizontal scroll position when sorting causes the grid to re-render. Cells use compact previews for long values, BLOBs, and detected file paths, while exports retain complete BLOB content.
 
-[![SQLite Hub data export modal](./frontend/assets/mockups/data_3_data_export_modal_1920.webp)](./frontend/assets/mockups/data_3_data_export_modal_1920.webp)
+[![SQLite Hub data export modal](./frontend/assets/mockups/data_4_data_export_modal_1920.webp)](./frontend/assets/mockups/data_4_data_export_modal_1920.webp)
 
 ### Row editing
 
@@ -209,7 +211,9 @@ The Settings view reports the installed SQLite Hub version and the actual SQLite
 
 [![SQLite Hub backups](./frontend/assets/mockups/backups_1_1920.webp)](./frontend/assets/mockups/backups_1_1920.webp)
 
-Create verified local backups of the active SQLite database, review backup metadata, edit backup notes, download backup files, restore verified backups, and delete managed backups from the Backups view. SQLite Hub stores backup files under its local app-state backup directory by connection id and keeps a `manifest.json` beside each database's backup files. Each backup is created through SQLite's backup API, hashed with SHA-256, and verified with `PRAGMA quick_check` before it is marked as verified.
+Create verified local backups of the active SQLite database, compare backup contents with the current database, review backup metadata, edit backup notes, download backup files, restore verified backups, and delete managed backups from the Backups view. SQLite Hub stores backup files under its local app-state backup directory by connection id and keeps a `manifest.json` beside each database's backup files. Each backup is created through SQLite's backup API, hashed with SHA-256, and verified with `PRAGMA quick_check` before it is marked as verified.
+
+[![SQLite Hub backup compare drawer](./frontend/assets/mockups/backups_2_compare_drawer_1920.webp)](./frontend/assets/mockups/backups_2_compare_drawer_1920.webp)
 
 SQLite Hub also proposes a safety backup before operations that can be hard to undo:
 
@@ -221,13 +225,13 @@ SQLite Hub also proposes a safety backup before operations that can be hard to u
 The safety dialog lets you create the backup and continue, continue without creating one, or cancel the operation.
 
 <p>
-  <a href="./frontend/assets/mockups/backups_2_create_backup_modal_1920.webp"><img src="./frontend/assets/mockups/backups_2_create_backup_modal_1920.webp" alt="SQLite Hub create backup modal" width="49%"></a>
-  <a href="./frontend/assets/mockups/backups_3_edit_backup_modal_1920.webp"><img src="./frontend/assets/mockups/backups_3_edit_backup_modal_1920.webp" alt="SQLite Hub edit backup modal" width="49%"></a>
+  <a href="./frontend/assets/mockups/backups_3_create_backup_modal_1920.webp"><img src="./frontend/assets/mockups/backups_3_create_backup_modal_1920.webp" alt="SQLite Hub create backup modal" width="49%"></a>
+  <a href="./frontend/assets/mockups/backups_4_edit_backup_modal_1920.webp"><img src="./frontend/assets/mockups/backups_4_edit_backup_modal_1920.webp" alt="SQLite Hub edit backup modal" width="49%"></a>
 </p>
 
 <p>
-  <a href="./frontend/assets/mockups/backups_4_restore_backup_modal_1920.webp"><img src="./frontend/assets/mockups/backups_4_restore_backup_modal_1920.webp" alt="SQLite Hub restore backup modal" width="49%"></a>
-  <a href="./frontend/assets/mockups/backups_5_delete_backup_modal_1920.webp"><img src="./frontend/assets/mockups/backups_5_delete_backup_modal_1920.webp" alt="SQLite Hub delete backup modal" width="49%"></a>
+  <a href="./frontend/assets/mockups/backups_5_restore_backup_modal_1920.webp"><img src="./frontend/assets/mockups/backups_5_restore_backup_modal_1920.webp" alt="SQLite Hub restore backup modal" width="49%"></a>
+  <a href="./frontend/assets/mockups/backups_6_delete_backup_modal_1920.webp"><img src="./frontend/assets/mockups/backups_6_delete_backup_modal_1920.webp" alt="SQLite Hub delete backup modal" width="49%"></a>
 </p>
 
 ### Overview
