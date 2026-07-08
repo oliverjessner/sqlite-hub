@@ -1,5 +1,6 @@
 import { renderDataGrid } from '../components/dataGrid.js';
 import { renderRowEditorPanel } from '../components/rowEditorPanel.js';
+import { renderVirtualTableBadge } from '../components/badges.js';
 import { renderWorkspaceOpenDropdown } from '../components/workspaceOpenDropdown.js';
 import { escapeHtml, formatCellValue, formatNumber, isBlobPreview, truncateMiddle } from '../utils/format.js';
 import { detectEmailValue } from '../utils/emailPreview.js';
@@ -94,8 +95,13 @@ function renderTableList(state) {
               data-to="/data/${encodeURIComponent(table.name)}"
               type="button"
             >
-              <div class="table-designer-sidebar__item-name ${table.name === activeName ? 'is-active' : ''}">
-                ${escapeHtml(table.name)}
+              <div class="flex min-w-0 items-center gap-2">
+                <div class="table-designer-sidebar__item-name min-w-0 flex-1 ${
+                    table.name === activeName ? 'is-active' : ''
+                }">
+                  ${escapeHtml(table.name)}
+                </div>
+                ${renderVirtualTableBadge(table)}
               </div>
               <div class="mt-1 truncate text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45">
                 ${escapeHtml(formatNumber(table.columnCount ?? 0))} column${
@@ -113,6 +119,12 @@ function renderTableList(state) {
 function renderWorkspaceHeader(state) {
     const table = state.dataBrowser.table;
     const tablesVisible = state.dataBrowser.tablesVisible !== false;
+    const generateDisabled = !table || table.isShadow;
+    const generateTitle = !table
+        ? 'Select a table before generating rows'
+        : table.isShadow
+          ? 'Shadow tables are read-only in Data'
+          : 'Generate synthetic test rows for this table';
 
     return `
     <header class="workspace-header">
@@ -140,9 +152,9 @@ function renderWorkspaceHeader(state) {
           <button
             class="standard-button"
             data-action="open-generate-data-modal"
-            title="${table ? 'Generate synthetic test rows for this table' : 'Select a table before generating rows'}"
+            title="${escapeHtml(generateTitle)}"
             type="button"
-            ${table ? '' : 'disabled aria-disabled="true"'}
+            ${generateDisabled ? 'disabled aria-disabled="true"' : ''}
           >
             <span class="material-symbols-outlined text-sm">auto_awesome</span>
             Generate
@@ -628,6 +640,8 @@ export function renderDataRowEditorPanel(state) {
             : [{ name: 'rowIdentity', value: JSON.stringify(row.__identity ?? null) }],
         disabledMessage: state.connections.active?.readOnly
             ? 'The active database is opened read-only, so row editing is disabled.'
+            : table.isShadow
+              ? 'Shadow tables are read-only in Data.'
             : table.notSafelyUpdatable
               ? 'This table has no stable identity column, so SQLite Hub cannot safely update rows.'
               : '',
@@ -663,7 +677,7 @@ export function renderDataRowEditorPanel(state) {
         deleting: state.dataBrowser.deleting,
         deleteAction: 'delete-data-row',
         deleteRowIndex: isIndexedRow ? rowIndex : null,
-        deleteEnabled: Boolean(row.__identity),
+        deleteEnabled: Boolean(row.__identity) && !table.isShadow,
         reloadAction: 'reload-data-route',
         jsonActionsEnabled: true,
     });

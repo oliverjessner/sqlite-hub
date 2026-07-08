@@ -1,6 +1,8 @@
 import { renderTableDesignerEditor } from "../components/tableDesignerEditor.js";
+import { renderTableDesignerConstraintsDrawer } from "../components/tableDesignerConstraintsDrawer.js";
 import { renderTableDesignerSidebar } from "../components/tableDesignerSidebar.js";
 import { renderTableDesignerSqlPreview } from "../components/tableDesignerSqlPreview.js";
+import { renderDropdownButton } from "../components/dropdownButton.js";
 import { renderWorkspaceOpenDropdown } from "../components/workspaceOpenDropdown.js";
 import { escapeHtml } from "../utils/format.js";
 
@@ -15,6 +17,44 @@ function renderRouteError(error) {
       <div class="table-designer-route-error__text">${escapeHtml(error.message)}</div>
     </div>
   `;
+}
+
+function renderImportDropdown() {
+  return renderDropdownButton({
+    align: "right",
+    icon: "upload_file",
+    label: "Import",
+    title: "Import data",
+    items: [
+      {
+        action: "import-table-designer-data",
+        dataAttributes: {
+          importFormat: "csv",
+          importAccept: ".csv,text/csv",
+        },
+        icon: "table_chart",
+        label: "CSV",
+      },
+      {
+        action: "import-table-designer-data",
+        dataAttributes: {
+          importFormat: "tsv",
+          importAccept: ".tsv,text/tab-separated-values",
+        },
+        icon: "table_rows",
+        label: "TSV",
+      },
+      {
+        action: "import-table-designer-data",
+        dataAttributes: {
+          importFormat: "json",
+          importAccept: ".json,application/json",
+        },
+        icon: "data_object",
+        label: "JSON",
+      },
+    ],
+  });
 }
 
 function renderWorkspaceToolbar(state) {
@@ -62,17 +102,12 @@ function renderWorkspaceToolbar(state) {
             },
           ],
         })}
-        <button
-          class="standard-button"
-          data-action="import-table-designer-csv"
-          type="button"
-        >
-          Import CSV
-        </button>
+        ${renderImportDropdown()}
         <input
-          accept=".csv,text/csv"
+          accept=".csv,text/csv,.tsv,text/tab-separated-values,.json,application/json"
           class="table-designer-workspace__file-input"
           data-bind="table-designer-import-file"
+          data-import-format="csv"
           type="file"
         />
         <button
@@ -110,6 +145,6 @@ export function renderTableDesignerView(state) {
         </div>
       </section>
     `,
-    panel: "",
+    panel: renderTableDesignerConstraintsDrawer(state),
   };
 }

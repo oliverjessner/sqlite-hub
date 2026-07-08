@@ -41,6 +41,16 @@ function normalizeIdentifierKey(value) {
   return normalizeTrimmed(value).toLowerCase();
 }
 
+function normalizeImportFormat(value, { allowEmpty = false } = {}) {
+  const normalized = normalizeIdentifierKey(value);
+
+  if (["csv", "tsv", "json"].includes(normalized)) {
+    return normalized;
+  }
+
+  return allowEmpty ? "" : "csv";
+}
+
 function normalizeDesignerType(value) {
   return normalizeTrimmed(value).toUpperCase() || "TEXT";
 }
@@ -59,6 +69,30 @@ function createColumnId() {
   }
 
   return `column_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function normalizeImportedCellValue(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (["boolean", "number", "string"].includes(typeof value)) {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function normalizeImportedRows(rows) {
+  return Array.isArray(rows)
+    ? rows.map((row) =>
+        Array.isArray(row) ? row.map((cell) => normalizeImportedCellValue(cell)) : []
+      )
+    : [];
 }
 
 export function createEmptyTableDesignerColumn(seed = {}) {
@@ -96,6 +130,16 @@ export function createEmptyTableDesignerColumn(seed = {}) {
 }
 
 function normalizeDraft(rawDraft = {}) {
+  const importRows = normalizeImportedRows(rawDraft.importRows ?? rawDraft.importedCsvRows);
+  const importSourceFileName = normalizeText(
+    rawDraft.importSourceFileName ?? rawDraft.importedCsvFileName ?? ""
+  );
+  const importDelimiter = normalizeText(rawDraft.importDelimiter ?? rawDraft.importedCsvDelimiter ?? "");
+  const importFormat = normalizeImportFormat(
+    rawDraft.importFormat ?? (importSourceFileName ? "csv" : ""),
+    { allowEmpty: true }
+  );
+
   return {
     mode: String(rawDraft.mode ?? "create").trim() === "edit" ? "edit" : "create",
     originalTableName: normalizeText(rawDraft.originalTableName ?? ""),
@@ -132,6 +176,7 @@ function normalizeDraft(rawDraft = {}) {
           id: normalizeText(constraint.id ?? `check:${index}`),
           name: normalizeText(constraint.name ?? `CHECK ${index + 1}`),
           originalName: normalizeText(constraint.originalName ?? constraint.name ?? `CHECK ${index + 1}`),
+          deleted: normalizeBoolean(constraint.deleted),
           columns: Array.isArray(constraint.columns)
             ? constraint.columns
                 .map((column) => ({
@@ -146,18 +191,30 @@ function normalizeDraft(rawDraft = {}) {
           originalExpression: normalizeText(constraint.originalExpression ?? constraint.expression ?? ""),
           editable: normalizeBoolean(constraint.editable),
           preserved: constraint.preserved === undefined ? true : normalizeBoolean(constraint.preserved),
+          columnId: normalizeText(constraint.columnId ?? ""),
+          source: normalizeText(constraint.source ?? (constraint.originalExpression ? "detected" : "user")),
+          presetId: normalizeText(constraint.presetId ?? ""),
+          presetFields:
+            constraint.presetFields && typeof constraint.presetFields === "object"
+              ? Object.fromEntries(
+                  Object.entries(constraint.presetFields).map(([key, value]) => [
+                    key,
+                    normalizeText(value),
+                  ])
+                )
+              : {},
         }))
       : [],
     designerVersion: Number(rawDraft.designerVersion) || 1,
     schemaWarnings: Array.isArray(rawDraft.schemaWarnings) ? rawDraft.schemaWarnings : [],
     fillImportedRows: normalizeBoolean(rawDraft.fillImportedRows),
-    importedCsvFileName: normalizeText(rawDraft.importedCsvFileName ?? ""),
-    importedCsvDelimiter: normalizeText(rawDraft.importedCsvDelimiter ?? ""),
-    importedCsvRows: Array.isArray(rawDraft.importedCsvRows)
-      ? rawDraft.importedCsvRows.map((row) =>
-          Array.isArray(row) ? row.map((cell) => normalizeText(cell)) : []
-        )
-      : [],
+    importFormat,
+    importSourceFileName,
+    importDelimiter,
+    importRows,
+    importedCsvFileName: importSourceFileName,
+    importedCsvDelimiter: importDelimiter,
+    importedCsvRows: importRows,
   };
 }
 
@@ -421,13 +478,40 @@ function buildColumnDefinition(column) {
   return parts.join(" ");
 }
 
+function normalizeCheckExpressionSql(expression) {
+  const normalized = normalizeTrimmed(expression);
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (/^CHECK\s*\(/i.test(normalized)) {
+    return normalized;
+  }
+
+  return `CHECK (${normalized})`;
+}
+
+function buildCheckConstraintSql(constraint) {
+  if (constraint.deleted) {
+    return "";
+  }
+
+  return normalizeCheckExpressionSql(constraint.expression);
+}
+
 function buildCreateTableSql(draft) {
   const columnSql = draft.columns
     .filter((column) => !column.deleted)
-    .map((column) => `  ${buildColumnDefinition(column)}`)
+    .map((column) => `  ${buildColumnDefinition(column)}`);
+  const checkSql = (draft.checkConstraints ?? [])
+    .map(buildCheckConstraintSql)
+    .filter(Boolean)
+    .map((constraintSql) => `  ${constraintSql}`);
+  const definitionSql = [...columnSql, ...checkSql]
     .join(",\n");
 
-  return `CREATE TABLE ${quoteIdentifier(draft.tableName)} (\n${columnSql}\n);`;
+  return `CREATE TABLE ${quoteIdentifier(draft.tableName)} (\n${definitionSql}\n);`;
 }
 
 function getUniqueConstraintExpression(constraint) {
@@ -807,20 +891,30 @@ function escapeSqlLiteral(value) {
 }
 
 function formatImportedCellValueForSql(column, value) {
-  const textValue = normalizeText(value);
-  const trimmedValue = normalizeTrimmed(value);
+  if (value === null || value === undefined) {
+    return "NULL";
+  }
+
   const type = normalizeDesignerType(column.type);
+  const normalizedValue =
+    typeof value === "object" ? normalizeImportedCellValue(value) : value;
+  const textValue = normalizeText(normalizedValue);
+  const trimmedValue = normalizeTrimmed(normalizedValue);
 
   if (!trimmedValue) {
     return type === "TEXT" || type === "DATE" || type === "DATETIME" ? "''" : "NULL";
   }
 
+  if (typeof normalizedValue === "boolean") {
+    return normalizedValue ? "1" : "0";
+  }
+
   if (type === "BOOLEAN") {
-    if (["true", "yes", "1"].includes(normalizeIdentifierKey(value))) {
+    if (["true", "yes", "1"].includes(normalizeIdentifierKey(normalizedValue))) {
       return "1";
     }
 
-    if (["false", "no", "0"].includes(normalizeIdentifierKey(value))) {
+    if (["false", "no", "0"].includes(normalizeIdentifierKey(normalizedValue))) {
       return "0";
     }
   }
@@ -841,8 +935,16 @@ function getImportedFillColumns(draft) {
   );
 }
 
+function getImportedRows(draft) {
+  return Array.isArray(draft.importRows) && draft.importRows.length
+    ? draft.importRows
+    : draft.importedCsvRows ?? [];
+}
+
 function buildImportedInsertPreviewSql(draft, maxRows = 3) {
-  if (!draft.fillImportedRows || !draft.importedCsvRows.length) {
+  const importRows = getImportedRows(draft);
+
+  if (!draft.fillImportedRows || !importRows.length) {
     return [];
   }
 
@@ -860,18 +962,18 @@ function buildImportedInsertPreviewSql(draft, maxRows = 3) {
     columnSql,
     ") VALUES",
   ].join(" ");
-  const previewStatements = draft.importedCsvRows.slice(0, maxRows).map((row) => {
+  const previewStatements = importRows.slice(0, maxRows).map((row) => {
     const valueSql = importedColumns
-      .map((column) => formatImportedCellValueForSql(column, row[column.importedValueIndex] ?? ""))
+      .map((column) => formatImportedCellValueForSql(column, row[column.importedValueIndex]))
       .join(", ");
 
     return [insertPrefix, "(", valueSql, ");"].join(" ");
   });
 
-  if (draft.importedCsvRows.length > maxRows) {
+  if (importRows.length > maxRows) {
     previewStatements.push(
-      `-- ... ${draft.importedCsvRows.length - maxRows} more imported row${
-        draft.importedCsvRows.length - maxRows === 1 ? "" : "s"
+      `-- ... ${importRows.length - maxRows} more imported row${
+        importRows.length - maxRows === 1 ? "" : "s"
       }`
     );
   }
@@ -960,6 +1062,10 @@ function parseCsvRows(text, delimiter = ",", maxRows = 16) {
     cell += character;
   }
 
+  if (inQuotes) {
+    throw new Error("Delimited text contains an unterminated quoted value.");
+  }
+
   if (cell.length || row.length) {
     pushRow();
   }
@@ -1039,6 +1145,16 @@ function suggestImportedTableName(fileName, catalogTables = []) {
   return buildUniqueName(normalizeImportedTableName(fileName), existingNames, "imported_table");
 }
 
+function inferImportFormatFromFileName(fileName) {
+  const extension = normalizeIdentifierKey(String(fileName ?? "").split(".").pop());
+
+  if (["csv", "tsv", "json"].includes(extension)) {
+    return extension;
+  }
+
+  return "csv";
+}
+
 function isBooleanSample(value) {
   return ["true", "false", "yes", "no"].includes(normalizeIdentifierKey(value));
 }
@@ -1076,8 +1192,26 @@ function isDateTimeSample(value) {
   return !Number.isNaN(Date.parse(normalized.replace(" ", "T")));
 }
 
-function inferImportedColumnType(columnName, sampleValues) {
-  const nonEmptyValues = sampleValues.map(normalizeTrimmed).filter(Boolean);
+function isNumericImportValue(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isIntegerImportValue(value) {
+  return isNumericImportValue(value) && Number.isInteger(value);
+}
+
+export function inferSQLiteType(values = [], { columnName = "" } = {}) {
+  const nonEmptyValues = values.filter((value) => {
+    if (value === null || value === undefined) {
+      return false;
+    }
+
+    if (typeof value === "string") {
+      return Boolean(normalizeTrimmed(value));
+    }
+
+    return true;
+  });
   const normalizedColumnName = normalizeIdentifierKey(columnName);
 
   if (normalizedColumnName === "id") {
@@ -1088,95 +1222,258 @@ function inferImportedColumnType(columnName, sampleValues) {
     return normalizedColumnName.endsWith("_id") ? "INTEGER" : "TEXT";
   }
 
+  if (nonEmptyValues.some((value) => typeof value === "object")) {
+    return "TEXT";
+  }
+
+  if (nonEmptyValues.every((value) => typeof value === "boolean")) {
+    return "INTEGER";
+  }
+
+  if (nonEmptyValues.every(isIntegerImportValue)) {
+    return "INTEGER";
+  }
+
+  if (nonEmptyValues.every(isNumericImportValue)) {
+    return "REAL";
+  }
+
+  const stringValues = nonEmptyValues.map(normalizeTrimmed);
+
   if (nonEmptyValues.every(isDateTimeSample)) {
     return "DATETIME";
   }
 
-  if (nonEmptyValues.every(isDateSample)) {
+  if (stringValues.every(isDateSample)) {
     return "DATE";
   }
 
-  if (nonEmptyValues.every(isBooleanSample)) {
+  if (stringValues.every(isBooleanSample)) {
     return "BOOLEAN";
   }
 
-  if (nonEmptyValues.every(isIntegerSample)) {
+  if (stringValues.every(isIntegerSample)) {
     return "INTEGER";
   }
 
-  if (nonEmptyValues.every((value) => isIntegerSample(value) || isRealSample(value))) {
+  if (stringValues.every((value) => isIntegerSample(value) || isRealSample(value))) {
     return "REAL";
   }
 
   return "TEXT";
 }
 
-export function createTableDesignerDraftFromCsvImport(
-  { fileName = "", csvText = "" },
-  { catalogTables = [], supportedTypes = DEFAULT_TABLE_DESIGNER_TYPES, readOnly = false } = {}
-) {
-  const delimiter = detectCsvDelimiter(csvText);
-  const rows = parseCsvRows(csvText, delimiter, Number.POSITIVE_INFINITY).filter(
-    (row) => !isCsvRowEmpty(row)
-  );
+function isPlainImportObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
-  if (!rows.length) {
-    throw new Error("The selected CSV file is empty.");
+function normalizeJsonImportValue(value) {
+  if (value === null || value === undefined) {
+    return null;
   }
 
-  const headerRow = rows[0].map((cell) => normalizeImportedColumnName(cell));
-
-  if (!headerRow.some((cell) => normalizeTrimmed(cell))) {
-    throw new Error("The CSV header row is empty.");
+  if (typeof value === "boolean") {
+    return value ? 1 : 0;
   }
 
-  const sampleRows = rows.slice(1).filter((row) => !isCsvRowEmpty(row)).slice(0, 3);
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : String(value);
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return normalizeImportedCellValue(value);
+}
+
+function buildImportColumns(sourceNames, importRows) {
   const usedColumnNames = new Set();
   let primaryKeyAssigned = false;
 
-  const columns = headerRow.map((headerCell, index) => {
+  return sourceNames.map((sourceName, index) => {
     const fallbackName = `column_${index + 1}`;
-    const columnName = buildUniqueName(
-      normalizeImportedColumnName(headerCell) || fallbackName,
+    const targetName = buildUniqueName(
+      normalizeImportedColumnName(sourceName) || fallbackName,
       usedColumnNames,
       fallbackName
     );
-    const sampleValues = sampleRows.map((row) => row[index] ?? "");
-    const originalHeaderName = normalizeIdentifierKey(headerCell);
-    const isPrimaryKey = !primaryKeyAssigned && originalHeaderName === "id";
+    const values = importRows.map((row) => row[index]);
+    const sourceKey = normalizeIdentifierKey(sourceName);
+    const isPrimaryKey = !primaryKeyAssigned && sourceKey === "id";
 
     if (isPrimaryKey) {
       primaryKeyAssigned = true;
     }
 
-    return createEmptyTableDesignerColumn({
-      name: columnName,
-      type: isPrimaryKey ? "INTEGER" : inferImportedColumnType(columnName, sampleValues),
+    return {
+      sourceName,
+      targetName,
+      inferredType: isPrimaryKey ? "INTEGER" : inferSQLiteType(values, { columnName: targetName }),
+      nullable: values.some((value) => value === null || value === undefined || normalizeTrimmed(value) === ""),
       primaryKey: isPrimaryKey,
-      notNull: isPrimaryKey,
-      importedValueIndex: index,
+    };
+  });
+}
+
+function createDelimitedImportDataset({ fileName = "", text = "", format = "csv" } = {}) {
+  const importFormat = normalizeImportFormat(format);
+  const delimiter = importFormat === "tsv" ? "\t" : detectCsvDelimiter(text);
+  const rows = parseCsvRows(text, delimiter, Number.POSITIVE_INFINITY).filter(
+    (row) => !isCsvRowEmpty(row)
+  );
+
+  if (!rows.length) {
+    throw new Error(`The selected ${importFormat.toUpperCase()} file is empty.`);
+  }
+
+  const headerRow = rows[0].map((cell) => normalizeImportedColumnName(cell));
+
+  if (!headerRow.some((cell) => normalizeTrimmed(cell))) {
+    throw new Error(`The ${importFormat.toUpperCase()} header row is empty.`);
+  }
+
+  const dataRows = rows.slice(1).filter((row) => !isCsvRowEmpty(row));
+  const headerWidth = headerRow.length;
+  const overflowRow = dataRows.find((row) => row.length > headerWidth);
+
+  if (overflowRow) {
+    throw new Error(
+      `${importFormat.toUpperCase()} row has more values than the header row.`
+    );
+  }
+
+  const importRows = dataRows.map((row) => headerRow.map((_, index) => row[index] ?? ""));
+  const sourceNames = headerRow.map((headerCell, index) => headerCell || `column_${index + 1}`);
+  const columns = buildImportColumns(sourceNames, importRows);
+
+  return {
+    format: importFormat,
+    sourceFileName: normalizeText(fileName),
+    suggestedTableName: normalizeImportedTableName(fileName),
+    delimiter,
+    columns,
+    previewRows: importRows.slice(0, 16),
+    rows: importRows,
+    rowCount: importRows.length,
+  };
+}
+
+function createJsonImportDataset({ fileName = "", text = "" } = {}) {
+  const sourceText = normalizeText(text).replace(/^\uFEFF/, "").trim();
+
+  if (!sourceText) {
+    throw new Error("The selected JSON file is empty.");
+  }
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(sourceText);
+  } catch (error) {
+    throw new Error(`INVALID_JSON: ${error.message}`);
+  }
+
+  let records;
+
+  if (Array.isArray(parsed)) {
+    if (!parsed.length) {
+      throw new Error("EMPTY_JSON_ARRAY_IS_NOT_SUPPORTED");
+    }
+
+    if (!parsed.every(isPlainImportObject)) {
+      throw new Error("MIXED_ARRAY_VALUES_ARE_NOT_SUPPORTED");
+    }
+
+    records = parsed;
+  } else if (isPlainImportObject(parsed)) {
+    records = [parsed];
+  } else {
+    throw new Error("JSON_ROOT_VALUE_IS_NOT_SUPPORTED");
+  }
+
+  const sourceNames = [];
+  const seenKeys = new Set();
+
+  records.forEach((record) => {
+    Object.keys(record).forEach((key) => {
+      if (seenKeys.has(key)) {
+        return;
+      }
+
+      seenKeys.add(key);
+      sourceNames.push(key);
     });
   });
 
-  const importedCsvRows = rows
-    .slice(1)
-    .filter((row) => !isCsvRowEmpty(row))
-    .map((row) => headerRow.map((_, index) => row[index] ?? ""));
+  if (!sourceNames.length) {
+    throw new Error("JSON records do not contain importable properties.");
+  }
+
+  const importRows = records.map((record) =>
+    sourceNames.map((sourceName) =>
+      Object.prototype.hasOwnProperty.call(record, sourceName)
+        ? normalizeJsonImportValue(record[sourceName])
+        : null
+    )
+  );
+  const columns = buildImportColumns(sourceNames, importRows);
+
+  return {
+    format: "json",
+    sourceFileName: normalizeText(fileName),
+    suggestedTableName: normalizeImportedTableName(fileName),
+    delimiter: "",
+    columns,
+    previewRows: importRows.slice(0, 16),
+    rows: importRows,
+    rowCount: importRows.length,
+  };
+}
+
+export function createImportDatasetFromText({ fileName = "", text = "", format = "" } = {}) {
+  const importFormat = normalizeImportFormat(format || inferImportFormatFromFileName(fileName));
+
+  if (importFormat === "json") {
+    return createJsonImportDataset({ fileName, text });
+  }
+
+  return createDelimitedImportDataset({ fileName, text, format: importFormat });
+}
+
+export function createTableDesignerDraftFromImport(
+  { fileName = "", text = "", format = "" },
+  { catalogTables = [], supportedTypes = DEFAULT_TABLE_DESIGNER_TYPES, readOnly = false } = {}
+) {
+  const dataset = createImportDatasetFromText({ fileName, text, format });
+  const columns = dataset.columns.map((column, index) =>
+    createEmptyTableDesignerColumn({
+      name: column.targetName,
+      type: column.inferredType,
+      primaryKey: column.primaryKey,
+      notNull: column.primaryKey,
+      importedValueIndex: index,
+    })
+  );
 
   const draft = recalculateTableDesignerDraft(
     {
       mode: "create",
       originalTableName: "",
-      tableName: suggestImportedTableName(fileName, catalogTables),
+      tableName: suggestImportedTableName(dataset.sourceFileName, catalogTables),
       columns,
       uniqueConstraints: [],
       checkConstraints: [],
       designerVersion: 2,
       schemaWarnings: [],
-      fillImportedRows: importedCsvRows.length > 0,
-      importedCsvFileName: normalizeText(fileName),
-      importedCsvDelimiter: delimiter,
-      importedCsvRows,
+      fillImportedRows: dataset.rows.length > 0,
+      importFormat: dataset.format,
+      importSourceFileName: dataset.sourceFileName,
+      importDelimiter: dataset.delimiter,
+      importRows: dataset.rows,
+      importedCsvFileName: dataset.sourceFileName,
+      importedCsvDelimiter: dataset.delimiter,
+      importedCsvRows: dataset.rows,
     },
     { catalogTables, supportedTypes, readOnly }
   );
@@ -1184,10 +1481,22 @@ export function createTableDesignerDraftFromCsvImport(
   return {
     draft,
     columnCount: columns.length,
-    delimiter,
-    importedRowCount: importedCsvRows.length,
-    sampleRowCount: sampleRows.length,
+    delimiter: dataset.delimiter,
+    format: dataset.format,
+    importedRowCount: dataset.rowCount,
+    dataset,
+    sampleRowCount: Math.min(dataset.rowCount, 16),
   };
+}
+
+export function createTableDesignerDraftFromCsvImport(
+  { fileName = "", csvText = "" },
+  context = {}
+) {
+  return createTableDesignerDraftFromImport(
+    { fileName, text: csvText, format: "csv" },
+    context
+  );
 }
 
 export function createNewTableDesignerDraft() {
@@ -1202,6 +1511,10 @@ export function createNewTableDesignerDraft() {
     dirty: false,
     schemaWarnings: [],
     fillImportedRows: false,
+    importFormat: "",
+    importSourceFileName: "",
+    importDelimiter: "",
+    importRows: [],
     importedCsvFileName: "",
     importedCsvDelimiter: "",
     importedCsvRows: [],
@@ -1318,6 +1631,62 @@ export function updateTableDesignerConstraintField(
             }
           : constraint
       ),
+    },
+    context
+  );
+}
+
+export function addTableDesignerCheckConstraint(draft, seed = {}, context = {}) {
+  const nextIndex = (draft.checkConstraints ?? []).length + 1;
+  const checkConstraint = {
+    id: normalizeText(seed.id ?? `check:new:${createColumnId()}`),
+    name: normalizeText(seed.name ?? `CHECK ${nextIndex}`),
+    originalName: "",
+    deleted: false,
+    columns: Array.isArray(seed.columns) ? seed.columns : [],
+    expression: normalizeText(seed.expression ?? ""),
+    originalExpression: "",
+    editable: true,
+    preserved: false,
+    columnId: normalizeText(seed.columnId ?? ""),
+    source: normalizeText(seed.source ?? "user"),
+    presetId: normalizeText(seed.presetId ?? ""),
+    presetFields:
+      seed.presetFields && typeof seed.presetFields === "object"
+        ? Object.fromEntries(
+            Object.entries(seed.presetFields).map(([key, value]) => [key, normalizeText(value)])
+          )
+        : {},
+  };
+
+  return recalculateTableDesignerDraft(
+    {
+      ...draft,
+      checkConstraints: [...(draft.checkConstraints ?? []), checkConstraint],
+    },
+    context
+  );
+}
+
+export function removeTableDesignerCheckConstraint(draft, constraintId, context = {}) {
+  const targetConstraint = (draft.checkConstraints ?? []).find(
+    (constraint) => constraint.id === constraintId
+  );
+
+  if (!targetConstraint) {
+    return recalculateTableDesignerDraft(draft, context);
+  }
+
+  const nextCheckConstraints = targetConstraint.originalExpression
+    ? (draft.checkConstraints ?? []).map((constraint) =>
+        constraint.id === constraintId ? { ...constraint, deleted: true } : constraint
+      )
+    : (draft.checkConstraints ?? []).filter((constraint) => constraint.id !== constraintId);
+
+  return recalculateTableDesignerDraft(
+    {
+      ...draft,
+      checkConstraints: nextCheckConstraints,
     },
     context
   );

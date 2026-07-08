@@ -42,6 +42,33 @@ function createFixture(t) {
   };
 
   store.upsertRecentConnection(connection);
+  store.db
+    .prepare(
+      `
+        INSERT INTO query_history (
+          database_key,
+          normalized_sql,
+          raw_sql,
+          title,
+          notes,
+          query_type,
+          tables_detected,
+          is_saved,
+          first_executed_at,
+          last_used_at
+        )
+        VALUES (?, ?, ?, ?, ?, 'select', '["companies"]', 1, ?, ?)
+      `
+    )
+    .run(
+      connection.id,
+      "select id, name from companies order by id",
+      "SELECT id, name FROM companies ORDER BY id",
+      "Company List",
+      "Used by MCP tests",
+      "2026-06-28T10:05:00.000Z",
+      "2026-06-28T10:05:00.000Z"
+    );
   store.createDatabaseDocument(connection.id, {
     filename: "Notes.md",
     content: "# Notes\n",
@@ -79,6 +106,8 @@ test("MCP tool registration exposes the initial SQLite Hub tools", (t) => {
   assert.ok(names.includes("list_connections"));
   assert.ok(names.includes("get_schema"));
   assert.ok(names.includes("run_readonly_query"));
+  assert.ok(names.includes("get_stored_queries"));
+  assert.ok(names.includes("execute_stored_query"));
   assert.ok(names.includes("create_backup"));
   assert.ok(names.includes("generate_types"));
 });
@@ -137,6 +166,33 @@ test("MCP run_readonly_query blocks mutating SQL", async (t) => {
       /Only SELECT, PRAGMA, and EXPLAIN statements are allowed|read-only query guard/
     );
   }
+});
+
+test("MCP stored query tools list and execute saved SQL Editor queries", async (t) => {
+  const { toolService, connection, store, statusService } = createFixture(t);
+  const queries = await toolService.callTool("get_stored_queries", {
+    databaseId: connection.id,
+  });
+
+  assert.equal(queries.total, 1);
+  assert.equal(queries.items[0].title, "Company List");
+  assert.equal(queries.items[0].notes, "Used by MCP tests");
+
+  const execution = await toolService.callTool("execute_stored_query", {
+    databaseId: connection.id,
+    queryName: "Company List",
+  });
+
+  assert.equal(execution.query.title, "Company List");
+  assert.equal(execution.result.rows.length, 2);
+  assert.equal(execution.result.rows[0].name, "Acme");
+
+  const run = store.db
+    .prepare("SELECT executed_by, status FROM query_runs ORDER BY id DESC LIMIT 1")
+    .get();
+
+  assert.deepEqual(run, { executed_by: "mcp", status: "success" });
+  assert.equal(statusService.getStatus().lastToolName, "execute_stored_query");
 });
 
 test("MCP JSON-RPC lists tools and calls shared tool service", async (t) => {

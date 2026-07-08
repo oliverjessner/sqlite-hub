@@ -339,9 +339,14 @@ export function renderChartsDetailDrawer(state) {
       <section class="flex h-full min-h-0 flex-col bg-surface-low">
         <div class="border-b border-outline-variant/10 px-5 py-4">
           <div class="flex items-center justify-between gap-3">
-            <span class="font-body text-sm font-black uppercase tracking-[0.18em] text-primary-container">
-              Chart Detail
-            </span>
+            <div class="min-w-0">
+              <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-primary-container/70">
+                Charts // Query Detail
+              </div>
+              <h2 class="mt-1 truncate font-body text-lg font-black uppercase tracking-tight text-on-surface">
+                Loading
+              </h2>
+            </div>
             <button class="query-history-icon-button" data-action="close-charts-query-detail" type="button">
               <span class="material-symbols-outlined text-[18px]">close</span>
             </button>
@@ -359,9 +364,14 @@ export function renderChartsDetailDrawer(state) {
       <section class="flex h-full min-h-0 flex-col bg-surface-low">
         <div class="border-b border-outline-variant/10 px-5 py-4">
           <div class="flex items-center justify-between gap-3">
-            <span class="font-body text-sm font-black uppercase tracking-[0.18em] text-primary-container">
-              Chart Detail
-            </span>
+            <div class="min-w-0">
+              <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-primary-container/70">
+                Charts // Query Detail
+              </div>
+              <h2 class="mt-1 truncate font-body text-lg font-black uppercase tracking-tight text-on-surface">
+                Error
+              </h2>
+            </div>
             <button class="query-history-icon-button" data-action="close-charts-query-detail" type="button">
               <span class="material-symbols-outlined text-[18px]">close</span>
             </button>
@@ -383,7 +393,7 @@ export function renderChartsDetailDrawer(state) {
     const charts = detail.charts ?? [];
     const result = state.charts.result;
     const chartTypeBadges = charts.length
-        ? charts.map(chart => renderStatusBadge(getQueryChartTypeLabel(chart.chartType), 'primary')).join('')
+        ? charts.map(chart => renderStatusBadge(getQueryChartTypeLabel(chart.chartType), 'muted')).join('')
         : renderStatusBadge('no charts', 'muted');
     const savedBadgeMarkup = `
       <span
@@ -391,12 +401,12 @@ export function renderChartsDetailDrawer(state) {
         data-history-id="${escapeHtml(detail.item.id)}"
         ${detail.item.isSaved ? '' : 'hidden'}
       >
-        ${renderStatusBadge('saved', 'primary')}
+        ${renderStatusBadge('saved', 'muted')}
       </span>
     `;
     const statusMarkup = [
         savedBadgeMarkup,
-        state.charts.resultError ? renderStatusBadge('result error', 'alert') : '',
+        state.charts.resultError ? renderStatusBadge('result error', 'muted') : '',
         state.charts.resultLoading ? renderStatusBadge('loading result', 'muted') : '',
         chartTypeBadges,
     ].join('');
@@ -413,7 +423,7 @@ export function renderChartsDetailDrawer(state) {
         <div class="flex items-center justify-between gap-3">
           <div class="min-w-0">
             <div class="text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/70">
-              Chart Detail
+              Charts // Query Detail
             </div>
             <h2 class="mt-1 truncate font-body text-lg font-black uppercase tracking-tight text-on-surface">
               ${escapeHtml(detail.item.displayTitle)}

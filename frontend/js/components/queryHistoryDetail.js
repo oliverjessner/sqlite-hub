@@ -23,42 +23,14 @@ function canOpenQueryHistoryInCharts(item) {
   return Boolean(item?.chartsEligible);
 }
 
-function getQueryTypeTone(queryType) {
-  if (queryType === "select" || queryType === "update") {
-    return "success";
-  }
-
-  if (queryType === "pragma") {
-    return "primary";
-  }
-
-  return "muted";
-}
-
-function getExecutionSourceTone(source) {
-  if (source === "api") {
-    return "primary";
-  }
-
-  if (source === "cli") {
-    return "warning";
-  }
-
-  if (source === "mcp") {
-    return "muted";
-  }
-
-  return "success";
-}
-
 function renderRunItem(run) {
   const executedBy = String(run.executedBy ?? "user").trim().toLowerCase() || "user";
 
   return `
     <div class="border border-outline-variant/10 bg-surface-container px-3 py-3">
       <div class="flex flex-wrap items-center gap-2">
-        ${renderStatusBadge(run.status, run.status === "error" ? "alert" : "success")}
-        ${renderStatusBadge(executedBy, getExecutionSourceTone(executedBy))}
+        ${renderStatusBadge(run.status, "muted")}
+        ${renderStatusBadge(executedBy, "muted")}
         <span class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
           ${escapeHtml(formatCompactDateTime(run.executedAt))}
         </span>
@@ -100,9 +72,14 @@ export function renderQueryHistoryDetail({
       <section class="flex h-full min-h-0 flex-col bg-surface-low">
         <div class="border-b border-outline-variant/10 px-5 py-4">
           <div class="flex items-center justify-between gap-3">
-            <span class="font-body text-sm font-black uppercase tracking-[0.18em] text-primary-container">
-              Query Detail
-            </span>
+            <div class="min-w-0">
+              <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-primary-container/70">
+                SQL Editor // Query History
+              </div>
+              <h2 class="mt-1 truncate font-body text-lg font-black uppercase tracking-tight text-on-surface">
+                Loading
+              </h2>
+            </div>
             <button
               class="query-history-icon-button"
               data-action="clear-query-history-selection"
@@ -124,9 +101,14 @@ export function renderQueryHistoryDetail({
       <section class="flex h-full min-h-0 flex-col bg-surface-low">
         <div class="border-b border-outline-variant/10 px-5 py-4">
           <div class="flex items-center justify-between gap-3">
-            <span class="font-body text-sm font-black uppercase tracking-[0.18em] text-primary-container">
-              Query Detail
-            </span>
+            <div class="min-w-0">
+              <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-primary-container/70">
+                SQL Editor // Query History
+              </div>
+              <h2 class="mt-1 truncate font-body text-lg font-black uppercase tracking-tight text-on-surface">
+                Error
+              </h2>
+            </div>
             <button
               class="query-history-icon-button"
               data-action="clear-query-history-selection"
@@ -153,12 +135,10 @@ export function renderQueryHistoryDetail({
       ].join("")
     : "";
   const statusMarkup = [
-    renderStatusBadge(item.queryType, getQueryTypeTone(item.queryType)),
-    item.isSaved ? renderStatusBadge("saved", "primary") : "",
-    item.isDestructive ? renderStatusBadge("destructive", "warning") : "",
-    item.lastRun
-      ? renderStatusBadge(item.lastRun.status, item.lastRun.status === "error" ? "alert" : "success")
-      : "",
+    renderStatusBadge(item.queryType, "muted"),
+    item.isSaved ? renderStatusBadge("saved", "muted") : "",
+    item.isDestructive ? renderStatusBadge("destructive", "muted") : "",
+    item.lastRun ? renderStatusBadge(item.lastRun.status, "muted") : "",
   ].join("");
   const metaMarkup = [
     renderDetailMetaItem("Last Used", formatDateTime(item.lastUsedAt)),
@@ -176,9 +156,9 @@ export function renderQueryHistoryDetail({
   return [
     '<section class="flex h-full min-h-0 flex-col bg-surface-low">',
     '<div class="border-b border-outline-variant/10 px-5 py-4">',
-    '<div class="flex items-center justify-between gap-3"><div>',
-    '<div class="text-[10px] font-mono uppercase tracking-[0.18em] text-primary-container/70">Query Detail</div>',
-    '<h2 class="mt-1 font-body text-lg font-black uppercase tracking-tight text-on-surface">',
+    '<div class="flex items-center justify-between gap-3"><div class="min-w-0">',
+    '<div class="font-mono text-[10px] uppercase tracking-[0.18em] text-primary-container/70">SQL Editor // Query History</div>',
+    '<h2 class="mt-1 truncate font-body text-lg font-black uppercase tracking-tight text-on-surface">',
     escapeHtml(item.displayTitle),
     "</h2></div>",
     '<button class="query-history-icon-button" data-action="clear-query-history-selection" type="button"><span class="material-symbols-outlined text-[18px]">close</span></button>',

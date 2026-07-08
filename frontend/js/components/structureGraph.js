@@ -1,4 +1,4 @@
-import { showToast } from '../store.js';
+import { clearStructureSelection, showToast } from '../store.js';
 import { replaceChildrenFromRenderedMarkup } from '../utils/dom.js';
 import { escapeHtml, formatNumber } from '../utils/format.js';
 
@@ -56,10 +56,68 @@ function getTableId(tableName) {
     return `table:${tableName}`;
 }
 
+function isShadowRelationship(edgeData) {
+    return edgeData?.relationshipKind === 'shadow';
+}
+
+function resolveShadowOwnerTableName(shadowTable, tables, tableMap) {
+    if (!shadowTable?.isShadow) {
+        return '';
+    }
+
+    const explicitOwnerName = String(shadowTable.shadowOwnerTable ?? '');
+    const explicitOwner = tableMap.get(explicitOwnerName);
+
+    if (explicitOwner?.isVirtual) {
+        return explicitOwnerName;
+    }
+
+    return (
+        tables
+            .filter(table => table.isVirtual && shadowTable.name.startsWith(`${table.name}_`))
+            .sort((left, right) => right.name.length - left.name.length)[0]?.name ?? ''
+    );
+}
+
+function unquoteSqlIdentifier(identifier) {
+    const value = String(identifier ?? '').trim();
+
+    if (value.length >= 2 && value[0] === '"' && value.at(-1) === '"') {
+        return value.slice(1, -1).replaceAll('""', '"');
+    }
+
+    if (value.length >= 2 && value[0] === '`' && value.at(-1) === '`') {
+        return value.slice(1, -1).replaceAll('``', '`');
+    }
+
+    if (value.length >= 2 && value[0] === '[' && value.at(-1) === ']') {
+        return value.slice(1, -1);
+    }
+
+    return value;
+}
+
+function extractVirtualTableModule(ddl = '') {
+    const match = String(ddl ?? '').match(
+        /\bUSING\s+("[^"]+(?:""[^"]*)*"|`[^`]+(?:``[^`]*)*`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)/i,
+    );
+
+    return match ? unquoteSqlIdentifier(match[1]) : '';
+}
+
+function resolveVirtualTableModule(table) {
+    if (!table?.isVirtual) {
+        return '';
+    }
+
+    return String(table.virtualModule ?? '').trim() || extractVirtualTableModule(table.ddl);
+}
+
 function getSchemaSignature(schema) {
     return JSON.stringify(
         (schema?.tables ?? []).map(table => ({
             name: table.name,
+            virtualModule: table.virtualModule ?? null,
             columns: (table.columns ?? []).map(column => column.name),
             foreignKeys: (table.foreignKeys ?? []).map(foreignKey => ({
                 referencedTable: foreignKey.referencedTable,
@@ -237,6 +295,18 @@ function createColumnFlags(column, foreignKeyColumns) {
     return flags.join('');
 }
 
+function renderTableKindFlag(tableData) {
+    if (tableData?.isVirtual) {
+        return '<span class="structure-graph__flag is-virtual" title="Virtual table">Virtual</span>';
+    }
+
+    if (tableData?.isShadow) {
+        return '<span class="structure-graph__flag is-shadow" title="Shadow table">Shadow</span>';
+    }
+
+    return '';
+}
+
 function quoteSqlIdentifier(identifier) {
     return `"${String(identifier ?? '').replaceAll('"', '""')}"`;
 }
@@ -298,6 +368,47 @@ function buildJoinSql(edgeData) {
 }
 
 function renderJoinInspector(edgeData) {
+    if (isShadowRelationship(edgeData)) {
+        const sourceTable = edgeData?.sourceTable || '';
+        const targetTable = edgeData?.targetTable || '';
+
+        return `
+    <div class="structure-graph__panel">
+      <div class="space-y-3">
+        <div class="structure-graph__panel-heading">
+          <div class="structure-graph__eyebrow">Shadow Link</div>
+          <button
+            class="query-history-icon-button"
+            data-structure-graph-action="toggle-inspector"
+            type="button"
+            aria-label="Hide inspector"
+          >
+            <span class="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+        <div class="structure-graph__title">${escapeHtml(sourceTable)} → ${escapeHtml(targetTable)}</div>
+        <div class="structure-graph__subtitle">Shadow table relationship</div>
+      </div>
+
+      <section class="structure-graph__section">
+        <div class="structure-graph__section-title">Relationship</div>
+        <div class="structure-graph__join-flow">
+          <div class="structure-graph__join-table">${escapeHtml(sourceTable)}</div>
+          <span class="material-symbols-outlined structure-graph__join-arrow" aria-hidden="true">arrow_forward</span>
+          <div class="structure-graph__join-table">${escapeHtml(targetTable)}</div>
+        </div>
+        <div class="structure-graph__join-condition-list">
+          <div class="structure-graph__join-condition">
+            <span>Virtual table</span>
+            <span aria-hidden="true">→</span>
+            <span>Shadow table</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+    }
+
     const sourceTable = edgeData?.sourceTable || '';
     const targetTable = edgeData?.targetTable || '';
     const conditions = getJoinConditions(edgeData);
@@ -429,7 +540,10 @@ export function renderInspector(tableData) {
             <span class="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
-        <div class="structure-graph__title">${escapeHtml(tableData.name)}</div>
+        <div class="flex min-w-0 flex-wrap items-center gap-2">
+          <div class="structure-graph__title min-w-0">${escapeHtml(tableData.name)}</div>
+          ${renderTableKindFlag(tableData)}
+        </div>
       </div>
 
       <div class="structure-graph__summary">
@@ -474,18 +588,50 @@ export function renderInspector(tableData) {
 export function buildGraphElements(schema) {
     const tables = schema?.tables ?? [];
     const tableMap = new Map(tables.map(table => [table.name, table]));
-    const nodes = tables.map(table => ({
-        group: 'nodes',
-        data: {
-            id: getTableId(table.name),
-            label: table.name,
-            tableName: table.name,
-            width: Math.max(184, table.name.length * 9 + 64),
-            height: 56,
-            table,
-        },
-    }));
+    const nodes = tables.map(table => {
+        const isVirtual = Boolean(table.isVirtual);
+        const isShadow = Boolean(table.isShadow);
+        const virtualModule = resolveVirtualTableModule(table);
+        const moduleWidth = virtualModule ? virtualModule.length * 8 + 72 : 0;
+
+        return {
+            group: 'nodes',
+            classes: [isVirtual ? 'virtual-table' : '', isShadow ? 'shadow-table' : ''].filter(Boolean).join(' '),
+            data: {
+                id: getTableId(table.name),
+                label: table.name,
+                tableName: table.name,
+                tableKind: table.tableKind ?? 'table',
+                isVirtual,
+                isShadow,
+                virtualModule,
+                width: Math.max(isVirtual ? 208 : 184, table.name.length * 9 + 64, moduleWidth),
+                height: isVirtual ? (virtualModule ? 82 : 70) : 56,
+                table,
+            },
+        };
+    });
     const edges = [];
+
+    tables.forEach(table => {
+        const shadowOwnerTableName = resolveShadowOwnerTableName(table, tables, tableMap);
+
+        if (!shadowOwnerTableName || !tableMap.has(shadowOwnerTableName)) {
+            return;
+        }
+
+        edges.push({
+            group: 'edges',
+            classes: 'shadow-link',
+            data: {
+                source: getTableId(shadowOwnerTableName),
+                target: getTableId(table.name),
+                sourceTable: shadowOwnerTableName,
+                targetTable: table.name,
+                relationshipKind: 'shadow',
+            },
+        });
+    });
 
     tables.forEach(table => {
         (table.foreignKeys ?? []).forEach((foreignKey, foreignKeyIndex) => {
@@ -583,6 +729,27 @@ export function createCytoscapeInstance(container, elements) {
                 },
             },
             {
+                selector: 'node.virtual-table',
+                style: {
+                    'background-color': '#3d1238',
+                    'border-color': '#ff4fa3',
+                    'border-width': 2.4,
+                    color: '#ffe8f4',
+                    'font-size': 12.5,
+                    'text-wrap': 'wrap',
+                    'text-max-width': 174,
+                },
+            },
+            {
+                selector: 'node.shadow-table',
+                style: {
+                    'background-color': '#221f1a',
+                    'border-color': '#8f8a75',
+                    'border-style': 'dashed',
+                    color: '#f3ecd0',
+                },
+            },
+            {
                 selector: 'node.selected',
                 style: {
                     'background-color': '#5a4e00',
@@ -641,6 +808,22 @@ export function createCytoscapeInstance(container, elements) {
                     'z-index': 1,
                     'transition-property': 'line-color, target-arrow-color, opacity, color, width',
                     'transition-duration': '120ms',
+                },
+            },
+            {
+                selector: 'edge.shadow-link',
+                style: {
+                    width: 1.8,
+                    label: '',
+                    'line-color': '#8f8a75',
+                    'line-style': 'dashed',
+                    'target-arrow-color': '#8f8a75',
+                    'target-arrow-shape': 'vee',
+                    'arrow-scale': 0.9,
+                    'text-background-opacity': 0,
+                    'text-border-opacity': 0,
+                    'text-outline-width': 0,
+                    'z-index': 0,
                 },
             },
             {
@@ -714,6 +897,21 @@ function showEdgeReadout(edge, renderedPosition) {
         return;
     }
 
+    if (isShadowRelationship(edge.data())) {
+        const sourceTable = edge.data('sourceTable') || edge.source().data('tableName') || '?';
+        const targetTable = edge.data('targetTable') || edge.target().data('tableName') || '?';
+
+        currentGraph.edgeReadout.innerHTML = `
+      <div class="structure-graph__edge-readout-meta">Shadow table</div>
+      <div class="structure-graph__edge-readout-path">
+        ${escapeHtml(sourceTable)} <span aria-hidden="true">→</span> ${escapeHtml(targetTable)}
+      </div>
+    `;
+        currentGraph.edgeReadout.removeAttribute('hidden');
+        positionEdgeReadout(renderedPosition);
+        return;
+    }
+
     const sourceTable = edge.data('sourceTable') || edge.source().data('tableName') || '?';
     const targetTable = edge.data('targetTable') || edge.target().data('tableName') || '?';
     const sourceColumn = edge.data('sourceColumn') || '?';
@@ -739,6 +937,65 @@ function hideEdgeReadout() {
     }
 
     currentGraph.edgeReadout.setAttribute('hidden', 'hidden');
+}
+
+function clearVirtualModuleBadges(graph = currentGraph) {
+    if (!graph?.virtualModuleBadges) {
+        return;
+    }
+
+    graph.virtualModuleBadges.forEach(badge => badge.remove());
+    graph.virtualModuleBadges.clear();
+}
+
+function syncVirtualModuleBadges(graph = currentGraph) {
+    if (!graph?.cy || !graph.canvasShell || !graph.virtualModuleBadges) {
+        return;
+    }
+
+    const activeNodeIds = new Set();
+
+    graph.cy.nodes('.virtual-table').forEach(node => {
+        const moduleName = String(node.data('virtualModule') ?? '').trim();
+
+        if (!moduleName) {
+            return;
+        }
+
+        const nodeId = node.id();
+        activeNodeIds.add(nodeId);
+
+        let badge = graph.virtualModuleBadges.get(nodeId);
+
+        if (!badge) {
+            badge = document.createElement('div');
+            badge.className = 'structure-graph__virtual-module-badge';
+            badge.dataset.structureVirtualModuleBadge = node.data('tableName') || '';
+            graph.canvasShell.appendChild(badge);
+            graph.virtualModuleBadges.set(nodeId, badge);
+        }
+
+        badge.textContent = moduleName;
+        badge.classList.toggle('is-dimmed', node.hasClass('dimmed'));
+        badge.classList.toggle('is-related', node.hasClass('related'));
+        badge.classList.toggle('is-selected', node.hasClass('selected'));
+
+        const position = node.renderedPosition();
+        const renderedHeight = Number(node.renderedHeight?.() ?? 0);
+        const yOffset = Math.max(12, Math.min(22, renderedHeight * 0.24));
+        const scale = Math.max(0.72, Math.min(1, graph.cy.zoom()));
+
+        badge.style.left = `${position.x}px`;
+        badge.style.top = `${position.y + yOffset}px`;
+        badge.style.transform = `translate(-50%, -50%) scale(${scale})`;
+    });
+
+    graph.virtualModuleBadges.forEach((badge, nodeId) => {
+        if (!activeNodeIds.has(nodeId)) {
+            badge.remove();
+            graph.virtualModuleBadges.delete(nodeId);
+        }
+    });
 }
 
 function createGraphStateSnapshot(graph = currentGraph) {
@@ -857,6 +1114,8 @@ function destroyCurrentGraph() {
     if (currentGraph.resizeObserver) {
         currentGraph.resizeObserver.disconnect();
     }
+
+    clearVirtualModuleBadges(currentGraph);
 
     if (currentGraph.resizeHandler) {
         window.removeEventListener('resize', currentGraph.resizeHandler);
@@ -987,6 +1246,8 @@ function clearSelection() {
     syncEntryHighlights();
     replaceChildrenFromRenderedMarkup(currentGraph.inspector, getDefaultInspectorMarkup());
     updateOpenDataButton();
+    syncVirtualModuleBadges();
+    clearStructureSelection();
 }
 
 function applyTableSelection(node, { focus = true } = {}) {
@@ -1002,6 +1263,7 @@ function applyTableSelection(node, { focus = true } = {}) {
     highlightConnectedElements(currentGraph.cy, node);
     syncEntryHighlights([tableData.name]);
     updateOpenDataButton();
+    syncVirtualModuleBadges();
 
     if (focus) {
         currentGraph.cy.animate(
@@ -1033,6 +1295,7 @@ function applyEdgeSelection(edge) {
     highlightConnectedElements(currentGraph.cy, edge);
     syncEntryHighlights([], [edge.data('sourceTable'), edge.data('targetTable')]);
     updateOpenDataButton();
+    syncVirtualModuleBadges();
     return edge;
 }
 
@@ -1202,6 +1465,7 @@ function runLayout(cy, onStop, { randomize = false } = {}) {
 
     applyReadableLayoutPositions(cy, { variant: currentGraph?.layoutVariant ?? 0 });
     cy.fit(cy.elements(), 90);
+    syncVirtualModuleBadges();
 
     if (typeof onStop === 'function') {
         onStop();
@@ -1234,6 +1498,8 @@ function restorePersistedViewport(cy, persistedState) {
     if (persistedState.pan) {
         cy.pan(persistedState.pan);
     }
+
+    syncVirtualModuleBadges();
 
     return true;
 }
@@ -1375,6 +1641,7 @@ export async function mountStructureGraph(snapshot) {
         persistStateOnDestroy: true,
         selectedEdgeId: null,
         selectedTableName: null,
+        virtualModuleBadges: new Map(),
     };
 
     currentGraph.cleanup.push(setupToolbar(cy));
@@ -1407,7 +1674,12 @@ export async function mountStructureGraph(snapshot) {
     });
 
     cy.on('dragfree', 'node', () => {
+        syncVirtualModuleBadges();
         scheduleGraphStatePersist(0);
+    });
+
+    cy.on('position drag', 'node', () => {
+        syncVirtualModuleBadges();
     });
 
     cy.on('mouseover', 'edge', event => {
@@ -1415,6 +1687,7 @@ export async function mountStructureGraph(snapshot) {
         highlightConnectedElements(cy, edge);
         syncEntryHighlights([], [edge.data('sourceTable'), edge.data('targetTable')]);
         showEdgeReadout(edge, event.renderedPosition);
+        syncVirtualModuleBadges();
     });
 
     cy.on('mousemove', 'edge', event => {
@@ -1424,10 +1697,12 @@ export async function mountStructureGraph(snapshot) {
     cy.on('mouseout', 'edge', () => {
         hideEdgeReadout();
         restoreGraphState();
+        syncVirtualModuleBadges();
     });
 
     cy.on('pan zoom', () => {
         hideEdgeReadout();
+        syncVirtualModuleBadges();
         scheduleGraphStatePersist(300);
     });
 
@@ -1465,14 +1740,18 @@ export async function mountStructureGraph(snapshot) {
         });
     }
 
+    syncVirtualModuleBadges();
+
     if (typeof ResizeObserver === 'function') {
         currentGraph.resizeObserver = new ResizeObserver(() => {
             cy.resize();
+            syncVirtualModuleBadges();
         });
         currentGraph.resizeObserver.observe(canvas);
     } else {
         currentGraph.resizeHandler = () => {
             cy.resize();
+            syncVirtualModuleBadges();
         };
         window.addEventListener('resize', currentGraph.resizeHandler);
     }

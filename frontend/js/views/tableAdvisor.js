@@ -5,6 +5,7 @@ import {
     highlightSql,
     truncateMiddle,
 } from '../utils/format.js';
+import { renderVirtualTableBadge } from '../components/badges.js';
 import { renderWorkspaceOpenDropdown } from '../components/workspaceOpenDropdown.js';
 
 const CATEGORY_LABELS = {
@@ -73,7 +74,8 @@ function renderRiskBadge(risk = 'low') {
 }
 
 function renderTableList(state) {
-    const { tables = [], selectedTableName } = state.tableAdvisor;
+    const { selectedTableName } = state.tableAdvisor;
+    const tables = (state.tableAdvisor.tables ?? []).filter(table => !table?.isShadow);
 
     if (state.tableAdvisor.loading && !tables.length) {
         return `
@@ -107,8 +109,11 @@ function renderTableList(state) {
                     href="#/table-advisor/${encodeURIComponent(table.name)}"
                     title="${escapeHtml(table.name)}"
                   >
-                    <div class="table-designer-sidebar__item-name ${isActive ? 'is-active' : ''}">
-                      ${escapeHtml(table.name)}
+                    <div class="flex min-w-0 items-center gap-2">
+                      <div class="table-designer-sidebar__item-name min-w-0 flex-1 ${isActive ? 'is-active' : ''}">
+                        ${escapeHtml(table.name)}
+                      </div>
+                      ${renderVirtualTableBadge(table)}
                     </div>
                     <div class="table-designer-sidebar__item-meta">
                       ${escapeHtml(formatNumber(table.columnCount ?? 0))} columns
@@ -128,9 +133,12 @@ function renderSummary(result = {}) {
       <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
         <div class="border border-outline-variant/10 bg-surface-container-low px-4 py-3">
           <div class="font-mono text-[10px] uppercase tracking-[0.2em] text-on-surface-variant/55">Table</div>
-          <div class="mt-2 min-w-0 truncate text-lg font-black text-on-surface" title="${escapeHtml(
-              result.tableName ?? '',
-          )}">${escapeHtml(result.tableName ?? 'Unknown')}</div>
+          <div class="mt-2 flex min-w-0 items-center gap-2">
+            <div class="min-w-0 truncate text-lg font-black text-on-surface" title="${escapeHtml(
+                result.tableName ?? '',
+            )}">${escapeHtml(result.tableName ?? 'Unknown')}</div>
+            ${renderVirtualTableBadge(result)}
+          </div>
         </div>
         <div class="border border-outline-variant/10 bg-surface-container-low px-4 py-3">
           <div class="font-mono text-[10px] uppercase tracking-[0.2em] text-on-surface-variant/55">Score</div>

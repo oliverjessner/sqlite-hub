@@ -117,3 +117,34 @@ test("table detail exposes integer ranges from simple CHECK constraints", () => 
     db.close();
   }
 });
+
+test("table designer draft preserves column-level and table-level check constraints", () => {
+  const db = new Database(":memory:");
+
+  try {
+    db.exec(`
+      CREATE TABLE products (
+        id INTEGER PRIMARY KEY,
+        price REAL CHECK(price >= 0),
+        stock INTEGER,
+        CHECK(stock >= 0),
+        CHECK(price <= 1000 AND stock BETWEEN 0 AND 99)
+      );
+    `);
+
+    const tableDetail = getTableDetail(db, "products");
+    const designerDraft = buildTableDesignerDraft(tableDetail);
+    const expressions = designerDraft.checkConstraints.map((constraint) => constraint.expression);
+
+    assert.equal(designerDraft.checkConstraints.length, 3);
+    assert.match(expressions.join("\n"), /price >= 0/);
+    assert.match(expressions.join("\n"), /stock >= 0/);
+    assert.match(expressions.join("\n"), /price <= 1000 AND stock BETWEEN 0 AND 99/);
+    assert.equal(
+      designerDraft.checkConstraints.every((constraint) => constraint.source === "detected"),
+      true
+    );
+  } finally {
+    db.close();
+  }
+});

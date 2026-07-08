@@ -18,6 +18,20 @@ function createTableDesignerRouter({ tableDesignerService }) {
     })
   );
 
+  router.post(
+    "/validate-check",
+    route((req, res) => {
+      const data = tableDesignerService.validateCheckExpression(req.body ?? {});
+
+      res.json(
+        successResponse({
+          data,
+          message: "CHECK expression validated.",
+        })
+      );
+    })
+  );
+
   router.get(
     "/:tableName",
     route((req, res) => {
@@ -43,7 +57,7 @@ function createTableDesignerRouter({ tableDesignerService }) {
         successResponse({
           message: isCreate
             ? fillsImportedRows
-              ? "Table created and filled from CSV."
+              ? "Table created and data imported."
               : "Table created."
             : "Table schema updated.",
           data,

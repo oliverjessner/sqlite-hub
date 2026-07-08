@@ -2,9 +2,12 @@ import * as api from './api.js';
 import { formatCellValue, inferStatusTone, truncateMiddle } from './utils/format.js';
 import {
     addTableDesignerColumn,
-    createTableDesignerDraftFromCsvImport,
+    addTableDesignerCheckConstraint,
+    createTableDesignerDraftFromImport,
     createNewTableDesignerDraft,
     hydrateTableDesignerDraft,
+    recalculateTableDesignerDraft,
+    removeTableDesignerCheckConstraint,
     removeTableDesignerColumn,
     updateTableDesignerColumnField,
     updateTableDesignerConstraintField,
@@ -93,6 +96,16 @@ const MISSING_DATABASE_ERROR = {
     code: 'ACTIVE_DATABASE_REQUIRED',
     message: 'No active SQLite database selected.',
 };
+
+function createClosedTableDesignerConstraintsDrawer() {
+    return {
+        visible: false,
+        columnId: '',
+        columnName: '',
+        editingConstraintId: '',
+        editor: null,
+    };
+}
 
 let routeLoadVersion = 0;
 let queryHistoryLoadVersion = 0;
@@ -472,6 +485,7 @@ const state = {
         tablesVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerTablesVisible, true),
         sqlPreviewVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.tableDesignerSqlPreviewVisible, true),
         pendingImportedDraft: null,
+        constraintsDrawer: createClosedTableDesignerConstraintsDrawer(),
         loading: false,
         detailLoading: false,
         saving: false,
@@ -2485,7 +2499,7 @@ async function loadTableAdvisor(version, route) {
             return;
         }
 
-        const tables = response.data?.tables ?? [];
+        const tables = (response.data?.tables ?? []).filter(table => !table?.isShadow);
         const requestedTableName = route.params?.tableName ?? null;
         const selectedTableName =
             requestedTableName && tables.some(table => table.name === requestedTableName)
@@ -2624,6 +2638,7 @@ async function loadTableDesignerDetail(version, tableName) {
         }
 
         state.tableDesigner.selectedTableName = tableName;
+        state.tableDesigner.constraintsDrawer = createClosedTableDesignerConstraintsDrawer();
         state.tableDesigner.draft = decorateTableDesignerDraft(response.data?.draft ?? null);
     } catch (error) {
         if (version !== routeLoadVersion) {
@@ -2660,6 +2675,7 @@ async function loadTableDesigner(version, route) {
             state.tableDesigner.selectedTableName = null;
             state.tableDesigner.detailLoading = false;
             state.tableDesigner.pendingImportedDraft = null;
+            state.tableDesigner.constraintsDrawer = createClosedTableDesignerConstraintsDrawer();
             state.tableDesigner.draft = decorateTableDesignerDraft(importedDraft ?? createNewTableDesignerDraft());
             return;
         }
@@ -2676,6 +2692,7 @@ async function loadTableDesigner(version, route) {
         if (!tableName) {
             state.tableDesigner.selectedTableName = null;
             state.tableDesigner.detailLoading = false;
+            state.tableDesigner.constraintsDrawer = createClosedTableDesignerConstraintsDrawer();
             state.tableDesigner.draft = null;
             return;
         }
@@ -3229,6 +3246,11 @@ export function openGenerateDataModal() {
 
     if (!tableName || !table) {
         pushToast('Select a table before generating rows.', 'alert');
+        return;
+    }
+
+    if (table.isShadow) {
+        pushToast('Shadow tables are read-only in Data.', 'alert');
         return;
     }
 
@@ -4302,6 +4324,11 @@ export async function openDataRowUpdatePreview(rowIndex, values, identity = null
         return null;
     }
 
+    if (state.dataBrowser.table?.isShadow) {
+        pushToast('Shadow tables are read-only in Data.', 'alert');
+        return null;
+    }
+
     state.dataBrowser.saving = true;
     state.dataBrowser.saveError = null;
     emitChange();
@@ -5336,6 +5363,19 @@ export async function selectStructureEntry(name) {
     await loadStructureDetail(++routeLoadVersion);
 }
 
+export function clearStructureSelection() {
+    const hadSelection = Boolean(state.structure.selectedName || state.structure.detail || state.structure.detailLoading);
+
+    routeLoadVersion += 1;
+    state.structure.selectedName = null;
+    state.structure.detail = null;
+    state.structure.detailLoading = false;
+
+    if (hadSelection) {
+        emitChange();
+    }
+}
+
 function getDefaultTypeGenerationOptions(target = 'typescript') {
     const propertyNaming = target === 'rust' ? 'snake' : 'camel';
 
@@ -5624,6 +5664,14 @@ export function updateCurrentTableDesignerColumnField(columnId, field, value, op
         value,
         getTableDesignerContext(),
     );
+
+    if (field === 'name') {
+        state.tableDesigner.draft = refreshTableDesignerPresetChecksForColumnRename(
+            state.tableDesigner.draft,
+            columnId,
+        );
+    }
+
     state.tableDesigner.saveError = null;
 
     if (options.notify !== false) {
@@ -5651,6 +5699,342 @@ export function updateCurrentTableDesignerConstraintField(constraintKind, constr
     }
 }
 
+function quoteSqlIdentifier(identifier) {
+    return `"${String(identifier ?? '').replaceAll('"', '""')}"`;
+}
+
+function quoteSqlStringLiteral(value) {
+    return `'${String(value ?? '').replaceAll("'", "''")}'`;
+}
+
+function getTableDesignerDrawerColumn() {
+    const drawer = state.tableDesigner.constraintsDrawer ?? createClosedTableDesignerConstraintsDrawer();
+    return (state.tableDesigner.draft?.columns ?? []).find(column => column.id === drawer.columnId) ?? null;
+}
+
+function getTableDesignerCheckPresetFields(seed = {}) {
+    return {
+        minLength: String(seed.minLength ?? '3'),
+        maxLength: String(seed.maxLength ?? '255'),
+        minValue: String(seed.minValue ?? '0'),
+        maxValue: String(seed.maxValue ?? '100'),
+        allowedValues: String(seed.allowedValues ?? 'draft\npublished\narchived'),
+    };
+}
+
+export function buildTableDesignerCheckPresetExpression(presetId, column, fields = {}) {
+    const columnSql = quoteSqlIdentifier(column?.name || 'column_name');
+    const presetFields = getTableDesignerCheckPresetFields(fields);
+    const allowedValues = presetFields.allowedValues
+        .split(/\r?\n|,/)
+        .map(value => value.trim())
+        .filter(Boolean);
+
+    switch (presetId) {
+        case 'text-non-empty':
+            return `length(trim(${columnSql})) > 0`;
+        case 'text-min-length':
+            return `length(${columnSql}) >= ${Number(presetFields.minLength) || 0}`;
+        case 'text-max-length':
+            return `length(${columnSql}) <= ${Number(presetFields.maxLength) || 0}`;
+        case 'text-length-range':
+            return `length(${columnSql}) BETWEEN ${Number(presetFields.minLength) || 0} AND ${Number(presetFields.maxLength) || 0}`;
+        case 'text-allowed-values':
+            return `${columnSql} IN (${allowedValues.map(quoteSqlStringLiteral).join(', ')})`;
+        case 'numeric-positive':
+            return `${columnSql} > 0`;
+        case 'numeric-non-negative':
+            return `${columnSql} >= 0`;
+        case 'numeric-min-value':
+            return `${columnSql} >= ${Number(presetFields.minValue) || 0}`;
+        case 'numeric-max-value':
+            return `${columnSql} <= ${Number(presetFields.maxValue) || 0}`;
+        case 'numeric-range':
+            return `${columnSql} BETWEEN ${Number(presetFields.minValue) || 0} AND ${Number(presetFields.maxValue) || 0}`;
+        case 'numeric-non-zero':
+            return `${columnSql} <> 0`;
+        case 'boolean-integer':
+            return `${columnSql} IN (0, 1)`;
+        default:
+            return '';
+    }
+}
+
+function refreshTableDesignerPresetChecksForColumnRename(draft, columnId) {
+    const column = (draft.columns ?? []).find(candidate => candidate.id === columnId);
+
+    if (!column) {
+        return draft;
+    }
+
+    let changed = false;
+    const checkConstraints = (draft.checkConstraints ?? []).map(constraint => {
+        if (
+            constraint.deleted ||
+            constraint.columnId !== columnId ||
+            !constraint.presetId ||
+            constraint.source !== 'preset'
+        ) {
+            return constraint;
+        }
+
+        const expression = buildTableDesignerCheckPresetExpression(
+            constraint.presetId,
+            column,
+            constraint.presetFields,
+        );
+
+        if (!expression || expression === constraint.expression) {
+            return constraint;
+        }
+
+        changed = true;
+        return {
+            ...constraint,
+            columns: [{ name: column.name, allowedValues: constraint.columns?.[0]?.allowedValues ?? [] }],
+            expression,
+        };
+    });
+
+    return changed
+        ? recalculateTableDesignerDraft(
+              {
+                  ...draft,
+                  checkConstraints,
+              },
+              getTableDesignerContext(),
+          )
+        : draft;
+}
+
+function createTableDesignerCheckEditor(seed = {}) {
+    return {
+        expression: String(seed.expression ?? ''),
+        presetId: String(seed.presetId ?? ''),
+        presetFields: getTableDesignerCheckPresetFields(seed.presetFields),
+        error: null,
+        validating: false,
+    };
+}
+
+export function openTableDesignerConstraintsDrawer(columnId = '', columnName = '') {
+    const column = (state.tableDesigner.draft?.columns ?? []).find(candidate => candidate.id === columnId);
+
+    state.tableDesigner.constraintsDrawer = {
+        visible: true,
+        columnId: String(columnId ?? ''),
+        columnName: String(columnName || column?.name || ''),
+        editingConstraintId: '',
+        editor: null,
+    };
+    emitChange();
+}
+
+export function closeTableDesignerConstraintsDrawer() {
+    state.tableDesigner.constraintsDrawer = createClosedTableDesignerConstraintsDrawer();
+    emitChange();
+}
+
+export function startTableDesignerCheckEditor(constraintId = '') {
+    const constraint = (state.tableDesigner.draft?.checkConstraints ?? []).find(item => item.id === constraintId);
+
+    state.tableDesigner.constraintsDrawer = {
+        ...(state.tableDesigner.constraintsDrawer ?? createClosedTableDesignerConstraintsDrawer()),
+        visible: true,
+        editingConstraintId: String(constraintId ?? ''),
+        editor: createTableDesignerCheckEditor({
+            expression: constraint?.expression ?? '',
+            presetId: constraint?.presetId ?? '',
+            presetFields: constraint?.presetFields ?? {},
+        }),
+    };
+    emitChange();
+}
+
+export function cancelTableDesignerCheckEditor() {
+    state.tableDesigner.constraintsDrawer = {
+        ...(state.tableDesigner.constraintsDrawer ?? createClosedTableDesignerConstraintsDrawer()),
+        editingConstraintId: '',
+        editor: null,
+    };
+    emitChange();
+}
+
+export function applyTableDesignerCheckPreset(presetId) {
+    const column = getTableDesignerDrawerColumn();
+    const drawer = state.tableDesigner.constraintsDrawer ?? createClosedTableDesignerConstraintsDrawer();
+    const editor = drawer.editor ?? createTableDesignerCheckEditor();
+    const presetFields = getTableDesignerCheckPresetFields(editor.presetFields);
+    const expression = buildTableDesignerCheckPresetExpression(presetId, column, presetFields);
+
+    state.tableDesigner.constraintsDrawer = {
+        ...drawer,
+        editor: {
+            ...editor,
+            presetId,
+            presetFields,
+            expression,
+            error: null,
+        },
+    };
+    emitChange();
+}
+
+export function updateTableDesignerCheckEditorField(field, value, options = {}) {
+    const drawer = state.tableDesigner.constraintsDrawer ?? createClosedTableDesignerConstraintsDrawer();
+    const editor = drawer.editor ?? createTableDesignerCheckEditor();
+    const nextEditor = { ...editor, error: null };
+
+    if (field in getTableDesignerCheckPresetFields()) {
+        nextEditor.presetFields = {
+            ...getTableDesignerCheckPresetFields(editor.presetFields),
+            [field]: String(value ?? ''),
+        };
+
+        if (editor.presetId) {
+            nextEditor.expression = buildTableDesignerCheckPresetExpression(
+                editor.presetId,
+                getTableDesignerDrawerColumn(),
+                nextEditor.presetFields,
+            );
+        }
+    } else {
+        nextEditor[field] = String(value ?? '');
+
+        if (field === 'expression') {
+            nextEditor.presetId = '';
+        }
+    }
+
+    state.tableDesigner.constraintsDrawer = {
+        ...drawer,
+        editor: nextEditor,
+    };
+
+    if (options.notify !== false) {
+        emitChange();
+    }
+}
+
+export async function saveTableDesignerCheckEditor() {
+    const draft = state.tableDesigner.draft;
+    const drawer = state.tableDesigner.constraintsDrawer ?? createClosedTableDesignerConstraintsDrawer();
+    const editor = drawer.editor ?? createTableDesignerCheckEditor();
+    const expression = String(editor.expression ?? '').trim();
+    const column = getTableDesignerDrawerColumn();
+
+    if (!draft) {
+        return false;
+    }
+
+    if (!expression) {
+        state.tableDesigner.constraintsDrawer = {
+            ...drawer,
+            editor: {
+                ...editor,
+                error: { code: 'CHECK_EXPRESSION_REQUIRED', message: 'CHECK expression is required.' },
+            },
+        };
+        emitChange();
+        return false;
+    }
+
+    state.tableDesigner.constraintsDrawer = {
+        ...drawer,
+        editor: {
+            ...editor,
+            validating: true,
+            error: null,
+        },
+    };
+    emitChange();
+
+    try {
+        await api.validateTableDesignerCheck({ draft, expression });
+
+        const seed = {
+            expression,
+            columnId: drawer.columnId,
+            columns: column ? [{ name: column.name, allowedValues: [] }] : [],
+            source: editor.presetId ? 'preset' : 'user',
+            presetId: editor.presetId,
+            presetFields: editor.presetFields,
+        };
+
+        state.tableDesigner.draft = drawer.editingConstraintId
+            ? updateTableDesignerConstraintField(
+                  draft,
+                  'check',
+                  drawer.editingConstraintId,
+                  'expression',
+                  expression,
+                  getTableDesignerContext(),
+              )
+            : addTableDesignerCheckConstraint(draft, seed, getTableDesignerContext());
+
+        if (drawer.editingConstraintId) {
+            state.tableDesigner.draft = updateTableDesignerConstraintField(
+                state.tableDesigner.draft,
+                'check',
+                drawer.editingConstraintId,
+                'presetId',
+                editor.presetId,
+                getTableDesignerContext(),
+            );
+            state.tableDesigner.draft = updateTableDesignerConstraintField(
+                state.tableDesigner.draft,
+                'check',
+                drawer.editingConstraintId,
+                'presetFields',
+                editor.presetFields,
+                getTableDesignerContext(),
+            );
+            state.tableDesigner.draft = updateTableDesignerConstraintField(
+                state.tableDesigner.draft,
+                'check',
+                drawer.editingConstraintId,
+                'source',
+                editor.presetId ? 'preset' : 'user',
+                getTableDesignerContext(),
+            );
+        }
+
+        state.tableDesigner.saveError = null;
+        state.tableDesigner.constraintsDrawer = {
+            ...drawer,
+            editingConstraintId: '',
+            editor: null,
+        };
+        emitChange();
+        return true;
+    } catch (error) {
+        state.tableDesigner.constraintsDrawer = {
+            ...drawer,
+            editor: {
+                ...editor,
+                validating: false,
+                error: normalizeError(error),
+            },
+        };
+        emitChange();
+        return false;
+    }
+}
+
+export function removeCurrentTableDesignerCheckConstraint(constraintId) {
+    if (!state.tableDesigner.draft) {
+        return;
+    }
+
+    state.tableDesigner.draft = removeTableDesignerCheckConstraint(
+        state.tableDesigner.draft,
+        constraintId,
+        getTableDesignerContext(),
+    );
+    state.tableDesigner.saveError = null;
+    emitChange();
+}
+
 export function addCurrentTableDesignerColumn() {
     if (!state.tableDesigner.draft) {
         return null;
@@ -5666,10 +6050,12 @@ export function addCurrentTableDesignerColumn() {
     return nextColumn?.id ?? null;
 }
 
-export function queueTableDesignerCsvImport(fileName, csvText, options = {}) {
+export function queueTableDesignerImport(fileName, text, options = {}) {
+    const format = String(options.format ?? '').trim().toLowerCase();
+
     try {
-        const imported = createTableDesignerDraftFromCsvImport(
-            { fileName, csvText },
+        const imported = createTableDesignerDraftFromImport(
+            { fileName, text, format },
             {
                 ...getTableDesignerContext(),
                 ...(options.context ?? {}),
@@ -5687,9 +6073,13 @@ export function queueTableDesignerCsvImport(fileName, csvText, options = {}) {
             throw error;
         }
 
-        pushToast(error?.message || 'CSV import failed.', 'alert');
+        pushToast(error?.message || 'Data import failed.', 'alert');
         return null;
     }
+}
+
+export function queueTableDesignerCsvImport(fileName, csvText, options = {}) {
+    return queueTableDesignerImport(fileName, csvText, { ...options, format: 'csv' });
 }
 
 export function removeCurrentTableDesignerColumn(columnId) {
@@ -6334,6 +6724,11 @@ export async function submitDataRowUpdate(rowIndex, values, identity = null, opt
         return null;
     }
 
+    if (state.dataBrowser.table?.isShadow) {
+        pushToast('Shadow tables are read-only in Data.', 'alert');
+        return null;
+    }
+
     state.dataBrowser.saving = true;
     state.dataBrowser.saveError = null;
     emitChange();
@@ -6369,6 +6764,11 @@ export async function submitDataRowDelete(rowIndex, options = {}) {
 
     if (!tableName || !selected.identity) {
         pushToast('The selected row could not be loaded.', 'alert');
+        return null;
+    }
+
+    if (state.dataBrowser.table?.isShadow) {
+        pushToast('Shadow tables are read-only in Data.', 'alert');
         return null;
     }
 

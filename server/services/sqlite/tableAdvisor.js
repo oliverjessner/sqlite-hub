@@ -763,12 +763,18 @@ function analyzeTable(db, tableName) {
     score: calculateScore(issues),
     issueCount: issues.length,
     rowCount: Number(tableDetail.rowCount ?? 0),
+    tableKind: tableDetail.tableKind,
+    isVirtual: Boolean(tableDetail.isVirtual),
+    isShadow: Boolean(tableDetail.isShadow),
     issues,
     columnProfiles,
     table: {
       columnCount: (tableDetail.columns ?? []).filter((column) => column.visible && !column.generated).length,
       indexCount: (tableDetail.indexes ?? []).length,
       foreignKeyCount: (tableDetail.foreignKeys ?? []).length,
+      tableKind: tableDetail.tableKind,
+      isVirtual: Boolean(tableDetail.isVirtual),
+      isShadow: Boolean(tableDetail.isShadow),
     },
     analyzedAt: new Date().toISOString(),
   };

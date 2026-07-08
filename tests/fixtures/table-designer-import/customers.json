@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "name": "Oliver",
+    "active": true,
+    "metadata": {
+      "city": "Salzburg"
+    }
+  },
+  {
+    "id": 2,
+    "name": "Anna",
+    "active": false,
+    "metadata": {
+      "city": "Vienna"
+    }
+  }
+]

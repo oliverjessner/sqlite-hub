@@ -2,6 +2,11 @@
 
 - tags for databases
 - search for database
+- table designer accepts json, csv, tsv
+- drawer headers are unified
+- more mcp functions
+- badges for shadow and virtual tables
+- structure visual support for shadow tables
 
 # v2.0.0
 

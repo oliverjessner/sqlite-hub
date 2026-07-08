@@ -19,6 +19,37 @@ function getTableListMap(db) {
   }
 }
 
+function normalizeTableKind(entry = {}, tableListEntry = null) {
+  const pragmaType = String(tableListEntry?.type ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (pragmaType) {
+    return pragmaType;
+  }
+
+  if (entry.type === "table" && /^\s*CREATE\s+VIRTUAL\s+TABLE\b/i.test(entry.sql || "")) {
+    return "virtual";
+  }
+
+  return entry.type;
+}
+
+function decorateStructureEntry(entry, tableListMap = null) {
+  if (entry.type !== "table") {
+    return entry;
+  }
+
+  const tableKind = normalizeTableKind(entry, tableListMap?.get(entry.name));
+
+  return {
+    ...entry,
+    tableKind,
+    isVirtual: tableKind === "virtual",
+    isShadow: tableKind === "shadow",
+  };
+}
+
 function getMasterEntry(db, type, name) {
   const entry = db
     .prepare(
@@ -34,6 +65,8 @@ function getMasterEntry(db, type, name) {
 }
 
 function getRawStructureEntries(db) {
+  const tableListMap = getTableListMap(db);
+
   return db
     .prepare(
       [
@@ -43,7 +76,8 @@ function getRawStructureEntries(db) {
         "ORDER BY type ASC, name ASC",
       ].join(" ")
     )
-    .all();
+    .all()
+    .map((entry) => decorateStructureEntry(entry, tableListMap));
 }
 
 function normalizeColumn(column, visibleSet) {
@@ -607,11 +641,15 @@ function getTableDetail(db, tableName, options = {}) {
     typeof tableListEntry?.wr === "number"
       ? Boolean(tableListEntry.wr)
       : /WITHOUT\s+ROWID/i.test(entry.sql || "");
+  const tableKind = normalizeTableKind(entry, tableListEntry);
 
   const tableDetail = {
     type: entry.type,
     name: entry.name,
     ddl: entry.sql,
+    tableKind,
+    isVirtual: tableKind === "virtual",
+    isShadow: tableKind === "shadow",
     withoutRowId,
     strict: Boolean(tableListEntry?.strict),
     columns,

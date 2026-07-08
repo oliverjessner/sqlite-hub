@@ -51,7 +51,7 @@ function createDataRouter({ dataBrowserService }) {
       res.json(
         successResponse({
           data,
-          readOnly: data.notSafelyUpdatable,
+          readOnly: data.notSafelyUpdatable || data.isShadow,
         })
       );
     })

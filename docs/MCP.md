@@ -58,11 +58,13 @@ Read-only and safe tools:
 - `get_indexes`: return all indexes or indexes for one table.
 - `get_foreign_keys`: return all foreign keys or foreign keys for one table.
 - `run_readonly_query`: execute a read-only `SELECT`, `PRAGMA`, or `EXPLAIN` query.
+- `get_stored_queries`: list saved SQL Editor queries for a database, equivalent to `sqlite-hub --database:name --queries`.
 - `explain_query_plan`: run `EXPLAIN QUERY PLAN` and return structured plan rows plus index hints when a table scan appears.
 - `read_documents`: read database-scoped Markdown documents.
 
 Controlled write tools:
 
+- `execute_stored_query`: execute a saved SQL Editor query by id, title, display title, or SQL fragment, equivalent to `sqlite-hub --database:name --execute:"query"`.
 - `create_backup`: create a verified backup through SQLite Hub's existing backup mechanism.
 - `generate_types`: generate TypeScript, Rust, Kotlin, or Swift types from one table or all tables.
 - `create_chart_from_query`: create a saved chart from a read-only `SELECT` query. It writes chart metadata to SQLite Hub but does not export files.
@@ -86,6 +88,8 @@ These statements are blocked in `run_readonly_query`:
 
 Backups are always created through SQLite Hub's managed backup service. Chart creation stores chart metadata only. The MCP server does not write arbitrary local files.
 
+`execute_stored_query` intentionally follows the same behavior as the CLI and external API saved-query execution path. It executes the stored SQL as-is and records the run in Query History with `executedBy: "mcp"`.
+
 The HTTP MCP endpoint runs on SQLite Hub's existing loopback server. It is local-only and uses the same localhost request guard as the internal API. API tokens are not exposed through MCP tool responses.
 
 ## Settings Status
@@ -106,4 +110,8 @@ Use SQLite Hub MCP to create a backup before generating TypeScript types.
 
 ```text
 Use SQLite Hub MCP to explain the query plan for this SQL query.
+```
+
+```text
+Use SQLite Hub MCP to list my stored queries and execute the one named "Company List".
 ```

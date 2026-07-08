@@ -215,7 +215,7 @@ function renderTextCharacterCountBadge(value) {
 
   return `
     <span
-      class="border px-2 py-1 text-[9px] ${getFieldBadgeClassName("char-count")}"
+      class="status-badge status-badge--muted"
       data-row-editor-char-count
       ${count === null ? "hidden" : ""}
     >
@@ -337,22 +337,10 @@ function renderReadonlyField(field = {}, tableMeta = {}) {
   `;
 }
 
-function getValueStateBadgeClassName(state) {
-  if (state === "null") {
-    return "border-primary-container/35 bg-primary-container/15 text-primary-container";
-  }
-
-  if (state === "empty") {
-    return "border-outline-variant/35 bg-surface-container-high text-on-surface-variant";
-  }
-
-  return "border-outline-variant/20 bg-surface-container text-on-surface-variant";
-}
-
 function renderValueStateBadge(state) {
   return `
     <span
-      class="border px-2 py-1 text-[9px] ${getValueStateBadgeClassName(state)}"
+      class="status-badge status-badge--muted"
       data-row-editor-value-state
       data-value-state="${escapeHtml(state)}"
     >${escapeHtml(getRowEditorValueStateLabel(state))}</span>
@@ -447,44 +435,11 @@ function renderEditableField(field, tableMeta = {}) {
   `;
 }
 
-function getFieldBadgeClassName(tone) {
-  if (tone === "primary-key") {
-    return "border-primary-container/35 bg-primary-container/15 text-primary-container";
-  }
-
-  if (tone === "foreign-key") {
-    return "border-tertiary-fixed-dim/35 bg-tertiary-fixed-dim/15 text-tertiary-fixed-dim";
-  }
-
-  if (tone === "url") {
-    return "border-primary-container/35 bg-primary-container/15 text-primary-container";
-  }
-
-  if (tone === "email") {
-    return "border-tertiary-fixed-dim/35 bg-tertiary-fixed-dim/15 text-tertiary-fixed-dim";
-  }
-
-  if (tone === "check") {
-    return "border-tertiary-fixed-dim/35 bg-tertiary-fixed-dim/15 text-tertiary-fixed-dim";
-  }
-
-  if (tone === "filepath") {
-    return "border-outline-variant/30 bg-surface-container-high text-on-surface";
-  }
-
-  if (tone === "char-count") {
-    return "border-outline-variant/25 bg-surface-container text-on-surface-variant";
-  }
-
-  return "border-outline-variant/20 bg-surface-container text-on-surface-variant";
-}
-
 function renderFieldBadge(badge) {
   const label = typeof badge === "object" ? badge.label : badge;
-  const tone = typeof badge === "object" ? badge.tone : "";
 
   return `
-    <span class="border px-2 py-1 text-[9px] ${getFieldBadgeClassName(tone)}">
+    <span class="status-badge status-badge--muted">
       ${escapeHtml(label)}
     </span>
   `;
@@ -578,27 +533,19 @@ export function renderRowEditorPanel({
   ]
     .filter(Boolean)
     .join("");
+  const eyebrow = [sectionLabel, subtitle].filter(Boolean).join(" // ");
 
   return `
     <section class="flex h-full min-h-0 flex-col bg-surface-low">
       <header class="border-b border-outline-variant/10 bg-surface-container px-6 py-5">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0 flex-1">
-            <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-container">
-              ${escapeHtml(sectionLabel)}
+            <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-primary-container/70">
+              ${escapeHtml(eyebrow)}
             </div>
-            <h2 class="mt-2 font-body text-3xl font-black uppercase tracking-tight text-primary-container">
+            <h2 class="mt-1 truncate font-body text-lg font-black uppercase tracking-tight text-on-surface">
               ${escapeHtml(title)}
             </h2>
-            ${
-              subtitle
-                ? `
-                    <div class="mt-2 text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">
-                      ${escapeHtml(subtitle)}
-                    </div>
-                  `
-                : ""
-            }
           </div>
           <button
             aria-label="Close panel"

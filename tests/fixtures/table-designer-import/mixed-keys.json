@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "name": "Oliver",
+    "metadata": {
+      "city": "Salzburg"
+    }
+  },
+  {
+    "id": 2,
+    "email": "anna@example.com",
+    "tags": [
+      "sqlite",
+      "json"
+    ]
+  }
+]

@@ -105,6 +105,14 @@ import {
     setTableDesignerSearchQuery,
     setTableDesignerSqlPreviewVisibility,
     toggleTableDesignerTablesPanel,
+    openTableDesignerConstraintsDrawer,
+    closeTableDesignerConstraintsDrawer,
+    startTableDesignerCheckEditor,
+    cancelTableDesignerCheckEditor,
+    applyTableDesignerCheckPreset,
+    updateTableDesignerCheckEditorField,
+    saveTableDesignerCheckEditor,
+    removeCurrentTableDesignerCheckConstraint,
     setDataTableSearchQuery,
     setStructureTableSearchQuery,
     toggleStructureTablesPanel,
@@ -158,7 +166,7 @@ import {
     toggleDocumentsPane,
     setMediaTaggingWorkflowMediaDetailsVisible,
     setMediaTaggingWorkflowMediaRotationDegrees,
-    queueTableDesignerCsvImport,
+    queueTableDesignerImport,
     showToast,
     storeCopyColumnPreferences,
     submitCreateConnection,
@@ -277,6 +285,20 @@ let pendingDocumentAutosaveId = null;
 const DOCUMENT_AUTOSAVE_DELAY_MS = 5000;
 
 const APP_TITLE = 'SQLite Hub';
+const TABLE_DESIGNER_IMPORT_FORMATS = {
+    csv: {
+        accept: '.csv,text/csv',
+        label: 'CSV',
+    },
+    tsv: {
+        accept: '.tsv,text/tab-separated-values',
+        label: 'TSV',
+    },
+    json: {
+        accept: '.json,application/json',
+        label: 'JSON',
+    },
+};
 const ROUTE_TITLE_SEGMENTS = {
     connections: 'Connections',
     backups: 'Backups',
@@ -579,6 +601,28 @@ function syncTableDesignerDraftUi(sourceNode) {
     }
 
     return synced;
+}
+
+function normalizeCheckExpressionPreview(expression) {
+    const normalized = String(expression ?? '').trim();
+
+    if (!normalized) {
+        return 'CHECK (...)';
+    }
+
+    return /^CHECK\s*\(/i.test(normalized) ? normalized : `CHECK (${normalized})`;
+}
+
+function syncTableDesignerCheckEditorPreview(sourceNode) {
+    const drawerNode = sourceNode.closest('.table-designer-check-drawer');
+    const previewNode = drawerNode?.querySelector('[data-table-designer-check-preview]');
+
+    if (!(previewNode instanceof HTMLElement)) {
+        return false;
+    }
+
+    replaceChildrenFromRenderedMarkup(previewNode, highlightSql(normalizeCheckExpressionPreview(sourceNode.value)));
+    return true;
 }
 
 function syncDataRowSelectionUi(selectedRowIndex = null) {
@@ -1423,11 +1467,18 @@ async function applyMediaTaggingAndFocusSearch() {
     return result;
 }
 
-async function handleTableDesignerCsvImport(fileInput) {
+function normalizeTableDesignerImportFormat(value) {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    return Object.prototype.hasOwnProperty.call(TABLE_DESIGNER_IMPORT_FORMATS, normalized) ? normalized : 'csv';
+}
+
+async function handleTableDesignerImport(fileInput) {
     if (!(fileInput instanceof HTMLInputElement)) {
         return;
     }
 
+    const format = normalizeTableDesignerImportFormat(fileInput.dataset.importFormat);
+    const formatLabel = TABLE_DESIGNER_IMPORT_FORMATS[format].label;
     const file = fileInput.files?.[0];
 
     if (!(file instanceof File)) {
@@ -1435,14 +1486,14 @@ async function handleTableDesignerCsvImport(fileInput) {
     }
 
     if (!file.size) {
-        showToast('The selected CSV file is empty.', 'alert');
+        showToast(`The selected ${formatLabel} file is empty.`, 'alert');
         fileInput.value = '';
         return;
     }
 
     try {
-        const csvText = await readFileAsText(file);
-        const imported = queueTableDesignerCsvImport(file.name, csvText);
+        const text = await readFileAsText(file);
+        const imported = queueTableDesignerImport(file.name, text, { format });
 
         if (!imported) {
             return;
@@ -1456,7 +1507,7 @@ async function handleTableDesignerCsvImport(fileInput) {
             'success',
         );
     } catch (error) {
-        showToast(error?.message || 'CSV import failed.', 'alert');
+        showToast(error?.message || `${formatLabel} import failed.`, 'alert');
     } finally {
         fileInput.value = '';
     }
@@ -3079,6 +3130,30 @@ async function handleAction(actionNode) {
                 removeCurrentTableDesignerColumn(actionNode.dataset.columnId);
             }
             return;
+        case 'open-table-designer-constraints':
+            openTableDesignerConstraintsDrawer(actionNode.dataset.columnId, actionNode.dataset.columnName);
+            return;
+        case 'close-table-designer-constraints':
+            closeTableDesignerConstraintsDrawer();
+            return;
+        case 'start-table-designer-check-editor':
+            startTableDesignerCheckEditor();
+            return;
+        case 'edit-table-designer-check':
+            startTableDesignerCheckEditor(actionNode.dataset.constraintId);
+            return;
+        case 'cancel-table-designer-check-editor':
+            cancelTableDesignerCheckEditor();
+            return;
+        case 'apply-table-designer-check-preset':
+            applyTableDesignerCheckPreset(actionNode.dataset.presetId);
+            return;
+        case 'save-table-designer-check':
+            await saveTableDesignerCheckEditor();
+            return;
+        case 'remove-table-designer-check':
+            removeCurrentTableDesignerCheckConstraint(actionNode.dataset.constraintId);
+            return;
         case 'save-table-designer': {
             const savedTableName = await saveCurrentTableDesignerDraft();
             if (savedTableName) {
@@ -3202,14 +3277,20 @@ async function handleAction(actionNode) {
             router.navigate(`/structure/${encodeURIComponent(mediaTableName)}`);
             return;
         }
-        case 'import-table-designer-csv': {
+        case 'import-table-designer-data': {
             const fileInput = document.querySelector('[data-bind="table-designer-import-file"]');
 
             if (!(fileInput instanceof HTMLInputElement)) {
                 return;
             }
 
+            const format = normalizeTableDesignerImportFormat(actionNode.dataset.importFormat);
+            const formatOptions = TABLE_DESIGNER_IMPORT_FORMATS[format];
+
+            fileInput.dataset.importFormat = format;
+            fileInput.accept = actionNode.dataset.importAccept || formatOptions.accept;
             fileInput.value = '';
+            actionNode.closest('[data-dropdown-button]')?.removeAttribute('open');
             fileInput.click();
             return;
         }
@@ -3529,6 +3610,12 @@ document.addEventListener('keydown', event => {
         return;
     }
 
+    if (state.route.name === 'tableDesigner' && state.tableDesigner.constraintsDrawer?.visible) {
+        event.preventDefault();
+        closeTableDesignerConstraintsDrawer();
+        return;
+    }
+
     if (state.route.name === 'charts' && state.charts.detailPanelVisible) {
         event.preventDefault();
         setChartsDetailPanelVisibility(false);
@@ -3674,6 +3761,20 @@ document.addEventListener('input', event => {
 
     if (bindNode.dataset.bind === 'media-tagging-tag-search') {
         syncMediaTaggingTagSearchUi(bindNode);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'table-designer-check-editor-field') {
+        const field = bindNode.dataset.field;
+        const value = bindNode instanceof HTMLInputElement || bindNode instanceof HTMLTextAreaElement ? bindNode.value : '';
+        const isCustomExpression = field === 'expression';
+
+        updateTableDesignerCheckEditorField(field, value, { notify: !isCustomExpression });
+
+        if (isCustomExpression) {
+            syncTableDesignerCheckEditorPreview(bindNode);
+        }
+
         return;
     }
 
@@ -3851,7 +3952,15 @@ document.addEventListener('change', event => {
     }
 
     if (bindNode.dataset.bind === 'table-designer-import-file') {
-        void handleTableDesignerCsvImport(bindNode);
+        void handleTableDesignerImport(bindNode);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'table-designer-check-editor-field') {
+        const value = bindNode instanceof HTMLInputElement || bindNode instanceof HTMLTextAreaElement ? bindNode.value : '';
+
+        updateTableDesignerCheckEditorField(bindNode.dataset.field, value, { notify: false });
+        syncTableDesignerCheckEditorPreview(bindNode);
         return;
     }
 

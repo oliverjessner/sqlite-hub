@@ -77,6 +77,28 @@ const MCP_TOOL_DEFINITIONS = [
     ),
   },
   {
+    name: "get_stored_queries",
+    description: "List saved SQL Editor queries for a database. This is the MCP equivalent of `sqlite-hub --database:name --queries`.",
+    inputSchema: objectSchema({
+      databaseId: databaseIdProperty(),
+      limit: { type: "integer", minimum: 1, maximum: 500, default: 100 },
+    }, ["databaseId"]),
+  },
+  {
+    name: "execute_stored_query",
+    description: "Execute a saved SQL Editor query by id, title, display title, or SQL fragment. This is the MCP equivalent of `sqlite-hub --database:name --execute:\"query\"`.",
+    inputSchema: objectSchema(
+      {
+        databaseId: databaseIdProperty(),
+        queryName: {
+          type: "string",
+          description: "Saved query id, title, display title, or SQL fragment.",
+        },
+      },
+      ["databaseId", "queryName"]
+    ),
+  },
+  {
     name: "explain_query_plan",
     description: "Run SQLite EXPLAIN QUERY PLAN for a read-only query and return structured plan rows.",
     inputSchema: objectSchema(
@@ -226,6 +248,12 @@ class McpToolService {
           return this.databaseService.executeReadOnlyQuery(args.databaseId, args.sql, {
             executedBy: "mcp",
             maxRows: args.maxRows,
+          });
+        case "get_stored_queries":
+          return this.databaseService.listSavedQueries(args.databaseId, args.limit);
+        case "execute_stored_query":
+          return this.databaseService.executeSavedQuery(args.databaseId, args.queryName, {
+            executedBy: "mcp",
           });
         case "explain_query_plan":
           return this.databaseService.explainQueryPlan(args.databaseId, args.sql);

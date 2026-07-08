@@ -39,6 +39,7 @@ SQLite Hub keeps that workflow sharp:
 - inspect database health, storage metrics, and schema connectivity from one overview
 - filter, sort, page through, and export table data
 - inspect schema, structure, and relationships
+- recognize virtual and shadow tables with visual badges and Structure graph links
 - analyze individual tables with a deterministic local advisor
 - generate TypeScript, Rust, Kotlin, or Swift types from table schemas
 - edit records in place with typed value previews and an SQL diff preview before saving
@@ -59,7 +60,7 @@ SQLite Hub keeps that workflow sharp:
 
 [![SQLite Hub relationship graph](./frontend/assets/mockups/structure_1_1920.webp)](./frontend/assets/mockups/structure_1_1920.webp)
 
-Inspect tables, views, indexes, triggers, columns, declared types, primary keys, nullability, foreign keys, and DDL without losing pace. The searchable object list and relationship graph support fit, relayout, selection clearing, direct navigation to table data, and a hideable inspector/sidebar. Clicking a relationship edge opens a join preview with the mapped columns and a copyable SQL `JOIN` snippet.
+Inspect tables, views, indexes, triggers, columns, declared types, primary keys, nullability, foreign keys, and DDL without losing pace. The searchable object list and relationship graph support fit, relayout, selection clearing, direct navigation to table data, and a hideable inspector/sidebar. Virtual tables and SQLite shadow tables are visually marked; shadow tables are grouped separately and connected to their owning virtual table in the graph. Clicking a relationship edge opens a join preview with the mapped columns and a copyable SQL `JOIN` snippet.
 
 ### Generate Types
 
@@ -84,7 +85,7 @@ For each table, SQLite Hub calculates a score, lists findings by severity, shows
 
 [![SQLite Hub data browser](./frontend/assets/mockups/data_1_1920.webp)](./frontend/assets/mockups/data_1_1920.webp)
 
-Scan rows, sort columns, move through local data quickly, and export full tables as CSV, TSV, Markdown, JSON, or Parquet.
+Scan rows, sort columns, move through local data quickly, and export full tables as CSV, TSV, Markdown, JSON, or Parquet. Virtual and shadow tables are tagged in the table list, and shadow tables open read-only.
 
 Use `Generate` in the Data browser to create local synthetic test rows from the current table schema. The generator respects required columns, foreign keys, simple `CHECK` constraints, and shows a preview before insertion.
 
@@ -182,7 +183,7 @@ Create bar, line, pie/donut, and scatter charts from chartable `SELECT` query-hi
 
 Create and edit SQLite tables from the UI. The Table Designer includes a searchable table list, validation and migration warnings, and controls for column names, SQLite types, `NOT NULL`, `UNIQUE`, primary keys, SQL defaults, foreign-key tables/columns, and check constraints. Existing composite unique constraints are surfaced as schema metadata.
 
-CSV files can seed a new table draft and optionally fill the created table with imported rows. Every change produces a copyable live SQL preview that can be hidden or shown before the schema operation is applied.
+CSV, TSV, and JSON files can seed a new table draft and optionally fill the created table with imported rows. Every change produces a copyable live SQL preview that can be hidden or shown before the schema operation is applied.
 
 [![SQLite Hub Table Designer constraints](./frontend/assets/mockups/table_designer_2_table_designer_constraints_modal_1920.webp)](./frontend/assets/mockups/table_designer_2_table_designer_constraints_modal_1920.webp)
 

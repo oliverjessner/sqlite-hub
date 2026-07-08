@@ -3,6 +3,65 @@ const { quoteIdentifier } = require("../../utils/identifier");
 const { serializeRows } = require("../../utils/sqliteTypes");
 const { TypeGenerationService } = require("../typeGenerationService");
 
+function resolveShadowOwnerTableName(shadowTable, tables) {
+  if (!shadowTable?.isShadow) {
+    return null;
+  }
+
+  return (
+    tables
+      .filter((table) => table.isVirtual && shadowTable.name.startsWith(`${table.name}_`))
+      .sort((left, right) => right.name.length - left.name.length)[0]?.name ?? null
+  );
+}
+
+function unquoteSqlIdentifier(identifier) {
+  const value = String(identifier ?? "").trim();
+
+  if (value.length >= 2 && value[0] === '"' && value.at(-1) === '"') {
+    return value.slice(1, -1).replace(/""/g, '"');
+  }
+
+  if (value.length >= 2 && value[0] === "`" && value.at(-1) === "`") {
+    return value.slice(1, -1).replace(/``/g, "`");
+  }
+
+  if (value.length >= 2 && value[0] === "[" && value.at(-1) === "]") {
+    return value.slice(1, -1);
+  }
+
+  return value;
+}
+
+function extractVirtualTableModule(ddl = "") {
+  const match = String(ddl ?? "").match(
+    /\bUSING\s+("[^"]+(?:""[^"]*)*"|`[^`]+(?:``[^`]*)*`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)/i
+  );
+
+  return match ? unquoteSqlIdentifier(match[1]) : null;
+}
+
+function serializeGraphTable(table, shadowOwnerTableName = null) {
+  const isVirtual = Boolean(table.isVirtual);
+
+  return {
+    type: table.type,
+    name: table.name,
+    ddl: table.ddl,
+    tableKind: table.tableKind,
+    isVirtual,
+    isShadow: Boolean(table.isShadow),
+    virtualModule: isVirtual ? extractVirtualTableModule(table.ddl) : null,
+    shadowOwnerTable: shadowOwnerTableName,
+    withoutRowId: table.withoutRowId,
+    strict: table.strict,
+    columns: table.columns,
+    foreignKeys: table.foreignKeys,
+    identityStrategy: table.identityStrategy,
+    notSafelyUpdatable: table.notSafelyUpdatable,
+  };
+}
+
 class StructureService {
   constructor({ connectionManager, appStateStore }) {
     this.connectionManager = connectionManager;
@@ -35,17 +94,9 @@ class StructureService {
         triggers: entries.filter((entry) => entry.type === "trigger"),
       },
       graph: {
-        tables: tables.map((table) => ({
-          type: table.type,
-          name: table.name,
-          ddl: table.ddl,
-          withoutRowId: table.withoutRowId,
-          strict: table.strict,
-          columns: table.columns,
-          foreignKeys: table.foreignKeys,
-          identityStrategy: table.identityStrategy,
-          notSafelyUpdatable: table.notSafelyUpdatable,
-        })),
+        tables: tables.map((table) =>
+          serializeGraphTable(table, resolveShadowOwnerTableName(table, tables))
+        ),
         relationshipCount,
       },
     };
@@ -65,6 +116,10 @@ class StructureService {
       type: table.type,
       name: table.name,
       ddl: table.ddl,
+      tableKind: table.tableKind,
+      isVirtual: Boolean(table.isVirtual),
+      isShadow: Boolean(table.isShadow),
+      virtualModule: table.isVirtual ? extractVirtualTableModule(table.ddl) : null,
       withoutRowId: table.withoutRowId,
       strict: table.strict,
       columns: table.columns,

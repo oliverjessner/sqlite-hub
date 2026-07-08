@@ -687,14 +687,11 @@ export function renderBackupDiffDrawer(state) {
         <div class="flex items-center justify-between gap-3">
           <div class="min-w-0">
             <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-primary-container/70">
-              Backup Compare
+              Backup Compare // ${escapeHtml(currentLabel)}
             </div>
             <h2 class="mt-1 truncate font-body text-lg font-black uppercase tracking-tight text-on-surface">
               ${escapeHtml(title)}
             </h2>
-            <div class="mt-1 truncate text-xs text-on-surface-variant/60">
-              Current // ${escapeHtml(currentLabel)}
-            </div>
           </div>
           <button
             class="query-history-icon-button"
@@ -708,7 +705,7 @@ export function renderBackupDiffDrawer(state) {
         <div class="mt-4 flex flex-wrap gap-2">
           ${renderStatusBadge('read only', 'muted')}
           ${diffState.loading ? renderStatusBadge('loading', 'muted') : ''}
-          ${diffState.error ? renderStatusBadge('error', 'alert') : ''}
+          ${diffState.error ? renderStatusBadge('error', 'muted') : ''}
         </div>
       </div>
       ${renderBackupDiffDrawerBody(diffState)}

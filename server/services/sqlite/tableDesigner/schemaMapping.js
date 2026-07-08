@@ -159,6 +159,9 @@ function buildCheckConstraints(tableDetail) {
       originalExpression: expression ? `CHECK (${expression})` : "CHECK constraint",
       editable: true,
       preserved: true,
+      source: "detected",
+      presetId: "",
+      presetFields: {},
     };
   });
 }
@@ -300,7 +303,7 @@ function buildTableDesignerDraft(tableDetail) {
 
 function listDesignerTables(db) {
   return getRawStructureEntries(db)
-    .filter((entry) => entry.type === "table")
+    .filter((entry) => entry.type === "table" && !entry.isShadow)
     .map((entry) => {
       const columns = db
         .prepare(`PRAGMA table_xinfo(${quoteIdentifier(entry.name)})`)
@@ -312,6 +315,9 @@ function listDesignerTables(db) {
         name: entry.name,
         columnCount: columns.length,
         columns,
+        tableKind: entry.tableKind ?? "table",
+        isVirtual: Boolean(entry.isVirtual),
+        isShadow: Boolean(entry.isShadow),
       };
     })
     .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));

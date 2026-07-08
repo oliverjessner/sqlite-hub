@@ -85,7 +85,12 @@ function normalizeConstraintColumnName(name) {
   return String(name ?? "").trim().toLowerCase();
 }
 
-function constraintIncludesColumn(constraint, columnName) {
+function constraintIncludesColumn(constraint, column) {
+  if (constraint.columnId && constraint.columnId === column.id) {
+    return true;
+  }
+
+  const columnName = column.name;
   const normalizedColumn = normalizeConstraintColumnName(columnName);
 
   if (!normalizedColumn) {
@@ -98,33 +103,34 @@ function constraintIncludesColumn(constraint, columnName) {
 }
 
 function countColumnCheckConstraints(column, draft) {
-  if (draft.mode !== "edit") {
-    return 0;
-  }
-
   return (draft.checkConstraints ?? []).filter((constraint) =>
-    constraintIncludesColumn(constraint, column.name)
+    !constraint.deleted && constraintIncludesColumn(constraint, column)
   ).length;
 }
 
 function renderColumnCheckAction(column, draft) {
   const checkCount = countColumnCheckConstraints(column, draft);
   const columnName = column.name || "Unnamed column";
+  const checkCountLabel = String(checkCount || 0);
 
   return `
     <button
       aria-label="Checks for ${escapeHtml(columnName)}"
       class="standard-button table-designer-row-check-button"
-      data-action="open-modal"
+      data-action="open-table-designer-constraints"
       data-column-id="${escapeHtml(column.id)}"
       data-column-name="${escapeHtml(column.name)}"
-      data-modal="table-designer-constraints"
       title="Checks for ${escapeHtml(columnName)}"
       type="button"
     >
       <span class="material-symbols-outlined text-base">fact_check</span>
       <span>Checks</span>
-      ${checkCount ? `<span class="status-badge status-badge--muted">${escapeHtml(String(checkCount))}</span>` : ""}
+      <span
+        class="status-badge status-badge--muted table-designer-row-check-button__count${checkCount ? "" : " is-empty"}"
+        ${checkCount ? "" : 'aria-hidden="true"'}
+      >
+        ${escapeHtml(checkCountLabel)}
+      </span>
     </button>
   `;
 }
@@ -241,12 +247,35 @@ function renderColumnGrid(draft, catalogTables) {
   `;
 }
 
+function getDraftImportRows(draft) {
+  return Array.isArray(draft.importRows) && draft.importRows.length
+    ? draft.importRows
+    : draft.importedCsvRows ?? [];
+}
+
+function renderImportSource(draft) {
+  const importFormat = String(draft.importFormat ?? "").trim().toUpperCase();
+  const sourceFileName = String(draft.importSourceFileName ?? draft.importedCsvFileName ?? "").trim();
+
+  if (draft.mode !== "create" || !importFormat || !sourceFileName) {
+    return "";
+  }
+
+  return `
+    <div class="table-designer-import-source">
+      <span class="table-designer-import-source__label">SOURCE // ${escapeHtml(importFormat)}</span>
+      <span class="table-designer-import-source__file">${escapeHtml(sourceFileName)}</span>
+    </div>
+  `;
+}
+
 function renderFillToggle(draft) {
   if (draft.mode !== "create") {
     return "";
   }
 
-  const hasImportedRows = (draft.importedCsvRows?.length ?? 0) > 0;
+  const importRows = getDraftImportRows(draft);
+  const hasImportedRows = importRows.length > 0;
 
   return `
     <label class="standard-checkbox table-designer-fill-toggle table-designer-checkbox-override ${hasImportedRows ? "" : "is-disabled"}">
@@ -261,10 +290,10 @@ function renderFillToggle(draft) {
       <span class="table-designer-fill-toggle__meta">
         ${
           hasImportedRows
-            ? `${escapeHtml(String(draft.importedCsvRows.length))} imported row${
-                draft.importedCsvRows.length === 1 ? "" : "s"
+            ? `${escapeHtml(String(importRows.length))} imported row${
+                importRows.length === 1 ? "" : "s"
               }`
-            : "Available after CSV import"
+            : "Available after data import"
         }
       </span>
     </label>
@@ -323,11 +352,16 @@ export function renderTableDesignerEditor(state) {
   }
 
   const catalogTables = state.tableDesigner.tables ?? [];
+  const hasImportedRows = getDraftImportRows(draft).length > 0;
   const saveLabel =
     draft.mode === "create"
-      ? state.tableDesigner.saving
-        ? "Creating..."
-        : "Create Table"
+      ? hasImportedRows
+        ? state.tableDesigner.saving
+          ? "Creating & importing..."
+          : "Create & Import"
+        : state.tableDesigner.saving
+          ? "Creating..."
+          : "Create Table"
       : state.tableDesigner.saving
         ? "Saving..."
         : "Save Changes";
@@ -355,6 +389,7 @@ export function renderTableDesignerEditor(state) {
                 ? `<div class="status-badge status-badge--primary">CREATE</div>`
                 : ""
             }
+            ${renderImportSource(draft)}
           </div>
           <div class="table-designer-main__section-actions">
             <button

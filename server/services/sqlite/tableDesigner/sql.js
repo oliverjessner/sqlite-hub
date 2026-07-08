@@ -35,10 +35,39 @@ function buildColumnDefinition(column) {
   return parts.join(" ");
 }
 
-function buildCreateTableSql(draft) {
-  const columnSql = draft.columns.map((column) => `  ${buildColumnDefinition(column)}`).join(",\n");
+function normalizeCheckExpressionSql(expression) {
+  const normalized = normalizeSqlFragment(expression);
 
-  return `CREATE TABLE ${quoteIdentifier(draft.tableName)} (\n${columnSql}\n);`;
+  if (!normalized) {
+    return "";
+  }
+
+  if (/^CHECK\s*\(/i.test(normalized)) {
+    return normalized;
+  }
+
+  return `CHECK (${normalized})`;
+}
+
+function buildCheckConstraintSql(constraint) {
+  if (constraint.deleted) {
+    return "";
+  }
+
+  return normalizeCheckExpressionSql(constraint.expression);
+}
+
+function buildCreateTableSql(draft) {
+  const columnSql = draft.columns
+    .filter((column) => !column.deleted)
+    .map((column) => `  ${buildColumnDefinition(column)}`);
+  const checkSql = (draft.checkConstraints ?? [])
+    .map(buildCheckConstraintSql)
+    .filter(Boolean)
+    .map((constraintSql) => `  ${constraintSql}`);
+  const definitionSql = [...columnSql, ...checkSql].join(",\n");
+
+  return `CREATE TABLE ${quoteIdentifier(draft.tableName)} (\n${definitionSql}\n);`;
 }
 
 function buildAlterTableRenameSql(fromName, toName) {

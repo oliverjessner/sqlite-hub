@@ -65,6 +65,8 @@ test("GET /api/settings/mcp returns MCP status and exposed tools", async (t) => 
   assert.equal(payload.data.transport, "http");
   assert.ok(payload.data.exposedTools.includes("list_connections"));
   assert.ok(payload.data.exposedTools.includes("run_readonly_query"));
+  assert.ok(payload.data.exposedTools.includes("get_stored_queries"));
+  assert.ok(payload.data.exposedTools.includes("execute_stored_query"));
   assert.ok(payload.data.toolDetails.some((tool) => tool.name === "get_schema"));
   assert.match(payload.data.codexConfig, /\[mcp_servers\.sqlitehub\]/);
   assert.match(payload.data.codexConfig, /url = "http:\/\/127\.0\.0\.1:\d+\/mcp"/);

@@ -1,4 +1,5 @@
 import { escapeHtml, formatNumber } from '../utils/format.js';
+import { renderVirtualTableBadge } from './badges.js';
 
 function getFilteredTables(tables, searchQuery) {
     const normalizedSearch = String(searchQuery ?? '')
@@ -9,11 +10,11 @@ function getFilteredTables(tables, searchQuery) {
         return tables;
     }
 
-    return tables.filter(table => table.name.toLowerCase().includes(normalizedSearch));
+    return tables.filter(table => !table?.isShadow && table.name.toLowerCase().includes(normalizedSearch));
 }
 
 export function renderTableDesignerSidebar(state) {
-    const tables = state.tableDesigner.tables ?? [];
+    const tables = (state.tableDesigner.tables ?? []).filter(table => !table?.isShadow);
     const filteredTables = getFilteredTables(tables, state.tableDesigner.searchQuery);
     const isNewDraft = state.tableDesigner.draft?.mode === 'create';
 
@@ -87,9 +88,12 @@ export function renderTableDesignerSidebar(state) {
                       data-to="/table-designer/${encodeURIComponent(table.name)}"
                       type="button"
                     >
-                      <div class="table-designer-sidebar__item-name ${
-                          !isNewDraft && table.name === state.tableDesigner.selectedTableName ? 'is-active' : ''
-                      }">${escapeHtml(table.name)}</div>
+                      <div class="flex min-w-0 items-center gap-2">
+                        <div class="table-designer-sidebar__item-name min-w-0 flex-1 ${
+                            !isNewDraft && table.name === state.tableDesigner.selectedTableName ? 'is-active' : ''
+                        }">${escapeHtml(table.name)}</div>
+                        ${renderVirtualTableBadge(table)}
+                      </div>
                       <div class="mt-1 truncate text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45">
                         ${escapeHtml(formatNumber(table.columnCount ?? 0))} column${
                             Number(table.columnCount ?? 0) === 1 ? '' : 's'

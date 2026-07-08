@@ -84,3 +84,27 @@ test("structure toolbar exposes generate types scope actions", async () => {
   assert.match(main, /data-type-scope="selected"/);
   assert.match(main, /data-type-scope="all"/);
 });
+
+test("structure view renders no active sidebar table when selection is cleared", async () => {
+  const { renderStructureView } = await loadStructureViewModule();
+  const state = buildStructureState();
+  state.structure.selectedName = null;
+  state.structure.detail = {
+    type: "table",
+    name: "companies",
+    columns: [],
+    foreignKeys: [],
+    indexes: [],
+    triggers: [],
+    ddl: "CREATE TABLE companies (id INTEGER PRIMARY KEY)",
+  };
+  const { main } = renderStructureView(state);
+
+  assert.match(main, /Graph Ready/);
+  assert.match(main, /title="Open table"/);
+  assert.doesNotMatch(main, /title="Open companies"/);
+  assert.doesNotMatch(
+    main,
+    /border-primary-container\/30 bg-surface-container-high" data-action="select-structure-entry" data-entry-name="companies"/
+  );
+});

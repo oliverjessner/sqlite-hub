@@ -83,6 +83,14 @@ function isUnchangedSubmittedValue(currentValue, submittedValue) {
   return formatPreviewValue(currentValue) === formatPreviewValue(submittedValue);
 }
 
+function assertDataTableWritable(tableDetail) {
+  if (tableDetail.isShadow) {
+    throw new ValidationError(
+      `Shadow table ${tableDetail.name} is read-only in Data.`
+    );
+  }
+}
+
 class DataBrowserService {
   constructor({ connectionManager }) {
     this.connectionManager = connectionManager;
@@ -102,6 +110,9 @@ class DataBrowserService {
         return {
           name: entry.name,
           columnCount,
+          tableKind: entry.tableKind ?? "table",
+          isVirtual: Boolean(entry.isVirtual),
+          isShadow: Boolean(entry.isShadow),
         };
       });
   }
@@ -161,6 +172,10 @@ class DataBrowserService {
     return {
       name: tableDetail.name,
       type: tableDetail.type,
+      tableKind: tableDetail.tableKind,
+      isVirtual: Boolean(tableDetail.isVirtual),
+      isShadow: Boolean(tableDetail.isShadow),
+      readOnly: Boolean(tableDetail.isShadow),
       rowCount,
       limit,
       offset,
@@ -253,6 +268,8 @@ class DataBrowserService {
     const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
     const identity = payload.identity ?? null;
 
+    assertDataTableWritable(tableDetail);
+
     if (tableDetail.notSafelyUpdatable) {
       throw new ValidationError(
         `Table ${tableName} cannot be safely updated because it has no stable row identity.`
@@ -298,6 +315,8 @@ class DataBrowserService {
 
     const db = this.connectionManager.getActiveDatabase();
     const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
+
+    assertDataTableWritable(tableDetail);
 
     return insertSyntheticRows(db, tableDetail, payload);
   }
@@ -350,6 +369,8 @@ class DataBrowserService {
     const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
     const values = payload.values ?? {};
     const identity = payload.identity ?? null;
+
+    assertDataTableWritable(tableDetail);
 
     if (tableDetail.notSafelyUpdatable) {
       throw new ValidationError(

@@ -1,4 +1,5 @@
 import { clearInspector, renderDdlSection, renderInspector } from '../components/structureGraph.js';
+import { renderVirtualTableBadge } from '../components/badges.js';
 import { renderDropdownButton } from '../components/dropdownButton.js';
 import { renderGenerateTypesDropdown } from '../components/generateTypesDropdown.js';
 import { renderWorkspaceOpenDropdown } from '../components/workspaceOpenDropdown.js';
@@ -36,10 +37,13 @@ function renderEntryGroup(title, entries, activeName, options = {}) {
                           '" ',
                           entryAttributes,
                           ' type="button">',
-                          '<div class="font-mono text-xs ',
+                          '<div class="flex min-w-0 items-center gap-2">',
+                          '<div class="min-w-0 flex-1 truncate font-mono text-xs ',
                           isActive ? 'text-primary-container' : 'text-on-surface',
                           '">',
                           escapeHtml(entry.name),
+                          '</div>',
+                          renderVirtualTableBadge(entry),
                           '</div>',
                           metaMarkup,
                           '</button>',
@@ -74,6 +78,10 @@ function getFilteredTables(tables, searchQuery) {
     }
 
     return tables.filter(table => table.name.toLowerCase().includes(normalizedSearch));
+}
+
+function isShadowTable(table) {
+    return Boolean(table?.isShadow);
 }
 
 function renderStructureTableSearch(state) {
@@ -129,7 +137,10 @@ function renderObjectInspector(detail) {
             <span class="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
-        <div class="structure-graph__title">${escapeHtml(detail.name)}</div>
+        <div class="flex min-w-0 flex-wrap items-center gap-2">
+          <div class="structure-graph__title min-w-0">${escapeHtml(detail.name)}</div>
+          ${renderVirtualTableBadge(detail)}
+        </div>
         ${
             detail.tableName
                 ? `
@@ -336,9 +347,10 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
 
 export function renderStructureView(state) {
     const structure = state.structure.data;
-    const filteredTables = structure
-        ? getFilteredTables(structure.grouped.tables ?? [], state.structure.tableSearchQuery)
-        : [];
+    const regularTables = (structure?.grouped.tables ?? []).filter(table => !isShadowTable(table));
+    const shadowTables = (structure?.grouped.tables ?? []).filter(isShadowTable);
+    const filteredTables = structure ? getFilteredTables(regularTables, state.structure.tableSearchQuery) : [];
+    const filteredShadowTables = structure ? getFilteredTables(shadowTables, state.structure.tableSearchQuery) : [];
     const detail = state.structure.detail?.name === state.structure.selectedName ? state.structure.detail : null;
     const tablesVisible = state.structure.tablesVisible !== false;
 
@@ -376,6 +388,17 @@ export function renderStructureView(state) {
                                   ? 'tables match the current search.'
                                   : null,
                           })}
+                          ${
+                              shadowTables.length
+                                  ? renderEntryGroup('Shadow Tables', filteredShadowTables, state.structure.selectedName, {
+                                        compact: true,
+                                        showMeta: false,
+                                        emptyMessage: state.structure.tableSearchQuery
+                                            ? 'shadow tables match the current search.'
+                                            : null,
+                                    })
+                                  : ''
+                          }
                           ${renderEntryGroup('Views', structure.grouped.views, state.structure.selectedName)}
                           ${renderEntryGroup('Indexes', structure.grouped.indexes, state.structure.selectedName, {
                               compact: true,

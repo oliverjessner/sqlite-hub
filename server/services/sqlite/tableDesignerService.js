@@ -1,4 +1,5 @@
 const { mapSqliteError, ValidationError } = require("../../utils/errors");
+const { quoteIdentifier } = require("../../utils/identifier");
 const { getTableDetail } = require("./introspection");
 const { analyzeTableDesignerChanges } = require("./tableDesigner/changeAnalysis");
 const {
@@ -19,13 +20,29 @@ function getImportedFillColumns(draft) {
   );
 }
 
+function getImportedRows(draft) {
+  return Array.isArray(draft.importRows) && draft.importRows.length
+    ? draft.importRows
+    : draft.importedCsvRows ?? [];
+}
+
 function coerceImportedCellValue(column, value) {
-  const textValue = String(value ?? "");
-  const trimmedValue = textValue.trim();
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const normalizedValue =
+    typeof value === "object" ? JSON.stringify(value) : value;
   const type = normalizeDesignerType(column.type);
+  const textValue = String(normalizedValue ?? "");
+  const trimmedValue = textValue.trim();
 
   if (!trimmedValue) {
     return ["TEXT", "DATE", "DATETIME"].includes(type) ? "" : null;
+  }
+
+  if (typeof normalizedValue === "boolean") {
+    return normalizedValue ? 1 : 0;
   }
 
   if (type === "BOOLEAN") {
@@ -52,6 +69,35 @@ function coerceImportedCellValue(column, value) {
   }
 
   return textValue;
+}
+
+function normalizeCheckExpressionSql(expression) {
+  const normalized = String(expression ?? "").trim();
+
+  if (/^CHECK\s*\(/i.test(normalized)) {
+    return normalized;
+  }
+
+  return `CHECK (${normalized})`;
+}
+
+function assertSafeCheckExpressionFragment(expression) {
+  const normalized = String(expression ?? "").trim();
+
+  if (
+    normalized.includes("\0") ||
+    normalized.includes(";") ||
+    normalized.includes("--") ||
+    normalized.includes("/*") ||
+    normalized.includes("*/")
+  ) {
+    throw new ValidationError(
+      "CHECK expression must be a single SQL fragment without statement separators or comments.",
+      {
+        code: "CHECK_EXPRESSION_INVALID_FRAGMENT",
+      }
+    );
+  }
 }
 
 class TableDesignerService {
@@ -126,7 +172,9 @@ class TableDesignerService {
     const executeCreateWithImport = db.transaction((nextDraft) => {
       db.exec(buildCreateTableSql(nextDraft));
 
-      if (!nextDraft.fillImportedRows || !nextDraft.importedCsvRows.length) {
+      const importRows = getImportedRows(nextDraft);
+
+      if (!nextDraft.fillImportedRows || !importRows.length) {
         return;
       }
 
@@ -143,10 +191,10 @@ class TableDesignerService {
         )
       );
 
-      nextDraft.importedCsvRows.forEach((row) => {
+      importRows.forEach((row) => {
         insertStatement.run(
           importedColumns.map((column) =>
-            coerceImportedCellValue(column, row[column.importedValueIndex] ?? "")
+            coerceImportedCellValue(column, row[column.importedValueIndex])
           )
         );
       });
@@ -173,6 +221,63 @@ class TableDesignerService {
       draft: nextDraft,
       tables: listDesignerTables(db),
     };
+  }
+
+  validateCheckExpression(payload = {}) {
+    const db = this.connectionManager.getActiveDatabase();
+    const draft = normalizeDraftPayload(payload.draft ?? {});
+    const expression = String(payload.expression ?? "").trim();
+
+    if (!expression) {
+      throw new ValidationError("CHECK expression is required.", {
+        code: "CHECK_EXPRESSION_REQUIRED",
+      });
+    }
+
+    assertSafeCheckExpressionFragment(expression);
+
+    const columns = draft.columns.filter((column) => !column.deleted && column.name);
+
+    if (!columns.length) {
+      throw new ValidationError("At least one named column is required to validate a CHECK expression.", {
+        code: "CHECK_VALIDATION_COLUMNS_REQUIRED",
+      });
+    }
+
+    const tempTableName = `__sqlite_hub_check_validation_${Date.now()}_${Math.random()
+      .toString(16)
+      .slice(2)}`;
+    const tempDraft = {
+      ...draft,
+      tableName: tempTableName,
+      columns,
+      checkConstraints: [
+        {
+          id: "check:validation",
+          expression,
+        },
+      ],
+    };
+    const createSql = buildCreateTableSql(tempDraft).replace(/^CREATE TABLE\s+/i, "CREATE TEMP TABLE ");
+    const dropSql = `DROP TABLE IF EXISTS ${quoteIdentifier(tempTableName)};`;
+
+    try {
+      db.exec(dropSql);
+      db.exec(createSql);
+      db.exec(dropSql);
+      return {
+        valid: true,
+        generatedSql: normalizeCheckExpressionSql(expression),
+      };
+    } catch (error) {
+      try {
+        db.exec(dropSql);
+      } catch {
+        // Ignore cleanup failures; the validation error below is the useful signal.
+      }
+
+      throw mapSqliteError(error);
+    }
   }
 }
 

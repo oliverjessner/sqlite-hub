@@ -10,6 +10,36 @@ function normalizeSqlFragment(value) {
   return String(value ?? "").trim();
 }
 
+function normalizeImportFormat(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+
+  return ["csv", "tsv", "json"].includes(normalized) ? normalized : "";
+}
+
+function normalizeImportedCellValue(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (["boolean", "number", "string"].includes(typeof value)) {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function normalizeImportedRows(rows) {
+  return Array.isArray(rows)
+    ? rows.map((row) =>
+        Array.isArray(row) ? row.map((cell) => normalizeImportedCellValue(cell)) : []
+      )
+    : [];
+}
+
 function assertSafeSqlFragment(value, label, { allowEmpty = true } = {}) {
   const normalized = normalizeSqlFragment(value);
 
@@ -96,6 +126,7 @@ function normalizeCheckConstraintPayload(constraint = {}, index = 0) {
     id: String(constraint.id ?? `check:${index}`),
     name: String(constraint.name ?? `CHECK ${index + 1}`).trim(),
     originalName: String(constraint.originalName ?? constraint.name ?? `CHECK ${index + 1}`).trim(),
+    deleted: normalizeBoolean(constraint.deleted),
     columns: Array.isArray(constraint.columns)
       ? constraint.columns
           .map((column) => ({
@@ -110,11 +141,28 @@ function normalizeCheckConstraintPayload(constraint = {}, index = 0) {
     originalExpression: String(constraint.originalExpression ?? constraint.expression ?? "").trim(),
     editable: normalizeBoolean(constraint.editable),
     preserved: constraint.preserved === undefined ? true : normalizeBoolean(constraint.preserved),
+    columnId: String(constraint.columnId ?? "").trim(),
+    source: String(constraint.source ?? (constraint.originalExpression ? "detected" : "user")).trim(),
+    presetId: String(constraint.presetId ?? "").trim(),
+    presetFields:
+      constraint.presetFields && typeof constraint.presetFields === "object"
+        ? Object.fromEntries(
+            Object.entries(constraint.presetFields).map(([key, value]) => [key, String(value ?? "")])
+          )
+        : {},
   };
 }
 
 function normalizeDraftPayload(payload = {}) {
   const mode = String(payload.mode ?? "create").trim() === "edit" ? "edit" : "create";
+  const importRows = normalizeImportedRows(payload.importRows ?? payload.importedCsvRows);
+  const importSourceFileName = String(
+    payload.importSourceFileName ?? payload.importedCsvFileName ?? ""
+  ).trim();
+  const importDelimiter = String(payload.importDelimiter ?? payload.importedCsvDelimiter ?? "").trim();
+  const importFormat = normalizeImportFormat(
+    payload.importFormat ?? (importSourceFileName ? "csv" : "")
+  );
 
   return {
     mode,
@@ -137,13 +185,13 @@ function normalizeDraftPayload(payload = {}) {
     schemaWarnings: Array.isArray(payload.schemaWarnings) ? payload.schemaWarnings : [],
     warnings: Array.isArray(payload.warnings) ? payload.warnings : [],
     fillImportedRows: normalizeBoolean(payload.fillImportedRows),
-    importedCsvFileName: String(payload.importedCsvFileName ?? "").trim(),
-    importedCsvDelimiter: String(payload.importedCsvDelimiter ?? "").trim(),
-    importedCsvRows: Array.isArray(payload.importedCsvRows)
-      ? payload.importedCsvRows.map((row) =>
-          Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : []
-        )
-      : [],
+    importFormat,
+    importSourceFileName,
+    importDelimiter,
+    importRows,
+    importedCsvFileName: importSourceFileName,
+    importedCsvDelimiter: importDelimiter,
+    importedCsvRows: importRows,
     dirty: normalizeBoolean(payload.dirty),
   };
 }
@@ -290,9 +338,21 @@ function validateTableDesignerDraft(draft, { catalogTables = [], originalDraft =
     throw new ValidationError("Imported row fill is only available when creating a table.");
   }
 
-  if (draft.fillImportedRows && !draft.importedCsvRows.length) {
-    throw new ValidationError("Fill requires imported CSV rows.");
+  if (draft.fillImportedRows && !draft.importRows.length) {
+    throw new ValidationError("Fill requires imported rows.");
   }
+
+  (draft.checkConstraints ?? [])
+    .filter((constraint) => !constraint.deleted)
+    .forEach((constraint) => {
+      const label = constraint.name || "CHECK constraint";
+
+      if (!String(constraint.expression ?? "").trim()) {
+        throw new ValidationError(`${constraint.name || "CHECK constraint"} needs an expression.`);
+      }
+
+      assertSafeSqlFragment(constraint.expression, label, { allowEmpty: false });
+    });
 }
 
 module.exports = {

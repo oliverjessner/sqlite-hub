@@ -404,6 +404,13 @@ export function saveTableDesignerDraft(payload) {
   });
 }
 
+export function validateTableDesignerCheck(payload) {
+  return request("/api/table-designer/validate-check", {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export function getMediaTaggingState() {
   return request("/api/media-tagging");
 }
