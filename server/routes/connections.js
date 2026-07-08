@@ -140,6 +140,17 @@ function createConnectionsRouter({ connectionManager, importService, backupServi
   );
 
   router.get(
+    "/tags",
+    route((req, res) => {
+      res.json(
+        successResponse({
+          data: connectionManager.listConnectionTags(),
+        })
+      );
+    })
+  );
+
+  router.get(
     "/recent",
     route((req, res) => {
       res.json(
@@ -172,6 +183,7 @@ function createConnectionsRouter({ connectionManager, importService, backupServi
         readOnly: Boolean(req.body.readOnly),
         logoUpload: req.body.logoUpload ?? null,
         clearLogo: Boolean(req.body.clearLogo),
+        tags: Array.isArray(req.body.tags) ? req.body.tags : null,
       });
 
       res.json(

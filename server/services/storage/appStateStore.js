@@ -40,6 +40,7 @@ const CONNECTION_LOGO_DIRECTORY = "db_logos";
 const LEGACY_STATE_FILENAME = "app-state.json";
 const STATE_DATABASE_FILENAME = "sqlite-hub-state.db";
 const MAX_CONNECTION_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_CONNECTION_TAG_NAME_LENGTH = 40;
 const MAX_DOCUMENT_CONTENT_BYTES = 5 * 1024 * 1024;
 const MAX_DOCUMENT_FILENAME_LENGTH = 160;
 const QUERY_EXECUTION_SOURCES = new Set(["api", "cli", "user", "mcp"]);
@@ -251,6 +252,44 @@ const CONNECTION_LOGO_EXTENSION_BY_FILE_EXTENSION = {
   ".png": "png",
   ".webp": "webp",
 };
+
+function normalizeConnectionTagName(value) {
+  const normalizedName = String(value ?? "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .trim();
+
+  if (!normalizedName) {
+    throw new ValidationError("Tag name is required.");
+  }
+
+  if (normalizedName.length > MAX_CONNECTION_TAG_NAME_LENGTH) {
+    throw new ValidationError(
+      `Tag name must be ${MAX_CONNECTION_TAG_NAME_LENGTH} characters or fewer.`
+    );
+  }
+
+  return normalizedName;
+}
+
+function normalizeConnectionTagNames(values = []) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const namesByKey = new Map();
+
+  for (const value of values) {
+    const name = normalizeConnectionTagName(value);
+    const key = name.toLowerCase();
+
+    if (!namesByKey.has(key)) {
+      namesByKey.set(key, name);
+    }
+  }
+
+  return [...namesByKey.values()];
+}
+
 const MEDIA_TAGGING_CONFIG_FIELDS = [
   {
     column: "tag_table",
@@ -463,6 +502,29 @@ class AppStateStore {
 
       CREATE INDEX IF NOT EXISTS idx_recent_connections_last_opened
       ON recent_connections(lastOpenedAt DESC, id ASC);
+
+      CREATE TABLE IF NOT EXISTS tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS connection_tags (
+        connectionId TEXT NOT NULL,
+        tagId INTEGER NOT NULL,
+        PRIMARY KEY (connectionId, tagId),
+        FOREIGN KEY (connectionId)
+          REFERENCES recent_connections(id)
+          ON UPDATE CASCADE
+          ON DELETE CASCADE,
+        FOREIGN KEY (tagId)
+          REFERENCES tags(id)
+          ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_connection_tags_tag
+      ON connection_tags(tagId, connectionId);
 
       CREATE TABLE IF NOT EXISTS query_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2917,8 +2979,142 @@ class AppStateStore {
     });
   }
 
-  getRecentConnections() {
+  decorateConnectionTag(row = {}) {
+    return {
+      id: Number(row.id),
+      name: String(row.name ?? ""),
+      createdAt: row.createdAt ?? null,
+      updatedAt: row.updatedAt ?? null,
+      ...(row.connectionCount === undefined
+        ? {}
+        : { connectionCount: Number(row.connectionCount ?? 0) }),
+    };
+  }
+
+  getConnectionTagsByConnectionIds(connectionIds = []) {
+    const ids = connectionIds
+      .map((id) => String(id ?? "").trim())
+      .filter(Boolean)
+      .filter((id, index, values) => values.indexOf(id) === index);
+
+    if (!ids.length) {
+      return new Map();
+    }
+
+    const placeholders = ids.map(() => "?").join(", ");
+    const rows = this.db
+      .prepare(
+        `
+          SELECT
+            ct.connectionId,
+            t.id,
+            t.name,
+            t.createdAt,
+            t.updatedAt
+          FROM connection_tags ct
+          INNER JOIN tags t
+            ON t.id = ct.tagId
+          WHERE ct.connectionId IN (${placeholders})
+          ORDER BY t.name COLLATE NOCASE ASC, t.id ASC
+        `
+      )
+      .all(...ids);
+    const tagsByConnectionId = new Map(ids.map((id) => [id, []]));
+
+    for (const row of rows) {
+      tagsByConnectionId
+        .get(row.connectionId)
+        ?.push(this.decorateConnectionTag(row));
+    }
+
+    return tagsByConnectionId;
+  }
+
+  getConnectionTags(connectionId) {
+    const normalizedConnectionId = String(connectionId ?? "").trim();
+
+    if (!normalizedConnectionId) {
+      return [];
+    }
+
+    return this.getConnectionTagsByConnectionIds([normalizedConnectionId]).get(
+      normalizedConnectionId
+    ) ?? [];
+  }
+
+  listConnectionTags() {
     return this.db
+      .prepare(
+        `
+          SELECT
+            t.id,
+            t.name,
+            t.createdAt,
+            t.updatedAt,
+            COUNT(ct.connectionId) AS connectionCount
+          FROM tags t
+          LEFT JOIN connection_tags ct
+            ON ct.tagId = t.id
+          GROUP BY t.id
+          ORDER BY t.name COLLATE NOCASE ASC, t.id ASC
+        `
+      )
+      .all()
+      .map((row) => this.decorateConnectionTag(row));
+  }
+
+  getConnectionTagById(tagId) {
+    const row = this.db
+      .prepare(
+        `
+          SELECT id, name, createdAt, updatedAt
+          FROM tags
+          WHERE id = ?
+        `
+      )
+      .get(Number(tagId));
+
+    return row ? this.decorateConnectionTag(row) : null;
+  }
+
+  getConnectionTagByName(name) {
+    const normalizedName = normalizeConnectionTagName(name);
+    const row = this.db
+      .prepare(
+        `
+          SELECT id, name, createdAt, updatedAt
+          FROM tags
+          WHERE name = ? COLLATE NOCASE
+        `
+      )
+      .get(normalizedName);
+
+    return row ? this.decorateConnectionTag(row) : null;
+  }
+
+  getOrCreateConnectionTag(name) {
+    const normalizedName = normalizeConnectionTagName(name);
+    const existingTag = this.getConnectionTagByName(normalizedName);
+
+    if (existingTag) {
+      return existingTag;
+    }
+
+    const timestamp = new Date().toISOString();
+    const result = this.db
+      .prepare(
+        `
+          INSERT INTO tags (name, createdAt, updatedAt)
+          VALUES (?, ?, ?)
+        `
+      )
+      .run(normalizedName, timestamp, timestamp);
+
+    return this.getConnectionTagById(result.lastInsertRowid);
+  }
+
+  getRecentConnections() {
+    const rows = this.db
       .prepare(`
         SELECT
           id,
@@ -2932,8 +3128,108 @@ class AppStateStore {
         FROM recent_connections
         ORDER BY lastOpenedAt DESC, id ASC
       `)
-      .all()
-      .map((connection) => this.decorateConnection(connection));
+      .all();
+    const tagsByConnectionId = this.getConnectionTagsByConnectionIds(
+      rows.map((connection) => connection.id)
+    );
+
+    return rows.map((connection) =>
+      this.decorateConnection(
+        connection,
+        tagsByConnectionId.get(connection.id) ?? []
+      )
+    );
+  }
+
+  getRecentConnection(id) {
+    return (
+      this.getRecentConnections().find(
+        (connection) => connection.id === String(id ?? "").trim()
+      ) ?? null
+    );
+  }
+
+  assertRecentConnectionExists(id) {
+    const normalizedConnectionId = String(id ?? "").trim();
+
+    if (!normalizedConnectionId) {
+      throw new ValidationError("Connection id is required.");
+    }
+
+    const row = this.db
+      .prepare("SELECT id FROM recent_connections WHERE id = ?")
+      .get(normalizedConnectionId);
+
+    if (!row) {
+      throw new NotFoundError(`Recent connection not found: ${normalizedConnectionId}`);
+    }
+
+    return normalizedConnectionId;
+  }
+
+  setConnectionTags(connectionId, tagNames = []) {
+    const normalizedConnectionId = this.assertRecentConnectionExists(connectionId);
+    const normalizedTagNames = normalizeConnectionTagNames(tagNames);
+
+    this.db.transaction(() => {
+      this.db
+        .prepare("DELETE FROM connection_tags WHERE connectionId = ?")
+        .run(normalizedConnectionId);
+
+      for (const tagName of normalizedTagNames) {
+        const tag = this.getOrCreateConnectionTag(tagName);
+
+        this.db
+          .prepare(
+            `
+              INSERT OR IGNORE INTO connection_tags (connectionId, tagId)
+              VALUES (?, ?)
+            `
+          )
+          .run(normalizedConnectionId, tag.id);
+      }
+    })();
+
+    return this.getConnectionTags(normalizedConnectionId);
+  }
+
+  addConnectionTag(connectionId, tagName) {
+    const normalizedConnectionId = this.assertRecentConnectionExists(connectionId);
+    const tag = this.getOrCreateConnectionTag(tagName);
+
+    this.db
+      .prepare(
+        `
+          INSERT OR IGNORE INTO connection_tags (connectionId, tagId)
+          VALUES (?, ?)
+        `
+      )
+      .run(normalizedConnectionId, tag.id);
+
+    return this.getConnectionTags(normalizedConnectionId);
+  }
+
+  removeConnectionTag(connectionId, tagId) {
+    const normalizedConnectionId = this.assertRecentConnectionExists(connectionId);
+
+    this.db
+      .prepare(
+        `
+          DELETE FROM connection_tags
+          WHERE connectionId = ? AND tagId = ?
+        `
+      )
+      .run(normalizedConnectionId, Number(tagId));
+
+    return this.getConnectionTags(normalizedConnectionId);
+  }
+
+  deleteConnectionTag(tagId) {
+    const result = this.db
+      .prepare("DELETE FROM tags WHERE id = ?")
+      .run(Number(tagId));
+
+    return result.changes > 0;
   }
 
   upsertRecentConnection(connection, options = {}) {
@@ -3121,7 +3417,7 @@ class AppStateStore {
     );
   }
 
-  decorateConnection(connection = {}) {
+  decorateConnection(connection = {}, tags = []) {
     const logoPath = this.normalizeLogoPath(connection.logoPath);
 
     return {
@@ -3129,6 +3425,7 @@ class AppStateStore {
       readOnly: Boolean(connection.readOnly),
       logoPath,
       logoUrl: this.getConnectionLogoUrl(logoPath),
+      tags: Array.isArray(tags) ? tags : [],
     };
   }
 
@@ -3696,4 +3993,6 @@ class AppStateStore {
 module.exports = {
   AppStateStore,
   DEFAULT_STATE,
+  MAX_CONNECTION_TAG_NAME_LENGTH,
+  normalizeConnectionTagName,
 };

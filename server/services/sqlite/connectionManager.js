@@ -216,7 +216,7 @@ class ConnectionManager {
     return recentConnections;
   }
 
-  updateRecentConnection(id, { filePath, label, readOnly = false, logoUpload = null, clearLogo = false }) {
+  updateRecentConnection(id, { filePath, label, readOnly = false, logoUpload = null, clearLogo = false, tags = null }) {
     const recentConnections = this.appStateStore.getRecentConnections();
     const existing = recentConnections.find((connection) => connection.id === id);
 
@@ -245,7 +245,7 @@ class ConnectionManager {
 
     try {
       if (this.current?.id === id) {
-        return this.openConnection({
+        const connection = this.openConnection({
           filePath: resolvedPath,
           label: normalizedLabel,
           id,
@@ -253,6 +253,15 @@ class ConnectionManager {
           readOnly: normalizedReadOnly,
           logoPath: nextLogoPath,
         });
+
+        if (Array.isArray(tags)) {
+          this.appStateStore.setConnectionTags(id, tags);
+        }
+
+        return {
+          ...connection,
+          tags: this.appStateStore.getConnectionTags(id),
+        };
       }
 
       const db = this.openRawDatabase(resolvedPath, {
@@ -275,9 +284,14 @@ class ConnectionManager {
 
       this.appStateStore.updateRecentConnection(id, () => nextConnection);
 
+      if (Array.isArray(tags)) {
+        this.appStateStore.setConnectionTags(id, tags);
+      }
+
       return {
         ...nextConnection,
         logoUrl: this.appStateStore.getConnectionLogoUrl(nextLogoPath),
+        tags: this.appStateStore.getConnectionTags(id),
         isActive: false,
       };
     } catch (error) {
@@ -295,8 +309,11 @@ class ConnectionManager {
     }
 
     const { db, ...connection } = this.current;
+    const storedConnection = this.appStateStore.getRecentConnection(connection.id);
+
     return {
       ...connection,
+      tags: storedConnection?.tags ?? [],
       isActive: true,
     };
   }
@@ -332,6 +349,10 @@ class ConnectionManager {
       ...connection,
       isActive: connection.id === activeId,
     }));
+  }
+
+  listConnectionTags() {
+    return this.appStateStore.listConnectionTags();
   }
 
   getStatus() {

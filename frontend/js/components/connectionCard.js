@@ -7,6 +7,40 @@ import {
 import { renderStatusBadge } from "./badges.js";
 import { renderConnectionLogo } from "./connectionLogo.js";
 
+function renderConnectionTags(tags = []) {
+  const normalizedTags = Array.isArray(tags)
+    ? tags.filter((tag) => String(tag?.name ?? "").trim())
+    : [];
+
+  if (!normalizedTags.length) {
+    return "";
+  }
+
+  const visibleTags = normalizedTags.slice(0, 2);
+  const hiddenCount = Math.max(0, normalizedTags.length - visibleTags.length);
+  const title = normalizedTags.map((tag) => tag.name).join(", ");
+
+  return [
+    '<div class="connection-user-tags" title="',
+    escapeHtml(title),
+    '">',
+    visibleTags
+      .map(
+        (tag) =>
+          '<span class="connection-user-tag">' +
+          escapeHtml(tag.name) +
+          "</span>"
+      )
+      .join(""),
+    hiddenCount
+      ? '<span class="connection-user-tag connection-user-tag--more">+' +
+        escapeHtml(String(hiddenCount)) +
+        "</span>"
+      : "",
+    "</div>",
+  ].join("");
+}
+
 export function renderConnectionCard(connection, activeConnectionId) {
   const isActive = activeConnectionId
     ? connection.id === activeConnectionId
@@ -46,6 +80,7 @@ export function renderConnectionCard(connection, activeConnectionId) {
     '">',
     escapeHtml(truncateMiddle(connection.path, 68)),
     "</p>",
+    renderConnectionTags(connection.tags),
     '<div class="mt-8 grid grid-cols-2 gap-4">',
     '<div><div class="mb-1 text-[9px] font-mono uppercase text-outline-variant">Allocation</div><div class="text-xs font-bold text-on-surface">',
     escapeHtml(formatBytes(connection.sizeBytes)),

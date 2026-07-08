@@ -35,6 +35,7 @@ import {
     clearEditorRowSelection,
     clearEditorResults,
     clearQueryHistorySelection,
+    clearConnectionTagFilters,
     closeModal,
     checkSettingsAppVersion,
     dismissMediaTaggingIssue,
@@ -97,6 +98,7 @@ import {
     selectQueryHistoryItem,
     selectStructureEntry,
     setDocumentsSearchQuery,
+    setConnectionSearchQuery,
     setLogFilter,
     setLogSearchInput,
     applyLogSearch,
@@ -167,7 +169,9 @@ import {
     submitOpenConnection,
     subscribe,
     toggleCurrentMediaTagSelection,
+    toggleConnectionTagFilter,
     toggleQueryHistorySavedState,
+    addEditConnectionTag,
     updateCurrentMediaTaggingField,
     updateCurrentMediaTaggingTagFormField,
     updateCopyColumnModalFormatField,
@@ -181,6 +185,8 @@ import {
     updateGenerateDataMapping,
     updateGenerateDataModal,
     updateGenerateTypesModal,
+    updateEditConnectionTagQuery,
+    removeEditConnectionTag,
     addCurrentTableDesignerColumn,
     applyCurrentMediaTaggingSelection,
     removeCurrentTableDesignerColumn,
@@ -2680,6 +2686,16 @@ async function handleAction(actionNode) {
         case 'edit-connection':
             openEditConnectionModal(actionNode.dataset.connectionId);
             return;
+        case 'clear-connection-tag-filters':
+            clearConnectionTagFilters();
+            return;
+        case 'add-edit-connection-tag':
+        case 'create-edit-connection-tag':
+            addEditConnectionTag(actionNode.dataset.tagName);
+            return;
+        case 'remove-edit-connection-tag':
+            removeEditConnectionTag(actionNode.dataset.tagName);
+            return;
         case 'choose-open-database-path': {
             const labelNode = actionNode.querySelector('[data-open-database-path-button-label]');
 
@@ -3256,6 +3272,35 @@ function canApplyMediaTaggingShortcut(state) {
     );
 }
 
+function isEditableShortcutTarget(target) {
+    if (!(target instanceof HTMLElement)) {
+        return false;
+    }
+
+    if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+    ) {
+        return true;
+    }
+
+    if (target.isContentEditable) {
+        return true;
+    }
+
+    if (
+        target.closest(
+            '[contenteditable="true"], [data-bind="current-query"], [data-sql-highlight="true"], .query-editor-input',
+        )
+    ) {
+        return true;
+    }
+
+    const role = String(target.getAttribute('role') ?? '').trim().toLowerCase();
+    return role === 'textbox' || role === 'searchbox' || role === 'combobox';
+}
+
 document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target : null;
 
@@ -3340,6 +3385,27 @@ document.addEventListener('keydown', event => {
         return;
     }
 
+    if (
+        event.key === '/' &&
+        !event.shiftKey &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.defaultPrevented &&
+        state.route.name === 'connections' &&
+        !isEditableShortcutTarget(target)
+    ) {
+        const searchInput = document.querySelector('[data-connections-search-input]');
+
+        if (searchInput instanceof HTMLInputElement) {
+            event.preventDefault();
+            searchInput.focus({ preventScroll: true });
+            searchInput.select();
+        }
+
+        return;
+    }
+
     // Handle Enter key in tag form fields to trigger create tag
     if (
         event.key === 'Enter' &&
@@ -3356,6 +3422,34 @@ document.addEventListener('keydown', event => {
         if (createButton && !(createButton instanceof HTMLButtonElement && createButton.disabled)) {
             createButton?.click();
         }
+        return;
+    }
+
+    if (
+        event.key === 'Enter' &&
+        !event.shiftKey &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.defaultPrevented &&
+        target instanceof HTMLElement &&
+        target.dataset.bind === 'edit-connection-tag-query'
+    ) {
+        event.preventDefault();
+        const tagQuery = target instanceof HTMLInputElement ? target.value.trim() : '';
+
+        if (!tagQuery) {
+            return;
+        }
+
+        const primaryTagAction =
+            document.querySelector('[data-edit-connection-tag-primary]') ??
+            document.querySelector('[data-action="add-edit-connection-tag"]');
+
+        if (primaryTagAction instanceof HTMLElement) {
+            primaryTagAction.click();
+        }
+
         return;
     }
 
@@ -3393,6 +3487,16 @@ document.addEventListener('keydown', event => {
     }
 
     if (event.key !== 'Escape' || event.defaultPrevented) {
+        return;
+    }
+
+    if (target instanceof HTMLInputElement && target.dataset.bind === 'connections-search') {
+        event.preventDefault();
+
+        if (!clearInputForEscape(target)) {
+            target.blur();
+        }
+
         return;
     }
 
@@ -3535,6 +3639,16 @@ document.addEventListener('input', event => {
 
     if (bindNode.dataset.bind === 'logs-search') {
         setLogSearchInput(bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'connections-search') {
+        setConnectionSearchQuery(bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'edit-connection-tag-query') {
+        updateEditConnectionTagQuery(bindNode.value);
         return;
     }
 
@@ -3706,6 +3820,12 @@ document.addEventListener('change', event => {
 
     if (bindNode.dataset.bind === 'data-filter-operator') {
         void setDataFilterOperator(bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'connection-tag-filter') {
+        const nextValue = bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox' ? bindNode.checked : false;
+        toggleConnectionTagFilter(bindNode.dataset.tagId, nextValue);
         return;
     }
 
@@ -3913,6 +4033,7 @@ document.addEventListener('submit', async event => {
                 readOnly: formData.get('readOnly') === 'on',
                 clearLogo: formData.get('clearLogo') === 'on' && !logoUpload,
                 logoUpload,
+                tags: formData.getAll('tags').map(value => String(value ?? '')),
             });
 
             return;

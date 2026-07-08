@@ -39,6 +39,22 @@ Follow these rules exactly when creating or modifying UI controls.
 - Prefer migration over local override.
 - Prefer shared component updates over per-view fixes.
 
+## Multi-Pick Dropdowns
+
+- Use this pattern for compact filters where the user can select multiple values, such as `TAGS`.
+- Use `details.dropdown-button` with a `standard-button dropdown-button__toggle` summary.
+- The toggle must have a fixed or bounded responsive width; it must not grow with long selected values.
+- The toggle label must be wrapped in its own label span with `min-width: 0`, `overflow: hidden`, `text-overflow: ellipsis`, and `white-space: nowrap`.
+- The toggle must keep a mandatory left inset. Do not rely only on inherited button padding; set explicit left padding on the pattern class when needed.
+- The chevron must remain visible for all selected labels.
+- Put the full selected label in `title` when the visible label may truncate.
+- The dropdown panel must have visible inner padding. Header text, checkbox rows, and footer actions must never touch the panel edge.
+- Multi-pick rows must use a stable grid: checkbox, truncated label, optional count.
+- Row labels should follow the existing technical style: mono, uppercase, compact, and muted until hover or active state.
+- Counts belong on the right edge and must not compress the label into the checkbox.
+- The reset action belongs in a compact footer row, visually secondary to the selected values.
+- Do not use native `<select multiple>` for this app UI.
+
 ## UX behavior
 
 - All drawers must close with `Escape`.

@@ -39,6 +39,10 @@ function createChartsFetchMock() {
       return jsonResponse({ data: activeConnection });
     }
 
+    if (method === "GET" && url === "/api/connections/tags") {
+      return jsonResponse({ data: [] });
+    }
+
     if (method === "GET" && url === "/api/settings") {
       return jsonResponse({
         data: {},

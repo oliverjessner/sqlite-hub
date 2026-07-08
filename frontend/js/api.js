@@ -68,6 +68,10 @@ export function getRecentConnections() {
   return request("/api/connections/recent");
 }
 
+export function getConnectionTags() {
+  return request("/api/connections/tags");
+}
+
 export function getActiveConnection() {
   return request("/api/connections/active");
 }

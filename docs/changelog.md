@@ -1,3 +1,8 @@
+# v2.1.0
+
+- tags for databases
+- search for database
+
 # v2.0.0
 
 - mcp

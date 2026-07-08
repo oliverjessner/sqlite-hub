@@ -28,6 +28,10 @@ import {
     getDefaultSyntheticOptions,
     normalizeSyntheticGeneratorType,
 } from './utils/syntheticData.js';
+import {
+    normalizeConnectionTagKey,
+    normalizeConnectionTagName,
+} from './utils/connectionRegistry.js';
 
 const listeners = new Set();
 const DEFAULT_SETTINGS = {
@@ -296,6 +300,9 @@ const state = {
     connections: {
         recent: [],
         active: null,
+        tags: [],
+        searchQuery: '',
+        selectedTagIds: [],
         loading: false,
         backupLoading: false,
         error: null,
@@ -1531,13 +1538,17 @@ async function refreshConnectionsState() {
     emitChange();
 
     try {
-        const [recentResponse, activeResponse] = await Promise.all([
+        const [recentResponse, activeResponse, tagsResponse] = await Promise.all([
             api.getRecentConnections(),
             api.getActiveConnection(),
+            api.getConnectionTags(),
         ]);
 
         state.connections.recent = recentResponse.data ?? [];
         state.connections.active = activeResponse.data ?? null;
+        state.connections.tags = tagsResponse.data ?? [];
+        const availableTagIds = new Set(state.connections.tags.map(tag => String(tag.id)));
+        state.connections.selectedTagIds = state.connections.selectedTagIds.filter(tagId => availableTagIds.has(String(tagId)));
         state.connections.error = null;
     } catch (error) {
         state.connections.error = normalizeError(error);
@@ -3961,6 +3972,136 @@ export async function submitDeleteDocumentConfirmation() {
     return result;
 }
 
+function normalizeConnectionTagDrafts(tags = []) {
+    const draftsByKey = new Map();
+
+    for (const tag of tags) {
+        const name = normalizeConnectionTagName(tag?.name ?? tag);
+
+        if (!name) {
+            continue;
+        }
+
+        const key = normalizeConnectionTagKey(name);
+
+        if (!draftsByKey.has(key)) {
+            draftsByKey.set(key, {
+                id: tag?.id ?? null,
+                name,
+            });
+        }
+    }
+
+    return [...draftsByKey.values()];
+}
+
+function findKnownConnectionTagByName(name) {
+    const key = normalizeConnectionTagKey(name);
+
+    return state.connections.tags.find(tag => normalizeConnectionTagKey(tag.name) === key) ?? null;
+}
+
+export function setConnectionSearchQuery(query) {
+    const nextQuery = String(query ?? '');
+
+    if (state.connections.searchQuery === nextQuery) {
+        return;
+    }
+
+    state.connections.searchQuery = nextQuery;
+    emitChange();
+}
+
+export function toggleConnectionTagFilter(tagId, selected) {
+    const normalizedTagId = String(tagId ?? '').trim();
+
+    if (!normalizedTagId) {
+        return;
+    }
+
+    const currentIds = new Set(state.connections.selectedTagIds.map(id => String(id)));
+
+    if (selected) {
+        currentIds.add(normalizedTagId);
+    } else {
+        currentIds.delete(normalizedTagId);
+    }
+
+    const nextTagIds = [...currentIds];
+
+    if (JSON.stringify(nextTagIds) === JSON.stringify(state.connections.selectedTagIds)) {
+        return;
+    }
+
+    state.connections.selectedTagIds = nextTagIds;
+    emitChange();
+}
+
+export function clearConnectionTagFilters() {
+    if (!state.connections.selectedTagIds.length) {
+        return;
+    }
+
+    state.connections.selectedTagIds = [];
+    emitChange();
+}
+
+export function updateEditConnectionTagQuery(query) {
+    if (state.modal?.kind !== 'edit-connection') {
+        return;
+    }
+
+    state.modal.tagQuery = String(query ?? '');
+    state.modal.tagError = null;
+    emitChange();
+}
+
+export function addEditConnectionTag(tagName) {
+    if (state.modal?.kind !== 'edit-connection') {
+        return;
+    }
+
+    const name = normalizeConnectionTagName(tagName);
+
+    if (!name) {
+        state.modal.tagError = 'Tag names must be 1-40 characters.';
+        emitChange();
+        return;
+    }
+
+    const currentTags = normalizeConnectionTagDrafts(state.modal.assignedTags);
+    const key = normalizeConnectionTagKey(name);
+
+    if (currentTags.some(tag => normalizeConnectionTagKey(tag.name) === key)) {
+        state.modal.tagQuery = '';
+        state.modal.tagError = null;
+        emitChange();
+        return;
+    }
+
+    const knownTag = findKnownConnectionTagByName(name);
+    state.modal.assignedTags = [
+        ...currentTags,
+        knownTag ? { id: knownTag.id, name: knownTag.name } : { id: null, name },
+    ];
+    state.modal.tagQuery = '';
+    state.modal.tagError = null;
+    emitChange();
+}
+
+export function removeEditConnectionTag(tagName) {
+    if (state.modal?.kind !== 'edit-connection') {
+        return;
+    }
+
+    const key = normalizeConnectionTagKey(tagName);
+    state.modal.assignedTags = normalizeConnectionTagDrafts(state.modal.assignedTags).filter(
+        tag => normalizeConnectionTagKey(tag.name) !== key,
+    );
+    state.modal.tagError = null;
+    emitChange();
+}
+
 export function openEditConnectionModal(id) {
     const connection = state.connections.recent.find(entry => entry.id === id);
 
@@ -3973,6 +4114,9 @@ export function openEditConnectionModal(id) {
         kind: 'edit-connection',
         connectionId: connection.id,
         connection,
+        assignedTags: normalizeConnectionTagDrafts(connection.tags),
+        tagQuery: '',
+        tagError: null,
         error: null,
         submitting: false,
     };

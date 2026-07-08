@@ -18,6 +18,11 @@ import {
     MEDIA_TAGGING_DEFAULT_TAG_TABLE_SQL,
 } from '../lib/mediaTaggingDefaults.js';
 import { SYNTHETIC_GENERATOR_TYPES, getSyntheticGeneratorLabel } from '../utils/syntheticData.js';
+import {
+    MAX_CONNECTION_TAG_NAME_LENGTH,
+    normalizeConnectionTagKey,
+    normalizeConnectionTagName,
+} from '../utils/connectionRegistry.js';
 
 function renderField({ label, name, type = 'text', placeholder = '', value = '' }) {
     return `
@@ -192,7 +197,114 @@ export function renderOpenConnectionForm(modal) {
   `;
 }
 
-function renderEditConnectionForm(modal) {
+function renderEditConnectionTagEditor(modal, state) {
+    const assignedTags = Array.isArray(modal.assignedTags) ? modal.assignedTags : [];
+    const assignedKeys = new Set(assignedTags.map(tag => normalizeConnectionTagKey(tag.name)));
+    const tagQuery = String(modal.tagQuery ?? '');
+    const normalizedQuery = normalizeConnectionTagName(tagQuery);
+    const queryKey = normalizeConnectionTagKey(normalizedQuery);
+    const matchingTags = (state.connections.tags ?? [])
+        .filter(tag => !assignedKeys.has(normalizeConnectionTagKey(tag.name)))
+        .filter(tag => {
+            if (!queryKey) {
+                return true;
+            }
+
+            return normalizeConnectionTagKey(tag.name).includes(queryKey);
+        })
+        .slice(0, 6);
+    const exactMatch = (state.connections.tags ?? []).some(tag => normalizeConnectionTagKey(tag.name) === queryKey);
+    const canCreate = Boolean(normalizedQuery && !exactMatch);
+    const assignedMarkup = assignedTags.length
+        ? assignedTags
+              .map(
+                  tag => `
+                    <span class="connection-edit-tag-chip">
+                      <span class="connection-edit-tag-chip__label">${escapeHtml(tag.name)}</span>
+                      <button
+                        aria-label="Remove ${escapeHtml(tag.name)} tag"
+                        class="connection-edit-tag-chip__remove"
+                        data-action="remove-edit-connection-tag"
+                        data-tag-name="${escapeHtml(tag.name)}"
+                        type="button"
+                        title="Remove tag"
+                      >
+                        <span aria-hidden="true">×</span>
+                      </button>
+                      <input name="tags" type="hidden" value="${escapeHtml(tag.name)}" />
+                    </span>
+                  `,
+              )
+              .join('')
+        : '<div class="connection-edit-tags__empty">NO_TAGS_ASSIGNED</div>';
+    const matchMarkup = matchingTags
+        .map(
+            tag => `
+              <button
+                class="connection-edit-tag-option"
+                data-action="add-edit-connection-tag"
+                data-tag-name="${escapeHtml(tag.name)}"
+                type="button"
+              >
+                <span>${escapeHtml(tag.name)}</span>
+                <span>${escapeHtml(String(tag.connectionCount ?? 0))}</span>
+              </button>
+            `,
+        )
+        .join('');
+
+    return `
+      <div class="connection-edit-tags">
+        <div class="connection-edit-tags__label">Tags</div>
+        <div class="connection-edit-tags__assigned">
+          ${assignedMarkup}
+        </div>
+        <label class="connection-edit-tags__input-shell">
+          <span class="sr-only">Add or create tag</span>
+          <input
+            autocomplete="off"
+            class="control-input connection-edit-tags__input"
+            data-bind="edit-connection-tag-query"
+            maxlength="${MAX_CONNECTION_TAG_NAME_LENGTH}"
+            placeholder="ADD_OR_CREATE_TAG..."
+            spellcheck="false"
+            type="text"
+            value="${escapeHtml(tagQuery)}"
+          />
+        </label>
+        ${
+            modal.tagError
+                ? `<div class="connection-edit-tags__error">${escapeHtml(modal.tagError)}</div>`
+                : ''
+        }
+        <div class="connection-edit-tag-options">
+          ${
+              matchMarkup
+                  ? `<div class="connection-edit-tag-options__section">MATCHING_TAGS</div>${matchMarkup}`
+                  : ''
+          }
+          ${
+              canCreate
+                  ? `
+                    <div class="connection-edit-tag-options__section">CREATE_NEW</div>
+                    <button
+                      class="connection-edit-tag-option connection-edit-tag-option--create"
+                      data-action="create-edit-connection-tag"
+                      data-edit-connection-tag-primary
+                      data-tag-name="${escapeHtml(normalizedQuery)}"
+                      type="button"
+                    >
+                      <span>CREATE "${escapeHtml(normalizedQuery)}"</span>
+                    </button>
+                  `
+                  : ''
+          }
+        </div>
+      </div>
+    `;
+}
+
+function renderEditConnectionForm(modal, state) {
     const connection = modal.connection ?? {};
 
     return `
@@ -246,6 +358,7 @@ function renderEditConnectionForm(modal) {
           checked: Boolean(connection.readOnly),
           text: 'Open read-only',
       })}
+      ${renderEditConnectionTagEditor(modal, state)}
       ${renderError(modal.error)}
       <div class="flex items-center justify-between gap-3 pt-2">
         <button
@@ -2346,7 +2459,7 @@ export function renderModal(state) {
         'edit-connection': {
             eyebrow: 'Registry // Update saved SQLite target',
             title: 'Edit Connection',
-            body: renderEditConnectionForm(modal),
+            body: renderEditConnectionForm(modal, state),
         },
         'delete-row': {
             eyebrow: 'Mutation // Confirm row deletion',

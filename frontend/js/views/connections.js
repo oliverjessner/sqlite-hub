@@ -1,6 +1,10 @@
 import { renderConnectionCard } from '../components/connectionCard.js';
 import { renderPageHeader } from '../components/pageHeader.js';
 import { escapeHtml } from '../utils/format.js';
+import {
+    filterConnections,
+    getConnectionTagCounts,
+} from '../utils/connectionRegistry.js';
 
 function renderConnectionsActionButton({
     label,
@@ -28,7 +32,88 @@ function renderConnectionsActionButton({
   `;
 }
 
-function renderConnectionsBody(state) {
+function renderConnectionsToolbar(state, visibleCount) {
+    if (!state.connections.recent.length) {
+        return '';
+    }
+
+    const searchQuery = state.connections.searchQuery ?? '';
+    const selectedTagIds = new Set((state.connections.selectedTagIds ?? []).map(tagId => String(tagId)));
+    const selectedTags = (state.connections.tags ?? []).filter(tag => selectedTagIds.has(String(tag.id)));
+    const tagCounts = getConnectionTagCounts(state.connections.recent);
+    const filterLabel =
+        selectedTags.length === 0
+            ? 'TAGS: ALL'
+            : selectedTags.length === 1
+              ? `TAGS: ${selectedTags[0].name}`
+              : `TAGS: ${selectedTags.length}`;
+    const tagRows = (state.connections.tags ?? [])
+        .map(tag => {
+            const tagId = String(tag.id);
+            const isSelected = selectedTagIds.has(tagId);
+
+            return `
+              <label class="connection-tag-filter-row">
+                <input
+                  ${isSelected ? 'checked' : ''}
+                  data-bind="connection-tag-filter"
+                  data-tag-id="${escapeHtml(tagId)}"
+                  type="checkbox"
+                />
+                <span class="connection-tag-filter-row__name">${escapeHtml(tag.name)}</span>
+                <span class="connection-tag-filter-row__count">${escapeHtml(String(tagCounts.get(tagId) ?? tag.connectionCount ?? 0))}</span>
+              </label>
+            `;
+        })
+        .join('');
+
+    return `
+    <div class="connection-registry-toolbar" data-connection-registry-toolbar>
+      <label class="connection-registry-search">
+        <span class="sr-only">Search connections</span>
+        <span class="material-symbols-outlined connection-registry-search__icon" aria-hidden="true">search</span>
+        <input
+          autocomplete="off"
+          class="connection-registry-search__input"
+          data-bind="connections-search"
+          data-connections-search-input
+          placeholder="SEARCH_CONNECTIONS..."
+          spellcheck="false"
+          type="search"
+          value="${escapeHtml(searchQuery)}"
+        />
+        <span class="connection-registry-search__shortcut" aria-hidden="true">/</span>
+      </label>
+      <details class="dropdown-button dropdown-button--align-right connection-tag-filter" data-dropdown-button>
+        <summary class="standard-button dropdown-button__toggle connection-tag-filter__toggle" title="${escapeHtml(filterLabel)}">
+          <span class="connection-tag-filter__toggle-label">${escapeHtml(filterLabel)}</span>
+          <span class="material-symbols-outlined dropdown-button__chevron" aria-hidden="true">expand_more</span>
+        </summary>
+        <div class="dropdown-button__panel connection-tag-filter__panel">
+          <div class="connection-tag-filter__header">
+            <span>FILTER_BY_TAG</span>
+            <span>${escapeHtml(String(visibleCount))}</span>
+          </div>
+          ${
+              tagRows
+                  ? `<div class="connection-tag-filter__list custom-scrollbar">${tagRows}</div>`
+                  : '<div class="connection-tag-filter__empty">NO_TAGS_AVAILABLE</div>'
+          }
+          <button
+            class="standard-button connection-tag-filter__reset"
+            data-action="clear-connection-tag-filters"
+            type="button"
+            ${selectedTagIds.size ? '' : 'disabled'}
+          >
+            RESET_FILTER
+          </button>
+        </div>
+      </details>
+    </div>
+  `;
+}
+
+function renderConnectionsBody(state, visibleConnections) {
     if (state.connections.loading && !state.connections.recent.length) {
         return `
       <div class="flex min-h-[280px] items-center justify-center border border-outline-variant/10 bg-surface-container-low">
@@ -78,9 +163,19 @@ function renderConnectionsBody(state) {
     `;
     }
 
+    if (!visibleConnections.length) {
+        return `
+      <div class="connection-filter-empty">
+        <span class="material-symbols-outlined connection-filter-empty__icon">search_off</span>
+        <p class="connection-filter-empty__title">NO_CONNECTIONS_FOUND</p>
+        <p class="connection-filter-empty__hint">TRY_ANOTHER_SEARCH_OR_FILTER</p>
+      </div>
+    `;
+    }
+
     return `
     <div class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-      ${state.connections.recent
+      ${visibleConnections
           .map(connection => renderConnectionCard(connection, state.connections.active?.id))
           .join('')}
     </div>
@@ -88,6 +183,10 @@ function renderConnectionsBody(state) {
 }
 
 export function renderConnectionsView(state) {
+    const visibleConnections = filterConnections(state.connections.recent, {
+        searchQuery: state.connections.searchQuery,
+        selectedTagIds: state.connections.selectedTagIds,
+    });
     const actions = `
     ${
         state.connections.active
@@ -122,7 +221,8 @@ export function renderConnectionsView(state) {
               subtitle: `Registry // Recent_Targets: ${String(state.connections.recent.length).padStart(2, '0')}`,
               actions,
           })}
-          ${renderConnectionsBody(state)}
+          ${renderConnectionsToolbar(state, visibleConnections.length)}
+          ${renderConnectionsBody(state, visibleConnections)}
         </div>
       </section>
     `,
