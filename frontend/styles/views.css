@@ -552,27 +552,72 @@
     margin-top: calc(var(--spacing-1) * 1.5);
 }
 
-.document-markdown-task-list {
+.document-markdown-preview .document-markdown-task-list {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-2);
     list-style: none;
+    margin: var(--spacing-6) 0;
     padding-left: 0;
 }
 
-.document-markdown-task-label {
-    align-items: flex-start;
+.document-markdown-preview .document-markdown-task-item {
+    list-style: none;
+    margin: 0;
+}
+
+.document-markdown-preview .document-markdown-task-item::marker {
+    content: '';
+}
+
+.document-markdown-preview .document-markdown-task-label {
+    align-items: center;
     cursor: pointer;
     display: flex;
-    gap: var(--spacing-4);
+    gap: var(--spacing-6);
+    min-height: 1.75rem;
 }
 
-.document-markdown-task-checkbox {
-    accent-color: var(--color-primary-container);
-    margin-top: calc(var(--spacing-1) * 1.5);
+.document-markdown-preview .document-markdown-task-checkbox {
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: var(--color-surface-container);
+    background-image: none;
+    border: 1px solid rgb(var(--rgb-outline) / 0.34);
+    border-radius: 0;
+    color: var(--color-primary-container);
+    cursor: pointer;
+    flex: 0 0 auto;
+    height: 1.05rem;
+    margin: 0;
+    position: relative;
+    width: 1.05rem;
 }
 
-.document-markdown-task-item.is-checked .document-markdown-task-text {
+.document-markdown-preview .document-markdown-task-checkbox:checked {
+    background-color: var(--color-primary-container);
+    background-image: none;
+    border-color: var(--color-primary-container);
+}
+
+.document-markdown-preview .document-markdown-task-checkbox:checked::after {
+    border-bottom: 2px solid var(--color-surface-lowest);
+    border-right: 2px solid var(--color-surface-lowest);
+    content: '';
+    height: 0.55rem;
+    left: 0.34rem;
+    position: absolute;
+    top: 0.15rem;
+    transform: rotate(45deg);
+    width: 0.3rem;
+}
+
+.document-markdown-preview .document-markdown-task-checkbox:focus-visible {
+    outline: 2px solid rgb(var(--rgb-primary) / 0.55);
+    outline-offset: 2px;
+}
+
+.document-markdown-preview .document-markdown-task-item.is-checked .document-markdown-task-text {
     color: rgb(var(--rgb-on-surface-variant) / 0.64);
     text-decoration: line-through;
 }
