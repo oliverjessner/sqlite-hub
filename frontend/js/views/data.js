@@ -32,6 +32,33 @@ function getFilteredTables(tables, searchQuery) {
     return tables.filter(table => table.name.toLowerCase().includes(normalizedSearch));
 }
 
+export function buildDataSidebarSignature(state) {
+    if (state?.route?.name !== 'data') {
+        return '';
+    }
+
+    const dataBrowser = state.dataBrowser ?? {};
+    const tablesVisible = dataBrowser.tablesVisible !== false;
+
+    if (!tablesVisible) {
+        return 'data-sidebar:hidden';
+    }
+
+    const tables = dataBrowser.tables ?? [];
+
+    return JSON.stringify({
+        loadingEmpty: Boolean(dataBrowser.loading && !tables.length),
+        tableSearchQuery: dataBrowser.tableSearchQuery ?? '',
+        tables: tables.map(table => [
+            table.name,
+            table.columnCount ?? 0,
+            Boolean(table.isVirtual),
+            Boolean(table.isShadow),
+            table.tableKind ?? '',
+        ]),
+    });
+}
+
 function renderDataTableSearch(state) {
     return `
       <label class="table-designer-sidebar__search">
@@ -92,13 +119,15 @@ function renderTableList(state) {
                       : 'border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-high'
               }"
               data-action="navigate"
+              data-data-table-item
+              data-data-table-name="${escapeHtml(table.name)}"
               data-to="/data/${encodeURIComponent(table.name)}"
               type="button"
             >
               <div class="flex min-w-0 items-center gap-2">
                 <div class="table-designer-sidebar__item-name min-w-0 flex-1 ${
                     table.name === activeName ? 'is-active' : ''
-                }">
+                }" data-data-table-name-label>
                   ${escapeHtml(table.name)}
                 </div>
                 ${renderVirtualTableBadge(table)}
@@ -688,12 +717,12 @@ export function renderDataView(state) {
 
     return {
         main: `
-      <section class="view-surface min-h-full bg-surface-container flex h-full min-h-0 flex-col overflow-hidden">
-        <div class="data-view-grid ${tablesVisible ? 'data-view-grid--with-subnavi' : ''}">
+      <section class="view-surface min-h-full bg-surface-container flex h-full min-h-0 flex-col overflow-hidden" data-data-view>
+        <div class="data-view-grid ${tablesVisible ? 'data-view-grid--with-subnavi' : ''}" data-data-view-grid>
           ${
               tablesVisible
                   ? `
-                    <aside class="data-view__sidebar subnavi-panel">
+                    <aside class="data-view__sidebar subnavi-panel" data-data-sidebar>
                       <div class="subnavi-header">
                         <div>
                           <div class="subnavi-header-title">Tables</div>
@@ -708,7 +737,7 @@ export function renderDataView(state) {
                   `
                   : ''
           }
-          <section class="flex min-h-0 flex-col overflow-hidden">
+          <section class="flex min-h-0 flex-col overflow-hidden" data-data-workspace>
             ${renderWorkspaceHeader(state)}
             ${renderWorkspaceError(state)}
             ${renderTableSurface(state)}

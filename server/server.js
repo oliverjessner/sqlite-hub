@@ -129,13 +129,13 @@ app.use(
     nativeFileDialogService,
   })
 );
-app.use("/api/backups", createBackupsRouter({ backupService }));
+app.use("/api/backups", createBackupsRouter({ backupService, appStateStore, connectionManager }));
 app.use("/api/db", createOverviewRouter({ overviewService }));
 app.use("/api/sql", createSqlRouter({ appStateStore, connectionManager, sqlExecutor }));
 app.use("/api/charts", createChartsRouter({ appStateStore, connectionManager, sqlExecutor }));
 app.use("/api/structure", createStructureRouter({ structureService }));
-app.use("/api/data", createDataRouter({ dataBrowserService }));
-app.use("/api/table-designer", createTableDesignerRouter({ tableDesignerService }));
+app.use("/api/data", createDataRouter({ dataBrowserService, appStateStore, connectionManager }));
+app.use("/api/table-designer", createTableDesignerRouter({ tableDesignerService, appStateStore, connectionManager }));
 app.use("/api/media-tagging", createMediaTaggingRouter({ mediaTaggingService }));
 app.use(
   "/api/settings",

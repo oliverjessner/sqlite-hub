@@ -106,7 +106,8 @@ test("MCP tool registration exposes the initial SQLite Hub tools", (t) => {
   assert.ok(names.includes("list_connections"));
   assert.ok(names.includes("get_schema"));
   assert.ok(names.includes("run_readonly_query"));
-  assert.ok(names.includes("get_stored_queries"));
+  assert.ok(names.includes("get_saved_queries"));
+  assert.equal(names.includes("get_stored_queries"), false);
   assert.ok(names.includes("execute_stored_query"));
   assert.ok(names.includes("create_backup"));
   assert.ok(names.includes("generate_types"));
@@ -168,9 +169,9 @@ test("MCP run_readonly_query blocks mutating SQL", async (t) => {
   }
 });
 
-test("MCP stored query tools list and execute saved SQL Editor queries", async (t) => {
+test("MCP saved query tools list and execute saved SQL Editor queries", async (t) => {
   const { toolService, connection, store, statusService } = createFixture(t);
-  const queries = await toolService.callTool("get_stored_queries", {
+  const queries = await toolService.callTool("get_saved_queries", {
     databaseId: connection.id,
   });
 

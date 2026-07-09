@@ -10,6 +10,7 @@ const {
 } = require("../services/appInfoService");
 const { McpStatusService } = require("../services/mcpStatusService");
 const { MCP_TOOL_DEFINITIONS } = require("../services/mcpToolService");
+const { recordUserAction } = require("../utils/userActionLog");
 
 function getActiveTokenContext({ connectionManager, tokenService }) {
   const activeDatabase = connectionManager?.getActiveConnection?.() ?? null;
@@ -161,6 +162,20 @@ function createSettingsRouter({ appStateStore, connectionManager, tokenService, 
       const activeDatabase = requireActiveDatabase(connectionManager);
       const token = tokenService.createToken(activeDatabase.id, req.body?.name);
 
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "settings.api-token.create",
+        targetType: "api-token",
+        targetName: token.name ?? token.id,
+        databaseKey: activeDatabase.id,
+        metadata: {
+          apiTokenId: token.id,
+          apiTokenName: token.name ?? null,
+          tokenPrefix: token.tokenPrefix ?? null,
+        },
+      });
+
       res.status(201).json(
         successResponse({
           message: "API token created. It will only be shown once.",
@@ -175,7 +190,24 @@ function createSettingsRouter({ appStateStore, connectionManager, tokenService, 
     "/api-tokens/:tokenId",
     route((req, res) => {
       const activeDatabase = requireActiveDatabase(connectionManager);
+      const token = tokenService
+        .listTokens(activeDatabase.id)
+        .find((candidate) => candidate.id === req.params.tokenId);
       const result = tokenService.deleteToken(activeDatabase.id, req.params.tokenId);
+
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "settings.api-token.delete",
+        targetType: "api-token",
+        targetName: token?.name ?? req.params.tokenId,
+        databaseKey: activeDatabase.id,
+        metadata: {
+          apiTokenId: req.params.tokenId,
+          apiTokenName: token?.name ?? null,
+          tokenPrefix: token?.tokenPrefix ?? null,
+        },
+      });
 
       res.json(
         successResponse({

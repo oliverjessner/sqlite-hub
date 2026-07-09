@@ -47,6 +47,9 @@ import {
     exportCurrentQueryFormat,
     getState,
     initializeApp,
+    insertCurrentDocumentDatabaseInfo,
+    insertCurrentDocumentSavedQueries,
+    insertCurrentDocumentTimeMetadata,
     insertMarkdownIntoLastOpenDocument,
     loadMoreQueryHistory,
     loadMoreLogs,
@@ -67,6 +70,7 @@ import {
     openDeleteQueryChartModal,
     openDataExportModal,
     openGenerateDataModal,
+    openCreateDocumentFolderModal,
     openDeleteDocumentModal,
     openQueryExportModal,
     openDataRowByIdentity,
@@ -76,6 +80,7 @@ import {
     openEditQueryChartModal,
     openDocumentInsertNoteModal,
     openDocumentInsertTableModal,
+    openDocumentInsertTableDefinitionModal,
     preserveCurrentDataRowSelectionForReload,
     openDataRowUpdatePreview,
     openEditorRowUpdatePreview,
@@ -135,6 +140,8 @@ import {
     submitDeleteDocumentConfirmation,
     submitDocumentInsertNote,
     submitDocumentInsertTable,
+    submitDocumentInsertTableDefinition,
+    submitCreateDocumentFolder,
     submitCreateMediaTaggingTagTable,
     submitCreateMediaTaggingMappingTable,
     submitDeleteQueryHistoryConfirmation,
@@ -171,6 +178,7 @@ import {
     storeCopyColumnPreferences,
     submitCreateConnection,
     createCurrentMediaTag,
+    moveCurrentDocumentToFolder,
     submitDeleteRowConfirmation,
     submitEditConnection,
     submitImportSql,
@@ -184,6 +192,9 @@ import {
     updateCurrentMediaTaggingTagFormField,
     updateCopyColumnModalFormatField,
     updateCurrentDocumentDraftField,
+    updateDocumentTableDefinitionOption,
+    updateDocumentTableDefinitionSampleRowCount,
+    updateDocumentTableDefinitionSelection,
     updateDocumentInsertQuerySelection,
     updateCurrentQueryChartDraftConfigField,
     updateCurrentQueryChartDraftField,
@@ -202,7 +213,7 @@ import {
 import { renderChartsDetail, renderChartsView } from './views/charts.js';
 import { renderBackupsView } from './views/backups.js';
 import { renderConnectionsView } from './views/connections.js';
-import { renderDataRowEditorPanel, renderDataView } from './views/data.js';
+import { buildDataSidebarSignature, renderDataRowEditorPanel, renderDataView } from './views/data.js';
 import { renderDocumentsView } from './views/documents.js';
 import { renderEditorView } from './views/editor.js';
 import { renderLandingView } from './views/landing.js';
@@ -274,6 +285,7 @@ let lastRenderedToastMarkup = '';
 let lastRenderedChartsHistorySignature = '';
 let lastRenderedChartsDetailSignature = '';
 let lastRenderedChartsCardSignature = '';
+let lastRenderedDataSidebarSignature = '';
 let lastRenderedPanelOpen = false;
 let lastRenderedLockedRoute = false;
 let pendingNewTableDesignerAutofocus = false;
@@ -281,8 +293,9 @@ let pendingQueryEditorFocus = false;
 let pendingMediaTaggingTagSearchFocus = false;
 let documentAutosaveTimer = null;
 let pendingDocumentAutosaveId = null;
+let lastDocumentEditorInsertionRange = null;
 
-const DOCUMENT_AUTOSAVE_DELAY_MS = 5000;
+const DOCUMENT_AUTOSAVE_DELAY_MS = 2000;
 
 const APP_TITLE = 'SQLite Hub';
 const TABLE_DESIGNER_IMPORT_FORMATS = {
@@ -648,6 +661,81 @@ function syncDataRowSelectionUi(selectedRowIndex = null) {
     lastRenderedPanelMarkup = panelMarkup;
     lastRenderedPanelOpen = panelOpen;
     return true;
+}
+
+function syncDataSidebarActiveTable(state) {
+    if (state.route.name !== 'data') {
+        return false;
+    }
+
+    const sidebarNode = shellRefs.view.querySelector('[data-data-sidebar]');
+
+    if (!(sidebarNode instanceof HTMLElement)) {
+        return state.dataBrowser.tablesVisible === false;
+    }
+
+    const selectedTableName = String(state.dataBrowser.selectedTable ?? '');
+
+    for (const itemNode of sidebarNode.querySelectorAll('[data-data-table-item]')) {
+        if (!(itemNode instanceof HTMLElement)) {
+            continue;
+        }
+
+        const isActive = itemNode.dataset.dataTableName === selectedTableName;
+
+        itemNode.classList.toggle('is-active', isActive);
+        itemNode.classList.toggle('border-primary-container/30', isActive);
+        itemNode.classList.toggle('bg-surface-container-high', isActive);
+        itemNode.classList.toggle('border-outline-variant/10', !isActive);
+        itemNode.classList.toggle('bg-surface-container-lowest', !isActive);
+        itemNode.classList.toggle('hover:bg-surface-container-high', !isActive);
+
+        const labelNode = itemNode.querySelector('[data-data-table-name-label]');
+
+        if (labelNode instanceof HTMLElement) {
+            labelNode.classList.toggle('is-active', isActive);
+        }
+    }
+
+    return true;
+}
+
+function renderDataMainIntoScratch(state) {
+    const scratch = document.createElement('div');
+
+    replaceChildrenFromRenderedMarkup(scratch, renderDataView(state).main);
+    return scratch;
+}
+
+function patchDataMainUi(state, { tableHorizontalScrollState = null } = {}) {
+    const dataView = shellRefs.view.querySelector('[data-data-view]');
+
+    if (!(dataView instanceof HTMLElement)) {
+        return false;
+    }
+
+    const currentWorkspace = dataView.querySelector('[data-data-workspace]');
+    const currentSidebar = dataView.querySelector('[data-data-sidebar]');
+    const scratch = renderDataMainIntoScratch(state);
+    const nextWorkspace = scratch.querySelector('[data-data-workspace]');
+    const nextSidebar = scratch.querySelector('[data-data-sidebar]');
+
+    if (
+        !(currentWorkspace instanceof HTMLElement) ||
+        !(nextWorkspace instanceof HTMLElement) ||
+        Boolean(currentSidebar) !== Boolean(nextSidebar)
+    ) {
+        return false;
+    }
+
+    currentWorkspace.replaceWith(nextWorkspace);
+    restoreTableHorizontalScrollState({
+        snapshot: tableHorizontalScrollState,
+        routeName: state.route.name,
+        scrollNodes: nextWorkspace.querySelectorAll('[data-table-horizontal-scroll]'),
+    });
+
+    return syncDataSidebarActiveTable(state);
 }
 
 function syncQueryHistoryUi(historyId) {
@@ -1124,6 +1212,71 @@ function patchLogsTableUi(state) {
     return true;
 }
 
+function normalizeDocumentsTextPatchMarkup(markup) {
+    return String(markup ?? '')
+        .replace(
+            /(<span\b[^>]*data-document-save-state=")(?:saved|unsaved)("[^>]*>)[\s\S]*?(<\/span>)/g,
+            '$1__document_save_state__$2__document_save_state__$3',
+        )
+        .replace(
+            /(<span\b[^>]*data-document-list-meta\b[^>]*>)[\s\S]*?(<\/span>)/g,
+            '$1__document_list_meta__$2',
+        );
+}
+
+function renderDocumentsMainIntoScratch(state) {
+    const scratch = document.createElement('div');
+
+    replaceChildrenFromRenderedMarkup(scratch, renderDocumentsView(state).main);
+    return scratch;
+}
+
+function patchDocumentsTextNodes(selector, scratch) {
+    const currentNodes = shellRefs.view.querySelectorAll(selector);
+    const nextNodes = scratch.querySelectorAll(selector);
+
+    if (currentNodes.length !== nextNodes.length) {
+        return false;
+    }
+
+    for (let index = 0; index < currentNodes.length; index += 1) {
+        const currentNode = currentNodes[index];
+        const nextNode = nextNodes[index];
+
+        if (!(currentNode instanceof HTMLElement) || !(nextNode instanceof HTMLElement)) {
+            return false;
+        }
+
+        currentNode.textContent = nextNode.textContent;
+
+        if (selector === '[data-document-save-state]') {
+            currentNode.dataset.documentSaveState = nextNode.dataset.documentSaveState ?? '';
+        }
+    }
+
+    return true;
+}
+
+function patchDocumentsTextOnlyUi(state, nextMainMarkup) {
+    if (lastRenderedRouteName !== 'documents' || state.route.name !== 'documents') {
+        return false;
+    }
+
+    const previousComparable = normalizeDocumentsTextPatchMarkup(lastRenderedMainMarkup);
+    const nextComparable = normalizeDocumentsTextPatchMarkup(nextMainMarkup);
+
+    if (previousComparable !== nextComparable) {
+        return false;
+    }
+
+    const scratch = renderDocumentsMainIntoScratch(state);
+
+    return (
+        patchDocumentsTextNodes('[data-document-save-state]', scratch) &&
+        patchDocumentsTextNodes('[data-document-list-meta]', scratch)
+    );
+}
+
 function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -1433,6 +1586,29 @@ function focusMediaTaggingTagSearchInput() {
     return true;
 }
 
+function focusModalAutofocusElement() {
+    const element = shellRefs.modal.querySelector('[autofocus]');
+
+    if (
+        !(
+            element instanceof HTMLInputElement ||
+            element instanceof HTMLTextAreaElement ||
+            element instanceof HTMLSelectElement ||
+            element instanceof HTMLButtonElement
+        )
+    ) {
+        return false;
+    }
+
+    element.focus({ preventScroll: true });
+
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        element.setSelectionRange(element.value.length, element.value.length);
+    }
+
+    return true;
+}
+
 function syncSidebarActiveRoute(routeName) {
     if (!isMediaTaggingRouteName(routeName)) {
         return false;
@@ -1560,6 +1736,7 @@ function renderApp(state) {
     const chartsHistorySignature = buildChartsHistorySignature(state);
     const chartsDetailSignature = buildChartsDetailSignature(state);
     const chartsCardSignature = buildChartsCardSignature(state);
+    const dataSidebarSignature = buildDataSidebarSignature(state);
     const isLockedRoute = [
         'editor',
         'editorResults',
@@ -1583,6 +1760,7 @@ function renderApp(state) {
     const chartsHistoryChanged = chartsHistorySignature !== lastRenderedChartsHistorySignature;
     const chartsDetailChanged = chartsDetailSignature !== lastRenderedChartsDetailSignature;
     const chartsCardsChanged = chartsCardSignature !== lastRenderedChartsCardSignature;
+    const dataSidebarChanged = dataSidebarSignature !== lastRenderedDataSidebarSignature;
     const panelOpenChanged = panelOpen !== lastRenderedPanelOpen;
     const lockedRouteChanged = isLockedRoute !== lastRenderedLockedRoute;
     const shellMarkupUnchanged =
@@ -1623,8 +1801,15 @@ function renderApp(state) {
 
     const canPatchChartsMain = mainChanged && previousRouteName === 'charts' && state.route.name === 'charts';
     const canPatchLogsMain = mainChanged && previousRouteName === 'logs' && state.route.name === 'logs';
+    const canPatchDocumentsMain = mainChanged && previousRouteName === 'documents' && state.route.name === 'documents';
+    const canPatchDataMain =
+        mainChanged && previousRouteName === 'data' && state.route.name === 'data' && !dataSidebarChanged;
     let mainPatched = false;
     let preservedChartsDom = false;
+
+    if (canPatchDataMain) {
+        mainPatched = patchDataMainUi(state, { tableHorizontalScrollState });
+    }
 
     if (canPatchChartsMain) {
         const historyPatched = !chartsHistoryChanged || patchChartsHistoryUi(state);
@@ -1650,6 +1835,10 @@ function renderApp(state) {
 
     if (!mainPatched && canPatchLogsMain) {
         mainPatched = patchLogsTableUi(state);
+    }
+
+    if (!mainPatched && canPatchDocumentsMain) {
+        mainPatched = patchDocumentsTextOnlyUi(state, main);
     }
 
     if (mainChanged) {
@@ -1731,6 +1920,8 @@ function renderApp(state) {
         if (focusNewTableDesignerNameField()) {
             pendingNewTableDesignerAutofocus = false;
         }
+    } else if (modalChanged && state.modal && focusModalAutofocusElement()) {
+        // Modal content is inserted dynamically, so native autofocus is not reliable.
     } else {
         restoreFocusedInputState(focusedInput);
     }
@@ -1747,6 +1938,7 @@ function renderApp(state) {
     lastRenderedChartsHistorySignature = chartsHistorySignature;
     lastRenderedChartsDetailSignature = chartsDetailSignature;
     lastRenderedChartsCardSignature = chartsCardSignature;
+    lastRenderedDataSidebarSignature = dataSidebarSignature;
     lastRenderedPanelOpen = panelOpen;
     lastRenderedLockedRoute = isLockedRoute;
 
@@ -2436,16 +2628,60 @@ function exportCurrentDocumentMarkdown() {
     showToast(`Document "${filename}" exported.`, 'success');
 }
 
+function isDocumentEditorInput(node) {
+    return (
+        node instanceof HTMLTextAreaElement &&
+        node.classList.contains('documents-editor-input') &&
+        node.dataset.bind === 'document-field' &&
+        node.dataset.field === 'content'
+    );
+}
+
+function rememberDocumentEditorInsertionRange(textarea) {
+    if (!isDocumentEditorInput(textarea)) {
+        return null;
+    }
+
+    const documents = getState().documents;
+    const range = {
+        documentId: String(documents.selectedId ?? ''),
+        start: textarea.selectionStart,
+        end: textarea.selectionEnd,
+    };
+
+    lastDocumentEditorInsertionRange = range;
+    return range;
+}
+
+function rememberDocumentEditorInsertionRangeFromTarget(target) {
+    if (isDocumentEditorInput(target)) {
+        rememberDocumentEditorInsertionRange(target);
+    }
+}
+
 function getCurrentDocumentEditorInsertionRange() {
     const textarea = document.querySelector('.documents-editor-input');
 
-    if (!(textarea instanceof HTMLTextAreaElement)) {
+    if (isDocumentEditorInput(textarea)) {
+        const range = rememberDocumentEditorInsertionRange(textarea);
+
+        return range
+            ? {
+                  start: range.start,
+                  end: range.end,
+              }
+            : null;
+    }
+
+    const documents = getState().documents;
+
+    if (String(lastDocumentEditorInsertionRange?.documentId ?? '') !== String(documents.selectedId ?? '')) {
         return null;
     }
 
     return {
-        start: textarea.selectionStart,
-        end: textarea.selectionEnd,
+        start: lastDocumentEditorInsertionRange.start,
+        end: lastDocumentEditorInsertionRange.end,
     };
 }
 
@@ -2678,6 +2914,12 @@ async function handleAction(actionNode) {
             }
             return;
         }
+        case 'open-create-document-folder-modal':
+            openCreateDocumentFolderModal();
+            return;
+        case 'move-document-to-folder':
+            await moveCurrentDocumentToFolder(actionNode.dataset.folderId || null);
+            return;
         case 'select-document': {
             const documentId = String(actionNode.dataset.documentId ?? '').trim();
 
@@ -2700,6 +2942,33 @@ async function handleAction(actionNode) {
         case 'open-document-insert-note-modal':
             await openDocumentInsertNoteModal(getCurrentDocumentEditorInsertionRange());
             return;
+        case 'open-document-insert-table-definition-modal':
+            await openDocumentInsertTableDefinitionModal(getCurrentDocumentEditorInsertionRange());
+            return;
+        case 'insert-document-saved-queries': {
+            const inserted = await insertCurrentDocumentSavedQueries(getCurrentDocumentEditorInsertionRange());
+
+            if (inserted) {
+                scheduleDocumentAutosave(getState().documents.selectedId);
+            }
+            return;
+        }
+        case 'insert-document-time-metadata': {
+            const inserted = await insertCurrentDocumentTimeMetadata(getCurrentDocumentEditorInsertionRange());
+
+            if (inserted) {
+                scheduleDocumentAutosave(getState().documents.selectedId);
+            }
+            return;
+        }
+        case 'insert-document-database-info': {
+            const inserted = await insertCurrentDocumentDatabaseInfo(getCurrentDocumentEditorInsertionRange());
+
+            if (inserted) {
+                scheduleDocumentAutosave(getState().documents.selectedId);
+            }
+            return;
+        }
         case 'import-document-markdown': {
             const fileInput = document.querySelector('[data-bind="document-import-file"]');
 
@@ -2719,8 +2988,9 @@ async function handleAction(actionNode) {
             toggleDocumentsPane(actionNode.dataset.pane);
             return;
         case 'toggle-document-todo':
-            clearDocumentAutosaveTimer();
-            await toggleCurrentDocumentTodo(actionNode.dataset.lineIndex);
+            if (toggleCurrentDocumentTodo(actionNode.dataset.lineIndex)) {
+                scheduleDocumentAutosave(getState().documents.selectedId);
+            }
             return;
         case 'open-create-query-chart-modal':
             openCreateQueryChartModal();
@@ -3448,6 +3718,30 @@ document.addEventListener('contextmenu', event => {
     openCopyColumnMenu(headerNode);
 });
 
+document.addEventListener('focusin', event => {
+    rememberDocumentEditorInsertionRangeFromTarget(event.target);
+});
+
+document.addEventListener('keyup', event => {
+    rememberDocumentEditorInsertionRangeFromTarget(event.target);
+});
+
+document.addEventListener('pointerup', event => {
+    rememberDocumentEditorInsertionRangeFromTarget(event.target);
+});
+
+document.addEventListener(
+    'select',
+    event => {
+        rememberDocumentEditorInsertionRangeFromTarget(event.target);
+    },
+    true,
+);
+
+document.addEventListener('selectionchange', () => {
+    rememberDocumentEditorInsertionRangeFromTarget(document.activeElement);
+});
+
 document.addEventListener('keydown', event => {
     const target = event.target;
     const state = getState();
@@ -3714,6 +4008,7 @@ document.addEventListener('input', event => {
     }
 
     if (bindNode.dataset.bind === 'document-field') {
+        rememberDocumentEditorInsertionRangeFromTarget(bindNode);
         updateCurrentDocumentDraftField(bindNode.dataset.field, bindNode.value);
         scheduleDocumentAutosave(getState().documents.selectedId);
         return;
@@ -3974,6 +4269,21 @@ document.addEventListener('change', event => {
         return;
     }
 
+    if (bindNode.dataset.bind === 'document-table-definition-select') {
+        updateDocumentTableDefinitionSelection(bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'document-table-definition-option') {
+        updateDocumentTableDefinitionOption(bindNode.dataset.option, bindNode.checked);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'document-table-definition-row-count') {
+        updateDocumentTableDefinitionSampleRowCount(bindNode.value);
+        return;
+    }
+
     if (bindNode.dataset.bind === 'table-designer-field') {
         if (bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox') {
             updateCurrentTableDesignerField(bindNode.dataset.field, bindNode.checked);
@@ -4188,8 +4498,20 @@ document.addEventListener('submit', async event => {
         case 'delete-api-token-confirm':
             await submitDeleteSettingsApiTokenConfirmation();
             return;
+        case 'create-document-folder': {
+            await submitCreateDocumentFolder(String(formData.get('name') ?? ''));
+            return;
+        }
         case 'document-insert-table': {
             const inserted = await submitDocumentInsertTable();
+
+            if (inserted) {
+                scheduleDocumentAutosave(getState().documents.selectedId);
+            }
+            return;
+        }
+        case 'document-insert-table-definition': {
+            const inserted = await submitDocumentInsertTableDefinition();
 
             if (inserted) {
                 scheduleDocumentAutosave(getState().documents.selectedId);

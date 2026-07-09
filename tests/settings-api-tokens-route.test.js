@@ -80,6 +80,17 @@ test("settings routes create and delete tokens for the active database", async (
   assert.equal(created.metadata.apiTokens[0].callCount, 0);
   assert.equal(created.metadata.apiTokens[0].lastCallAt, null);
 
+  const createLog = store
+    .listAccessLogs({ source: "user", databaseKey: connection.id })
+    .items.find((entry) => entry.action === "settings.api-token.create");
+
+  assert.equal(createLog.targetType, "api-token");
+  assert.equal(createLog.targetName, "Settings token");
+  assert.equal(createLog.metadata.apiTokenId, created.data.id);
+  assert.equal(createLog.metadata.apiTokenName, "Settings token");
+  assert.equal(createLog.metadata.tokenPrefix, created.data.tokenPrefix);
+  assert.equal(createLog.metadata.token, undefined);
+
   store.recordAccessLog({
     source: "api",
     action: "api.databases.get",
@@ -137,6 +148,17 @@ test("settings routes create and delete tokens for the active database", async (
   assert.equal(deleteResponse.status, 200);
   assert.deepEqual(deleted.data, { id: created.data.id, deleted: true });
   assert.equal(deleted.metadata.apiTokens.length, 0);
+
+  const deleteLog = store
+    .listAccessLogs({ source: "user", databaseKey: connection.id })
+    .items.find((entry) => entry.action === "settings.api-token.delete");
+
+  assert.equal(deleteLog.targetType, "api-token");
+  assert.equal(deleteLog.targetName, "Settings token");
+  assert.equal(deleteLog.metadata.apiTokenId, created.data.id);
+  assert.equal(deleteLog.metadata.apiTokenName, "Settings token");
+  assert.equal(deleteLog.metadata.tokenPrefix, created.data.tokenPrefix);
+  assert.equal(deleteLog.metadata.token, undefined);
 
   const versionResponse = await fetch(`${baseUrl}/version-check`);
   const versionCheck = await versionResponse.json();

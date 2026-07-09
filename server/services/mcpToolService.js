@@ -77,7 +77,7 @@ const MCP_TOOL_DEFINITIONS = [
     ),
   },
   {
-    name: "get_stored_queries",
+    name: "get_saved_queries",
     description: "List saved SQL Editor queries for a database. This is the MCP equivalent of `sqlite-hub --database:name --queries`.",
     inputSchema: objectSchema({
       databaseId: databaseIdProperty(),
@@ -164,6 +164,7 @@ function redactConnection(connection = {}) {
     label: connection.label,
     readOnly: Boolean(connection.readOnly),
     sizeBytes: connection.sizeBytes ?? null,
+    createdAt: connection.createdAt ?? null,
     lastOpenedAt: connection.lastOpenedAt ?? null,
     lastModifiedAt: connection.lastModifiedAt ?? null,
   };
@@ -176,6 +177,7 @@ function redactOverview(overview = {}) {
     file: {
       filename: overview.file?.filename ?? overview.connection?.label ?? null,
       sizeBytes: overview.file?.sizeBytes ?? null,
+      createdAt: overview.file?.createdAt ?? null,
       lastModifiedAt: overview.file?.lastModifiedAt ?? null,
     },
   };
@@ -249,7 +251,7 @@ class McpToolService {
             executedBy: "mcp",
             maxRows: args.maxRows,
           });
-        case "get_stored_queries":
+        case "get_saved_queries":
           return this.databaseService.listSavedQueries(args.databaseId, args.limit);
         case "execute_stored_query":
           return this.databaseService.executeSavedQuery(args.databaseId, args.queryName, {

@@ -1,7 +1,8 @@
 const express = require("express");
 const { route, successResponse } = require("../utils/errors");
+const { recordUserAction } = require("../utils/userActionLog");
 
-function createBackupsRouter({ backupService }) {
+function createBackupsRouter({ backupService, appStateStore = null, connectionManager = null }) {
   const router = express.Router();
 
   router.get(
@@ -48,6 +49,19 @@ function createBackupsRouter({ backupService }) {
         notes: req.body?.notes,
         type: req.body?.type,
         context: req.body?.context,
+      });
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "backup.create",
+        targetType: "backup",
+        targetName: backup.name ?? backup.id,
+        metadata: {
+          backupId: backup.id,
+          status: backup.status ?? null,
+          type: backup.type ?? req.body?.type ?? null,
+          sizeBytes: backup.sizeBytes ?? null,
+        },
       });
 
       res.json(
@@ -97,6 +111,18 @@ function createBackupsRouter({ backupService }) {
     "/:backupId/restore",
     route(async (req, res) => {
       const backup = await backupService.restoreBackup(req.params.backupId);
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "backup.restore",
+        targetType: "backup",
+        targetName: backup.name ?? req.params.backupId,
+        metadata: {
+          backupId: backup.id ?? req.params.backupId,
+          status: backup.status ?? null,
+          lastRestoredAt: backup.lastRestoredAt ?? null,
+        },
+      });
       res.json(
         successResponse({
           message: "Backup restored.",
@@ -110,6 +136,16 @@ function createBackupsRouter({ backupService }) {
     "/:backupId",
     route((req, res) => {
       const backup = backupService.deleteBackup(req.params.backupId);
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "backup.delete",
+        targetType: "backup",
+        targetName: backup.name ?? req.params.backupId,
+        metadata: {
+          backupId: backup.id ?? req.params.backupId,
+        },
+      });
       res.json(
         successResponse({
           message: "Backup deleted.",

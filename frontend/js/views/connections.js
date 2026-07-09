@@ -1,10 +1,7 @@
 import { renderConnectionCard } from '../components/connectionCard.js';
 import { renderPageHeader } from '../components/pageHeader.js';
 import { escapeHtml } from '../utils/format.js';
-import {
-    filterConnections,
-    getConnectionTagCounts,
-} from '../utils/connectionRegistry.js';
+import { filterConnections, getConnectionTagCounts } from '../utils/connectionRegistry.js';
 
 function renderConnectionsActionButton({
     label,
@@ -175,9 +172,7 @@ function renderConnectionsBody(state, visibleConnections) {
 
     return `
     <div class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-      ${visibleConnections
-          .map(connection => renderConnectionCard(connection, state.connections.active?.id))
-          .join('')}
+      ${visibleConnections.map(connection => renderConnectionCard(connection, state.connections.active?.id)).join('')}
     </div>
   `;
 }
@@ -191,7 +186,7 @@ export function renderConnectionsView(state) {
     ${
         state.connections.active
             ? renderConnectionsActionButton({
-                  label: state.connections.backupLoading ? 'Creating Backup...' : 'Create Backup',
+                  label: state.connections.backupLoading ? 'Create Backup...' : 'CreateBackup',
                   icon: 'inventory_2',
                   action: 'create-backup',
                   disabled: state.connections.backupLoading,

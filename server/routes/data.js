@@ -1,7 +1,8 @@
 const express = require("express");
 const { route, successResponse } = require("../utils/errors");
+const { recordUserAction } = require("../utils/userActionLog");
 
-function createDataRouter({ dataBrowserService }) {
+function createDataRouter({ dataBrowserService, appStateStore = null, connectionManager = null }) {
   const router = express.Router();
 
   router.get(
@@ -90,6 +91,16 @@ function createDataRouter({ dataBrowserService }) {
     "/:tableName/generate/insert",
     route((req, res) => {
       const data = dataBrowserService.insertSyntheticRows(req.params.tableName, req.body ?? {});
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "data.generate.insert",
+        targetType: "table",
+        targetName: data.tableName ?? req.params.tableName,
+        metadata: {
+          insertedRowCount: data.insertedRowCount ?? null,
+        },
+      });
 
       res.json(
         successResponse({
@@ -105,6 +116,13 @@ function createDataRouter({ dataBrowserService }) {
     "/:tableName/rows",
     route((req, res) => {
       const data = dataBrowserService.updateTableRow(req.params.tableName, req.body ?? {});
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "data.row.update",
+        targetType: "table",
+        targetName: data.tableName ?? req.params.tableName,
+      });
 
       res.json(
         successResponse({
@@ -133,6 +151,16 @@ function createDataRouter({ dataBrowserService }) {
     "/:tableName/rows",
     route((req, res) => {
       const data = dataBrowserService.deleteTableRow(req.params.tableName, req.body ?? {});
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "data.row.delete",
+        targetType: "table",
+        targetName: data.tableName ?? req.params.tableName,
+        metadata: {
+          affectedRowCount: data.affectedRowCount ?? null,
+        },
+      });
 
       res.json(
         successResponse({

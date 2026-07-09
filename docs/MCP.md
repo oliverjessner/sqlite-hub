@@ -58,7 +58,7 @@ Read-only and safe tools:
 - `get_indexes`: return all indexes or indexes for one table.
 - `get_foreign_keys`: return all foreign keys or foreign keys for one table.
 - `run_readonly_query`: execute a read-only `SELECT`, `PRAGMA`, or `EXPLAIN` query.
-- `get_stored_queries`: list saved SQL Editor queries for a database, equivalent to `sqlite-hub --database:name --queries`.
+- `get_saved_queries`: list saved SQL Editor queries for a database, equivalent to `sqlite-hub --database:name --queries`.
 - `explain_query_plan`: run `EXPLAIN QUERY PLAN` and return structured plan rows plus index hints when a table scan appears.
 - `read_documents`: read database-scoped Markdown documents.
 
@@ -113,5 +113,5 @@ Use SQLite Hub MCP to explain the query plan for this SQL query.
 ```
 
 ```text
-Use SQLite Hub MCP to list my stored queries and execute the one named "Company List".
+Use SQLite Hub MCP to list my saved queries and execute the one named "Company List".
 ```

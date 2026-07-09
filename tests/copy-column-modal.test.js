@@ -289,3 +289,95 @@ test("API token deletion uses the shared confirmation modal", async () => {
   assert.match(html, /data-form="delete-api-token-confirm"/);
   assert.match(html, /Delete Token/);
 });
+
+test("document table definition modal filters shadow tables and renders options", async () => {
+  const { renderModal } = await loadModalModule();
+  const html = renderModal({
+    modal: {
+      kind: "document-insert-table-definition",
+      documentId: "doc-one",
+      tables: [
+        { name: "users", tableKind: "table", isShadow: false },
+        { name: "docs", tableKind: "virtual", isVirtual: true, isShadow: false },
+        { name: "docs_data", tableKind: "shadow", isShadow: true },
+      ],
+      selectedTableName: "docs",
+      markdownTable: true,
+      sqlDefinition: true,
+      sampleData: true,
+      sampleRowCount: 10,
+      loading: false,
+      error: null,
+      submitting: false,
+    },
+    connections: {
+      recent: [],
+    },
+    charts: {
+      result: null,
+      detail: null,
+    },
+    documents: {
+      selectedId: "doc-one",
+    },
+    editor: {
+      result: null,
+    },
+    mediaTagging: {
+      config: null,
+    },
+    tableDesigner: {
+      draft: null,
+    },
+  });
+
+  assert.match(html, /Insert Table Definition/);
+  assert.match(html, /data-form="document-insert-table-definition"/);
+  assert.match(html, /<option[^>]+value="users"/);
+  assert.match(html, /docs \(virtual\)/);
+  assert.doesNotMatch(html, /docs_data/);
+  assert.match(html, /data-bind="document-table-definition-option"/);
+  assert.match(html, /name="markdownTable"/);
+  assert.match(html, /name="sqlDefinition"/);
+  assert.match(html, /name="sampleData"/);
+  assert.match(html, /data-bind="document-table-definition-row-count"/);
+  assert.match(html, /<option value="10" selected>/);
+});
+
+test("document folder creation modal renders name input", async () => {
+  const { renderModal } = await loadModalModule();
+  const html = renderModal({
+    modal: {
+      kind: "create-document-folder",
+      name: "",
+      error: null,
+      submitting: false,
+    },
+    connections: {
+      recent: [],
+    },
+    charts: {
+      result: null,
+      detail: null,
+    },
+    documents: {
+      selectedId: null,
+    },
+    editor: {
+      result: null,
+    },
+    mediaTagging: {
+      config: null,
+    },
+    tableDesigner: {
+      draft: null,
+    },
+  });
+
+  assert.match(html, /New Folder/);
+  assert.match(html, /data-form="create-document-folder"/);
+  assert.match(html, /name="name"/);
+  assert.match(html, /bg-surface-container-lowest/);
+  assert.match(html, /focus:border-primary-container/);
+  assert.match(html, /Create Folder/);
+});

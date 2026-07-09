@@ -44,7 +44,7 @@ const MAX_CONNECTION_TAG_NAME_LENGTH = 40;
 const MAX_DOCUMENT_CONTENT_BYTES = 5 * 1024 * 1024;
 const MAX_DOCUMENT_FILENAME_LENGTH = 160;
 const QUERY_EXECUTION_SOURCES = new Set(["api", "cli", "user", "mcp"]);
-const ACCESS_LOG_SOURCES = new Set(["api", "cli"]);
+const ACCESS_LOG_SOURCES = new Set(["api", "cli", "user"]);
 const ACCESS_LOG_STATUSES = new Set(["success", "error"]);
 const MAX_ACCESS_LOG_TEXT_LENGTH = 500;
 const MAX_ACCESS_LOG_METADATA_BYTES = 16 * 1024;
@@ -76,6 +76,32 @@ function normalizeDocumentId(documentId) {
   }
 
   return normalizedDocumentId;
+}
+
+function normalizeDocumentFolderId(folderId) {
+  const normalizedFolderId = String(folderId ?? "").trim();
+
+  return normalizedFolderId || null;
+}
+
+function normalizeDocumentFolderName(name) {
+  const normalizedName = String(name ?? "")
+    .trim()
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/[\\/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^\.+/, "")
+    .trim();
+
+  if (!normalizedName) {
+    throw new ValidationError("Folder name is required.");
+  }
+
+  if (normalizedName.length > 80) {
+    throw new ValidationError("Folder name must not exceed 80 characters.");
+  }
+
+  return normalizedName;
 }
 
 function splitMarkdownFilename(filename) {
@@ -621,6 +647,7 @@ class AppStateStore {
       CREATE TABLE IF NOT EXISTS database_documents (
         id TEXT PRIMARY KEY,
         database_key TEXT NOT NULL,
+        folder_id TEXT,
         title TEXT NOT NULL,
         filename TEXT NOT NULL,
         content TEXT NOT NULL DEFAULT '',
@@ -631,6 +658,18 @@ class AppStateStore {
 
       CREATE INDEX IF NOT EXISTS idx_database_documents_database_updated
       ON database_documents(database_key, updated_at DESC, id ASC);
+
+      CREATE TABLE IF NOT EXISTS database_document_folders (
+        id TEXT PRIMARY KEY,
+        database_key TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(database_key, name)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_database_document_folders_database_name
+      ON database_document_folders(database_key, name COLLATE NOCASE, id ASC);
 
       CREATE TABLE IF NOT EXISTS api_tokens (
         id TEXT PRIMARY KEY,
@@ -647,7 +686,7 @@ class AppStateStore {
 
       CREATE TABLE IF NOT EXISTS access_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        source TEXT NOT NULL CHECK(source IN ('api', 'cli')),
+        source TEXT NOT NULL CHECK(source IN ('api', 'cli', 'user')),
         action TEXT NOT NULL,
         database_key TEXT,
         target_type TEXT,
@@ -727,7 +766,111 @@ class AppStateStore {
     }
 
     this.ensureQueryRunsSchema();
+    this.ensureAccessLogSchema();
+    this.ensureDatabaseDocumentsSchema();
     this.ensureMediaTaggingConfigSchema();
+  }
+
+  ensureDatabaseDocumentsSchema() {
+    const columns = new Set(
+      this.db
+        .prepare("PRAGMA table_info(database_documents)")
+        .all()
+        .map((column) => column.name)
+    );
+
+    if (!columns.has("folder_id")) {
+      this.db.exec("ALTER TABLE database_documents ADD COLUMN folder_id TEXT");
+    }
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_database_documents_folder_updated
+      ON database_documents(database_key, folder_id, updated_at DESC, id ASC);
+
+      CREATE TABLE IF NOT EXISTS database_document_folders (
+        id TEXT PRIMARY KEY,
+        database_key TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(database_key, name)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_database_document_folders_database_name
+      ON database_document_folders(database_key, name COLLATE NOCASE, id ASC);
+    `);
+  }
+
+  ensureAccessLogSchema() {
+    const row = this.db
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'access_log'")
+      .get();
+    const tableSql = String(row?.sql ?? "");
+
+    if (tableSql.includes("'user'")) {
+      return;
+    }
+
+    this.db.exec(`
+      DROP TABLE IF EXISTS access_log_source_migration;
+      DROP INDEX IF EXISTS idx_access_log_started;
+      DROP INDEX IF EXISTS idx_access_log_source_started;
+      DROP INDEX IF EXISTS idx_access_log_database_started;
+
+      ALTER TABLE access_log RENAME TO access_log_source_migration;
+
+      CREATE TABLE access_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT NOT NULL CHECK(source IN ('api', 'cli', 'user')),
+        action TEXT NOT NULL,
+        database_key TEXT,
+        target_type TEXT,
+        target_name TEXT,
+        status TEXT NOT NULL CHECK(status IN ('success', 'error')),
+        started_at TEXT NOT NULL,
+        duration_ms INTEGER,
+        error_message TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+      );
+
+      INSERT INTO access_log (
+        id,
+        source,
+        action,
+        database_key,
+        target_type,
+        target_name,
+        status,
+        started_at,
+        duration_ms,
+        error_message,
+        metadata_json
+      )
+      SELECT
+        id,
+        source,
+        action,
+        database_key,
+        target_type,
+        target_name,
+        status,
+        started_at,
+        duration_ms,
+        error_message,
+        metadata_json
+      FROM access_log_source_migration;
+
+      DROP TABLE access_log_source_migration;
+
+      CREATE INDEX IF NOT EXISTS idx_access_log_started
+      ON access_log(started_at DESC, id DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_access_log_source_started
+      ON access_log(source, started_at DESC, id DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_access_log_database_started
+      ON access_log(database_key, started_at DESC, id DESC);
+    `);
   }
 
   ensureQueryRunsSchema() {
@@ -2244,7 +2387,7 @@ class AppStateStore {
     }
 
     if (actor) {
-      if (actor !== "api" && actor !== "cli") {
+      if (actor !== "api" && actor !== "cli" && actor !== "user") {
         return {
           whereSql: "WHERE 1 = 0",
           params: [],
@@ -2407,6 +2550,16 @@ class AppStateStore {
         search: normalizeAccessLogText(options.search) ?? "",
       },
     };
+  }
+
+  getLatestActivityLogTimestamp(databaseKey) {
+    const result = this.listActivityLogs({
+      databaseKey,
+      limit: 1,
+      offset: 0,
+    });
+
+    return result.items[0]?.occurredAt ?? null;
   }
 
   updateQueryHistoryField(historyId, fieldName, value, databaseKey) {
@@ -3692,6 +3845,7 @@ class AppStateStore {
     return {
       id: String(row.id ?? ""),
       databaseKey: row.database_key ?? row.databaseKey ?? "",
+      folderId: row.folder_id ?? row.folderId ?? null,
       title: String(row.title ?? ""),
       filename: String(row.filename ?? ""),
       content: row.content === undefined ? undefined : String(row.content ?? ""),
@@ -3699,6 +3853,115 @@ class AppStateStore {
       createdAt: row.created_at ?? row.createdAt ?? null,
       updatedAt: row.updated_at ?? row.updatedAt ?? null,
     };
+  }
+
+  decorateDatabaseDocumentFolderRow(row = {}) {
+    return {
+      id: String(row.id ?? ""),
+      databaseKey: row.database_key ?? row.databaseKey ?? "",
+      name: String(row.name ?? ""),
+      createdAt: row.created_at ?? row.createdAt ?? null,
+      updatedAt: row.updated_at ?? row.updatedAt ?? null,
+    };
+  }
+
+  listDatabaseDocumentFolders(databaseKey) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+
+    return this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            database_key,
+            name,
+            created_at,
+            updated_at
+          FROM database_document_folders
+          WHERE database_key = ?
+          ORDER BY name COLLATE NOCASE ASC, id ASC
+        `
+      )
+      .all(normalizedDatabaseKey)
+      .map((row) => this.decorateDatabaseDocumentFolderRow(row));
+  }
+
+  getDatabaseDocumentFolder(databaseKey, folderId) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+    const normalizedFolderId = normalizeDocumentFolderId(folderId);
+
+    if (!normalizedFolderId) {
+      return null;
+    }
+
+    const row = this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            database_key,
+            name,
+            created_at,
+            updated_at
+          FROM database_document_folders
+          WHERE database_key = ?
+            AND id = ?
+        `
+      )
+      .get(normalizedDatabaseKey, normalizedFolderId);
+
+    if (!row) {
+      throw new NotFoundError("Document folder was not found.");
+    }
+
+    return this.decorateDatabaseDocumentFolderRow(row);
+  }
+
+  createDatabaseDocumentFolder(databaseKey, folder = {}) {
+    const normalizedDatabaseKey = normalizeDocumentDatabaseKey(databaseKey);
+    const name = normalizeDocumentFolderName(folder.name);
+    const now = new Date().toISOString();
+    const id = crypto.randomUUID();
+    const existingFolder = this.db
+      .prepare(
+        `
+          SELECT id
+          FROM database_document_folders
+          WHERE database_key = ?
+            AND name = ? COLLATE NOCASE
+          LIMIT 1
+        `
+      )
+      .get(normalizedDatabaseKey, name);
+
+    if (existingFolder) {
+      throw new ConflictError("A folder with this name already exists.");
+    }
+
+    try {
+      this.db
+        .prepare(
+          `
+            INSERT INTO database_document_folders (
+              id,
+              database_key,
+              name,
+              created_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+          `
+        )
+        .run(id, normalizedDatabaseKey, name, now, now);
+    } catch (error) {
+      if (error?.code === "SQLITE_CONSTRAINT_UNIQUE") {
+        throw new ConflictError("A folder with this name already exists.");
+      }
+
+      throw error;
+    }
+
+    return this.getDatabaseDocumentFolder(normalizedDatabaseKey, id);
   }
 
   documentFilenameExists(databaseKey, filename, ignoredDocumentId = null) {
@@ -3749,6 +4012,7 @@ class AppStateStore {
           SELECT
             id,
             database_key,
+            folder_id,
             title,
             filename,
             LENGTH(content) AS content_length,
@@ -3772,6 +4036,7 @@ class AppStateStore {
           SELECT
             id,
             database_key,
+            folder_id,
             title,
             filename,
             content,
@@ -3798,6 +4063,11 @@ class AppStateStore {
       normalizedDatabaseKey,
       normalizeDocumentFilename(document.filename)
     );
+    const folderId = normalizeDocumentFolderId(document.folderId);
+    if (folderId) {
+      this.getDatabaseDocumentFolder(normalizedDatabaseKey, folderId);
+    }
+
     const title = normalizeDocumentTitle(document.title, filename);
     const content = normalizeDocumentContent(document.content);
     const now = new Date().toISOString();
@@ -3809,16 +4079,17 @@ class AppStateStore {
           INSERT INTO database_documents (
             id,
             database_key,
+            folder_id,
             title,
             filename,
             content,
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
-      .run(id, normalizedDatabaseKey, title, filename, content, now, now);
+      .run(id, normalizedDatabaseKey, folderId, title, filename, content, now, now);
 
     return this.getDatabaseDocument(normalizedDatabaseKey, id);
   }
@@ -3829,6 +4100,15 @@ class AppStateStore {
     const hasFilename = Object.prototype.hasOwnProperty.call(patch, "filename");
     const hasTitle = Object.prototype.hasOwnProperty.call(patch, "title");
     const hasContent = Object.prototype.hasOwnProperty.call(patch, "content");
+    const hasFolderId = Object.prototype.hasOwnProperty.call(patch, "folderId");
+    const folderId = hasFolderId
+      ? normalizeDocumentFolderId(patch.folderId)
+      : existingDocument.folderId;
+
+    if (folderId) {
+      this.getDatabaseDocumentFolder(normalizedDatabaseKey, folderId);
+    }
+
     const filename = hasFilename
       ? this.resolveUniqueDocumentFilename(
           normalizedDatabaseKey,
@@ -3851,6 +4131,7 @@ class AppStateStore {
         `
           UPDATE database_documents
           SET
+            folder_id = ?,
             title = ?,
             filename = ?,
             content = ?,
@@ -3859,7 +4140,7 @@ class AppStateStore {
             AND id = ?
         `
       )
-      .run(title, filename, content, updatedAt, normalizedDatabaseKey, existingDocument.id);
+      .run(folderId, title, filename, content, updatedAt, normalizedDatabaseKey, existingDocument.id);
 
     return this.getDatabaseDocument(normalizedDatabaseKey, existingDocument.id);
   }

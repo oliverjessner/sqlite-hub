@@ -123,6 +123,7 @@ class OverviewService {
         filename: connection.label,
         path: connection.path,
         sizeBytes: connection.sizeBytes,
+        createdAt: connection.createdAt,
         lastModifiedAt: connection.lastModifiedAt,
       },
       sqlite: {

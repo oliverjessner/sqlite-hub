@@ -2,6 +2,8 @@ import { escapeHtml } from './format.js';
 
 const FENCED_CODE_PATTERN = /^\s*(```|~~~)/;
 const TASK_LINE_PATTERN = /^(\s*)([-*+])\s+\[([ xX])\]\s+(.*?)(\r?)$/;
+const SQLITE_HUB_MAGIC_COMMENT_PATTERN =
+    /^\s*<!--\s*\/?sqlite-hub:magic(?:\s+[^>]*)?-->\s*$/i;
 
 function decodeBasicHtmlEntities(value = '') {
     return String(value)
@@ -23,6 +25,15 @@ function sanitizeRenderedMarkdown(html = '') {
         }
 
         return match;
+    });
+}
+
+function openRenderedMarkdownLinksInNewTabs(html = '') {
+    return String(html).replace(/<a\b([^>]*)>/gi, (match, attributes = '') => {
+        const targetAttribute = /\starget\s*=/i.test(attributes) ? '' : ' target="_blank"';
+        const relAttribute = /\srel\s*=/i.test(attributes) ? '' : ' rel="noopener noreferrer"';
+
+        return `<a${attributes}${targetAttribute}${relAttribute}>`;
     });
 }
 
@@ -108,13 +119,13 @@ function renderMarkdownBlock(markdown = '') {
         return renderFallbackMarkdown(markdown);
     }
 
-    return sanitizeRenderedMarkdown(
+    return openRenderedMarkdownLinksInNewTabs(sanitizeRenderedMarkdown(
         parser(source, {
             async: false,
             breaks: false,
             gfm: true,
         }),
-    );
+    ));
 }
 
 function renderMarkdownInline(markdown = '') {
@@ -127,13 +138,13 @@ function renderMarkdownInline(markdown = '') {
         return source;
     }
 
-    return sanitizeRenderedMarkdown(
+    return openRenderedMarkdownLinksInNewTabs(sanitizeRenderedMarkdown(
         parser(source, {
             async: false,
             breaks: false,
             gfm: true,
         }),
-    );
+    ));
 }
 
 function renderTaskList(items = []) {
@@ -193,6 +204,12 @@ export function renderMarkdownPreview(markdown = '') {
     };
 
     lines.forEach((line, lineIndex) => {
+        if (!inFence && SQLITE_HUB_MAGIC_COMMENT_PATTERN.test(line)) {
+            flushTasks();
+            flushMarkdown();
+            return;
+        }
+
         const fenceLine = FENCED_CODE_PATTERN.test(line);
 
         if (fenceLine) {

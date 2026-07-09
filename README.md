@@ -154,6 +154,13 @@ The preview supports regular Markdown, ordered and unordered lists, tables, code
 - Insert Note opens saved queries that have notes and inserts the selected note directly into the document.
 - Markdown Todo column exports from query results can create a new document without embedding the original SQL query.
 
+Documents also support Magic Snippets from the Insert menu:
+
+- Insert Time Metadata adds `created at` and `last modified` lines for the document.
+- Insert Database Info adds current database size, estimated pages, table count, and journal mode.
+
+Magic Snippets are managed blocks. When a document is opened, SQLite Hub refreshes existing Time Metadata and Database Info snippets with the latest document/database values.
+
 <p>
   <a href="./frontend/assets/mockups/documents_2_document_insert_table_modal_1920.webp"><img src="./frontend/assets/mockups/documents_2_document_insert_table_modal_1920.webp" alt="SQLite Hub insert saved query table into a document" width="49%"></a>
   <a href="./frontend/assets/mockups/documents_3_document_insert_note_modal_1920.webp"><img src="./frontend/assets/mockups/documents_3_document_insert_note_modal_1920.webp" alt="SQLite Hub insert saved query note into a document" width="49%"></a>

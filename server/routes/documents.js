@@ -1,6 +1,7 @@
 const express = require("express");
 const path = require("node:path");
 const { DatabaseRequiredError, route, successResponse } = require("../utils/errors");
+const { recordUserAction } = require("../utils/userActionLog");
 
 function getActiveDatabaseKey(connectionManager) {
   return connectionManager.getActiveConnection()?.id ?? null;
@@ -27,20 +28,23 @@ function resolveActiveDatabaseDocumentName(connection) {
   return basename || "Database";
 }
 
-function buildInitialDocumentPayload(connection) {
+function buildInitialDocumentPayload(connection, options = {}) {
   const databaseName = resolveActiveDatabaseDocumentName(connection);
+  const timestamp = new Date().toISOString();
+  const createdAt = String(options.createdAt ?? connection?.createdAt ?? "").trim() || timestamp;
+  const lastModifiedAt = String(options.lastModifiedAt ?? "").trim() || timestamp;
 
   return {
     title: databaseName,
     filename: databaseName,
-    content: `# ${databaseName}\n`,
+    content: `# ${databaseName}\n\n- created at:    ${createdAt}\n- last modified: ${lastModifiedAt}\n\n## Purpose\n`,
   };
 }
 
 function pickDocumentPatch(body = {}) {
   const patch = {};
 
-  for (const field of ["title", "filename", "content"]) {
+  for (const field of ["title", "filename", "content", "folderId"]) {
     if (Object.prototype.hasOwnProperty.call(body, field)) {
       patch[field] = body[field];
     }
@@ -58,7 +62,9 @@ function ensureDatabaseDocuments({ appStateStore, connectionManager, databaseKey
 
   appStateStore.createDatabaseDocument(
     databaseKey,
-    buildInitialDocumentPayload(connectionManager.getActiveConnection())
+    buildInitialDocumentPayload(connectionManager.getActiveConnection(), {
+      lastModifiedAt: appStateStore.getLatestActivityLogTimestamp?.(databaseKey),
+    })
   );
 
   return appStateStore.listDatabaseDocuments(databaseKey);
@@ -76,8 +82,30 @@ function createDocumentsRouter({ appStateStore, connectionManager }) {
         successResponse({
           data: {
             items: ensureDatabaseDocuments({ appStateStore, connectionManager, databaseKey }),
+            folders: appStateStore.listDatabaseDocumentFolders(databaseKey),
           },
           metadata: { databaseKey },
+        })
+      );
+    })
+  );
+
+  router.post(
+    "/folders",
+    route((req, res) => {
+      const databaseKey = requireActiveDatabaseKey(connectionManager);
+      const folder = appStateStore.createDatabaseDocumentFolder(databaseKey, {
+        name: req.body?.name,
+      });
+
+      res.status(201).json(
+        successResponse({
+          message: "Document folder created.",
+          data: folder,
+          metadata: {
+            databaseKey,
+            folders: appStateStore.listDatabaseDocumentFolders(databaseKey),
+          },
         })
       );
     })
@@ -91,6 +119,19 @@ function createDocumentsRouter({ appStateStore, connectionManager }) {
         title: req.body?.title,
         filename: req.body?.filename,
         content: req.body?.content,
+        folderId: req.body?.folderId,
+      });
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "document.create",
+        databaseKey,
+        targetType: "document",
+        targetName: document.filename ?? document.id,
+        metadata: {
+          documentId: document.id,
+          title: document.title ?? null,
+        },
       });
 
       res.status(201).json(
@@ -140,11 +181,26 @@ function createDocumentsRouter({ appStateStore, connectionManager }) {
     "/:documentId",
     route((req, res) => {
       const databaseKey = requireActiveDatabaseKey(connectionManager);
+      const document = appStateStore.getDatabaseDocument(databaseKey, req.params.documentId);
+      const deleted = appStateStore.deleteDatabaseDocument(databaseKey, req.params.documentId);
+
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "document.delete",
+        databaseKey,
+        targetType: "document",
+        targetName: document.filename ?? req.params.documentId,
+        metadata: {
+          documentId: req.params.documentId,
+          title: document.title ?? null,
+        },
+      });
 
       res.json(
         successResponse({
           message: "Document deleted.",
-          data: appStateStore.deleteDatabaseDocument(databaseKey, req.params.documentId),
+          data: deleted,
           metadata: { databaseKey },
         })
       );

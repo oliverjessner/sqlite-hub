@@ -197,10 +197,15 @@ function isWritable(filePath) {
 
 function getFileMetadata(filePath) {
   const stat = fs.statSync(filePath);
+  const createdAt =
+    Number.isFinite(stat.birthtimeMs) && stat.birthtimeMs > 0
+      ? stat.birthtime
+      : stat.ctime;
 
   return {
     path: filePath,
     sizeBytes: stat.size,
+    createdAt: createdAt.toISOString(),
     lastModifiedAt: stat.mtime.toISOString(),
   };
 }

@@ -70,6 +70,15 @@ textarea:disabled {
     padding: 0 var(--control-padding-inline);
 }
 
+.control-input:focus,
+.control-input:focus-visible,
+.control-select:focus,
+.control-select:focus-visible {
+    border-color: var(--color-primary-container);
+    box-shadow: none;
+    outline: none;
+}
+
 input.control-input--ghost {
     appearance: none;
     background: transparent;

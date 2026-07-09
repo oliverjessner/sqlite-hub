@@ -1,3 +1,9 @@
+# v2.2.0
+
+- better documents features, magic snippets, better auto save, complette overhaul
+- directories for documents
+- better logging
+
 # v2.1.0
 
 - tags for databases

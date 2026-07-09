@@ -214,6 +214,18 @@
     align-items: center;
 }
 
+.documents-folder-group {
+    width: min(var(--subnavi-item-width), 100%);
+}
+
+.documents-folder-group .documents-list-item {
+    width: 100%;
+}
+
+.documents-folder-group .documents-list-item + .documents-list-item {
+    margin-top: var(--spacing-2);
+}
+
 .data-view-grid {
     display: grid;
     grid-template-columns: 1fr;

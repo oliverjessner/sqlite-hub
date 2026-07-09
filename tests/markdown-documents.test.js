@@ -60,6 +60,37 @@ test("markdown preview escapes raw html content", async () => {
   assert.match(html, /&lt;script&gt;/);
 });
 
+test("markdown preview hides sqlite hub magic markers", async () => {
+  const { renderMarkdownPreview } = await loadMarkdownModule();
+  const html = renderMarkdownPreview(
+    [
+      "<!-- sqlite-hub:magic table-definition %7B%22tableName%22%3A%22users%22%7D -->",
+      "## Definition: users",
+      "<!-- /sqlite-hub:magic table-definition -->",
+      "<!-- sqlite-hub:magic database-info -->",
+      "## Database Info",
+      "<!-- /sqlite-hub:magic database-info -->",
+    ].join("\n")
+  );
+
+  assert.match(html, /Definition: users/);
+  assert.match(html, /Database Info/);
+  assert.doesNotMatch(html, /sqlite-hub:magic/);
+});
+
+test("markdown preview magic markers do not shift todo source indexes", async () => {
+  const { renderMarkdownPreview } = await loadMarkdownModule();
+  const html = renderMarkdownPreview(
+    [
+      "<!-- sqlite-hub:magic table-definition %7B%22tableName%22%3A%22users%22%7D -->",
+      "- [ ] item",
+      "<!-- /sqlite-hub:magic table-definition -->",
+    ].join("\n")
+  );
+
+  assert.match(html, /data-line-index="1"/);
+});
+
 test("markdown preview keeps JSON code block quotes readable", async () => {
   const { renderMarkdownPreview } = await loadMarkdownModule();
   const previousMarked = globalThis.marked;
@@ -97,6 +128,25 @@ test("markdown preview strips executable link targets from rendered markdown", a
 
     assert.doesNotMatch(html, /href="javascript:/i);
     assert.match(html, /href="#"/);
+  } finally {
+    globalThis.marked = previousMarked;
+  }
+});
+
+test("markdown preview opens rendered links in a new tab", async () => {
+  const { renderMarkdownPreview } = await loadMarkdownModule();
+  const previousMarked = globalThis.marked;
+
+  globalThis.marked = {
+    parse: () => '<p><a href="https://example.com/docs">docs</a></p>',
+  };
+
+  try {
+    const html = renderMarkdownPreview("[docs](https://example.com/docs)");
+
+    assert.match(html, /href="https:\/\/example\.com\/docs"/);
+    assert.match(html, /target="_blank"/);
+    assert.match(html, /rel="noopener noreferrer"/);
   } finally {
     globalThis.marked = previousMarked;
   }

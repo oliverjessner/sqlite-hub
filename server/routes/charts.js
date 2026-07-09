@@ -4,6 +4,7 @@ const {
   route,
   successResponse,
 } = require("../utils/errors");
+const { recordUserAction } = require("../utils/userActionLog");
 
 function getActiveDatabaseKey(connectionManager) {
   return connectionManager.getActiveConnection()?.id ?? null;
@@ -96,6 +97,19 @@ function createChartsRouter({ appStateStore, connectionManager, sqlExecutor }) {
         resultColumns: req.body?.resultColumns,
         tableVisible: req.body?.tableVisible,
       });
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "chart.create",
+        databaseKey,
+        targetType: "chart",
+        targetName: chart.name ?? chart.id,
+        metadata: {
+          chartId: chart.id,
+          chartType: chart.chartType ?? req.body?.chartType ?? null,
+          queryHistoryId: chart.queryHistoryId ?? req.body?.queryHistoryId ?? null,
+        },
+      });
 
       res.json(
         successResponse({
@@ -134,7 +148,21 @@ function createChartsRouter({ appStateStore, connectionManager, sqlExecutor }) {
     "/:chartId",
     route((req, res) => {
       const databaseKey = requireActiveDatabaseKey(connectionManager);
+      const chart = appStateStore.getQueryHistoryChartForDatabase(req.params.chartId, databaseKey);
       appStateStore.deleteQueryHistoryChart(req.params.chartId, databaseKey);
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "chart.delete",
+        databaseKey,
+        targetType: "chart",
+        targetName: chart.name ?? req.params.chartId,
+        metadata: {
+          chartId: Number(req.params.chartId),
+          chartType: chart.chartType ?? null,
+          queryHistoryId: chart.queryHistoryId ?? null,
+        },
+      });
 
       res.json(
         successResponse({

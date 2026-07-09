@@ -35,7 +35,7 @@ function renderDocumentListItem(item, selectedId) {
           <span class="documents-list-item__title" title="${escapeHtml(item.filename)}">
             ${escapeHtml(item.filename)}
           </span>
-          <span class="documents-list-item__meta">
+          <span class="documents-list-item__meta" data-document-list-meta>
             ${escapeHtml(formatCompactDateTime(item.updatedAt))} // ${formatNumber(item.contentLength ?? 0)} chars
           </span>
         </span>
@@ -77,7 +77,45 @@ function renderDocumentsSearch(documents) {
 
 function renderDocumentsSidebar(documents) {
     const items = documents.items ?? [];
+    const folders = documents.folders ?? [];
     const filteredItems = getFilteredDocuments(items, documents.searchQuery);
+    const searchActive = Boolean(String(documents.searchQuery ?? '').trim());
+    const rootItems = filteredItems.filter(item => !item.folderId);
+    const renderFolderGroup = (label, groupItems, options = {}) => {
+        if (searchActive && !groupItems.length) {
+            return '';
+        }
+
+        return `
+          <div class="documents-folder-group">
+            <div class="px-3 pb-1 pt-3 text-[10px] font-mono uppercase tracking-[0.2em] text-on-surface-variant/55">
+              ${escapeHtml(label)}
+            </div>
+            ${
+                groupItems.length
+                    ? groupItems.map(item => renderDocumentListItem(item, documents.selectedId)).join('')
+                    : `<div class="documents-list-empty">${escapeHtml(options.emptyText ?? 'No documents')}</div>`
+            }
+          </div>
+        `;
+    };
+    const folderGroups = folders
+        .map(folder =>
+            renderFolderGroup(
+                folder.name,
+                filteredItems.filter(item => String(item.folderId ?? '') === String(folder.id)),
+                { emptyText: 'Empty folder' },
+            ),
+        )
+        .join('');
+    const rootGroup = renderFolderGroup('No Folder', rootItems, {
+        emptyText: folders.length ? 'No root documents' : 'No documents yet',
+    });
+    const listMarkup = rootGroup || folderGroups
+        ? `${rootGroup}${folderGroups}`
+        : `<div class="documents-list-empty">${
+              items.length ? 'No documents match the current search.' : 'No documents yet'
+          }</div>`;
 
     return `
       <aside class="documents-view__sidebar subnavi-panel">
@@ -89,13 +127,7 @@ function renderDocumentsSidebar(documents) {
         </div>
         ${renderDocumentsSearch(documents)}
         <div class="documents-view__sidebar-body subnavi-list custom-scrollbar">
-          ${
-              filteredItems.length
-                  ? filteredItems.map(item => renderDocumentListItem(item, documents.selectedId)).join('')
-                  : `<div class="documents-list-empty">${
-                        items.length ? 'No documents match the current search.' : 'No documents yet'
-                    }</div>`
-          }
+          ${listMarkup}
         </div>
       </aside>
     `;
@@ -118,18 +150,18 @@ function renderNewDocumentDropdown(documents, className = '') {
         ${renderDropdownButton({
             disabled: documents.saving,
             icon: 'add',
-            label: 'New Document',
-            title: 'New document',
+            label: 'New',
+            title: 'New',
             items: [
                 {
                     action: 'create-document',
                     icon: 'draft',
-                    label: 'Blank Page',
+                    label: 'New Document',
                 },
                 {
-                    action: 'import-document-markdown',
-                    icon: 'upload_file',
-                    label: 'Import .md',
+                    action: 'open-create-document-folder-modal',
+                    icon: 'create_new_folder',
+                    label: 'New Folder',
                 },
             ],
         })}
@@ -137,40 +169,86 @@ function renderNewDocumentDropdown(documents, className = '') {
     `;
 }
 
-function renderDocumentsPanelToggle(documents) {
-    const visible = documents.documentsVisible !== false;
+function renderDocumentsViewDropdown(documents) {
+    const documentsVisible = documents.documentsVisible !== false;
+    const editorVisible = documents.editorVisible !== false;
+    const previewVisible = documents.previewVisible !== false;
 
-    return `
-      <button
-        class="standard-button panel-toggle-button ${visible ? '' : 'is-active'}"
-        aria-pressed="${visible ? 'false' : 'true'}"
-        data-action="toggle-documents-panel"
-        type="button"
-      >
-        <span class="material-symbols-outlined">${visible ? 'visibility_off' : 'visibility'}</span>
-        ${visible ? 'Hide Documents' : 'Show Documents'}
-      </button>
-    `;
+    return renderDropdownButton({
+        icon: 'visibility',
+        label: 'View',
+        title: 'View options',
+        items: [
+            {
+                action: 'toggle-document-pane',
+                dataAttributes: { pane: 'editor' },
+                icon: editorVisible ? 'visibility_off' : 'edit_note',
+                label: `${editorVisible ? 'Hide' : 'Show'} Editor`,
+            },
+            {
+                action: 'toggle-document-pane',
+                dataAttributes: { pane: 'preview' },
+                icon: previewVisible ? 'visibility_off' : 'visibility',
+                label: `${previewVisible ? 'Hide' : 'Show'} Preview`,
+            },
+            {
+                action: 'toggle-documents-panel',
+                icon: documentsVisible ? 'visibility_off' : 'description',
+                label: `${documentsVisible ? 'Hide' : 'Show'} Documents`,
+            },
+        ],
+    });
 }
 
-function renderDocumentPaneToggle(documents, pane) {
-    const isEditor = pane === 'editor';
-    const visible = isEditor ? documents.editorVisible : documents.previewVisible;
-    const label = `${visible ? 'Hide' : 'Show'} ${isEditor ? 'Editor' : 'Preview'}`;
-    const icon = visible ? 'visibility_off' : isEditor ? 'edit_note' : 'visibility';
+function renderDocumentsFileDropdown(documents) {
+    const exportDisabled = documents.saving || documents.detailLoading || !documents.selectedId;
 
-    return `
-      <button
-        class="standard-button panel-toggle-button documents-pane__toggle ${visible ? '' : 'is-active'}"
-        aria-pressed="${visible ? 'false' : 'true'}"
-        data-action="toggle-document-pane"
-        data-pane="${escapeHtml(pane)}"
-        type="button"
-      >
-        <span class="material-symbols-outlined">${icon}</span>
-        ${label}
-      </button>
-    `;
+    return renderDropdownButton({
+        disabled: documents.saving,
+        icon: 'folder_open',
+        label: 'File',
+        title: 'File actions',
+        items: [
+            {
+                action: 'import-document-markdown',
+                icon: 'upload_file',
+                label: 'Import MD',
+            },
+            {
+                action: 'export-document-markdown',
+                disabled: exportDisabled,
+                icon: 'download',
+                label: 'Export MD',
+            },
+        ],
+    });
+}
+
+function renderDocumentsMoveDropdown(documents) {
+    const folders = documents.folders ?? [];
+    const selectedFolderId = String(documents.selected?.folderId ?? '');
+
+    return renderDropdownButton({
+        disabled: documents.saving || documents.detailLoading || !documents.selectedId,
+        icon: 'drive_file_move',
+        label: 'Move to',
+        title: 'Move document to folder',
+        items: [
+            {
+                action: 'move-document-to-folder',
+                disabled: !selectedFolderId,
+                icon: 'folder_off',
+                label: 'No Folder',
+            },
+            ...folders.map(folder => ({
+                action: 'move-document-to-folder',
+                dataAttributes: { folderId: folder.id },
+                disabled: selectedFolderId === String(folder.id),
+                icon: 'folder',
+                label: folder.name,
+            })),
+        ],
+    });
 }
 
 function renderDocumentsTitlebar(documents, options = {}) {
@@ -179,7 +257,6 @@ function renderDocumentsTitlebar(documents, options = {}) {
 
     return `
       <div class="documents-titlebar">
-        ${renderDocumentsPanelToggle(documents)}
         ${
             showFilename
                 ? `
@@ -216,19 +293,33 @@ function renderDocumentsTitlebar(documents, options = {}) {
                           {
                               action: 'open-document-insert-note-modal',
                               icon: 'note_add',
-                              label: 'Insert Note',
+                              label: 'Insert Query Note',
+                          },
+                          {
+                              action: 'open-document-insert-table-definition-modal',
+                              icon: 'schema',
+                              label: 'Insert Table Definition',
+                          },
+                          {
+                              action: 'insert-document-saved-queries',
+                              icon: 'bookmark',
+                              label: 'Insert Saved Queries',
+                          },
+                          {
+                              action: 'insert-document-time-metadata',
+                              icon: 'schedule',
+                              label: 'Insert Time Metadata',
+                          },
+                          {
+                              action: 'insert-document-database-info',
+                              icon: 'database',
+                              label: 'Insert Database Info',
                           },
                       ],
                   })}
-                  <button
-                    class="standard-button"
-                    data-action="export-document-markdown"
-                    type="button"
-                    ${disabled ? 'disabled aria-disabled="true"' : ''}
-                  >
-                    <span class="material-symbols-outlined">download</span>
-                    Export .md
-                  </button>
+                  ${renderDocumentsViewDropdown(documents)}
+                  ${renderDocumentsFileDropdown(documents)}
+                  ${renderDocumentsMoveDropdown(documents)}
                   <button
                     class="delete-button"
                     data-action="delete-document"
@@ -239,7 +330,10 @@ function renderDocumentsTitlebar(documents, options = {}) {
                     Delete
                   </button>
                 `
-                : ''
+                : `
+                  ${renderDocumentsViewDropdown(documents)}
+                  ${renderDocumentsFileDropdown(documents)}
+                `
         }
       </div>
     `;
@@ -249,7 +343,6 @@ function renderDocumentEditor(documents) {
     return `
       <section class="documents-pane documents-pane--editor ${documents.editorVisible ? '' : 'documents-pane--collapsed'}">
         <div class="documents-pane__header">
-          ${renderDocumentPaneToggle(documents, 'editor')}
           <span class="documents-pane__meta">${formatNumber(documents.draftContent.length)} chars</span>
         </div>
         ${
@@ -271,11 +364,12 @@ function renderDocumentEditor(documents) {
 }
 
 function renderDocumentPreview(documents) {
+    const saveState = documents.dirty ? 'unsaved' : 'saved';
+
     return `
       <section class="documents-pane documents-pane--preview ${documents.previewVisible ? '' : 'documents-pane--collapsed'}">
         <div class="documents-pane__header">
-          ${renderDocumentPaneToggle(documents, 'preview')}
-          <span class="documents-pane__meta">${escapeHtml(documents.dirty ? 'unsaved' : 'saved')}</span>
+          <span class="documents-pane__meta" data-document-save-state="${saveState}">${escapeHtml(saveState)}</span>
         </div>
         ${
             documents.previewVisible

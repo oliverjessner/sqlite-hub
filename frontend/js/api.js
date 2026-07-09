@@ -671,6 +671,13 @@ export function createDocument(payload = {}) {
   });
 }
 
+export function createDocumentFolder(payload = {}) {
+  return request("/api/documents/folders", {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export function getDocument(documentId) {
   return request(`/api/documents/${encodeURIComponent(documentId)}`);
 }

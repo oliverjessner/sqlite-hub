@@ -1,5 +1,5 @@
 import * as api from './api.js';
-import { formatCellValue, inferStatusTone, truncateMiddle } from './utils/format.js';
+import { formatBytes, formatCellValue, formatNumber, inferStatusTone, truncateMiddle } from './utils/format.js';
 import {
     addTableDesignerColumn,
     addTableDesignerCheckConstraint,
@@ -462,6 +462,7 @@ const state = {
     },
     documents: {
         items: [],
+        folders: [],
         selectedId: null,
         selected: null,
         searchQuery: '',
@@ -1176,6 +1177,7 @@ function resetChartsState() {
 function resetDocumentsState() {
     documentsLoadVersion += 1;
     state.documents.items = [];
+    state.documents.folders = [];
     state.documents.selectedId = null;
     state.documents.selected = null;
     state.documents.searchQuery = '';
@@ -1211,6 +1213,7 @@ function upsertDocumentSummary(document) {
     const summary = {
         id: document.id,
         databaseKey: document.databaseKey,
+        folderId: document.folderId ?? null,
         title: document.title,
         filename: document.filename,
         contentLength: document.contentLength,
@@ -2170,7 +2173,12 @@ async function loadDocumentDetail(version, documentId) {
             return;
         }
 
-        const document = response.data ?? null;
+        const document = await updateDocumentMagicSnippetsOnOpen(version, response.data ?? null);
+
+        if (version !== routeLoadVersion) {
+            return;
+        }
+
         applyCurrentDocument(document);
         upsertDocumentSummary(document);
     } catch (error) {
@@ -2203,6 +2211,7 @@ async function loadDocuments(version, route) {
         }
 
         state.documents.items = response.data?.items ?? [];
+        state.documents.folders = response.data?.folders ?? [];
         state.documents.error = null;
 
         await loadDocumentDetail(version, resolveDocumentSelection(route));
@@ -2212,6 +2221,7 @@ async function loadDocuments(version, route) {
         }
 
         state.documents.items = [];
+        state.documents.folders = [];
         applyCurrentDocument(null);
         state.documents.error = normalizeError(error);
     } finally {
@@ -3552,8 +3562,8 @@ export function toggleDocumentsPane(pane) {
     }
 }
 
-function normalizeDocumentInsertionRange(range = null) {
-    const contentLength = String(state.documents.draftContent ?? '').length;
+function normalizeDocumentInsertionRange(range = null, currentContent = state.documents.draftContent) {
+    const contentLength = String(currentContent ?? '').length;
     const start = Number(range?.start);
     const end = Number(range?.end);
     const normalizedStart = Number.isInteger(start) ? Math.max(0, Math.min(contentLength, start)) : contentLength;
@@ -3575,13 +3585,737 @@ function buildDocumentMarkdownInsertion(currentContent, insertion, range = null)
         return content;
     }
 
-    const normalizedRange = normalizeDocumentInsertionRange(range);
+    const normalizedRange = normalizeDocumentInsertionRange(range, content);
     const before = content.slice(0, normalizedRange.start);
     const after = content.slice(normalizedRange.end);
     const prefix = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
     const suffix = after && !after.startsWith('\n\n') ? (after.startsWith('\n') ? '\n' : '\n\n') : '';
 
     return `${before}${prefix}${text}${suffix}${after}`;
+}
+
+const DOCUMENT_METADATA_MAGIC_SNIPPET_ID = 'document-metadata';
+const DATABASE_INFO_MAGIC_SNIPPET_ID = 'database-info';
+const TABLE_DEFINITION_MAGIC_SNIPPET_ID = 'table-definition';
+const DOCUMENT_METADATA_MAGIC_SNIPPET_PATTERN =
+    /(^|\n)-?[^\S\r\n]*created at:[^\r\n]*(?:\r?\n)-?[^\S\r\n]*last modified:[^\r\n]*/i;
+const DATABASE_INFO_MAGIC_SNIPPET_START = '<!-- sqlite-hub:magic database-info -->';
+const DATABASE_INFO_MAGIC_SNIPPET_END = '<!-- /sqlite-hub:magic database-info -->';
+const DATABASE_INFO_MAGIC_SNIPPET_MARKED_PATTERN =
+    /(^|\n)<!-- sqlite-hub:magic database-info -->[\s\S]*?<!-- \/sqlite-hub:magic database-info -->/i;
+const DATABASE_INFO_MAGIC_SNIPPET_LEGACY_PATTERN =
+    /(^|\n)## Database Info[^\S\r\n]*(?:\r?\n){2}- Database Size:[^\r\n]*(?:\r?\n)- Estimated pages:[^\r\n]*(?:\r?\n)- Tables:[^\r\n]*(?:\r?\n)- Journal Mode:[^\r\n]*/i;
+const DATABASE_INFO_MAGIC_SNIPPET_PATTERN =
+    /(^|\n)(?:<!-- sqlite-hub:magic database-info -->[\s\S]*?<!-- \/sqlite-hub:magic database-info -->|## Database Info[^\S\r\n]*(?:\r?\n){2}- Database Size:[^\r\n]*(?:\r?\n)- Estimated pages:[^\r\n]*(?:\r?\n)- Tables:[^\r\n]*(?:\r?\n)- Journal Mode:[^\r\n]*)/i;
+const TABLE_DEFINITION_MAGIC_SNIPPET_PATTERN =
+    /(^|\n)<!-- sqlite-hub:magic table-definition ([^\r\n]+) -->[\s\S]*?<!-- \/sqlite-hub:magic table-definition -->/i;
+const TABLE_DEFINITION_MAGIC_SNIPPET_BLOCK_PATTERN =
+    /(^|\n)<!-- sqlite-hub:magic table-definition ([^\r\n]+) -->[\s\S]*?<!-- \/sqlite-hub:magic table-definition -->/gi;
+const TABLE_DEFINITION_SAMPLE_ROW_COUNTS = new Set([3, 5, 10]);
+const TABLE_DEFINITION_DEFAULT_SAMPLE_ROW_COUNT = 5;
+const TABLE_DEFINITION_LONG_TEXT_LIMIT = 120;
+
+function buildDocumentMetadataMagicSnippet(context = {}) {
+    const document = context.document ?? {};
+    const createdAt = String(context.databaseCreatedAt ?? context.createdAt ?? document.createdAt ?? '').trim();
+    const lastModifiedAt = String(
+        context.lastModifiedAt ?? context.latestActivityLogTimestamp ?? document.updatedAt ?? '',
+    ).trim();
+
+    if (!createdAt || !lastModifiedAt) {
+        return '';
+    }
+
+    return [
+        `- created at:    ${createdAt}`,
+        `- last modified: ${lastModifiedAt}`,
+    ].join('\n');
+}
+
+function unwrapDatabaseInfoMagicSnippet(markdown = '') {
+    const value = String(markdown ?? '').trim();
+    const match = value.match(
+        /^<!-- sqlite-hub:magic database-info -->\s*([\s\S]*?)\s*<!-- \/sqlite-hub:magic database-info -->$/i,
+    );
+
+    return String(match?.[1] ?? value).trim();
+}
+
+function wrapDatabaseInfoMagicSnippet(body = '') {
+    const normalizedBody = String(body ?? '').trim();
+
+    if (!normalizedBody) {
+        return '';
+    }
+
+    return [
+        DATABASE_INFO_MAGIC_SNIPPET_START,
+        normalizedBody,
+        DATABASE_INFO_MAGIC_SNIPPET_END,
+    ].join('\n');
+}
+
+function buildDatabaseInfoMagicSnippetBody(context = {}) {
+    const providedMarkdown = unwrapDatabaseInfoMagicSnippet(context.databaseInfoMarkdown);
+
+    if (providedMarkdown) {
+        return providedMarkdown;
+    }
+
+    const overview = context.overview;
+
+    if (!overview) {
+        return '';
+    }
+
+    const estimatedSizeBytes = overview.estimatedSizeBytes || overview.file?.sizeBytes || 0;
+
+    return [
+        '## Database Info',
+        '',
+        `- Database Size: ${formatBytes(overview.file?.sizeBytes ?? estimatedSizeBytes)}`,
+        `- Estimated pages: ${formatNumber(overview.sqlite?.pageCount ?? 0)}`,
+        `- Tables: ${formatNumber(overview.counts?.tables ?? 0)}`,
+        `- Journal Mode: ${String(overview.sqlite?.journalMode ?? 'n/a').toUpperCase()}`,
+    ].join('\n');
+}
+
+function buildDatabaseInfoMagicSnippet(context = {}) {
+    return wrapDatabaseInfoMagicSnippet(buildDatabaseInfoMagicSnippetBody(context));
+}
+
+function buildDatabaseInfoMarkdown(overview = {}) {
+    return buildDatabaseInfoMagicSnippetBody({ overview });
+}
+
+function normalizeTableDefinitionSampleRowCount(value) {
+    const numericValue = Number(value);
+
+    return TABLE_DEFINITION_SAMPLE_ROW_COUNTS.has(numericValue)
+        ? numericValue
+        : TABLE_DEFINITION_DEFAULT_SAMPLE_ROW_COUNT;
+}
+
+function normalizeTableDefinitionOptions(options = {}) {
+    const tableName = String(options.tableName ?? options.table ?? '').trim();
+    const markdownTable = Boolean(options.markdownTable ?? options.includeMarkdownTable ?? false);
+    const sqlDefinition = Boolean(options.sqlDefinition ?? options.includeSqlDefinition ?? false);
+    const sampleData = Boolean(options.sampleData ?? options.includeSampleData ?? false);
+
+    return {
+        tableName,
+        markdownTable,
+        sqlDefinition,
+        sampleData,
+        sampleRowCount: normalizeTableDefinitionSampleRowCount(options.sampleRowCount),
+    };
+}
+
+function normalizeTableDefinitionTableKey(tableName) {
+    return String(tableName ?? '').trim().toLowerCase();
+}
+
+function getTableDefinitionSnippetKey(options = {}) {
+    const normalized = normalizeTableDefinitionOptions(options);
+
+    return JSON.stringify({
+        tableName: normalizeTableDefinitionTableKey(normalized.tableName),
+        markdownTable: normalized.markdownTable,
+        sqlDefinition: normalized.sqlDefinition,
+        sampleData: normalized.sampleData,
+        sampleRowCount: normalized.sampleRowCount,
+    });
+}
+
+function encodeDocumentMagicSnippetMetadata(metadata = {}) {
+    return encodeURIComponent(JSON.stringify(metadata));
+}
+
+function decodeDocumentMagicSnippetMetadata(encodedMetadata = '') {
+    try {
+        return JSON.parse(decodeURIComponent(String(encodedMetadata ?? '').trim()));
+    } catch {
+        return null;
+    }
+}
+
+function buildTableDefinitionMagicSnippetMetadata(options = {}) {
+    const normalized = normalizeTableDefinitionOptions(options);
+
+    return {
+        type: TABLE_DEFINITION_MAGIC_SNIPPET_ID,
+        version: 1,
+        tableName: normalized.tableName,
+        markdownTable: normalized.markdownTable,
+        sqlDefinition: normalized.sqlDefinition,
+        sampleData: normalized.sampleData,
+        sampleRowCount: normalized.sampleRowCount,
+    };
+}
+
+function normalizeMarkdownInlineText(value = '') {
+    return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function escapeMarkdownTableCell(value = '') {
+    return String(value ?? '')
+        .replace(/\r?\n/g, ' ')
+        .replace(/\|/g, '\\|')
+        .trim();
+}
+
+function escapeRegExpText(value = '') {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function expressionReferencesColumn(expression = '', columnName = '') {
+    const normalizedColumn = String(columnName ?? '').trim();
+
+    if (!normalizedColumn) {
+        return false;
+    }
+
+    return new RegExp(`(^|[^A-Za-z0-9_$])${escapeRegExpText(normalizedColumn)}([^A-Za-z0-9_$]|$)`, 'i').test(
+        String(expression ?? ''),
+    );
+}
+
+function tableColumnHasUniqueConstraint(table = {}, columnName = '') {
+    return (table.indexes ?? []).some(index => {
+        if (!index?.unique) {
+            return false;
+        }
+
+        const indexColumns = (index.columns ?? [])
+            .map(column => String(column.name ?? '').trim())
+            .filter(Boolean);
+
+        return indexColumns.length === 1 && indexColumns[0] === columnName;
+    });
+}
+
+function tableColumnHasAutoincrement(table = {}, column = {}) {
+    return Boolean(column.primaryKeyPosition) && /\bAUTOINCREMENT\b/i.test(String(table.ddl ?? ''));
+}
+
+function getColumnForeignKeyRestrictions(table = {}, columnName = '') {
+    return (table.foreignKeys ?? [])
+        .flatMap(foreignKey =>
+            (foreignKey.mappings ?? [])
+                .filter(mapping => mapping.from === columnName)
+                .map(mapping => {
+                    const referencedColumn = String(mapping.to ?? '').trim();
+                    const columnSuffix = referencedColumn ? `(${referencedColumn})` : '';
+
+                    return `REFERENCES ${foreignKey.referencedTable}${columnSuffix}`;
+                }),
+        )
+        .filter(Boolean);
+}
+
+function buildColumnRestrictionText(table = {}, column = {}) {
+    const restrictions = [];
+
+    if (Number(column.primaryKeyPosition ?? 0) > 0) {
+        restrictions.push('PRIMARY KEY');
+    }
+
+    if (tableColumnHasAutoincrement(table, column)) {
+        restrictions.push('AUTOINCREMENT');
+    }
+
+    if (column.notNull) {
+        restrictions.push('NOT NULL');
+    }
+
+    if (tableColumnHasUniqueConstraint(table, column.name)) {
+        restrictions.push('UNIQUE');
+    }
+
+    if (column.defaultValue !== null && column.defaultValue !== undefined && String(column.defaultValue).trim()) {
+        restrictions.push(`DEFAULT ${String(column.defaultValue).trim()}`);
+    }
+
+    (table.checkConstraints ?? [])
+        .filter(constraint => expressionReferencesColumn(constraint.expression, column.name))
+        .forEach(constraint => restrictions.push(`CHECK (${String(constraint.expression ?? '').trim()})`));
+
+    restrictions.push(...getColumnForeignKeyRestrictions(table, column.name));
+
+    return restrictions.join(', ');
+}
+
+function getVisibleTableDefinitionColumns(table = {}) {
+    return (table.columns ?? []).filter(column => column.visible !== false && !column.generated);
+}
+
+function buildTableDefinitionMarkdownTable(table = {}) {
+    const rows = getVisibleTableDefinitionColumns(table).map(column => [
+        escapeMarkdownTableCell(column.name),
+        escapeMarkdownTableCell(column.declaredType || column.affinity || ''),
+        escapeMarkdownTableCell(buildColumnRestrictionText(table, column)),
+    ]);
+
+    return [
+        '| Column | Type | Restrictions |',
+        '|---|---|---|',
+        ...rows.map(row => `| ${row.join(' | ')} |`),
+    ].join('\n');
+}
+
+function normalizeSqlDefinition(sql = '') {
+    const statement = String(sql ?? '').trim();
+
+    if (!statement) {
+        return '';
+    }
+
+    return /;\s*$/.test(statement) ? statement : `${statement};`;
+}
+
+function buildTableDefinitionSqlBlock(table = {}) {
+    const statement = normalizeSqlDefinition(table.ddl);
+
+    if (!statement) {
+        return '';
+    }
+
+    return ['```sql', statement, '```'].join('\n');
+}
+
+function formatTableDefinitionSampleValue(value) {
+    if (value && typeof value === 'object' && value.__type === 'blob') {
+        return `[BLOB - ${formatBytes(value.sizeBytes ?? 0)}]`;
+    }
+
+    if (value === null) {
+        return 'NULL';
+    }
+
+    if (value === undefined) {
+        return '';
+    }
+
+    const rawText =
+        typeof value === 'object'
+            ? JSON.stringify(value)
+            : String(value);
+    const normalizedText = rawText.replace(/\s+/g, ' ').trim();
+
+    return normalizedText.length > TABLE_DEFINITION_LONG_TEXT_LIMIT
+        ? `${normalizedText.slice(0, TABLE_DEFINITION_LONG_TEXT_LIMIT - 3)}...`
+        : normalizedText;
+}
+
+function isNumericTableDefinitionColumn(table = {}, columnName = '') {
+    const column = (table.columns ?? []).find(candidate => candidate.name === columnName);
+    const affinity = String(column?.affinity ?? column?.declaredType ?? '').toUpperCase();
+
+    return ['INTEGER', 'REAL', 'NUMERIC'].includes(affinity);
+}
+
+function buildTableDefinitionSampleDataMarkdown(table = {}, sampleData = {}) {
+    const columns = (sampleData.columns ?? getVisibleTableDefinitionColumns(table).map(column => column.name))
+        .filter(columnName => columnName !== '__identity__');
+    const rows = (sampleData.rows ?? []).slice(0, normalizeTableDefinitionSampleRowCount(sampleData.limit));
+
+    if (!rows.length) {
+        return ['### Sample Data', '', '_No rows available._'].join('\n');
+    }
+
+    const header = `| ${columns.map(escapeMarkdownTableCell).join(' | ')} |`;
+    const alignment = `| ${columns
+        .map(columnName => (isNumericTableDefinitionColumn(table, columnName) ? '---:' : '---'))
+        .join(' | ')} |`;
+    const rowLines = rows.map(row => {
+        const cells = columns.map(columnName => escapeMarkdownTableCell(formatTableDefinitionSampleValue(row[columnName])));
+
+        return `| ${cells.join(' | ')} |`;
+    });
+
+    return ['### Sample Data', '', header, alignment, ...rowLines].join('\n');
+}
+
+function buildMissingTableDefinitionSnippetBody(tableName, message = 'Table no longer exists.') {
+    return [`## Definition: ${normalizeMarkdownInlineText(tableName || 'Table')}`, '', message].join('\n');
+}
+
+function buildTableDefinitionSnippetBody({ table = null, sampleData = null, options = {}, errorMessage = '' } = {}) {
+    const normalizedOptions = normalizeTableDefinitionOptions(options);
+
+    if (!table || errorMessage) {
+        return buildMissingTableDefinitionSnippetBody(normalizedOptions.tableName, errorMessage || 'Table no longer exists.');
+    }
+
+    if (table.isShadow) {
+        return buildMissingTableDefinitionSnippetBody(
+            normalizedOptions.tableName,
+            'Shadow tables are not available for table definitions.',
+        );
+    }
+
+    const sections = [`## Definition: ${normalizeMarkdownInlineText(table.name ?? normalizedOptions.tableName)}`];
+
+    if (normalizedOptions.markdownTable) {
+        sections.push('', buildTableDefinitionMarkdownTable(table));
+    }
+
+    if (normalizedOptions.sqlDefinition) {
+        const sqlBlock = buildTableDefinitionSqlBlock(table);
+
+        if (sqlBlock) {
+            sections.push('', sqlBlock);
+        }
+    }
+
+    if (normalizedOptions.sampleData) {
+        sections.push('', buildTableDefinitionSampleDataMarkdown(table, sampleData ?? {}));
+    }
+
+    if (sections.length === 1) {
+        sections.push('', '_No table definition options are enabled._');
+    }
+
+    return sections.join('\n');
+}
+
+export function buildTableDefinitionMagicSnippet(context = {}) {
+    const options = normalizeTableDefinitionOptions(context.options ?? context);
+    const metadata = buildTableDefinitionMagicSnippetMetadata(options);
+    const body = buildTableDefinitionSnippetBody({
+        table: context.table ?? null,
+        sampleData: context.sampleData ?? null,
+        options,
+        errorMessage: context.errorMessage ?? '',
+    });
+
+    if (!options.tableName) {
+        return '';
+    }
+
+    return [
+        `<!-- sqlite-hub:magic table-definition ${encodeDocumentMagicSnippetMetadata(metadata)} -->`,
+        body,
+        '<!-- /sqlite-hub:magic table-definition -->',
+    ].join('\n');
+}
+
+export function getDocumentTableDefinitionMagicSnippets(content = '') {
+    TABLE_DEFINITION_MAGIC_SNIPPET_BLOCK_PATTERN.lastIndex = 0;
+
+    return Array.from(String(content ?? '').matchAll(TABLE_DEFINITION_MAGIC_SNIPPET_BLOCK_PATTERN))
+        .map(match => {
+            const metadata = decodeDocumentMagicSnippetMetadata(match[2]);
+            const options = normalizeTableDefinitionOptions(metadata ?? {});
+
+            return metadata && options.tableName
+                ? {
+                      metadata,
+                      options,
+                      key: getTableDefinitionSnippetKey(options),
+                      tableKey: normalizeTableDefinitionTableKey(options.tableName),
+                  }
+                : null;
+        })
+        .filter(Boolean);
+}
+
+export function hasDocumentTableDefinitionMagicSnippet(content = '', tableName = '') {
+    const tableKey = normalizeTableDefinitionTableKey(tableName);
+
+    if (!tableKey) {
+        return false;
+    }
+
+    return getDocumentTableDefinitionMagicSnippets(content).some(snippet => snippet.tableKey === tableKey);
+}
+
+async function buildTableDefinitionMagicSnippetFromOptions(options = {}) {
+    const normalizedOptions = normalizeTableDefinitionOptions(options);
+
+    if (!normalizedOptions.tableName) {
+        return '';
+    }
+
+    try {
+        const structureResponse = await api.getStructureDetail(normalizedOptions.tableName);
+        const table = structureResponse.data ?? null;
+
+        if (!table || table.isShadow) {
+            return buildTableDefinitionMagicSnippet({
+                ...normalizedOptions,
+                errorMessage: table?.isShadow
+                    ? 'Shadow tables are not available for table definitions.'
+                    : 'Table no longer exists.',
+            });
+        }
+
+        let sampleData = null;
+
+        if (normalizedOptions.sampleData) {
+            const sampleResponse = await api.getDataTable(normalizedOptions.tableName, {
+                limit: normalizedOptions.sampleRowCount,
+                offset: 0,
+            });
+
+            sampleData = sampleResponse.data ?? {};
+        }
+
+        return buildTableDefinitionMagicSnippet({
+            ...normalizedOptions,
+            table,
+            sampleData,
+        });
+    } catch {
+        return buildTableDefinitionMagicSnippet({
+            ...normalizedOptions,
+            errorMessage: 'Table no longer exists.',
+        });
+    }
+}
+
+async function hydrateDocumentMetadataMagicSnippetContext(context = {}) {
+    return {
+        ...context,
+        latestActivityLogTimestamp: await getLatestActivityLogTimestamp(context.document?.updatedAt ?? null),
+        databaseCreatedAt: await getDatabaseCreatedAt(context.databaseCreatedAt ?? null),
+    };
+}
+
+async function hydrateDatabaseInfoMagicSnippetContext(context = {}) {
+    try {
+        const response = await api.getOverview();
+
+        return {
+            ...context,
+            overview: response.data ?? {},
+        };
+    } catch {
+        return context;
+    }
+}
+
+async function hydrateTableDefinitionMagicSnippetContext(context = {}) {
+    const content = String(context.content ?? context.document?.content ?? '');
+    const snippets = getDocumentTableDefinitionMagicSnippets(content);
+
+    if (!snippets.length) {
+        return context;
+    }
+
+    const tableDefinitionSnippets = new Map(context.tableDefinitionSnippets ?? []);
+
+    for (const snippet of snippets) {
+        if (tableDefinitionSnippets.has(snippet.key)) {
+            continue;
+        }
+
+        tableDefinitionSnippets.set(snippet.key, {
+            markdown: await buildTableDefinitionMagicSnippetFromOptions(snippet.options),
+        });
+    }
+
+    return {
+        ...context,
+        tableDefinitionSnippets,
+    };
+}
+
+const DOCUMENT_MAGIC_SNIPPETS = [
+    {
+        id: DOCUMENT_METADATA_MAGIC_SNIPPET_ID,
+        pattern: DOCUMENT_METADATA_MAGIC_SNIPPET_PATTERN,
+        build: buildDocumentMetadataMagicSnippet,
+        hydrateContext: hydrateDocumentMetadataMagicSnippetContext,
+    },
+    {
+        id: DATABASE_INFO_MAGIC_SNIPPET_ID,
+        pattern: DATABASE_INFO_MAGIC_SNIPPET_PATTERN,
+        build: buildDatabaseInfoMagicSnippet,
+        hydrateContext: hydrateDatabaseInfoMagicSnippetContext,
+    },
+    {
+        id: TABLE_DEFINITION_MAGIC_SNIPPET_ID,
+        pattern: TABLE_DEFINITION_MAGIC_SNIPPET_PATTERN,
+        hydrateContext: hydrateTableDefinitionMagicSnippetContext,
+        replace(content, context = {}) {
+            if (!context.tableDefinitionSnippets) {
+                return String(content ?? '');
+            }
+
+            TABLE_DEFINITION_MAGIC_SNIPPET_BLOCK_PATTERN.lastIndex = 0;
+
+            return String(content ?? '').replace(
+                TABLE_DEFINITION_MAGIC_SNIPPET_BLOCK_PATTERN,
+                (match, prefix = '', encodedMetadata = '') => {
+                    const metadata = decodeDocumentMagicSnippetMetadata(encodedMetadata);
+                    const options = normalizeTableDefinitionOptions(metadata ?? {});
+                    const key = getTableDefinitionSnippetKey(options);
+                    const replacement = context.tableDefinitionSnippets.get(key)?.markdown;
+
+                    return replacement ? `${prefix}${replacement}` : match;
+                },
+            );
+        },
+    },
+];
+
+function getDocumentMagicSnippet(snippetId) {
+    return DOCUMENT_MAGIC_SNIPPETS.find(snippet => snippet.id === snippetId) ?? null;
+}
+
+function hasDocumentMagicSnippet(content, snippet) {
+    return snippet.pattern.test(String(content ?? ''));
+}
+
+function replaceDocumentMagicSnippet(content, snippet, context = {}) {
+    const block = String(snippet.build(context) ?? '').trim();
+
+    if (!block || !hasDocumentMagicSnippet(content, snippet)) {
+        return String(content ?? '');
+    }
+
+    return String(content ?? '').replace(snippet.pattern, (match, prefix = '') => `${prefix}${block}`);
+}
+
+async function buildDocumentMagicSnippetContext(content, document) {
+    let context = { document, content, databaseCreatedAt: state.connections.active?.createdAt ?? null };
+
+    for (const snippet of DOCUMENT_MAGIC_SNIPPETS) {
+        if (!hasDocumentMagicSnippet(content, snippet) || !snippet.hydrateContext) {
+            continue;
+        }
+
+        context = await snippet.hydrateContext(context);
+    }
+
+    return context;
+}
+
+export function updateDocumentMagicSnippets(content, context = {}) {
+    return DOCUMENT_MAGIC_SNIPPETS.reduce(
+        (nextContent, snippet) =>
+            typeof snippet.replace === 'function'
+                ? snippet.replace(nextContent, context)
+                : replaceDocumentMagicSnippet(nextContent, snippet, context),
+        String(content ?? ''),
+    );
+}
+
+export function insertDocumentMagicSnippet(currentContent, snippetId, context = {}, range = null) {
+    const content = String(currentContent ?? '');
+    const snippet = getDocumentMagicSnippet(snippetId);
+
+    if (!snippet) {
+        return {
+            alreadyInserted: false,
+            content,
+            inserted: false,
+        };
+    }
+
+    if (hasDocumentMagicSnippet(content, snippet)) {
+        return {
+            alreadyInserted: true,
+            content,
+            inserted: false,
+        };
+    }
+
+    const block = String(snippet.build(context) ?? '').trim();
+
+    if (!block) {
+        return {
+            alreadyInserted: false,
+            content,
+            inserted: false,
+        };
+    }
+
+    return {
+        alreadyInserted: false,
+        content: buildDocumentMarkdownInsertion(content, block, range),
+        inserted: true,
+    };
+}
+
+export function upsertDocumentMagicSnippet(currentContent, snippetId, context = {}, range = null) {
+    const content = String(currentContent ?? '');
+    const snippet = getDocumentMagicSnippet(snippetId);
+    const block = String(snippet?.build(context) ?? '').trim();
+
+    if (!snippet || !block) {
+        return content;
+    }
+
+    if (hasDocumentMagicSnippet(content, snippet)) {
+        return replaceDocumentMagicSnippet(content, snippet, context);
+    }
+
+    return buildDocumentMarkdownInsertion(content, block, range);
+}
+
+export function upsertDatabaseInfoMarkdown(currentContent, databaseInfoMarkdown, range = null) {
+    return upsertDocumentMagicSnippet(
+        currentContent,
+        DATABASE_INFO_MAGIC_SNIPPET_ID,
+        { overview: null, databaseInfoMarkdown },
+        range,
+    );
+}
+
+export function getLatestActivityLogTimestampFromResponse(response = {}) {
+    return String(response?.data?.items?.[0]?.occurredAt ?? '').trim() || null;
+}
+
+async function getLatestActivityLogTimestamp(fallback = null) {
+    try {
+        const response = await api.getLogs({
+            range: 'all',
+            limit: 1,
+        });
+
+        return getLatestActivityLogTimestampFromResponse(response) ?? fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+async function getDatabaseCreatedAt(fallback = null) {
+    try {
+        const response = await api.getOverview();
+
+        return String(response.data?.file?.createdAt ?? response.data?.connection?.createdAt ?? '').trim() || fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+async function updateDocumentMagicSnippetsOnOpen(version, document) {
+    if (!document?.id) {
+        return document;
+    }
+
+    const context = await buildDocumentMagicSnippetContext(document.content, document);
+    const nextContent = updateDocumentMagicSnippets(document.content, context);
+
+    if (nextContent === String(document.content ?? '')) {
+        return document;
+    }
+
+    try {
+        const response = await api.updateDocument(document.id, {
+            content: nextContent,
+        });
+
+        if (version !== routeLoadVersion) {
+            return null;
+        }
+
+        return response.data ?? { ...document, content: nextContent };
+    } catch {
+        return document;
+    }
 }
 
 export function insertMarkdownIntoCurrentDocumentDraft(markdown, range = null) {
@@ -3661,6 +4395,22 @@ export async function insertMarkdownIntoLastOpenDocument(markdown) {
 
 function getDocumentInsertQueryTitle(query) {
     return query?.displayTitle || query?.title || query?.previewSql || query?.rawSql || 'Saved query';
+}
+
+export function buildSavedQueriesMarkdown(queries = []) {
+    const queryTitles = (Array.isArray(queries) ? queries : [])
+        .map(query => String(getDocumentInsertQueryTitle(query)).replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
+
+    if (!queryTitles.length) {
+        return '';
+    }
+
+    return [
+        '## Saved Queries',
+        '',
+        ...queryTitles.map(title => `- ${title}`),
+    ].join('\n');
 }
 
 async function openDocumentInsertModal(kind, insertionRange = null) {
@@ -3760,6 +4510,145 @@ export async function openDocumentInsertNoteModal(insertionRange = null) {
     await openDocumentInsertModal('document-insert-note', insertionRange);
 }
 
+function getDocumentTableDefinitionModalOptions(modal = state.modal) {
+    return normalizeTableDefinitionOptions({
+        tableName: modal?.selectedTableName,
+        markdownTable: modal?.markdownTable,
+        sqlDefinition: modal?.sqlDefinition,
+        sampleData: modal?.sampleData,
+        sampleRowCount: modal?.sampleRowCount,
+    });
+}
+
+function setDocumentTableDefinitionModalError(message, code = 'TABLE_DEFINITION_INSERT_UNAVAILABLE') {
+    setDocumentInsertModalError(message, code);
+}
+
+export async function openDocumentInsertTableDefinitionModal(insertionRange = null) {
+    if (!state.documents.selectedId) {
+        pushToast('Select a document before inserting a table definition.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind: 'document-insert-table-definition',
+        documentId: state.documents.selectedId,
+        insertionRange: normalizeDocumentInsertionRange(insertionRange),
+        tables: [],
+        selectedTableName: '',
+        markdownTable: true,
+        sqlDefinition: false,
+        sampleData: false,
+        sampleRowCount: TABLE_DEFINITION_DEFAULT_SAMPLE_ROW_COUNT,
+        loading: true,
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+
+    try {
+        const response = await api.getDataTables();
+        const tables = (response.data?.tables ?? []).filter(table => !table.isShadow && table.tableKind !== 'shadow');
+
+        if (state.modal?.kind !== 'document-insert-table-definition') {
+            return;
+        }
+
+        state.modal.tables = tables;
+        state.modal.selectedTableName = String(tables[0]?.name ?? '');
+        state.modal.loading = false;
+        state.modal.error = null;
+        emitChange();
+    } catch (error) {
+        if (state.modal?.kind !== 'document-insert-table-definition') {
+            return;
+        }
+
+        state.modal.loading = false;
+        state.modal.error = normalizeError(error);
+        emitChange();
+    }
+}
+
+export function updateDocumentTableDefinitionSelection(tableName) {
+    if (state.modal?.kind !== 'document-insert-table-definition') {
+        return;
+    }
+
+    const selectedTable = (state.modal.tables ?? []).find(table => table.name === tableName);
+
+    state.modal.selectedTableName = String(selectedTable?.name ?? '');
+    state.modal.error = null;
+    emitChange();
+}
+
+export function updateDocumentTableDefinitionOption(option, value) {
+    if (state.modal?.kind !== 'document-insert-table-definition') {
+        return;
+    }
+
+    const normalizedOption = String(option ?? '');
+
+    if (!['markdownTable', 'sqlDefinition', 'sampleData'].includes(normalizedOption)) {
+        return;
+    }
+
+    state.modal[normalizedOption] = Boolean(value);
+    state.modal.error = null;
+    emitChange();
+}
+
+export function updateDocumentTableDefinitionSampleRowCount(value) {
+    if (state.modal?.kind !== 'document-insert-table-definition') {
+        return;
+    }
+
+    state.modal.sampleRowCount = normalizeTableDefinitionSampleRowCount(value);
+    state.modal.error = null;
+    emitChange();
+}
+
+export async function submitDocumentInsertTableDefinition() {
+    const modal = state.modal;
+
+    if (!canSubmitDocumentInsertModal(modal, 'document-insert-table-definition')) {
+        return false;
+    }
+
+    const options = getDocumentTableDefinitionModalOptions(modal);
+
+    if (!options.tableName) {
+        setDocumentTableDefinitionModalError('Select a table before inserting a definition.');
+        return false;
+    }
+
+    if (!options.markdownTable && !options.sqlDefinition && !options.sampleData) {
+        setDocumentTableDefinitionModalError('Select at least one table definition option.');
+        return false;
+    }
+
+    if (hasDocumentTableDefinitionMagicSnippet(state.documents.draftContent, options.tableName)) {
+        pushToast('Magic Snippet already inserted.');
+        return false;
+    }
+
+    startModalSubmission();
+
+    try {
+        const markdown = await buildTableDefinitionMagicSnippetFromOptions(options);
+        const inserted = insertMarkdownIntoCurrentDocumentDraft(markdown, modal.insertionRange);
+
+        closeModalInternal();
+        if (inserted) {
+            pushToast(`Inserted definition for "${options.tableName}".`, 'success');
+        }
+        return inserted;
+    } catch (error) {
+        withModalError(error);
+        return false;
+    }
+}
+
 export async function submitDocumentInsertTable() {
     const modal = state.modal;
 
@@ -3797,6 +4686,124 @@ export async function submitDocumentInsertTable() {
     }
 }
 
+export async function insertCurrentDocumentDatabaseInfo(insertionRange = null) {
+    if (!state.documents.selectedId) {
+        pushToast('Select a document before inserting database info.', 'alert');
+        return false;
+    }
+
+    const snippet = getDocumentMagicSnippet(DATABASE_INFO_MAGIC_SNIPPET_ID);
+
+    if (snippet && hasDocumentMagicSnippet(state.documents.draftContent, snippet)) {
+        pushToast('Magic Snippet already inserted.');
+        return false;
+    }
+
+    try {
+        const response = await api.getOverview();
+        const result = insertDocumentMagicSnippet(
+            state.documents.draftContent,
+            DATABASE_INFO_MAGIC_SNIPPET_ID,
+            { databaseInfoMarkdown: buildDatabaseInfoMarkdown(response.data ?? {}) },
+            insertionRange,
+        );
+
+        if (result.alreadyInserted) {
+            pushToast('Magic Snippet already inserted.');
+            return false;
+        }
+
+        if (!result.inserted || result.content === state.documents.draftContent) {
+            return false;
+        }
+
+        state.documents.draftContent = result.content;
+        state.documents.dirty = true;
+        state.documents.saveError = null;
+        emitChange();
+        pushToast('Database info inserted.', 'success');
+        return true;
+    } catch (error) {
+        pushToast(normalizeError(error).message || 'Database info could not be inserted.', 'alert');
+        return false;
+    }
+}
+
+export async function insertCurrentDocumentTimeMetadata(insertionRange = null) {
+    if (!state.documents.selectedId) {
+        pushToast('Select a document before inserting time metadata.', 'alert');
+        return false;
+    }
+
+    const snippet = getDocumentMagicSnippet(DOCUMENT_METADATA_MAGIC_SNIPPET_ID);
+
+    if (snippet && hasDocumentMagicSnippet(state.documents.draftContent, snippet)) {
+        pushToast('Magic Snippet already inserted.');
+        return false;
+    }
+
+    const latestActivityLogTimestamp = await getLatestActivityLogTimestamp(state.documents.selected?.updatedAt ?? null);
+    const databaseCreatedAt = await getDatabaseCreatedAt(state.connections.active?.createdAt ?? state.documents.selected?.createdAt ?? null);
+    const result = insertDocumentMagicSnippet(
+        state.documents.draftContent,
+        DOCUMENT_METADATA_MAGIC_SNIPPET_ID,
+        {
+            document: state.documents.selected,
+            databaseCreatedAt,
+            latestActivityLogTimestamp,
+        },
+        insertionRange,
+    );
+
+    if (result.alreadyInserted) {
+        pushToast('Magic Snippet already inserted.');
+        return false;
+    }
+
+    if (!result.inserted || result.content === state.documents.draftContent) {
+        return false;
+    }
+
+    state.documents.draftContent = result.content;
+    state.documents.dirty = true;
+    state.documents.saveError = null;
+    emitChange();
+    pushToast('Time metadata inserted.', 'success');
+    return true;
+}
+
+export async function insertCurrentDocumentSavedQueries(insertionRange = null) {
+    if (!state.documents.selectedId) {
+        pushToast('Select a document before inserting saved queries.', 'alert');
+        return false;
+    }
+
+    try {
+        const response = await api.getQueryHistory({
+            tab: 'saved',
+            onlySaved: true,
+            limit: 100,
+        });
+        const savedQueriesMarkdown = buildSavedQueriesMarkdown(response.data?.items ?? []);
+
+        if (!savedQueriesMarkdown) {
+            pushToast('No saved queries are available for this database.', 'alert');
+            return false;
+        }
+
+        const inserted = insertMarkdownIntoCurrentDocumentDraft(savedQueriesMarkdown, insertionRange);
+
+        if (inserted) {
+            pushToast('Saved queries inserted.', 'success');
+        }
+
+        return inserted;
+    } catch (error) {
+        pushToast(normalizeError(error).message || 'Saved queries could not be inserted.', 'alert');
+        return false;
+    }
+}
+
 export function submitDocumentInsertNote() {
     const modal = state.modal;
 
@@ -3822,6 +4829,105 @@ export function submitDocumentInsertNote() {
     return inserted;
 }
 
+export function openCreateDocumentFolderModal() {
+    state.modal = {
+        kind: 'create-document-folder',
+        name: '',
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+export async function submitCreateDocumentFolder(name) {
+    const folderName = String(name ?? '').trim();
+
+    if (!folderName) {
+        withModalError(new Error('Folder name is required.'));
+        return null;
+    }
+
+    startModalSubmission();
+
+    try {
+        const response = await api.createDocumentFolder({ name: folderName });
+        const folder = response.data ?? null;
+
+        state.documents.folders = response.metadata?.folders ?? (
+            folder ? [...state.documents.folders.filter(candidate => candidate.id !== folder.id), folder] : state.documents.folders
+        );
+        state.documents.folders.sort((left, right) =>
+            String(left.name ?? '').localeCompare(String(right.name ?? ''), undefined, { sensitivity: 'base' }) ||
+            String(left.id).localeCompare(String(right.id)),
+        );
+        closeModalInternal();
+
+        if (folder) {
+            pushToast(`Folder "${folder.name}" created.`, 'success');
+        }
+
+        return folder;
+    } catch (error) {
+        withModalError(error);
+        return null;
+    }
+}
+
+export async function moveCurrentDocumentToFolder(folderId = null) {
+    const documentId = state.documents.selectedId;
+
+    if (!documentId) {
+        pushToast('Select a document before moving it.', 'alert');
+        return null;
+    }
+
+    const normalizedFolderId = String(folderId ?? '').trim() || null;
+    const currentFolderId = state.documents.selected?.folderId ?? null;
+
+    if (String(currentFolderId ?? '') === String(normalizedFolderId ?? '')) {
+        return state.documents.selected;
+    }
+
+    state.documents.saving = true;
+    state.documents.saveError = null;
+    emitChange();
+
+    try {
+        const response = await api.updateDocument(documentId, {
+            folderId: normalizedFolderId,
+        });
+        const document = response.data ?? null;
+
+        if (document) {
+            upsertDocumentSummary(document);
+            if (String(state.documents.selectedId ?? '') === String(documentId)) {
+                if (state.documents.dirty) {
+                    state.documents.selected = {
+                        ...state.documents.selected,
+                        folderId: document.folderId ?? null,
+                        updatedAt: document.updatedAt,
+                    };
+                } else {
+                    applyCurrentDocument(document);
+                }
+            }
+        }
+
+        const folder = normalizedFolderId
+            ? state.documents.folders.find(candidate => String(candidate.id) === String(normalizedFolderId))
+            : null;
+        pushToast(`Document moved to ${folder ? `"${folder.name}"` : 'No Folder'}.`, 'success');
+        return document;
+    } catch (error) {
+        state.documents.saveError = normalizeError(error);
+        pushToast(state.documents.saveError.message || 'Document could not be moved.', 'alert');
+        return null;
+    } finally {
+        state.documents.saving = false;
+        emitChange();
+    }
+}
+
 export async function createDocument(options = {}) {
     state.documents.saving = true;
     state.documents.saveError = null;
@@ -3832,6 +4938,7 @@ export async function createDocument(options = {}) {
             title: options.title,
             filename: options.filename,
             content: options.content,
+            folderId: options.folderId,
         });
         const document = response.data ?? null;
 
@@ -3865,13 +4972,19 @@ export async function saveCurrentDocument(options = {}) {
     }
 
     const submittedFilename = state.documents.draftFilename;
-    const submittedContent = state.documents.draftContent;
+    const submittedDraftContent = state.documents.draftContent;
 
     state.documents.saving = true;
     state.documents.saveError = null;
-    emitChange();
 
     try {
+        const latestActivityLogTimestamp = await getLatestActivityLogTimestamp(state.documents.selected?.updatedAt ?? null);
+        const databaseCreatedAt = await getDatabaseCreatedAt(state.connections.active?.createdAt ?? state.documents.selected?.createdAt ?? null);
+        const submittedContent = updateDocumentMagicSnippets(submittedDraftContent, {
+            document: state.documents.selected,
+            databaseCreatedAt,
+            latestActivityLogTimestamp,
+        });
         const response = await api.updateDocument(documentId, {
             filename: submittedFilename,
             content: submittedContent,
@@ -3882,7 +4995,7 @@ export async function saveCurrentDocument(options = {}) {
             const draftUnchanged =
                 String(state.documents.selectedId ?? '') === String(documentId) &&
                 state.documents.draftFilename === submittedFilename &&
-                state.documents.draftContent === submittedContent;
+                state.documents.draftContent === submittedDraftContent;
 
             upsertDocumentSummary(document);
             if (draftUnchanged) {
@@ -3946,15 +5059,15 @@ export async function deleteCurrentDocument(options = {}) {
     }
 }
 
-export async function toggleCurrentDocumentTodo(lineIndex) {
+export function toggleCurrentDocumentTodo(lineIndex) {
     if (!state.documents.selectedId) {
-        return null;
+        return false;
     }
 
     const nextContent = toggleMarkdownTodoLine(state.documents.draftContent, lineIndex);
 
     if (nextContent === state.documents.draftContent) {
-        return state.documents.selected;
+        return false;
     }
 
     state.documents.draftContent = nextContent;
@@ -3962,7 +5075,7 @@ export async function toggleCurrentDocumentTodo(lineIndex) {
     state.documents.saveError = null;
     emitChange();
 
-    return saveCurrentDocument({ toast: false });
+    return true;
 }
 
 export async function createDocumentFromMarkdownExport({ filename, content, title } = {}) {

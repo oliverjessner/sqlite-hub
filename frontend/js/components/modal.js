@@ -1586,6 +1586,23 @@ function renderDeleteDocumentForm(modal) {
     ].join('');
 }
 
+function renderCreateDocumentFolderForm(modal) {
+    return [
+        '<form class="space-y-5" data-form="create-document-folder"><label class="block space-y-2">',
+        '<span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">Folder Name</span>',
+        '<input class="control-input w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant/35 focus:border-primary-container" name="name" type="text" autocomplete="off" maxlength="80" value="',
+        escapeHtml(modal.name ?? ''),
+        '" autofocus />',
+        '</label>',
+        renderError(modal.error),
+        '<div class="flex items-center justify-between gap-3 pt-2">',
+        '<button class="standard-button" data-action="close-modal" type="button">Cancel</button>',
+        '<button class="signature-button" type="submit">',
+        modal.submitting ? 'Creating...' : 'Create Folder',
+        '</button></div></form>',
+    ].join('');
+}
+
 export function renderDeleteApiTokenForm(modal) {
     return [
         '<form class="space-y-5" data-form="delete-api-token-confirm"><div class="space-y-3">',
@@ -1720,11 +1737,134 @@ function renderDocumentInsertNoteForm(modal) {
       <div class="flex items-center justify-between gap-3 pt-2">
         <button class="standard-button" data-action="close-modal" type="button">Cancel</button>
         <button class="signature-button" type="submit" ${disabledAttribute}>
-          ${modal.submitting ? 'Inserting...' : 'Insert Note'}
+          ${modal.submitting ? 'Inserting...' : 'Insert Query Note'}
         </button>
       </div>
     </form>
   `;
+}
+
+function renderDocumentTableDefinitionSelect(modal) {
+    const tables = (modal.tables ?? []).filter(table => !table.isShadow && table.tableKind !== 'shadow');
+
+    if (modal.loading) {
+        return '<div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface-variant/65">Loading tables...</div>';
+    }
+
+    if (!tables.length) {
+        return '<div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface-variant/65">No regular or virtual tables are available for this database.</div>';
+    }
+
+    return `
+      <label class="block space-y-2">
+        <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          Table
+        </span>
+        <select
+          class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+          data-bind="document-table-definition-select"
+          name="tableName"
+        >
+          ${tables
+              .map(table => {
+                  const label = table.isVirtual || table.tableKind === 'virtual'
+                      ? `${table.name} (virtual)`
+                      : table.name;
+
+                  return `
+                    <option
+                      value="${escapeHtml(table.name)}"
+                      ${String(table.name) === String(modal.selectedTableName) ? 'selected' : ''}
+                    >
+                      ${escapeHtml(label)}
+                    </option>
+                  `;
+              })
+              .join('')}
+        </select>
+      </label>
+    `;
+}
+
+function renderDocumentTableDefinitionCheckbox({ label, option, checked, disabled }) {
+    return `
+      <label class="standard-checkbox ${disabled ? 'is-disabled' : ''}">
+        <input
+          data-bind="document-table-definition-option"
+          data-option="${escapeHtml(option)}"
+          name="${escapeHtml(option)}"
+          type="checkbox"
+          ${checked ? 'checked' : ''}
+          ${disabled ? 'disabled' : ''}
+        />
+        <span>${escapeHtml(label)}</span>
+      </label>
+    `;
+}
+
+function renderDocumentInsertTableDefinitionForm(modal) {
+    const hasTables = Boolean((modal.tables ?? []).length);
+    const optionDisabled = modal.loading || modal.submitting || !hasTables;
+    const hasSelection = Boolean(modal.markdownTable || modal.sqlDefinition || modal.sampleData);
+    const disabledAttribute = optionDisabled || !hasSelection ? 'disabled aria-disabled="true"' : '';
+
+    return `
+      <form class="space-y-5" data-form="document-insert-table-definition">
+        ${renderDocumentTableDefinitionSelect(modal)}
+        <div class="grid gap-2">
+          ${renderDocumentTableDefinitionCheckbox({
+              label: 'Markdown Table',
+              option: 'markdownTable',
+              checked: Boolean(modal.markdownTable),
+              disabled: optionDisabled,
+          })}
+          ${renderDocumentTableDefinitionCheckbox({
+              label: 'SQL Definition',
+              option: 'sqlDefinition',
+              checked: Boolean(modal.sqlDefinition),
+              disabled: optionDisabled,
+          })}
+          ${renderDocumentTableDefinitionCheckbox({
+              label: 'Sample Data',
+              option: 'sampleData',
+              checked: Boolean(modal.sampleData),
+              disabled: optionDisabled,
+          })}
+        </div>
+        ${
+            modal.sampleData
+                ? `
+                  <label class="block space-y-2">
+                    <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+                      Sample Rows
+                    </span>
+                    <select
+                      class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+                      data-bind="document-table-definition-row-count"
+                      name="sampleRowCount"
+                      ${optionDisabled ? 'disabled' : ''}
+                    >
+                      ${[3, 5, 10]
+                          .map(count => `
+                            <option value="${count}" ${Number(modal.sampleRowCount ?? 5) === count ? 'selected' : ''}>
+                              ${count}
+                            </option>
+                          `)
+                          .join('')}
+                    </select>
+                  </label>
+                `
+                : ''
+        }
+        ${renderError(modal.error)}
+        <div class="flex items-center justify-between gap-3 pt-2">
+          <button class="standard-button" data-action="close-modal" type="button">Cancel</button>
+          <button class="signature-button" type="submit" ${disabledAttribute}>
+            ${modal.submitting ? 'Inserting...' : 'Insert Table Definition'}
+          </button>
+        </div>
+      </form>
+    `;
 }
 
 function renderQueryExportPreview(lines = []) {
@@ -2255,6 +2395,11 @@ export function renderModal(state) {
             title: 'Delete Document',
             body: renderDeleteDocumentForm(modal),
         },
+        'create-document-folder': {
+            eyebrow: 'Documents // New folder',
+            title: 'New Folder',
+            body: renderCreateDocumentFolderForm(modal),
+        },
         'delete-api-token': {
             eyebrow: 'Settings // Confirm token deletion',
             title: 'Delete API Token',
@@ -2267,8 +2412,13 @@ export function renderModal(state) {
         },
         'document-insert-note': {
             eyebrow: 'Documents // Saved query notes',
-            title: 'Insert Note',
+            title: 'Insert Query Note',
             body: renderDocumentInsertNoteForm(modal),
+        },
+        'document-insert-table-definition': {
+            eyebrow: 'Documents // Table definition',
+            title: 'Insert Table Definition',
+            body: renderDocumentInsertTableDefinitionForm(modal),
         },
         'query-export': {
             eyebrow: 'SQL Editor // Export query result',
