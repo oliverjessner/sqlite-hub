@@ -77,6 +77,9 @@ test("sqlite metadata marks virtual tables across data, designer, advisor, and s
   assert.equal(designerListEntry.isVirtual, true);
   assert.equal(advisorResult.isVirtual, true);
   assert.equal(advisorResult.table.isVirtual, true);
+  assert.equal(advisorResult.issues.length, 1);
+  assert.equal(advisorResult.issues[0].fixAvailable, false);
+  assert.match(advisorResult.issues[0].fixUnavailableReason, /module/i);
   assert.equal(structureListEntry.isVirtual, true);
   assert.equal(graphTable.isVirtual, true);
   assert.equal(graphTable.virtualModule, "fts5");
@@ -86,6 +89,9 @@ test("sqlite metadata marks virtual tables across data, designer, advisor, and s
   assert.equal(shadowDataTable.readOnly, true);
   assert.equal(shadowAdvisorResult.isShadow, true);
   assert.equal(shadowAdvisorResult.table.isShadow, true);
+  assert.equal(shadowAdvisorResult.issues.length, 1);
+  assert.equal(shadowAdvisorResult.issues[0].fixAvailable, false);
+  assert.match(shadowAdvisorResult.issues[0].fixUnavailableReason, /shadow table/i);
   assert.equal(shadowGraphTable.isShadow, true);
   assert.equal(shadowGraphTable.shadowOwnerTable, "docs");
   shadowTableNames.forEach((tableName) => {

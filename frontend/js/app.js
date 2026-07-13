@@ -47,6 +47,7 @@ import {
     exportCurrentQueryFormat,
     getState,
     initializeApp,
+    insertAdvisorQuery,
     insertCurrentDocumentDatabaseInfo,
     insertCurrentDocumentSavedQueries,
     insertCurrentDocumentTimeMetadata,
@@ -100,6 +101,7 @@ import {
     selectDataRow,
     selectEditorRow,
     selectConnection,
+    selectEditorQueryTab,
     selectQueryHistoryItem,
     selectStructureEntry,
     setDocumentsSearchQuery,
@@ -1975,7 +1977,10 @@ async function openTableInSqlEditor(tableName) {
         return;
     }
 
-    setCurrentQuery(`SELECT * FROM ${quoteSqlIdentifier(normalizedTableName)};`);
+    setCurrentQuery(`SELECT * FROM ${quoteSqlIdentifier(normalizedTableName)};`, {
+        origin: '',
+        title: normalizedTableName,
+    });
     router.navigate('/editor');
 }
 
@@ -3239,6 +3244,14 @@ async function handleAction(actionNode) {
                 actionNode.dataset.nextValue ? actionNode.dataset.nextValue === 'true' : undefined,
             );
             return;
+        case 'select-editor-query-tab':
+            if (actionNode.dataset.tabId && selectEditorQueryTab(actionNode.dataset.tabId)) {
+                pendingQueryEditorFocus = true;
+                if (getState().route.name === 'editorResults') {
+                    router.navigate('/editor');
+                }
+            }
+            return;
         case 'load-more-query-history':
             await loadMoreQueryHistory();
             return;
@@ -3466,6 +3479,29 @@ async function handleAction(actionNode) {
                 showToast('Advisor SQL copied.', 'success');
             } catch (error) {
                 showToast('Advisor SQL could not be copied.', 'alert');
+            }
+            return;
+        }
+        case 'insert-table-advisor-sql':
+        case 'backup-and-insert-table-advisor-sql': {
+            const issueId = actionNode.dataset.issueId;
+            const advisor = getState().tableAdvisor;
+            const issue = (advisor.result?.issues ?? []).find(item => item.id === issueId);
+            const sql = String(issue?.sql ?? '');
+
+            if (!issue?.fixAvailable || !sql.trim()) {
+                showToast('No executable Advisor SQL is available.', 'alert');
+                return;
+            }
+
+            const inserted = await insertAdvisorQuery(sql, {
+                title: issue.title,
+                createBackup: action === 'backup-and-insert-table-advisor-sql',
+            });
+
+            if (inserted) {
+                pendingQueryEditorFocus = true;
+                router.navigate('/editor');
             }
             return;
         }

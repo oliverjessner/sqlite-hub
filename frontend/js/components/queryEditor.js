@@ -36,8 +36,39 @@ function renderEditorSurface({ query }) {
   ].join("");
 }
 
+function renderQueryTabs(tabs = [], activeTabId = '') {
+  return `
+    <div class="flex min-h-10 items-stretch overflow-x-auto border-b border-outline-variant/10 bg-surface-container-lowest" role="tablist" aria-label="SQL editor tabs">
+      ${tabs
+        .map(tab => {
+          const active = tab.id === activeTabId;
+
+          return `
+            <button
+              class="flex min-w-36 max-w-64 items-center gap-2 border-r border-outline-variant/10 px-3 py-2 text-left ${active ? "bg-surface-container text-primary-container" : "text-on-surface-variant/60 hover:bg-surface-container-low"}"
+              data-action="select-editor-query-tab"
+              data-tab-id="${escapeHtml(tab.id)}"
+              role="tab"
+              aria-selected="${active ? "true" : "false"}"
+              type="button"
+            >
+              <span class="material-symbols-outlined text-sm">${tab.origin ? "auto_fix_high" : "description"}</span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-xs font-bold">${escapeHtml(tab.title || "Query")}</span>
+                ${tab.origin ? `<span class="block truncate font-mono text-[9px] uppercase tracking-[0.12em]">${escapeHtml(tab.origin)}</span>` : ""}
+              </span>
+            </button>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
 export function renderQueryEditor({
   query,
+  queryTabs = [],
+  activeQueryTabId = '',
   executing = false,
   exporting = false,
   editorVisible = true,
@@ -124,6 +155,7 @@ export function renderQueryEditor({
         editorVisible
           ? `
             <div class="flex min-h-0 flex-1 flex-col">
+              ${renderQueryTabs(queryTabs, activeQueryTabId)}
               ${renderEditorSurface({ query })}
             </div>
           `

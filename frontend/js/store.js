@@ -305,6 +305,14 @@ function normalizeLogFilters(filters = {}) {
     };
 }
 
+const initialSqlEditorDraft = readStoredString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft);
+const initialSqlEditorTab = {
+    id: 'query-1',
+    title: 'Query 1',
+    sqlText: initialSqlEditorDraft,
+    origin: '',
+};
+
 const state = {
     ready: false,
     route: { name: 'landing', path: '/', params: {} },
@@ -407,7 +415,9 @@ const state = {
         analysisError: null,
     },
     editor: {
-        sqlText: readStoredString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft),
+        sqlText: initialSqlEditorDraft,
+        queryTabs: [initialSqlEditorTab],
+        activeQueryTabId: initialSqlEditorTab.id,
         editorPanelVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.sqlEditorEditorVisible, true),
         history: [],
         historyPanelVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.sqlEditorHistoryVisible, true),
@@ -6152,22 +6162,15 @@ export async function openOverviewInFinder() {
     }
 }
 
-export function setCurrentQuery(query) {
-    const nextQuery = String(query ?? '');
-    const previousLineCount = Math.max(1, String(state.editor.sqlText || '').split('\n').length);
-    const nextLineCount = Math.max(1, nextQuery.split('\n').length);
+function updateActiveQueryTab(updates = {}) {
+    const activeId = state.editor.activeQueryTabId;
 
-    state.editor.sqlText = nextQuery;
-    storeString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft, nextQuery);
-
-    if (previousLineCount !== nextLineCount) {
-        emitChange();
-    }
+    state.editor.queryTabs = state.editor.queryTabs.map(tab =>
+        tab.id === activeId ? { ...tab, ...updates } : tab
+    );
 }
 
-export function clearCurrentQuery() {
-    state.editor.sqlText = '';
-    storeString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft, '');
+function clearEditorExecutionState() {
     state.editor.result = null;
     state.editor.lastExecutedSql = '';
     resetEditorResultSort();
@@ -6177,7 +6180,114 @@ export function clearCurrentQuery() {
     state.editor.saving = false;
     state.editor.deleting = false;
     state.editor.saveError = null;
+}
+
+function createQueryTabId() {
+    return globalThis.crypto?.randomUUID?.() ?? `query-${Date.now()}-${state.editor.queryTabs.length + 1}`;
+}
+
+export function setCurrentQuery(query, options = {}) {
+    const nextQuery = String(query ?? '');
+    const previousLineCount = Math.max(1, String(state.editor.sqlText || '').split('\n').length);
+    const nextLineCount = Math.max(1, nextQuery.split('\n').length);
+
+    state.editor.sqlText = nextQuery;
+    updateActiveQueryTab({
+        sqlText: nextQuery,
+        ...(Object.hasOwn(options, 'origin') ? { origin: String(options.origin ?? '') } : {}),
+        ...(Object.hasOwn(options, 'title') ? { title: String(options.title ?? '') } : {}),
+    });
+    storeString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft, nextQuery);
+
+    if (previousLineCount !== nextLineCount) {
+        emitChange();
+    }
+}
+
+export function clearCurrentQuery() {
+    const activeTabIndex = state.editor.queryTabs.findIndex(tab => tab.id === state.editor.activeQueryTabId);
+    state.editor.sqlText = '';
+    updateActiveQueryTab({ sqlText: '', origin: '', title: `Query ${Math.max(1, activeTabIndex + 1)}` });
+    storeString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft, '');
+    clearEditorExecutionState();
     emitChange();
+}
+
+export function selectEditorQueryTab(tabId) {
+    const selectedTab = state.editor.queryTabs.find(tab => tab.id === tabId);
+
+    if (!selectedTab || selectedTab.id === state.editor.activeQueryTabId) {
+        return false;
+    }
+
+    state.editor.activeQueryTabId = selectedTab.id;
+    state.editor.sqlText = selectedTab.sqlText;
+    storeString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft, selectedTab.sqlText);
+    clearEditorExecutionState();
+    emitChange();
+    return true;
+}
+
+export async function insertAdvisorQuery(sql, options = {}) {
+    const normalizedSql = String(sql ?? '').trim();
+
+    if (!normalizedSql) {
+        pushToast('No advisor SQL is available.', 'alert');
+        return false;
+    }
+
+    if (options.createBackup) {
+        if (!state.connections.active) {
+            pushToast('No active SQLite database selected for backup.', 'alert');
+            return false;
+        }
+
+        try {
+            await api.createBackup({
+                name: `Before Advisor fix: ${String(options.title ?? 'SQL change').slice(0, 80)}`,
+                notes: 'Safety backup created before inserting an Advisor-generated query into the SQL Editor.',
+                type: 'pre_schema_change',
+            });
+        } catch (error) {
+            pushToast(normalizeError(error).message || 'Advisor safety backup could not be created.', 'alert');
+            return false;
+        }
+    }
+
+    const activeTab = state.editor.queryTabs.find(tab => tab.id === state.editor.activeQueryTabId);
+    const tabTitle = String(options.title ?? 'Advisor fix').trim().slice(0, 60) || 'Advisor fix';
+
+    if (activeTab && !String(activeTab.sqlText ?? '').trim()) {
+        state.editor.sqlText = normalizedSql;
+        updateActiveQueryTab({
+            sqlText: normalizedSql,
+            title: tabTitle,
+            origin: 'Generated by Advisor',
+        });
+    } else {
+        const tab = {
+            id: createQueryTabId(),
+            title: tabTitle,
+            sqlText: normalizedSql,
+            origin: 'Generated by Advisor',
+        };
+        state.editor.queryTabs = [...state.editor.queryTabs, tab];
+        state.editor.activeQueryTabId = tab.id;
+        state.editor.sqlText = normalizedSql;
+    }
+
+    state.editor.editorPanelVisible = true;
+    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.sqlEditorEditorVisible, true);
+    storeString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft, normalizedSql);
+    clearEditorExecutionState();
+    emitChange();
+    pushToast(
+        options.createBackup
+            ? 'Backup created. Advisor SQL inserted without execution.'
+            : 'Advisor SQL inserted without execution.',
+        'success',
+    );
+    return true;
 }
 
 export function clearEditorResults() {
@@ -6377,6 +6487,10 @@ export function openQueryHistoryInEditor(historyId, options = {}) {
     setActiveQueryHistoryItem(historyId);
     clearQueryHistoryDetailState();
     state.editor.sqlText = options.append ? [state.editor.sqlText.trim(), rawSql].filter(Boolean).join('\n\n') : rawSql;
+    updateActiveQueryTab({
+        sqlText: state.editor.sqlText,
+        ...(!options.append ? { origin: '', title: 'History query' } : {}),
+    });
     storeString(UI_PREFERENCE_STORAGE_KEYS.sqlEditorQueryDraft, state.editor.sqlText);
     if (options.notify !== false) {
         emitChange();

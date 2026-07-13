@@ -305,6 +305,8 @@ export function renderEditorView(state, { isResultsRoute = false } = {}) {
           <section class="${editorSectionClass} flex min-h-0 flex-col">
             ${renderQueryEditor({
                 query: state.editor.sqlText,
+                queryTabs: state.editor.queryTabs,
+                activeQueryTabId: state.editor.activeQueryTabId,
                 executing: state.editor.executing,
                 exporting: state.editor.exportLoading,
                 editorVisible: state.editor.editorPanelVisible,
