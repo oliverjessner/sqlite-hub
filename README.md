@@ -218,11 +218,12 @@ The Settings view reports the installed SQLite Hub version and the actual SQLite
 
 ### Backup Manager
 
-[![SQLite Hub backups](./frontend/assets/mockups/backups_1_1920.webp)](./frontend/assets/mockups/backups_1_1920.webp)
+<p>
+  <a href="./frontend/assets/mockups/backups_1_1920.webp"><img src="./frontend/assets/mockups/backups_1_1920.webp" alt="SQLite Hub backups" width="49%"></a>
+  <a href="./frontend/assets/mockups/backups_2_compare_drawer_1920.webp"><img src="./frontend/assets/mockups/backups_2_compare_drawer_1920.webp" alt="SQLite Hub backup compare drawer" width="49%"></a>
+</p>
 
 Create verified local backups of the active SQLite database, compare backup contents with the current database, review backup metadata, edit backup notes, download backup files, restore verified backups, and delete managed backups from the Backups view. SQLite Hub stores backup files under its local app-state backup directory by connection id and keeps a `manifest.json` beside each database's backup files. Each backup is created through SQLite's backup API, hashed with SHA-256, and verified with `PRAGMA quick_check` before it is marked as verified.
-
-[![SQLite Hub backup compare drawer](./frontend/assets/mockups/backups_2_compare_drawer_1920.webp)](./frontend/assets/mockups/backups_2_compare_drawer_1920.webp)
 
 SQLite Hub also proposes a safety backup before operations that can be hard to undo:
 

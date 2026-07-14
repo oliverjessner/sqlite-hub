@@ -32,8 +32,7 @@
         "dev": "node --watch server/server.js --port:4180",
         "prepack": "npm run build:css",
         "publish": "bash scripts/publish_brew.sh && sleep 10 && bash scripts/publish_npm.sh",
-        "screenshots": "node scripts/screenshot_sqlite_hub.js --width:1920 --height:1280",
-        "screenshots:backup-drawer": "node scripts/screenshot_backup_drawer.js"
+        "screenshots": "node scripts/screenshot_sqlite_hub.js --width:1920 --height:1280"
     },
     "dependencies": {
         "better-sqlite3": "^12.10.1",

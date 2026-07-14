@@ -10,7 +10,7 @@ SQLite Hub is a local-first Node/Express app with a browser SPA. Backend code li
 - `npm start` runs the packaged CLI entrypoint.
 - `npm test` runs all Node test files under `tests/`.
 - `npm run build` or `npm run build:css` regenerates `frontend/styles/tailwind.generated.css`.
-- `npm run screenshots` refreshes the standard screenshot set; use `npm run screenshots:backup-drawer` for the backup drawer capture.
+- `npm run screenshots` clears and refreshes the complete screenshot set, including the isolated backup drawer fixture.
 - `npm run audit` checks production dependencies for high-severity issues.
 
 ## Coding Style & Naming Conventions
