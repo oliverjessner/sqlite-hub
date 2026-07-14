@@ -46,50 +46,52 @@ const MACOS_SCAN_LOCATIONS = Object.freeze({
 });
 
 function createWindowsScanLocations(homeDirectory, environment = process.env) {
+  const platformPath = path.win32;
   return {
     roamingAppData: {
       label: "Roaming AppData",
-      absolutePath: environment.APPDATA || path.join(homeDirectory, "AppData", "Roaming"),
+      absolutePath: environment.APPDATA || platformPath.join(homeDirectory, "AppData", "Roaming"),
       optional: false,
     },
     localAppData: {
       label: "Local AppData",
-      absolutePath: environment.LOCALAPPDATA || path.join(homeDirectory, "AppData", "Local"),
+      absolutePath: environment.LOCALAPPDATA || platformPath.join(homeDirectory, "AppData", "Local"),
       optional: false,
     },
     programData: {
       label: "ProgramData",
-      absolutePath: environment.PROGRAMDATA || path.join(path.parse(homeDirectory).root || "C:\\", "ProgramData"),
+      absolutePath: environment.PROGRAMDATA || platformPath.join(platformPath.parse(homeDirectory).root || "C:\\", "ProgramData"),
       optional: true,
     },
   };
 }
 
 function createLinuxScanLocations(homeDirectory, environment = process.env) {
+  const platformPath = path.posix;
   return {
     xdgConfig: {
       label: "User configuration",
-      absolutePath: environment.XDG_CONFIG_HOME || path.join(homeDirectory, ".config"),
+      absolutePath: environment.XDG_CONFIG_HOME || platformPath.join(homeDirectory, ".config"),
       optional: false,
     },
     xdgData: {
       label: "User data",
-      absolutePath: environment.XDG_DATA_HOME || path.join(homeDirectory, ".local", "share"),
+      absolutePath: environment.XDG_DATA_HOME || platformPath.join(homeDirectory, ".local", "share"),
       optional: false,
     },
     flatpakData: {
       label: "Flatpak applications",
-      absolutePath: path.join(homeDirectory, ".var", "app"),
+      absolutePath: platformPath.join(homeDirectory, ".var", "app"),
       optional: false,
     },
     xdgCache: {
       label: "User cache",
-      absolutePath: environment.XDG_CACHE_HOME || path.join(homeDirectory, ".cache"),
+      absolutePath: environment.XDG_CACHE_HOME || platformPath.join(homeDirectory, ".cache"),
       optional: true,
     },
     snapData: {
       label: "Snap applications",
-      absolutePath: path.join(homeDirectory, "snap"),
+      absolutePath: platformPath.join(homeDirectory, "snap"),
       optional: true,
     },
     systemData: {
