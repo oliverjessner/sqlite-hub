@@ -125,14 +125,20 @@ test("database discovery selection selects multiple importable rows but never co
     fixtureResult({ id: "db-3", name: "Known", path: "/tmp/Known", isAlreadyConnected: true }),
   ];
   store.openModal("database-discovery", fixtureModal(results));
-  store.clearDiscoveredDatabaseSelection();
-  store.toggleDiscoveredDatabaseSelection("db-1", true);
-  store.toggleDiscoveredDatabaseSelection("db-2", true);
-  store.toggleDiscoveredDatabaseSelection("db-3", true);
+  let notifications = 0;
+  const unsubscribe = store.subscribe(() => {
+    notifications += 1;
+  });
+  store.clearDiscoveredDatabaseSelection({ notify: false });
+  store.toggleDiscoveredDatabaseSelection("db-1", true, { notify: false });
+  store.toggleDiscoveredDatabaseSelection("db-2", true, { notify: false });
+  store.toggleDiscoveredDatabaseSelection("db-3", true, { notify: false });
 
   assert.deepEqual(store.getState().modal.selectedIds.sort(), ["db-1", "db-2"]);
 
-  store.clearDiscoveredDatabaseSelection();
-  store.selectAllDiscoveredDatabases();
+  store.clearDiscoveredDatabaseSelection({ notify: false });
+  store.selectAllDiscoveredDatabases({ notify: false });
   assert.deepEqual(store.getState().modal.selectedIds.sort(), ["db-1", "db-2"]);
+  assert.equal(notifications, 0);
+  unsubscribe();
 });

@@ -5920,7 +5920,7 @@ export function getFilteredDatabaseDiscoveryResults(snapshot = state) {
         });
 }
 
-export function toggleDiscoveredDatabaseSelection(resultId, selected) {
+export function toggleDiscoveredDatabaseSelection(resultId, selected, options = {}) {
     const modal = state.modal;
     const result = modal?.kind === 'database-discovery'
         ? modal.results.find(item => item.id === resultId)
@@ -5931,25 +5931,34 @@ export function toggleDiscoveredDatabaseSelection(resultId, selected) {
     modal.selectedIds = selected
         ? [...new Set([...modal.selectedIds, resultId])]
         : modal.selectedIds.filter(id => id !== resultId);
-    emitChange();
+    if (options.notify !== false) {
+        emitChange();
+    }
+    return [...modal.selectedIds];
 }
 
-export function selectAllDiscoveredDatabases() {
+export function selectAllDiscoveredDatabases(options = {}) {
     if (state.modal?.kind !== 'database-discovery') {
-        return;
+        return [];
     }
     state.modal.selectedIds = getFilteredDatabaseDiscoveryResults(state)
         .filter(item => !item.isAlreadyConnected)
         .map(item => item.id);
-    emitChange();
+    if (options.notify !== false) {
+        emitChange();
+    }
+    return [...state.modal.selectedIds];
 }
 
-export function clearDiscoveredDatabaseSelection() {
+export function clearDiscoveredDatabaseSelection(options = {}) {
     if (state.modal?.kind !== 'database-discovery') {
-        return;
+        return [];
     }
     state.modal.selectedIds = [];
-    emitChange();
+    if (options.notify !== false) {
+        emitChange();
+    }
+    return [];
 }
 
 export async function previewDiscoveredDatabase(resultId) {

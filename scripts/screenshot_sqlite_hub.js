@@ -18,7 +18,12 @@ const QUERY_HISTORY_TABS_TO_SEARCH = ["recent", "saved", "unsaved"];
 const MEDIA_TAGGING_SCENARIOS = new Set(["media_tagging_setup", "media_tagging_queue"]);
 
 const MENU_SCENARIOS = [
-  { slug: "connections", path: "/connections", drawers: [] },
+  {
+    slug: "connections",
+    path: "/connections",
+    drawers: [],
+    modalActions: ["open-database-discovery"],
+  },
   { slug: "overview", path: "/overview", drawers: [] },
   {
     slug: "data",
@@ -788,12 +793,18 @@ class ScreenshotWriter {
   }
 }
 
-async function collectModalDescriptors(page) {
+async function collectModalDescriptors(page, additionalActions = []) {
   return evaluate(
     page,
     `(() => {
+      const additionalActions = new Set(${JSON.stringify(additionalActions)});
       const roots = [document.querySelector("#app-view"), document.querySelector("#app-panel")].filter(Boolean);
-      const nodes = roots.flatMap((root) => Array.from(root.querySelectorAll("button[data-action*='modal'], button[data-modal]")));
+      const selectors = [
+        "button[data-action*='modal']",
+        "button[data-modal]",
+        ...Array.from(additionalActions, (action) => "button[data-action=\"" + CSS.escape(action) + "\"]"),
+      ];
+      const nodes = roots.flatMap((root) => Array.from(root.querySelectorAll(selectors.join(","))));
       const seen = new Set();
       const descriptors = [];
 
@@ -801,7 +812,7 @@ async function collectModalDescriptors(page) {
         if (node.disabled) continue;
         const action = node.dataset.action || "";
         const modal = node.dataset.modal || "";
-        if (!action.includes("modal") && !modal) continue;
+        if (!action.includes("modal") && !modal && !additionalActions.has(action)) continue;
         const key = [action, modal, node.dataset.typeScope || ""].join("|");
         if (seen.has(key)) continue;
         seen.add(key);
@@ -849,7 +860,7 @@ async function closeModal(page) {
 async function captureModalScenarios(page, writer, baseUrl, scenario, log) {
   await navigateTo(page, baseUrl, scenario.path);
   await prepareScenario(page, scenario);
-  const descriptors = await collectModalDescriptors(page);
+  const descriptors = await collectModalDescriptors(page, scenario.modalActions ?? []);
 
   for (const descriptor of descriptors) {
     const extra = modalExtraName(descriptor);
@@ -1008,3 +1019,8 @@ if (require.main === module) {
     process.exitCode = 1;
   });
 }
+
+module.exports = {
+  MENU_SCENARIOS,
+  modalExtraName,
+};

@@ -433,6 +433,33 @@ function syncMediaTagSelectionUi(input, checked) {
     syncMediaTaggingApplyButtonUi(input);
 }
 
+function syncDatabaseDiscoverySelectionUi(selectedDatabaseIds = []) {
+    if (!(shellRefs.modal instanceof HTMLElement)) {
+        return false;
+    }
+
+    const selectedIds = new Set(selectedDatabaseIds);
+    for (const input of shellRefs.modal.querySelectorAll('[data-bind="discovered-database-selection"]')) {
+        if (input instanceof HTMLInputElement) {
+            input.checked = selectedIds.has(input.dataset.resultId);
+        }
+    }
+
+    const selectedCount = selectedIds.size;
+    const clearButton = shellRefs.modal.querySelector('[data-action="clear-discovered-database-selection"]');
+    if (clearButton instanceof HTMLButtonElement) {
+        clearButton.disabled = selectedCount === 0;
+    }
+
+    const importButton = shellRefs.modal.querySelector('[data-action="confirm-discovered-database-import"]');
+    if (importButton instanceof HTMLButtonElement) {
+        importButton.disabled = selectedCount === 0;
+        importButton.textContent = `Import ${selectedCount} ${selectedCount === 1 ? 'database' : 'databases'}`;
+    }
+
+    return true;
+}
+
 function syncMediaTaggingApplyButtonUi(node) {
     if (!(node instanceof HTMLElement)) {
         return false;
@@ -3041,10 +3068,10 @@ async function handleAction(actionNode) {
             removeDatabaseDiscoveryDirectory(actionNode.dataset.directoryPath);
             return;
         case 'select-all-discovered-databases':
-            selectAllDiscoveredDatabases();
+            syncDatabaseDiscoverySelectionUi(selectAllDiscoveredDatabases({ notify: false }));
             return;
         case 'clear-discovered-database-selection':
-            clearDiscoveredDatabaseSelection();
+            syncDatabaseDiscoverySelectionUi(clearDiscoveredDatabaseSelection({ notify: false }));
             return;
         case 'preview-discovered-database':
             await previewDiscoveredDatabase(actionNode.dataset.resultId);
@@ -4311,10 +4338,12 @@ document.addEventListener('change', event => {
     }
 
     if (bindNode.dataset.bind === 'discovered-database-selection') {
-        toggleDiscoveredDatabaseSelection(
+        const selectedIds = toggleDiscoveredDatabaseSelection(
             bindNode.dataset.resultId,
             bindNode instanceof HTMLInputElement && bindNode.checked,
+            { notify: false },
         );
+        syncDatabaseDiscoverySelectionUi(selectedIds);
         return;
     }
 
