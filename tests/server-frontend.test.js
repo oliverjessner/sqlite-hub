@@ -1,7 +1,37 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const http = require("node:http");
+const os = require("node:os");
+const path = require("node:path");
 const test = require("node:test");
-const { app } = require("../server/server");
+
+const isolatedStateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-frontend-state-"));
+const originalEnvironment = {
+  APPDATA: process.env.APPDATA,
+  HOME: process.env.HOME,
+  XDG_STATE_HOME: process.env.XDG_STATE_HOME,
+};
+
+if (process.platform === "win32") {
+  process.env.APPDATA = isolatedStateRoot;
+} else if (process.platform === "darwin") {
+  process.env.HOME = isolatedStateRoot;
+} else {
+  process.env.XDG_STATE_HOME = isolatedStateRoot;
+}
+
+const serverModule = require("../server/server");
+const { app } = serverModule;
+
+for (const [key, value] of Object.entries(originalEnvironment)) {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}
+
+test.after(() => {
+  serverModule.appStateStore.db.close();
+  fs.rmSync(isolatedStateRoot, { recursive: true, force: true });
+});
 
 function request(pathname) {
   return new Promise((resolve, reject) => {
@@ -32,6 +62,8 @@ function request(pathname) {
 }
 
 test("serves the SPA entrypoint from the root and direct index routes", async () => {
+  assert.equal(serverModule.appStateStore.filePath.startsWith(isolatedStateRoot), true);
+
   for (const pathname of ["/", "/index.html"]) {
     const response = await request(pathname);
 
