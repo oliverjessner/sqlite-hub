@@ -102,6 +102,41 @@ export function chooseCreateDatabasePath() {
   });
 }
 
+export function chooseDiscoveryDirectory() {
+  return request("/api/connections/choose-directory", { method: "POST" });
+}
+
+export function getDatabaseDiscoveryLocations() {
+  return request("/api/connections/discovery/locations");
+}
+
+export function startDatabaseDiscovery(payload) {
+  return request("/api/connections/discovery/scan", { method: "POST", body: payload });
+}
+
+export function getDatabaseDiscoveryScan(sessionId) {
+  return request(`/api/connections/discovery/scan/${encodeURIComponent(sessionId)}`);
+}
+
+export function cancelDatabaseDiscoveryScan(sessionId) {
+  return request(`/api/connections/discovery/scan/${encodeURIComponent(sessionId)}/cancel`, { method: "POST" });
+}
+
+export function previewDiscoveredDatabase(sessionId, resultId) {
+  return request(`/api/connections/discovery/scan/${encodeURIComponent(sessionId)}/preview/${encodeURIComponent(resultId)}`);
+}
+
+export function importDiscoveredDatabases(sessionId, resultIds) {
+  return request(`/api/connections/discovery/scan/${encodeURIComponent(sessionId)}/import`, {
+    method: "POST",
+    body: { resultIds },
+  });
+}
+
+export function revealDiscoveredDatabase(sessionId, resultId) {
+  return request(`/api/connections/discovery/scan/${encodeURIComponent(sessionId)}/reveal/${encodeURIComponent(resultId)}`, { method: "POST" });
+}
+
 export function importSql(payload) {
   return request("/api/connections/import-sql", {
     method: "POST",

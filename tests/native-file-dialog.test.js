@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
   NativeFileDialogService,
+  buildDirectoryDialogAttempts,
   buildDialogAttempts,
   buildOpenDialogAttempts,
   normalizeOpenedDatabasePath,
@@ -33,6 +34,16 @@ test("native database dialog builds platform-specific open commands", () => {
 
   assert.match(macAttempt.args.join(" "), /choose file with prompt/);
   assert.match(windowsAttempt.args.at(-1), /OpenFileDialog/);
+  assert.deepEqual(linuxAttempts.map((attempt) => attempt.command), ["zenity", "kdialog"]);
+});
+
+test("native directory dialog builds platform-specific folder pickers", () => {
+  const macAttempt = buildDirectoryDialogAttempts({ platform: "darwin", homeDirectory: "/Users/test" })[0];
+  const windowsAttempt = buildDirectoryDialogAttempts({ platform: "win32", homeDirectory: "C:\\Users\\test" })[0];
+  const linuxAttempts = buildDirectoryDialogAttempts({ platform: "linux", homeDirectory: "/home/test" });
+
+  assert.match(macAttempt.args.join(" "), /choose folder/);
+  assert.match(windowsAttempt.args.at(-1), /FolderBrowserDialog/);
   assert.deepEqual(linuxAttempts.map((attempt) => attempt.command), ["zenity", "kdialog"]);
 });
 
@@ -102,4 +113,14 @@ test("native open database dialog returns the selected existing path", async () 
   });
 
   assert.equal(await service.chooseOpenDatabasePath(), "/home/test/catalog.db");
+});
+
+test("native directory picker returns the selected folder", async () => {
+  const service = new NativeFileDialogService({
+    platform: "darwin",
+    homeDirectory: "/Users/test",
+    executeFile: async () => ({ stdout: "/Users/test/Library/Application Support\n" }),
+  });
+
+  assert.equal(await service.chooseDirectoryPath(), "/Users/test/Library/Application Support");
 });

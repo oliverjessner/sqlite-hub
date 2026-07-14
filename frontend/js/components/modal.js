@@ -1,4 +1,4 @@
-import { escapeHtml, formatNumber, highlightSql, truncateMiddle } from '../utils/format.js';
+import { escapeHtml, formatBytes, formatDateTime, formatNumber, highlightSql, truncateMiddle } from '../utils/format.js';
 import {
     buildCopyColumnText,
     buildCopyColumnPreviewText,
@@ -138,6 +138,173 @@ function renderError(error) {
       <div class="mt-1 text-on-surface">${escapeHtml(error.message)}</div>
     </div>
   `;
+}
+
+function renderDatabaseDiscoverySettings(modal) {
+    return `
+      <details class="border border-outline-variant/15 bg-surface-container-low" ${modal.scanStatus === 'idle' ? 'open' : ''}>
+        <summary class="cursor-pointer px-4 py-3 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-primary-container">Scan settings</summary>
+        <div class="grid gap-3 border-t border-outline-variant/10 px-4 py-4 md:grid-cols-2 xl:grid-cols-3">
+          ${(modal.locations ?? []).map(location => `
+            <label class="standard-checkbox">
+              <input data-bind="database-discovery-location" data-location-key="${escapeHtml(location.key)}" type="checkbox" ${modal.selectedLocationKeys.includes(location.key) ? 'checked' : ''} />
+              <span class="min-w-0"><span class="block text-xs font-bold">${escapeHtml(location.label)}</span><span class="block truncate font-mono text-[9px] text-on-surface-variant/55" title="${escapeHtml(location.path)}">${escapeHtml(location.path)}</span></span>
+            </label>
+          `).join('')}
+          <label class="standard-checkbox">
+            <input data-bind="database-discovery-field" data-field="showAlreadyConnected" type="checkbox" ${modal.showAlreadyConnected ? 'checked' : ''} />
+            <span class="text-xs font-bold">Show already connected databases</span>
+          </label>
+        </div>
+        <div class="border-t border-outline-variant/10 px-4 py-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <button class="standard-button" data-action="add-database-discovery-directory" type="button"><span class="material-symbols-outlined text-sm">create_new_folder</span>Add custom directory</button>
+            ${(modal.customDirectories ?? []).map(directory => `
+              <span class="inline-flex max-w-full items-center gap-2 border border-outline-variant/15 bg-surface-container-lowest px-2 py-1 font-mono text-[10px]">
+                <span class="truncate" title="${escapeHtml(directory)}">${escapeHtml(directory)}</span>
+                <button data-action="remove-database-discovery-directory" data-directory-path="${escapeHtml(directory)}" type="button" aria-label="Remove directory"><span class="material-symbols-outlined text-sm">close</span></button>
+              </span>
+            `).join('')}
+          </div>
+        </div>
+      </details>
+    `;
+}
+
+function renderDatabaseDiscoveryFilters(modal) {
+    const sources = [...new Set((modal.results ?? []).map(item => item.sourceDirectory).filter(Boolean))];
+    return `
+      <div class="grid gap-2 border border-outline-variant/10 bg-surface-container-low p-3 md:grid-cols-2 xl:grid-cols-4">
+        <input class="control-input w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant/35 focus:border-primary-container" data-bind="database-discovery-field" data-field="search" placeholder="Search name, app or path" type="search" value="${escapeHtml(modal.search ?? '')}" />
+        <select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" data-bind="database-discovery-field" data-field="sourceDirectory">
+          <option value="all">All locations</option>
+          ${sources.map(source => `<option value="${escapeHtml(source)}" ${modal.sourceDirectory === source ? 'selected' : ''}>${escapeHtml(source)}</option>`).join('')}
+        </select>
+        <select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" data-bind="database-discovery-field" data-field="sortBy">
+          ${[
+              ['modifiedAt', 'Modified'], ['sizeBytes', 'File size'], ['applicationName', 'App'], ['name', 'Database name'], ['path', 'Path'],
+          ].map(([value, label]) => `<option value="${value}" ${modal.sortBy === value ? 'selected' : ''}>Sort: ${label}</option>`).join('')}
+        </select>
+        <select class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container" data-bind="database-discovery-field" data-field="sortDirection"><option value="desc" ${modal.sortDirection === 'desc' ? 'selected' : ''}>Descending</option><option value="asc" ${modal.sortDirection === 'asc' ? 'selected' : ''}>Ascending</option></select>
+        <label class="standard-checkbox"><input data-bind="database-discovery-field" data-field="writableOnly" type="checkbox" ${modal.writableOnly ? 'checked' : ''}/><span>Writable only</span></label>
+        <label class="standard-checkbox"><input data-bind="database-discovery-field" data-field="walOnly" type="checkbox" ${modal.walOnly ? 'checked' : ''}/><span>WAL only</span></label>
+        <label class="standard-checkbox"><input data-bind="database-discovery-field" data-field="recentOnly" type="checkbox" ${modal.recentOnly ? 'checked' : ''}/><span>Modified in 7 days</span></label>
+        <span class="grid grid-cols-2 gap-2"><input class="control-input w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant/35 focus:border-primary-container" data-bind="database-discovery-field" data-field="minSizeMb" min="0" placeholder="Min MB" type="number" value="${escapeHtml(modal.minSizeMb ?? '')}"/><input class="control-input w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors placeholder:text-on-surface-variant/35 focus:border-primary-container" data-bind="database-discovery-field" data-field="maxSizeMb" min="0" placeholder="Max MB" type="number" value="${escapeHtml(modal.maxSizeMb ?? '')}"/></span>
+      </div>
+    `;
+}
+
+function renderDiscoveredDatabaseRow(item, selectedIds, activeId) {
+    const selected = selectedIds.has(item.id);
+    return `
+      <article class="border ${activeId === item.id ? 'border-primary-container/35 bg-surface-container-high' : 'border-outline-variant/10 bg-surface-container-lowest'} px-3 py-3 ${item.isAlreadyConnected ? 'opacity-50' : ''}">
+        <div class="flex items-start gap-3">
+          <input class="m-0 rounded-none border-outline bg-surface-container-lowest text-primary-container focus:ring-primary-container" aria-label="Select ${escapeHtml(item.name)}" data-bind="discovered-database-selection" data-result-id="${escapeHtml(item.id)}" type="checkbox" ${selected ? 'checked' : ''} ${item.isAlreadyConnected ? 'disabled' : ''}/>
+          <button class="min-w-0 flex-1 text-left" data-action="preview-discovered-database" data-result-id="${escapeHtml(item.id)}" type="button">
+            <span class="block truncate text-sm font-black text-on-surface">${escapeHtml(item.name)}</span>
+            <span class="mt-1 block text-xs text-primary-container">${escapeHtml(item.applicationName ?? 'Unknown application')}</span>
+          </button>
+          <span class="font-mono text-[9px] font-bold uppercase ${item.isAlreadyConnected ? 'text-on-surface-variant' : 'text-primary-container'}">${item.isAlreadyConnected ? 'Already connected' : 'Importable'}</span>
+        </div>
+        <p class="mt-2 break-all font-mono text-[10px] leading-5 text-on-surface-variant/70" title="${escapeHtml(item.path)}">${escapeHtml(item.path)}</p>
+        <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[9px] uppercase text-on-surface-variant/55">
+          <span>${escapeHtml(formatBytes(item.sizeBytes))}</span><span>${escapeHtml(formatDateTime(item.modifiedAt))}</span><span>${item.isWritable ? 'Writable' : 'Read only'}</span>${item.hasWal ? '<span class="text-primary-container">WAL active</span>' : ''}
+        </div>
+        <div class="mt-2 flex gap-2"><button class="standard-button min-h-7 px-2" data-action="reveal-discovered-database" data-result-id="${escapeHtml(item.id)}" type="button">Reveal in Finder</button><button class="standard-button min-h-7 px-2" data-action="copy-discovered-database-path" data-result-id="${escapeHtml(item.id)}" type="button">Copy path</button></div>
+      </article>
+    `;
+}
+
+function renderDiscoveredDatabasePreview(modal) {
+    const item = (modal.results ?? []).find(result => result.id === modal.selectedResultId);
+    if (!item) {
+        return '<div class="flex h-full items-center justify-center px-6 text-center text-sm text-on-surface-variant/50">Select a database to inspect its schema read-only.</div>';
+    }
+    const permissions = `${item.isReadable ? 'Readable' : 'Not readable'} · ${item.isWritable ? 'Writable' : 'Read only'}`;
+    return `
+      <div class="custom-scrollbar h-full overflow-auto p-4">
+        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-primary-container">Read-only preview</div>
+        <h3 class="mt-2 text-xl font-black text-on-surface">${escapeHtml(item.name)}</h3>
+        <p class="mt-2 break-all font-mono text-[10px] leading-5 text-on-surface-variant/70">${escapeHtml(item.path)}</p>
+        <dl class="mt-4 grid grid-cols-2 gap-3 text-xs">
+          <div><dt class="text-on-surface-variant/50">Application</dt><dd class="mt-1 font-bold">${escapeHtml(item.applicationName ?? 'Unknown')}</dd></div>
+          <div><dt class="text-on-surface-variant/50">Bundle ID</dt><dd class="mt-1 break-all font-bold">${escapeHtml(item.bundleIdentifier ?? 'Unknown')}</dd></div>
+          <div><dt class="text-on-surface-variant/50">Database size</dt><dd class="mt-1 font-bold">${escapeHtml(formatBytes(item.sizeBytes))}</dd></div>
+          <div><dt class="text-on-surface-variant/50">Modified</dt><dd class="mt-1 font-bold">${escapeHtml(formatDateTime(item.modifiedAt))}</dd></div>
+          <div><dt class="text-on-surface-variant/50">Permissions</dt><dd class="mt-1 font-bold">${escapeHtml(permissions)}</dd></div>
+          <div><dt class="text-on-surface-variant/50">Sidecars</dt><dd class="mt-1 font-bold">WAL ${item.hasWal ? 'yes' : 'no'} · SHM ${item.hasShm ? 'yes' : 'no'}</dd></div>
+          <div><dt class="text-on-surface-variant/50">Likely in use</dt><dd class="mt-1 font-bold">${item.likelyInUse ? 'Yes' : 'No'}</dd></div>
+          <div><dt class="text-on-surface-variant/50">SQLite version</dt><dd class="mt-1 font-bold">${escapeHtml(item.sqliteVersion ?? 'Not inspected')}</dd></div>
+        </dl>
+        ${modal.previewLoading ? '<div class="mt-5 text-sm text-primary-container">Loading schema preview...</div>' : ''}
+        ${item.previewStatus === 'failed' ? `<div class="mt-5 border border-error/20 bg-error-container/10 px-3 py-3 text-xs text-error">${escapeHtml(item.previewError)}</div>` : ''}
+        ${item.previewStatus === 'loaded' ? `<div class="mt-5"><div class="font-mono text-[10px] uppercase text-on-surface-variant/50">Tables (${escapeHtml(String(item.tableCount ?? 0))})</div><div class="mt-2 flex flex-wrap gap-2">${(item.tableNames ?? []).map(name => `<span class="border border-outline-variant/15 px-2 py-1 font-mono text-[10px]">${escapeHtml(name)}</span>`).join('') || '<span class="text-xs text-on-surface-variant/55">No user tables</span>'}</div></div>` : ''}
+      </div>
+    `;
+}
+
+export function renderDatabaseDiscoveryForm(modal, state) {
+    modal = {
+        customDirectories: [],
+        locations: [],
+        progress: {
+            alreadyConnectedCount: 0,
+            currentPath: '',
+            scannedFiles: 0,
+        },
+        results: [],
+        selectedIds: [],
+        selectedLocationKeys: [],
+        sortBy: 'modifiedAt',
+        sortDirection: 'desc',
+        sourceDirectory: 'all',
+        ...modal,
+    };
+    const search = String(modal.search ?? '').trim().toLocaleLowerCase('en-US');
+    const minBytes = Number(modal.minSizeMb) > 0 ? Number(modal.minSizeMb) * 1024 * 1024 : 0;
+    const maxBytes = Number(modal.maxSizeMb) > 0 ? Number(modal.maxSizeMb) * 1024 * 1024 : Infinity;
+    const recentCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const direction = modal.sortDirection === 'asc' ? 1 : -1;
+    const filtered = [...(modal.results ?? [])]
+        .filter(item => {
+            const haystack = `${item.name} ${item.applicationName ?? ''} ${item.path}`.toLocaleLowerCase('en-US');
+            return (!search || haystack.includes(search))
+                && (modal.sourceDirectory === 'all' || item.sourceDirectory === modal.sourceDirectory)
+                && (!modal.writableOnly || item.isWritable)
+                && (!modal.walOnly || item.hasWal)
+                && (!modal.recentOnly || new Date(item.modifiedAt).getTime() >= recentCutoff)
+                && item.sizeBytes >= minBytes && item.sizeBytes <= maxBytes;
+        })
+        .sort((left, right) => String(left[modal.sortBy] ?? '').localeCompare(String(right[modal.sortBy] ?? ''), undefined, { numeric: true, sensitivity: 'base' }) * direction);
+    const selectedIds = new Set(modal.selectedIds ?? []);
+    const selectedCount = selectedIds.size;
+    if (modal.confirmingImport) {
+        return `<div class="space-y-5"><div class="border border-primary-container/25 bg-primary-container/10 px-5 py-5"><p class="text-lg font-black">${escapeHtml(String(selectedCount))} databases will be added to Connections.</p><p class="mt-2 text-sm text-on-surface-variant/70">The original database files will not be copied or modified. Discovered application databases are added read-only.</p></div>${renderError(modal.error)}<div class="flex justify-between gap-3"><button class="standard-button" data-action="cancel-discovered-database-import" type="button">Back</button><button class="signature-button" data-action="execute-discovered-database-import" type="button" ${modal.submitting ? 'disabled' : ''}>${modal.submitting ? 'Importing...' : `Import ${selectedCount} databases`}</button></div></div>`;
+    }
+
+    const onlyConnected = !modal.results.length && modal.progress.alreadyConnectedCount > 0 && modal.scanStatus !== 'running';
+    return `
+      <div class="flex h-[min(72vh,52rem)] min-h-0 flex-col gap-3">
+        <div class="border border-primary-container/20 bg-primary-container/10 px-4 py-3 text-xs text-on-surface"><strong>Local only.</strong> Scanning happens locally on this computer. No file information is uploaded.</div>
+        ${renderDatabaseDiscoverySettings(modal)}
+        ${modal.results.length ? renderDatabaseDiscoveryFilters(modal) : ''}
+        <div class="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase text-on-surface-variant/60">
+          <span>${modal.scanStatus === 'running' ? `Scanning · ${modal.progress.scannedFiles} files · ${modal.results.length} found` : modal.scanStatus === 'cancelled' ? 'Scan cancelled' : modal.scanStatus === 'completed' ? `Scan complete · ${modal.results.length} shown` : 'Scan not started'}${modal.progress.inaccessibleCount ? ` · ${modal.progress.inaccessibleCount} inaccessible skipped` : ''}</span>
+          <span class="max-w-xl truncate" title="${escapeHtml(modal.progress.currentPath ?? '')}">${escapeHtml(modal.progress.currentPath ?? '')}</span>
+        </div>
+        ${renderError(modal.error)}
+        <div class="grid min-h-0 flex-1 overflow-hidden border border-outline-variant/10 xl:grid-cols-[minmax(0,1.35fr)_minmax(20rem,0.65fr)]">
+          <div class="custom-scrollbar min-h-0 overflow-auto bg-surface-container-low p-3">
+            ${filtered.length ? `<div class="space-y-2">${filtered.map(item => renderDiscoveredDatabaseRow(item, selectedIds, modal.selectedResultId)).join('')}</div>` : `<div class="flex min-h-52 items-center justify-center px-5 text-center text-sm text-on-surface-variant/60">${onlyConnected ? `No new databases found.<br>${modal.progress.alreadyConnectedCount} SQLite databases were detected, but all are already connected.` : modal.scanStatus === 'running' ? 'Scanning for SQLite databases...' : 'No databases found for the current scan or filters.'}</div>`}
+          </div>
+          <aside class="min-h-0 border-l border-outline-variant/10 bg-surface-container-lowest">${renderDiscoveredDatabasePreview(modal)}</aside>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex gap-2"><button class="standard-button" data-action="select-all-discovered-databases" type="button" ${filtered.some(item => !item.isAlreadyConnected) ? '' : 'disabled'}>Select all</button><button class="standard-button" data-action="clear-discovered-database-selection" type="button" ${selectedCount ? '' : 'disabled'}>Clear selection</button></div>
+          <div class="flex gap-2"><button class="standard-button" data-action="close-modal" type="button">Cancel</button>${modal.scanStatus === 'running' ? '<button class="standard-button" data-action="cancel-database-discovery-scan" type="button">Stop scan</button>' : ''}<button class="standard-button" data-action="start-database-discovery-scan" type="button" ${modal.submitting || !(modal.selectedLocationKeys.length || modal.customDirectories.length) ? 'disabled' : ''}>${modal.scanStatus === 'idle' ? 'Start scan' : 'Rescan'}</button><button class="signature-button" data-action="confirm-discovered-database-import" type="button" ${selectedCount ? '' : 'disabled'}>Import ${selectedCount} ${selectedCount === 1 ? 'database' : 'databases'}</button></div>
+        </div>
+      </div>
+    `;
 }
 
 export function renderOpenConnectionForm(modal) {
@@ -2320,6 +2487,11 @@ export function renderModal(state) {
             title: 'Connect Database',
             body: renderOpenConnectionForm(modal),
         },
+        'database-discovery': {
+            eyebrow: 'Connections // Local SQLite discovery',
+            title: 'Find Installed Databases',
+            body: renderDatabaseDiscoveryForm(modal, state),
+        },
         'create-connection': {
             eyebrow: 'Filesystem // Create a new SQLite database',
             title: 'Create Database',
@@ -2454,7 +2626,7 @@ export function renderModal(state) {
     }
 
     const modalBodyClass =
-        modal.kind === 'generate-data'
+        modal.kind === 'generate-data' || modal.kind === 'database-discovery'
             ? 'app-modal-body app-modal-body--no-scroll px-6 py-6'
             : 'app-modal-body custom-scrollbar space-y-5 px-6 py-6';
 
@@ -2466,7 +2638,7 @@ export function renderModal(state) {
           modal.kind === 'document-insert-note' ||
           modal.kind === 'row-update-preview'
               ? 'max-w-3xl'
-              : modal.kind === 'generate-types' || modal.kind === 'generate-data'
+              : modal.kind === 'generate-types' || modal.kind === 'generate-data' || modal.kind === 'database-discovery'
                 ? 'max-w-6xl'
                 : modal.kind === 'query-export' || modal.kind === 'data-export' || modal.kind === 'backup-safety'
                   ? 'max-w-4xl'

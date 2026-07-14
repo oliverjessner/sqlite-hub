@@ -116,6 +116,7 @@ let chartsDetailLoadVersion = 0;
 let mediaTaggingPreviewVersion = 0;
 let documentsLoadVersion = 0;
 let lastOpenDocumentId = null;
+let databaseDiscoveryPollTimer = null;
 
 function readStoredDataPageSize(fallback = DEFAULT_DATA_PAGE_SIZE) {
     try {
@@ -326,6 +327,7 @@ const state = {
         selectedTagIds: [],
         loading: false,
         backupLoading: false,
+        highlightedConnectionIds: [],
         error: null,
     },
     backups: {
@@ -3076,6 +3078,15 @@ function startModalSubmission() {
 }
 
 function closeModalInternal() {
+    if (state.modal?.kind === 'database-discovery') {
+        if (databaseDiscoveryPollTimer) {
+            window.clearTimeout(databaseDiscoveryPollTimer);
+            databaseDiscoveryPollTimer = null;
+        }
+        if (state.modal.sessionId && state.modal.scanStatus === 'running') {
+            void api.cancelDatabaseDiscoveryScan(state.modal.sessionId).catch(() => {});
+        }
+    }
     state.modal = null;
     emitChange();
 }
@@ -5668,6 +5679,353 @@ export function dismissToast(id) {
 
     state.toasts = nextToasts;
     emitChange();
+}
+
+function createDatabaseDiscoveryModal() {
+    return {
+        kind: 'database-discovery',
+        error: null,
+        submitting: false,
+        locationsLoading: true,
+        locations: [],
+        selectedLocationKeys: [],
+        customDirectories: [],
+        showAlreadyConnected: false,
+        sessionId: null,
+        scanStatus: 'idle',
+        progress: {
+            scannedDirectories: 0,
+            scannedFiles: 0,
+            discoveredCount: 0,
+            alreadyConnectedCount: 0,
+            inaccessibleCount: 0,
+            currentPath: '',
+        },
+        results: [],
+        selectedIds: [],
+        selectedResultId: null,
+        previewLoading: false,
+        search: '',
+        sourceDirectory: 'all',
+        writableOnly: false,
+        walOnly: false,
+        recentOnly: false,
+        minSizeMb: '',
+        maxSizeMb: '',
+        sortBy: 'modifiedAt',
+        sortDirection: 'desc',
+        confirmingImport: false,
+    };
+}
+
+function syncDatabaseDiscoverySession(payload) {
+    if (state.modal?.kind !== 'database-discovery' || state.modal.sessionId !== payload?.id) {
+        return false;
+    }
+
+    state.modal.scanStatus = payload.status;
+    state.modal.progress = payload.progress ?? state.modal.progress;
+    state.modal.results = payload.results ?? [];
+    state.modal.selectedIds = state.modal.selectedIds.filter(id =>
+        state.modal.results.some(item => item.id === id && !item.isAlreadyConnected)
+    );
+    return true;
+}
+
+function scheduleDatabaseDiscoveryPoll(sessionId) {
+    if (databaseDiscoveryPollTimer) {
+        window.clearTimeout(databaseDiscoveryPollTimer);
+    }
+    databaseDiscoveryPollTimer = window.setTimeout(async () => {
+        try {
+            const response = await api.getDatabaseDiscoveryScan(sessionId);
+            if (!syncDatabaseDiscoverySession(response.data)) {
+                return;
+            }
+            emitChange();
+            if (response.data.status === 'running') {
+                scheduleDatabaseDiscoveryPoll(sessionId);
+            } else {
+                databaseDiscoveryPollTimer = null;
+            }
+        } catch (error) {
+            if (state.modal?.kind === 'database-discovery' && state.modal.sessionId === sessionId) {
+                state.modal.error = normalizeError(error);
+                state.modal.scanStatus = 'failed';
+                emitChange();
+            }
+        }
+    }, 300);
+}
+
+export async function openDatabaseDiscoveryModal() {
+    state.modal = createDatabaseDiscoveryModal();
+    emitChange();
+
+    try {
+        const response = await api.getDatabaseDiscoveryLocations();
+        if (state.modal?.kind !== 'database-discovery') {
+            return;
+        }
+        state.modal.locations = response.data ?? [];
+        state.modal.selectedLocationKeys = state.modal.locations
+            .filter(location => !location.optional)
+            .map(location => location.key);
+        state.modal.locationsLoading = false;
+        emitChange();
+    } catch (error) {
+        if (state.modal?.kind === 'database-discovery') {
+            state.modal.locationsLoading = false;
+            state.modal.error = normalizeError(error);
+            emitChange();
+        }
+    }
+}
+
+export async function startDatabaseDiscoveryScan() {
+    const modal = state.modal;
+    if (modal?.kind !== 'database-discovery' || modal.submitting) {
+        return false;
+    }
+
+    modal.submitting = true;
+    modal.error = null;
+    modal.results = [];
+    modal.selectedIds = [];
+    modal.selectedResultId = null;
+    modal.confirmingImport = false;
+    emitChange();
+
+    try {
+        const response = await api.startDatabaseDiscovery({
+            locationKeys: modal.selectedLocationKeys,
+            customDirectories: modal.customDirectories,
+            showAlreadyConnected: modal.showAlreadyConnected,
+        });
+        if (state.modal !== modal) {
+            return false;
+        }
+        modal.sessionId = response.data.id;
+        modal.scanStatus = response.data.status;
+        modal.progress = response.data.progress;
+        modal.results = response.data.results ?? [];
+        scheduleDatabaseDiscoveryPoll(modal.sessionId);
+        return true;
+    } catch (error) {
+        modal.error = normalizeError(error);
+        modal.scanStatus = 'failed';
+        return false;
+    } finally {
+        modal.submitting = false;
+        emitChange();
+    }
+}
+
+export async function cancelDatabaseDiscoveryScan() {
+    const modal = state.modal;
+    if (modal?.kind !== 'database-discovery' || !modal.sessionId || modal.scanStatus !== 'running') {
+        return false;
+    }
+    try {
+        const response = await api.cancelDatabaseDiscoveryScan(modal.sessionId);
+        syncDatabaseDiscoverySession(response.data);
+        if (databaseDiscoveryPollTimer) {
+            window.clearTimeout(databaseDiscoveryPollTimer);
+            databaseDiscoveryPollTimer = null;
+        }
+        emitChange();
+        return true;
+    } catch (error) {
+        modal.error = normalizeError(error);
+        emitChange();
+        return false;
+    }
+}
+
+export function updateDatabaseDiscoveryField(field, value) {
+    const modal = state.modal;
+    if (modal?.kind !== 'database-discovery') {
+        return;
+    }
+
+    if (field === 'location') {
+        const key = String(value?.key ?? '');
+        const selected = Boolean(value?.selected);
+        modal.selectedLocationKeys = selected
+            ? [...new Set([...modal.selectedLocationKeys, key])]
+            : modal.selectedLocationKeys.filter(item => item !== key);
+    } else if (['showAlreadyConnected', 'writableOnly', 'walOnly', 'recentOnly'].includes(field)) {
+        modal[field] = Boolean(value);
+    } else if (['search', 'sourceDirectory', 'minSizeMb', 'maxSizeMb', 'sortBy', 'sortDirection'].includes(field)) {
+        modal[field] = String(value ?? '');
+    }
+    emitChange();
+}
+
+export async function addDatabaseDiscoveryDirectory() {
+    const modal = state.modal;
+    if (modal?.kind !== 'database-discovery') {
+        return null;
+    }
+    try {
+        const response = await api.chooseDiscoveryDirectory();
+        const selectedPath = response.data?.path ?? null;
+        if (selectedPath && state.modal === modal && !modal.customDirectories.includes(selectedPath)) {
+            modal.customDirectories.push(selectedPath);
+            emitChange();
+        }
+        return selectedPath;
+    } catch (error) {
+        modal.error = normalizeError(error);
+        emitChange();
+        return null;
+    }
+}
+
+export function removeDatabaseDiscoveryDirectory(directoryPath) {
+    if (state.modal?.kind !== 'database-discovery') {
+        return;
+    }
+    state.modal.customDirectories = state.modal.customDirectories.filter(item => item !== directoryPath);
+    emitChange();
+}
+
+export function getFilteredDatabaseDiscoveryResults(snapshot = state) {
+    const modal = snapshot.modal?.kind === 'database-discovery' ? snapshot.modal : null;
+    if (!modal) {
+        return [];
+    }
+    const search = String(modal.search ?? '').trim().toLocaleLowerCase('en-US');
+    const minBytes = Number(modal.minSizeMb) > 0 ? Number(modal.minSizeMb) * 1024 * 1024 : 0;
+    const maxBytes = Number(modal.maxSizeMb) > 0 ? Number(modal.maxSizeMb) * 1024 * 1024 : Infinity;
+    const recentCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const sortDirection = modal.sortDirection === 'asc' ? 1 : -1;
+
+    return [...(modal.results ?? [])]
+        .filter(item => {
+            const haystack = `${item.name} ${item.applicationName ?? ''} ${item.path}`.toLocaleLowerCase('en-US');
+            return (!search || haystack.includes(search))
+                && (modal.sourceDirectory === 'all' || item.sourceDirectory === modal.sourceDirectory)
+                && (!modal.writableOnly || item.isWritable)
+                && (!modal.walOnly || item.hasWal)
+                && (!modal.recentOnly || new Date(item.modifiedAt).getTime() >= recentCutoff)
+                && item.sizeBytes >= minBytes
+                && item.sizeBytes <= maxBytes;
+        })
+        .sort((left, right) => {
+            const field = modal.sortBy || 'modifiedAt';
+            const leftValue = field === 'applicationName' ? left.applicationName ?? '' : left[field] ?? '';
+            const rightValue = field === 'applicationName' ? right.applicationName ?? '' : right[field] ?? '';
+            return String(leftValue).localeCompare(String(rightValue), undefined, { numeric: true, sensitivity: 'base' }) * sortDirection;
+        });
+}
+
+export function toggleDiscoveredDatabaseSelection(resultId, selected) {
+    const modal = state.modal;
+    const result = modal?.kind === 'database-discovery'
+        ? modal.results.find(item => item.id === resultId)
+        : null;
+    if (!result || result.isAlreadyConnected) {
+        return;
+    }
+    modal.selectedIds = selected
+        ? [...new Set([...modal.selectedIds, resultId])]
+        : modal.selectedIds.filter(id => id !== resultId);
+    emitChange();
+}
+
+export function selectAllDiscoveredDatabases() {
+    if (state.modal?.kind !== 'database-discovery') {
+        return;
+    }
+    state.modal.selectedIds = getFilteredDatabaseDiscoveryResults(state)
+        .filter(item => !item.isAlreadyConnected)
+        .map(item => item.id);
+    emitChange();
+}
+
+export function clearDiscoveredDatabaseSelection() {
+    if (state.modal?.kind !== 'database-discovery') {
+        return;
+    }
+    state.modal.selectedIds = [];
+    emitChange();
+}
+
+export async function previewDiscoveredDatabase(resultId) {
+    const modal = state.modal;
+    if (modal?.kind !== 'database-discovery' || !modal.sessionId) {
+        return null;
+    }
+    modal.selectedResultId = resultId;
+    modal.previewLoading = true;
+    emitChange();
+    try {
+        const response = await api.previewDiscoveredDatabase(modal.sessionId, resultId);
+        if (state.modal !== modal || modal.selectedResultId !== resultId) {
+            return null;
+        }
+        modal.results = modal.results.map(item => item.id === resultId ? response.data : item);
+        return response.data;
+    } catch (error) {
+        if (state.modal === modal) {
+            modal.error = normalizeError(error);
+        }
+        return null;
+    } finally {
+        if (state.modal === modal) {
+            modal.previewLoading = false;
+            emitChange();
+        }
+    }
+}
+
+export function confirmDiscoveredDatabaseImport(confirm = true) {
+    if (state.modal?.kind !== 'database-discovery' || !state.modal.selectedIds.length) {
+        return;
+    }
+    state.modal.confirmingImport = Boolean(confirm);
+    emitChange();
+}
+
+export async function importSelectedDiscoveredDatabases() {
+    const modal = state.modal;
+    if (modal?.kind !== 'database-discovery' || !modal.sessionId || !modal.selectedIds.length) {
+        return null;
+    }
+    modal.submitting = true;
+    modal.error = null;
+    emitChange();
+    try {
+        const response = await api.importDiscoveredDatabases(modal.sessionId, modal.selectedIds);
+        const result = response.data;
+        state.connections.highlightedConnectionIds = result.added.map(item => item.id);
+        await refreshConnectionsState();
+        closeModalInternal();
+        pushToast(response.message, result.failed.length ? 'alert' : 'success');
+        return result;
+    } catch (error) {
+        modal.error = normalizeError(error);
+        modal.submitting = false;
+        emitChange();
+        return null;
+    }
+}
+
+export async function revealDiscoveredDatabase(resultId) {
+    const modal = state.modal;
+    if (modal?.kind !== 'database-discovery' || !modal.sessionId) {
+        return false;
+    }
+    try {
+        const response = await api.revealDiscoveredDatabase(modal.sessionId, resultId);
+        pushToast(response.message, 'muted');
+        return true;
+    } catch (error) {
+        modal.error = normalizeError(error);
+        emitChange();
+        return false;
+    }
 }
 
 export async function submitOpenConnection(payload) {

@@ -60,7 +60,8 @@ export function renderConnectionCard(connection, activeConnectionId) {
 
   return [
     '<article class="connection-card clipped-corner ',
-    isActive ? "is-active" : "",
+    isActive ? "is-active " : "",
+    connection.isNewlyImported ? "ring-1 ring-primary-container " : "",
     '" style="--clip-path: ',
     clipPath,
     ';">',
@@ -68,6 +69,7 @@ export function renderConnectionCard(connection, activeConnectionId) {
     logoMarkup,
     '<div class="flex items-center gap-2">',
     renderStatusBadge(isActive ? "ACTIVE" : "RECENT", isActive ? "primary" : "muted"),
+    connection.isNewlyImported ? renderStatusBadge("NEW", "primary") : "",
     connection.readOnly ? renderStatusBadge("READ_ONLY", "alert") : "",
     "</div></div>",
     '<h3 class="mb-1 font-body text-xl font-bold uppercase ',

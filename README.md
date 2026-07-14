@@ -36,6 +36,7 @@ SQLite Hub keeps that workflow sharp:
 - browse tables and rows
 - open existing databases or create new SQLite files with a native save dialog
 - manage recent connections with labels, custom icons, and read-only mode
+- discover installed SQLite databases in standard macOS, Windows, and Linux application-data locations
 - inspect database health, storage metrics, and schema connectivity from one overview
 - filter, sort, page through, and export table data
 - inspect schema, structure, and relationships
@@ -258,6 +259,16 @@ The database overview combines operational and schema information for the active
 [![SQLite Hub connections](./frontend/assets/mockups/connections_1_1920.webp)](./frontend/assets/mockups/connections_1_1920.webp)
 
 Recent connections show file size, modification time, last-opened time, and access mode. Connections can be activated, relabeled, moved to another path, opened read-only, assigned a PNG/JPG/WEBP icon, reset to the default icon, or removed from the recent-connections registry without deleting the database file.
+
+`Find Installed Databases` scans common local application-data locations and user-selected directories for SQLite files. Detection uses the SQLite file header, so extensionless databases such as browser `History` and `Cookies` files are supported. SQLite sidecars, symbolic links, unreadable files, invalid headers, and databases already registered as Connections are excluded safely.
+
+The default scan profile follows the current operating system:
+
+- macOS: Application Support, Containers, and Group Containers; Caches, WebKit, and system Application Support are optional
+- Windows: Roaming AppData and Local AppData; ProgramData is optional
+- Linux: XDG configuration/data and Flatpak application data; XDG cache, Snap data, and `/var/lib` are optional
+
+Scans run locally, can be cancelled, report progress, and display results as they are found. Search, filters, sorting, read-only schema previews, multi-selection, path copying, and native file-manager reveal actions are available before import. Selected databases are registered against their existing paths without copying or modifying the source files and default to read-only Connections. See the [technical notes and manual test guide](./docs/find-installed-databases.md).
 
 <p>
   <a href="./frontend/assets/mockups/connections_2_create_connection_modal_1920.webp"><img src="./frontend/assets/mockups/connections_2_create_connection_modal_1920.webp" alt="SQLite Hub create connection modal" width="49%"></a>

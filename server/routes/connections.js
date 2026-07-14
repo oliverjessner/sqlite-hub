@@ -1,7 +1,8 @@
 const express = require("express");
 const { route, successResponse } = require("../utils/errors");
+const { recordUserAction } = require("../utils/userActionLog");
 
-function createConnectionsRouter({ connectionManager, importService, backupService, nativeFileDialogService }) {
+function createConnectionsRouter({ connectionManager, importService, backupService, nativeFileDialogService, databaseDiscoveryService, appStateStore = null }) {
   const router = express.Router();
 
   router.post(
@@ -73,6 +74,87 @@ function createConnectionsRouter({ connectionManager, importService, backupServi
           },
         })
       );
+    })
+  );
+
+  router.post(
+    "/choose-directory",
+    route(async (req, res) => {
+      const selectedPath = await nativeFileDialogService.chooseDirectoryPath();
+      res.json(successResponse({
+        message: selectedPath ? "Scan directory selected." : "Directory selection cancelled.",
+        data: { cancelled: !selectedPath, path: selectedPath },
+      }));
+    })
+  );
+
+  router.get(
+    "/discovery/locations",
+    route((req, res) => {
+      res.json(successResponse({ data: databaseDiscoveryService.getScanLocations(), readOnly: true }));
+    })
+  );
+
+  router.post(
+    "/discovery/scan",
+    route((req, res) => {
+      const data = databaseDiscoveryService.startScan(req.body ?? {});
+      res.status(202).json(successResponse({ message: "Local database scan started.", data, readOnly: true }));
+    })
+  );
+
+  router.get(
+    "/discovery/scan/:sessionId",
+    route((req, res) => {
+      res.json(successResponse({ data: databaseDiscoveryService.getScan(req.params.sessionId), readOnly: true }));
+    })
+  );
+
+  router.post(
+    "/discovery/scan/:sessionId/cancel",
+    route((req, res) => {
+      res.json(successResponse({ message: "Database scan cancelled.", data: databaseDiscoveryService.cancelScan(req.params.sessionId), readOnly: true }));
+    })
+  );
+
+  router.get(
+    "/discovery/scan/:sessionId/preview/:resultId",
+    route(async (req, res) => {
+      const data = await databaseDiscoveryService.inspectDatabase(req.params.sessionId, req.params.resultId);
+      res.json(successResponse({ message: "Database preview loaded.", data, readOnly: true }));
+    })
+  );
+
+  router.post(
+    "/discovery/scan/:sessionId/import",
+    route((req, res) => {
+      const data = databaseDiscoveryService.importDatabases(req.params.sessionId, req.body?.resultIds);
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "connections.discovery.import",
+        targetType: "connection",
+        targetName: `${data.added.length} discovered databases`,
+        metadata: { addedCount: data.added.length, failedCount: data.failed.length },
+      });
+      const addedCount = data.added.length;
+      const failedCount = data.failed.length;
+      res.json(successResponse({
+        message: failedCount
+          ? `${addedCount} databases were added. ${failedCount} databases could not be imported.`
+          : `${addedCount} databases were added to Connections.`,
+        data,
+        warnings: data.failed.map((item) => item.reason),
+      }));
+    })
+  );
+
+  router.post(
+    "/discovery/scan/:sessionId/reveal/:resultId",
+    route(async (req, res) => {
+      const result = databaseDiscoveryService.resolveResult(req.params.sessionId, req.params.resultId);
+      await nativeFileDialogService.revealPath(result.path);
+      res.json(successResponse({ message: "Database revealed in file manager.", data: { path: result.path }, readOnly: true }));
     })
   );
 

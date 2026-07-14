@@ -155,6 +155,11 @@ function renderConnectionsBody(state, visibleConnections) {
               modal: 'open-connection',
               tone: 'primary',
           })}
+          ${renderConnectionsActionButton({
+              label: 'Find Installed Databases',
+              icon: 'manage_search',
+              action: 'open-database-discovery',
+          })}
         </div>
       </div>
     `;
@@ -172,7 +177,10 @@ function renderConnectionsBody(state, visibleConnections) {
 
     return `
     <div class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-      ${visibleConnections.map(connection => renderConnectionCard(connection, state.connections.active?.id)).join('')}
+      ${visibleConnections.map(connection => renderConnectionCard({
+          ...connection,
+          isNewlyImported: (state.connections.highlightedConnectionIds ?? []).includes(connection.id),
+      }, state.connections.active?.id)).join('')}
     </div>
   `;
 }
@@ -197,6 +205,11 @@ export function renderConnectionsView(state) {
         label: 'Create Database',
         icon: 'note_add',
         modal: 'create-connection',
+    })}
+    ${renderConnectionsActionButton({
+        label: 'Find Installed Databases',
+        icon: 'manage_search',
+        action: 'open-database-discovery',
     })}
     ${renderConnectionsActionButton({
         label: 'Open Database',

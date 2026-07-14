@@ -16,6 +16,7 @@ const { SqlExecutor } = require("./services/sqlite/sqlExecutor");
 const { ImportService } = require("./services/sqlite/importService");
 const { BackupService } = require("./services/sqlite/backupService");
 const { NativeFileDialogService } = require("./services/nativeFileDialogService");
+const { DatabaseDiscoveryService } = require("./services/sqlite/databaseDiscoveryService");
 const { ExportService } = require("./services/sqlite/exportService");
 const { StructureService } = require("./services/sqlite/structureService");
 const { DataBrowserService } = require("./services/sqlite/dataBrowserService");
@@ -62,6 +63,7 @@ const sqlExecutor = new SqlExecutor({ connectionManager, appStateStore });
 const importService = new ImportService({ connectionManager });
 const backupService = new BackupService({ connectionManager, appStateStore });
 const nativeFileDialogService = new NativeFileDialogService();
+const databaseDiscoveryService = new DatabaseDiscoveryService({ connectionManager });
 const exportService = new ExportService({
   appStateStore,
   connectionManager,
@@ -127,6 +129,8 @@ app.use(
     importService,
     backupService,
     nativeFileDialogService,
+    databaseDiscoveryService,
+    appStateStore,
   })
 );
 app.use("/api/backups", createBackupsRouter({ backupService, appStateStore, connectionManager }));

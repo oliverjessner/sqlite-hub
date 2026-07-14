@@ -36,6 +36,7 @@ import {
     clearEditorResults,
     clearQueryHistorySelection,
     clearConnectionTagFilters,
+    clearDiscoveredDatabaseSelection,
     closeModal,
     checkSettingsAppVersion,
     dismissMediaTaggingIssue,
@@ -55,6 +56,7 @@ import {
     loadMoreQueryHistory,
     loadMoreLogs,
     openModal,
+    openDatabaseDiscoveryModal,
     openOverviewInFinder,
     openQueryHistoryInEditor,
     openDeleteDataRowModal,
@@ -154,6 +156,7 @@ import {
     submitGenerateDataRows,
     submitRowUpdatePreviewConfirmation,
     previewGenerateDataRows,
+    previewDiscoveredDatabase,
     setQueryHistoryPanelVisibility,
     sortDataTableByColumn,
     sortEditorResultsByColumn,
@@ -189,6 +192,7 @@ import {
     toggleCurrentMediaTagSelection,
     toggleConnectionTagFilter,
     toggleQueryHistorySavedState,
+    addDatabaseDiscoveryDirectory,
     addEditConnectionTag,
     updateCurrentMediaTaggingField,
     updateCurrentMediaTaggingTagFormField,
@@ -208,6 +212,15 @@ import {
     updateGenerateTypesModal,
     updateEditConnectionTagQuery,
     removeEditConnectionTag,
+    removeDatabaseDiscoveryDirectory,
+    revealDiscoveredDatabase,
+    cancelDatabaseDiscoveryScan,
+    startDatabaseDiscoveryScan,
+    selectAllDiscoveredDatabases,
+    toggleDiscoveredDatabaseSelection,
+    updateDatabaseDiscoveryField,
+    confirmDiscoveredDatabaseImport,
+    importSelectedDiscoveredDatabases,
     addCurrentTableDesignerColumn,
     applyCurrentMediaTaggingSelection,
     removeCurrentTableDesignerColumn,
@@ -3012,6 +3025,59 @@ async function handleAction(actionNode) {
         case 'edit-connection':
             openEditConnectionModal(actionNode.dataset.connectionId);
             return;
+        case 'open-database-discovery':
+            await openDatabaseDiscoveryModal();
+            return;
+        case 'start-database-discovery-scan':
+            await startDatabaseDiscoveryScan();
+            return;
+        case 'cancel-database-discovery-scan':
+            await cancelDatabaseDiscoveryScan();
+            return;
+        case 'add-database-discovery-directory':
+            await addDatabaseDiscoveryDirectory();
+            return;
+        case 'remove-database-discovery-directory':
+            removeDatabaseDiscoveryDirectory(actionNode.dataset.directoryPath);
+            return;
+        case 'select-all-discovered-databases':
+            selectAllDiscoveredDatabases();
+            return;
+        case 'clear-discovered-database-selection':
+            clearDiscoveredDatabaseSelection();
+            return;
+        case 'preview-discovered-database':
+            await previewDiscoveredDatabase(actionNode.dataset.resultId);
+            return;
+        case 'reveal-discovered-database':
+            await revealDiscoveredDatabase(actionNode.dataset.resultId);
+            return;
+        case 'copy-discovered-database-path': {
+            const discovery = getState().modal;
+            const result = discovery?.kind === 'database-discovery'
+                ? discovery.results.find(item => item.id === actionNode.dataset.resultId)
+                : null;
+            if (!result || !navigator.clipboard?.writeText) {
+                showToast('Database path could not be copied.', 'alert');
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(result.path);
+                showToast('Database path copied.', 'success');
+            } catch {
+                showToast('Database path could not be copied.', 'alert');
+            }
+            return;
+        }
+        case 'confirm-discovered-database-import':
+            confirmDiscoveredDatabaseImport(true);
+            return;
+        case 'cancel-discovered-database-import':
+            confirmDiscoveredDatabaseImport(false);
+            return;
+        case 'execute-discovered-database-import':
+            await importSelectedDiscoveredDatabases();
+            return;
         case 'clear-connection-tag-filters':
             clearConnectionTagFilters();
             return;
@@ -4004,6 +4070,14 @@ document.addEventListener('input', event => {
         return;
     }
 
+    if (bindNode.dataset.bind === 'database-discovery-field') {
+        if ((bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox') || bindNode instanceof HTMLSelectElement) {
+            return;
+        }
+        updateDatabaseDiscoveryField(bindNode.dataset.field, bindNode.value);
+        return;
+    }
+
     if (bindNode.dataset.bind === 'type-generation-field') {
         if (bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox') {
             return;
@@ -4225,6 +4299,30 @@ document.addEventListener('change', event => {
     const bindNode = event.target.closest('[data-bind]');
 
     if (!bindNode) {
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'database-discovery-location') {
+        updateDatabaseDiscoveryField('location', {
+            key: bindNode.dataset.locationKey,
+            selected: bindNode instanceof HTMLInputElement && bindNode.checked,
+        });
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'discovered-database-selection') {
+        toggleDiscoveredDatabaseSelection(
+            bindNode.dataset.resultId,
+            bindNode instanceof HTMLInputElement && bindNode.checked,
+        );
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'database-discovery-field') {
+        updateDatabaseDiscoveryField(
+            bindNode.dataset.field,
+            bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox' ? bindNode.checked : bindNode.value,
+        );
         return;
     }
 

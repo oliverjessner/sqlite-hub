@@ -166,7 +166,6 @@ function isRealSqliteDatabase(filePath) {
 
 function validateSqlitePath(inputPath, { mustExist = true } = {}) {
   const filePath = resolveUserPath(inputPath);
-  assertExtension(filePath, SQLITE_EXTENSIONS, "SQLite database");
 
   if (mustExist) {
     ensureFileExists(filePath, "SQLite database");
@@ -174,6 +173,8 @@ function validateSqlitePath(inputPath, { mustExist = true } = {}) {
     if (!isRealSqliteDatabase(filePath)) {
       throw new ValidationError(`File is not a valid SQLite database: ${filePath}`);
     }
+  } else {
+    assertExtension(filePath, SQLITE_EXTENSIONS, "SQLite database");
   }
 
   return filePath;

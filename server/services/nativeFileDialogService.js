@@ -163,6 +163,46 @@ function buildOpenDialogAttempts({ platform = process.platform, homeDirectory = 
   ];
 }
 
+function buildDirectoryDialogAttempts({ platform = process.platform, homeDirectory = os.homedir() } = {}) {
+  if (platform === "darwin") {
+    return [{
+      command: "osascript",
+      args: [
+        "-e", "on run argv",
+        "-e", 'set selectedFolder to choose folder with prompt "Choose a folder to scan" default location POSIX file (item 1 of argv)',
+        "-e", "return POSIX path of selectedFolder",
+        "-e", "end run",
+        homeDirectory,
+      ],
+      cancelledExitCodes: new Set([1]),
+      cancelledErrorPattern: /user canceled|-128/i,
+    }];
+  }
+
+  if (platform === "win32") {
+    const script = [
+      "Add-Type -AssemblyName System.Windows.Forms",
+      "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog",
+      "$dialog.Description = 'Choose a folder to scan'",
+      `if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.SelectedPath) } else { exit 2 }`,
+    ].join("; ");
+    return [{ command: "powershell.exe", args: ["-NoProfile", "-STA", "-Command", script], cancelledExitCodes: new Set([2]) }];
+  }
+
+  return [
+    {
+      command: "zenity",
+      args: ["--file-selection", "--directory", "--title=Choose a folder to scan", `--filename=${homeDirectory}${path.sep}`],
+      cancelledExitCodes: new Set([1]),
+    },
+    {
+      command: "kdialog",
+      args: ["--getexistingdirectory", homeDirectory, "--title", "Choose a folder to scan"],
+      cancelledExitCodes: new Set([1]),
+    },
+  ];
+}
+
 function normalizeSelectedDatabasePath(value) {
   const selectedPath = String(value ?? "").trim();
 
@@ -218,6 +258,41 @@ class NativeFileDialogService {
     return this.runDialogAttempts(attempts, normalizeOpenedDatabasePath);
   }
 
+  async chooseDirectoryPath() {
+    const attempts = buildDirectoryDialogAttempts({
+      platform: this.platform,
+      homeDirectory: this.homeDirectory,
+    });
+
+    return this.runDialogAttempts(attempts, normalizeOpenedDatabasePath);
+  }
+
+  async revealPath(filePath) {
+    const resolvedPath = path.resolve(String(filePath ?? ""));
+    let command;
+    let args;
+
+    if (this.platform === "darwin") {
+      command = "open";
+      args = ["-R", resolvedPath];
+    } else if (this.platform === "win32") {
+      command = "explorer.exe";
+      args = [`/select,${resolvedPath}`];
+    } else {
+      command = "xdg-open";
+      args = [path.dirname(resolvedPath)];
+    }
+
+    try {
+      await this.executeFile(command, args, { windowsHide: true });
+      return resolvedPath;
+    } catch {
+      throw new AppError("The database could not be revealed in the file manager.", 500, {
+        code: "REVEAL_DATABASE_FAILED",
+      });
+    }
+  }
+
   async runDialogAttempts(attempts, normalizePath) {
     for (const attempt of attempts) {
       try {
@@ -254,6 +329,7 @@ module.exports = {
   DEFAULT_DATABASE_FILENAME,
   NativeFileDialogService,
   buildDialogAttempts,
+  buildDirectoryDialogAttempts,
   buildOpenDialogAttempts,
   normalizeOpenedDatabasePath,
   normalizeSelectedDatabasePath,
