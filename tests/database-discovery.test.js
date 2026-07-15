@@ -140,12 +140,15 @@ test("database discovery excludes sidecars, symlinks, unreadable files, and dupl
   }
   fs.symlinkSync(databasePath, path.join(root, "linked.db"));
   const unreadablePath = createSqlite(path.join(root, "private.db"));
-  fs.chmodSync(unreadablePath, 0o000);
-  t.after(() => {
-    if (fs.existsSync(unreadablePath)) {
-      fs.chmodSync(unreadablePath, 0o600);
-    }
-  });
+  const unreadablePermissionsAreEnforced = process.platform !== "win32";
+  if (unreadablePermissionsAreEnforced) {
+    fs.chmodSync(unreadablePath, 0o000);
+    t.after(() => {
+      if (fs.existsSync(unreadablePath)) {
+        fs.chmodSync(unreadablePath, 0o600);
+      }
+    });
+  }
 
   const service = createTestService(root);
   const completed = await waitForScan(
@@ -153,8 +156,13 @@ test("database discovery excludes sidecars, symlinks, unreadable files, and dupl
     service.startScan({ customDirectories: [root, path.join(root, "nested")] }).id
   );
 
-  assert.deepEqual(completed.results.map((item) => item.path), [databasePath]);
-  assert.ok(completed.progress.inaccessibleCount >= 1);
+  const expectedPaths = unreadablePermissionsAreEnforced
+    ? [databasePath]
+    : [databasePath, unreadablePath];
+  assert.deepEqual(completed.results.map((item) => item.path).sort(), expectedPaths.sort());
+  if (unreadablePermissionsAreEnforced) {
+    assert.ok(completed.progress.inaccessibleCount >= 1);
+  }
 });
 
 test("database discovery normalizes paths and hides existing Connections by default", async (t) => {

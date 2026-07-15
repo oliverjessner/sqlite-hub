@@ -43,7 +43,6 @@ const { createLogsRouter } = require("./routes/logs");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const FRONTEND_ROOT = path.join(PACKAGE_ROOT, "frontend");
-const FRONTEND_ENTRYPOINT = path.join(FRONTEND_ROOT, "index.html");
 const {
   appStateDirectory: APP_STATE_DIRECTORY,
   appStateDbPath: APP_STATE_DB_PATH,
@@ -168,13 +167,17 @@ app.get("/favicon.ico", (req, res) => {
 });
 
 // auth: public SPA entrypoint for the local SQLite Hub UI.
+function sendFrontendEntrypoint(res) {
+  return res.sendFile("index.html", { root: FRONTEND_ROOT });
+}
+
 app.get("/", (req, res) => {
-  res.sendFile(FRONTEND_ENTRYPOINT);
+  sendFrontendEntrypoint(res);
 });
 
 // auth: public SPA entrypoint for direct browser reloads.
 app.get("/index.html", (req, res) => {
-  res.sendFile(FRONTEND_ENTRYPOINT);
+  sendFrontendEntrypoint(res);
 });
 
 app.use(

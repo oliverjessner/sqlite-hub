@@ -96,7 +96,10 @@ test("manual backup creates file, metadata, manifest, and survives connection re
   assert.equal(backup.connectionId, connection.id);
   assert.equal(backup.notes, "Schema update");
   assert.equal(fs.existsSync(backup.path), true);
-  assert.match(path.relative(backupService.backupRootDirectory, backup.path), /^conn_source\//);
+  assert.equal(
+    path.relative(backupService.backupRootDirectory, backup.path),
+    path.join("conn_source", path.basename(backup.path)),
+  );
   assert.equal(stored.checksumSha256.length, 64);
   assert.equal(stored.tableCount, 1);
   assert.equal(stored.rowCount, 2);

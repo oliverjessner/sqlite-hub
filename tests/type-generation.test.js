@@ -9,9 +9,11 @@ const { TypeGenerationService } = require("../server/services/typeGenerationServ
 
 function createDb(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-types-"));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const db = new Database(path.join(directory, "types.db"));
-  t.after(() => db.close());
+  t.after(() => {
+    db.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
   db.exec(`
     CREATE TABLE accounts (id INTEGER PRIMARY KEY);
     CREATE TABLE users (
