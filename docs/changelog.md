@@ -1,3 +1,7 @@
+# v2.3.2
+
+- Improve Windows compatibility [https://github.com/oliverjessner/sqlite-hub/pull/1](https://github.com/oliverjessner/sqlite-hub/pull/1)
+
 # v2.3.1
 
 - Advisor findings can include schema-validated, executable SQLite fix suggestions with affected objects and impact warnings.
