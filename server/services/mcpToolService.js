@@ -128,13 +128,13 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "generate_types",
-    description: "Generate TypeScript, Rust, Kotlin, or Swift types from one table or all tables.",
+    description: "Generate TypeScript, Rust, Kotlin, Swift, or Go types from one table or all tables.",
     inputSchema: objectSchema(
       {
         databaseId: databaseIdProperty(),
         tableName: { type: "string", description: "Optional table name. Omit when allTables is true." },
         allTables: { type: "boolean", default: false },
-        target: { type: "string", enum: ["typescript", "rust", "kotlin", "swift"] },
+        target: { type: "string", enum: ["typescript", "rust", "kotlin", "swift", "go"] },
         options: { type: "object", additionalProperties: true },
       },
       ["databaseId", "target"]

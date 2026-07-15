@@ -106,6 +106,33 @@ test("generate types modal renders left settings, right code preview, and stacke
   assert.match(css, /\.app-modal-body\s*\{[\s\S]*overflow-y: auto;/);
 });
 
+test("generate types modal offers Go as a target", async () => {
+  const { renderGenerateTypesForm } = await loadModalModule();
+  const html = renderGenerateTypesForm({
+    kind: "generate-types",
+    tableName: "users",
+    target: "go",
+    options: {
+      exportDeclaration: true,
+      includeDefaultsAsComments: false,
+      includeGeneratedColumns: true,
+      includeHiddenColumns: false,
+      nullableMode: "native",
+      propertyNaming: "pascal",
+    },
+    result: {
+      fileName: "User.go",
+      code: "package models\\n\\ntype User struct {}",
+    },
+    warnings: [],
+    loading: false,
+    error: null,
+  });
+
+  assert.match(html, /<option value="go" selected>Go<\/option>/);
+  assert.match(html, /User\.go/);
+});
+
 test("generate types modal renders all-table file badges and download label", async () => {
   const { renderGenerateTypesForm } = await loadModalModule();
   const html = renderGenerateTypesForm({

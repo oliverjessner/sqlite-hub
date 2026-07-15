@@ -4,7 +4,7 @@ const { quoteIdentifier } = require("../utils/identifier");
 const { normalizeDeclaredType } = require("../utils/sqliteTypes");
 const { getTableDetail } = require("./sqlite/introspection");
 
-const TARGETS = new Set(["typescript", "rust", "kotlin", "swift"]);
+const TARGETS = new Set(["typescript", "rust", "kotlin", "swift", "go"]);
 const TARGET_ALIASES = {
   ts: "typescript",
   typescript: "typescript",
@@ -13,18 +13,22 @@ const TARGET_ALIASES = {
   kt: "kotlin",
   kotlin: "kotlin",
   swift: "swift",
+  go: "go",
+  golang: "go",
 };
 const FILE_EXTENSIONS = {
   typescript: ".ts",
   rust: ".rs",
   kotlin: ".kt",
   swift: ".swift",
+  go: ".go",
 };
 const DEFAULT_NAMING = {
   typescript: "camel",
   rust: "snake",
   kotlin: "camel",
   swift: "camel",
+  go: "pascal",
 };
 const PROPERTY_NAMING = new Set(["preserve", "camel", "pascal", "snake"]);
 const NULLABLE_MODES = new Set(["native", "optional"]);
@@ -36,7 +40,7 @@ function normalizeTarget(value, { allowAliases = true } = {}) {
 
   if (!TARGETS.has(target)) {
     throw new ValidationError(
-      `Unsupported type target "${value}". Supported targets: typescript, rust, kotlin, swift.`,
+      `Unsupported type target "${value}". Supported targets: typescript, rust, kotlin, swift, go.`,
       { code: "INVALID_TYPE_TARGET" }
     );
   }
@@ -525,6 +529,103 @@ function generateSwift(table) {
   return lines.join("\n");
 }
 
+function goExportedIdentifier(value, fallback = "Value") {
+  const text = String(value ?? "").trim();
+  const pascalIdentifier = /^[A-Z][A-Za-z0-9_]*$/.test(text) ? text : toPascalCase(text);
+  const identifier = /^[A-Za-z_]/.test(pascalIdentifier)
+    ? pascalIdentifier
+    : `${fallback}${pascalIdentifier}`;
+
+  return identifier.replace(/(?:Api|Http|Https|Id|Json|Sql|Url|Uuid)(?=$|[A-Z0-9_])/g, (initialism) =>
+    initialism.toUpperCase()
+  );
+}
+
+function uniqueGoIdentifier(baseName, usedNames) {
+  if (!usedNames.has(baseName)) {
+    usedNames.add(baseName);
+    return baseName;
+  }
+
+  let suffix = 2;
+  while (usedNames.has(`${baseName}${suffix}`)) suffix += 1;
+  const name = `${baseName}${suffix}`;
+  usedNames.add(name);
+  return name;
+}
+
+function buildGoFields(columns) {
+  const usedNames = new Set();
+
+  return columns.map((column) => {
+    const baseName = goExportedIdentifier(column.propertyName, "Field");
+
+    return {
+      column,
+      fieldName: uniqueGoIdentifier(baseName, usedNames),
+    };
+  });
+}
+
+function goType(column, enumTypeName = null) {
+  if (enumTypeName) return enumTypeName;
+  if (column.normalizedType === "integer") return "int64";
+  if (["real", "numeric"].includes(column.normalizedType)) return "float64";
+  if (column.normalizedType === "boolean") return "bool";
+  if (column.normalizedType === "blob") return "[]byte";
+  if (column.normalizedType === "json") return "json.RawMessage";
+  if (column.normalizedType === "unknown") return "any";
+  return "string";
+}
+
+function goStructTag(databaseName) {
+  const tag = `json:${JSON.stringify(databaseName)}`;
+  return tag.includes("`") ? JSON.stringify(tag) : `\`${tag}\``;
+}
+
+function goCommentLines(column, options) {
+  return buildComments(column, options).map(
+    (comment) => `\t// ${comment.replace(/[\r\n]+/g, " ")}`
+  );
+}
+
+function generateGo(table, options) {
+  const fields = buildGoFields(table.columns);
+  const needsJson = table.columns.some((column) => column.normalizedType === "json");
+  const lines = ["package models"];
+
+  if (needsJson) lines.push("", 'import "encoding/json"');
+  lines.push("");
+
+  for (const { column, fieldName } of fields.filter(
+    ({ column: candidate }) =>
+      candidate.allowedValues?.length && candidate.allowedValues.every((value) => typeof value === "string")
+  )) {
+    const typeName = `${table.suggestedTypeName}${fieldName}`;
+    lines.push(`type ${typeName} string`, "", "const (");
+    const usedConstants = new Set();
+    for (const value of column.allowedValues) {
+      const baseName = `${typeName}${goExportedIdentifier(value)}`;
+      const constantName = uniqueGoIdentifier(baseName, usedConstants);
+      lines.push(`\t${constantName} ${typeName} = ${JSON.stringify(value)}`);
+    }
+    lines.push(")", "");
+  }
+
+  lines.push(`type ${table.suggestedTypeName} struct {`);
+  for (const { column, fieldName } of fields) {
+    lines.push(...goCommentLines(column, options));
+    const enumTypeName =
+      column.allowedValues?.length && column.allowedValues.every((value) => typeof value === "string")
+        ? `${table.suggestedTypeName}${fieldName}`
+        : null;
+    const baseType = goType(column, enumTypeName);
+    lines.push(`\t${fieldName} ${column.nullable ? `*${baseType}` : baseType} ${goStructTag(column.databaseName)}`);
+  }
+  lines.push("}");
+  return lines.join("\n");
+}
+
 function makeResult(target, table, options, code, warnings, metadata) {
   const fileName = `${table.suggestedTypeName}${FILE_EXTENSIONS[target]}`;
   return {
@@ -555,7 +656,8 @@ class TypeGenerationService {
     const ddl = ddlOverride === undefined ? tableDetail.ddl : ddlOverride;
     const checkAnalysis = parseCheckInExpressions(ddl ?? "", tableDetail.columns ?? []);
     const warnings = ["SQLite uses dynamic typing. Generated types are based on declared column types and schema constraints."];
-    const typeName = options.typeName ?? validateTypeName(toPascalCase(singularizeTableName(tableDetail.name)));
+    const requestedTypeName = options.typeName ?? validateTypeName(toPascalCase(singularizeTableName(tableDetail.name)));
+    const typeName = target === "go" ? goExportedIdentifier(requestedTypeName, "GeneratedType") : requestedTypeName;
     const foreignKeyByColumn = new Map();
 
     for (const fk of tableDetail.foreignKeys ?? []) {
@@ -627,7 +729,8 @@ class TypeGenerationService {
       target === "typescript" ? generateTypeScript(table, options)
       : target === "rust" ? generateRust(table, options)
       : target === "kotlin" ? generateKotlin(table, options)
-      : generateSwift(table, options);
+      : target === "swift" ? generateSwift(table, options)
+      : generateGo(table, options);
 
     if (target === "swift" && columns.some((column) => ["json", "unknown"].includes(column.normalizedType))) {
       warnings.push("The JSONValue or AnyCodable type must be provided by your Swift project.");

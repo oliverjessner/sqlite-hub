@@ -437,9 +437,9 @@ function createExternalApiRouter({
     route((req, res) => {
       const target = String(req.body?.target ?? "").trim();
 
-      if (!["typescript", "rust", "kotlin", "swift"].includes(target)) {
+      if (!["typescript", "rust", "kotlin", "swift", "go"].includes(target)) {
         throw new ValidationError(
-          `Unsupported type target "${req.body?.target}". Supported targets: typescript, rust, kotlin, swift.`,
+          `Unsupported type target "${req.body?.target}". Supported targets: typescript, rust, kotlin, swift, go.`,
           { code: "INVALID_TYPE_TARGET" }
         );
       }

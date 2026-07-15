@@ -79,7 +79,7 @@ const LOG_STATUSES = new Set(['all', 'success', 'error']);
 const LOG_QUERY_TYPES = new Set(['all', 'select', 'insert', 'update', 'delete', 'pragma', 'create', 'alter', 'drop', 'other']);
 const LOG_DESTRUCTIVE_FILTERS = new Set(['all', 'yes', 'no']);
 const CHART_HEIGHT_PRESETS = new Set(['small', 'medium', 'large']);
-const TYPE_GENERATION_TARGETS = new Set(['typescript', 'rust', 'kotlin', 'swift']);
+const TYPE_GENERATION_TARGETS = new Set(['typescript', 'rust', 'kotlin', 'swift', 'go']);
 const TYPE_GENERATION_NAMING = new Set(['preserve', 'camel', 'pascal', 'snake']);
 const TYPE_GENERATION_NULLABLE = new Set(['native', 'optional']);
 const TYPE_GENERATION_JSON_TYPES = new Set(['unknown', 'record', 'json-value']);
@@ -6971,7 +6971,7 @@ export function clearStructureSelection() {
 }
 
 function getDefaultTypeGenerationOptions(target = 'typescript') {
-    const propertyNaming = target === 'rust' ? 'snake' : 'camel';
+    const propertyNaming = target === 'rust' ? 'snake' : target === 'go' ? 'pascal' : 'camel';
 
     return {
         typeName: '',

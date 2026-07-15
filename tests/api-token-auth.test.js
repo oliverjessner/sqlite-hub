@@ -345,6 +345,29 @@ test("type generation API uses database token auth and returns warnings at top l
   ]);
 });
 
+test("type generation API accepts Go as a target", async (t) => {
+  const fixture = await startApi(t);
+  const created = fixture.tokenService.createToken(fixture.databaseA.id, "Automation");
+  const response = await fetch(
+    `${fixture.baseUrl}/databases/${fixture.databaseA.id}/tables/companies/types`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${created.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ target: "go" }),
+    }
+  );
+  const payload = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(payload.data.target, "go");
+  assert.deepEqual(fixture.serviceCalls, [
+    `${fixture.databaseA.id}:types:companies:go:`,
+  ]);
+});
+
 test("backup API creates a verified backup with a database token", async (t) => {
   const fixture = await startApi(t);
   const created = fixture.tokenService.createToken(fixture.databaseA.id, "Automation");

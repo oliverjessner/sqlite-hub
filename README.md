@@ -51,7 +51,7 @@ SQLite Hub keeps that workflow sharp:
 - inspect schema, structure, and relationships
 - recognize virtual and shadow tables with visual badges and Structure graph links
 - analyze individual tables with a deterministic local advisor
-- generate TypeScript, Rust, Kotlin, or Swift types from table schemas
+- generate TypeScript, Rust, Kotlin, Swift, or Go types from table schemas
 - edit records in place with typed value previews and an SQL diff preview before saving
 - export tables and query results as CSV, TSV, Markdown, JSON, Parquet, or duplicate them as a table
 - copy result columns with formatting, headers, first-10 previews, TXT export, and Markdown todo export
@@ -79,7 +79,7 @@ Inspect tables, views, indexes, triggers, columns, declared types, primary keys,
   <a href="./frontend/assets/mockups/structure_3_generate_types_modal_1920.webp"><img src="./frontend/assets/mockups/structure_3_generate_types_modal_1920.webp" alt="SQLite Hub generate types for all tables" width="49%"></a>
 </p>
 
-Generate application types directly from the Structure toolbar for the selected table or for every table in the database. The `Generate Types` dropdown lets you choose `Selected table` or `All tables`; the preview modal supports TypeScript, Rust, Kotlin, and Swift. When all tables are selected, SQLite Hub creates one generated file per table.
+Generate application types directly from the Structure toolbar for the selected table or for every table in the database. The `Generate Types` dropdown lets you choose `Selected table` or `All tables`; the preview modal supports TypeScript, Rust, Kotlin, Swift, and Go. When all tables are selected, SQLite Hub creates one generated file per table.
 
 Type generation uses SQLite's declared column types plus schema constraints such as primary keys, foreign keys, `NOT NULL`, generated columns, defaults, and simple `CHECK (... IN (...))` value sets.
 

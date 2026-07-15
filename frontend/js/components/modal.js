@@ -872,6 +872,7 @@ export function renderGenerateTypesForm(modal) {
                     { value: 'rust', label: 'Rust' },
                     { value: 'kotlin', label: 'Kotlin' },
                     { value: 'swift', label: 'Swift' },
+                    { value: 'go', label: 'Go' },
                 ],
             })}
             ${renderTypeGenerationSelect({

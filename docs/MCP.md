@@ -66,7 +66,7 @@ Controlled write tools:
 
 - `execute_stored_query`: execute a saved SQL Editor query by id, title, display title, or SQL fragment, equivalent to `sqlite-hub --database:name --execute:"query"`.
 - `create_backup`: create a verified backup through SQLite Hub's existing backup mechanism.
-- `generate_types`: generate TypeScript, Rust, Kotlin, or Swift types from one table or all tables.
+- `generate_types`: generate TypeScript, Rust, Kotlin, Swift, or Go types from one table or all tables.
 - `create_chart_from_query`: create a saved chart from a read-only `SELECT` query. It writes chart metadata to SQLite Hub but does not export files.
 
 ## Security

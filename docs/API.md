@@ -103,7 +103,7 @@ curl \
   http://127.0.0.1:4173/api/v1/databases/DATABASE_ID/tables/users/types
 ```
 
-Supported targets are `typescript`, `rust`, `kotlin`, and `swift`. Warnings are
+Supported targets are `typescript`, `rust`, `kotlin`, `swift`, and `go`. Warnings are
 returned in the top-level `warnings` array. Metadata includes column counts and
 CHECK-constraint counts.
 

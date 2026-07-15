@@ -62,7 +62,7 @@ Options:
   --backup-notes:"text"              Add notes to a created backup.
   --table:"table"                    Print table metadata.
   --table:"table" --export:"pk"      Export one row as JSON by primary key or rowid.
-  --types:typescript|ts|rust|rs|kotlin|kt|swift
+  --types:typescript|ts|rust|rs|kotlin|kt|swift|go|golang
                                       Generate application types for --table.
   --type-name:"name"                 Override generated type name.
   --naming:preserve|camel|pascal|snake

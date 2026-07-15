@@ -1,3 +1,7 @@
+# v2.3.3
+
+- go structs
+
 # v2.3.2
 
 - Improve Windows compatibility [https://github.com/oliverjessner/sqlite-hub/pull/1](https://github.com/oliverjessner/sqlite-hub/pull/1)

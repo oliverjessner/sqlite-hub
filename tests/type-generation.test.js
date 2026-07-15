@@ -83,3 +83,24 @@ test("type generation handles unknown types, generated columns, numeric unions, 
   assert.match(swift.code, /enum UserStatus: String, Codable/);
   assert.match(swift.code, /case createdAt = "created_at"/);
 });
+
+test("type generation creates Go structs with JSON tags, nullable pointers, and string enums", (t) => {
+  const db = createDb(t);
+  const result = new TypeGenerationService().generateTypesFromDatabase(db, "users", "golang", {
+    includeComments: true,
+  });
+
+  assert.equal(result.target, "go");
+  assert.equal(result.fileName, "User.go");
+  assert.match(result.code, /^package models/);
+  assert.match(result.code, /import "encoding\/json"/);
+  assert.match(result.code, /type UserStatus string/);
+  assert.match(result.code, /UserStatusTrial UserStatus = "trial"/);
+  assert.match(result.code, /type User struct \{/);
+  assert.match(result.code, /ID int64 `json:"id"`/);
+  assert.match(result.code, /Metadata \*json\.RawMessage `json:"metadata"`/);
+  assert.match(result.code, /Avatar \*\[\]byte `json:"avatar"`/);
+  assert.match(result.code, /AccountID \*int64 `json:"account_id"`/);
+  assert.match(result.code, /CreatedAt string `json:"created_at"`/);
+  assert.match(result.code, /\/\/ References accounts\.id/);
+});

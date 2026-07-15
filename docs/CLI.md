@@ -202,7 +202,7 @@ sqlite-hub --database:Unit-00 --table:companies --export:0a754aba373d34972998792
 | `--backup-notes:"text"`                                         | Add notes to a backup created by `--backup`     |
 | `--database:name --table:"table"`                               | Print table metadata                            |
 | `--database:name --table:"table" --export:"pk"`                 | Export one row as JSON                          |
-| `--database:name --table:"table" --types:typescript\|ts\|rust\|rs\|kotlin\|kt\|swift` | Generate application types |
+| `--database:name --table:"table" --types:typescript\|ts\|rust\|rs\|kotlin\|kt\|swift\|go\|golang` | Generate application types |
 | `--type-name:"name"`                                            | Override generated type name                    |
 | `--naming:preserve\|camel\|pascal\|snake`                       | Select property naming                          |
 | `--nullable:native\|optional`                                   | Select nullable handling                        |

@@ -118,6 +118,12 @@ test("parses type generation flags and aliases", () => {
   assert.equal(options.force, true);
 });
 
+test("parses the Go type generation alias", () => {
+  const options = parseCliArguments(["--database:db", "--table:users", "--types:golang"]);
+
+  assert.equal(options.typesTarget, "golang");
+});
+
 test("parses document commands", () => {
   const listOptions = parseCliArguments(["--database:db", "--documents"]);
   const showOptions = parseCliArguments(["--database:db", "--documents:Research Note"]);

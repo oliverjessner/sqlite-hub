@@ -111,6 +111,8 @@ test("MCP tool registration exposes the initial SQLite Hub tools", (t) => {
   assert.ok(names.includes("execute_stored_query"));
   assert.ok(names.includes("create_backup"));
   assert.ok(names.includes("generate_types"));
+  const generateTypesTool = toolService.listTools().find((tool) => tool.name === "generate_types");
+  assert.ok(generateTypesTool.inputSchema.properties.target.enum.includes("go"));
 });
 
 test("MCP list_connections returns imported databases without full paths", async (t) => {
@@ -121,6 +123,21 @@ test("MCP list_connections returns imported databases without full paths", async
   assert.equal(result.items[0].id, connection.id);
   assert.equal(result.items[0].label, "Sample");
   assert.equal(result.items[0].path, undefined);
+});
+
+test("MCP generates Go structs through the shared type generation service", async (t) => {
+  const { toolService, connection } = createFixture(t);
+  const result = await toolService.callTool("generate_types", {
+    databaseId: connection.id,
+    tableName: "companies",
+    target: "go",
+  });
+
+  assert.equal(result.target, "go");
+  assert.equal(result.files.length, 1);
+  assert.equal(result.files[0].fileName, "Company.go");
+  assert.match(result.files[0].code, /^package models/);
+  assert.match(result.files[0].code, /type Company struct \{/);
 });
 
 test("MCP get_schema returns database tables and indexes", async (t) => {
