@@ -11,8 +11,8 @@ SQLite Hub is built for developers and technical users who want a clean SQLite w
 SQLite Hub was named **Product of the Day** on both Fazier and PeerPush.
 
 <p>
-  <a class="sqlite-hub-featured__badge" href="https://fazier.com/launches/sqlite-hub" target="_blank" aria-label="Fazier badge" rel="noopener noreferrer"><img src="https://fazier.com/api/v1/public/badges/embed_image.svg?launch_id=9942&amp;badge_type=daily&amp;theme=dark" alt="Fazier badge" width="136" height="44" style="--sqlite-hub-featured-badge-width: 270px" loading="lazy" decoding="async"></a>
-  <a class="sqlite-hub-featured__badge" href="https://peerpush.com/p/sqlite-hub" target="_blank" aria-label="SQLite Hub on PeerPush" rel="noopener noreferrer"><img src="https://peerpush.com/p/sqlite-hub/badge.png" alt="SQLite Hub on PeerPush" width="460" height="130" style="--sqlite-hub-featured-badge-width: 230px" loading="lazy" decoding="async"></a>
+  <a href="https://fazier.com/launches/sqlite-hub" target="_blank" aria-label="Fazier badge" rel="noopener noreferrer"><img src="https://fazier.com/api/v1/public/badges/embed_image.svg?launch_id=9942&amp;badge_type=daily&amp;theme=dark" alt="Fazier badge" width="230" loading="lazy" decoding="async"></a>
+  <a href="https://peerpush.com/p/sqlite-hub" target="_blank" aria-label="SQLite Hub on PeerPush" rel="noopener noreferrer"><img src="https://peerpush.com/p/sqlite-hub/badge.png" alt="SQLite Hub on PeerPush" width="230" loading="lazy" decoding="async"></a>
 </p>
 
 ## Install
