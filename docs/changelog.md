@@ -1,6 +1,6 @@
 # v2.3.3
 
-- go structs
+- go structs https://github.com/oliverjessner/sqlite-hub/issues/2
 
 # v2.3.2
 
