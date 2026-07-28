@@ -10,9 +10,9 @@ function decodeBasicHtmlEntities(value = '') {
         .replace(/&colon;/gi, ':')
         .replace(/&#58;/g, ':')
         .replace(/&#x3a;/gi, ':')
-        .replace(/&amp;/gi, '&')
         .replace(/&quot;/gi, '"')
-        .replace(/&#39;/gi, "'");
+        .replace(/&#39;/gi, "'")
+        .replace(/&amp;/gi, '&');
 }
 
 function sanitizeRenderedMarkdown(html = '') {
