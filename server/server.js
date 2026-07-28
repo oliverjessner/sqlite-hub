@@ -80,11 +80,7 @@ connectionManager.initialize();
 
 const app = express();
 
-app.use(
-  helmet({
-    contentSecurityPolicy: false,
-  })
-);
+app.use(helmet());
 app.use("/api", localRequestSecurity);
 app.use(
   "/api",
