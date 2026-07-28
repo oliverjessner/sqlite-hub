@@ -3781,6 +3781,7 @@ function normalizeMarkdownInlineText(value = '') {
 function escapeMarkdownTableCell(value = '') {
     return String(value ?? '')
         .replace(/\r?\n/g, ' ')
+        .replace(/\\/g, '\\\\')
         .replace(/\|/g, '\\|')
         .trim();
 }
