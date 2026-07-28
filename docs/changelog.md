@@ -1,3 +1,7 @@
+# v2.3.5
+
+- security fixes
+
 # v2.3.3
 
 - go structs https://github.com/oliverjessner/sqlite-hub/issues/2
