@@ -59,7 +59,7 @@ test("delimiter input generates SQLite CREATE TABLE and INSERT SQL", async () =>
   assert.match(result.output, /\(1, 'Oliver'\)/);
 });
 
-test("float, boolean, and array fields use StructPaste conversions", async () => {
+test("float, boolean, and array fields use Text2Struct conversions", async () => {
   const result = await service.convert(
     payload({
       input: "19.95|yes|red; blue",
@@ -189,7 +189,7 @@ test("the production dynamic import is cached at module scope", () => {
     "utf8"
   );
 
-  assert.match(source, /let structpastePromise;/);
-  assert.match(source, /structpastePromise = import\("structpaste"\)/);
-  assert.match(source, /return structpastePromise;/);
+  assert.match(source, /let text2structPromise;/);
+  assert.match(source, /text2structPromise = import\("text2struct"\)/);
+  assert.match(source, /return text2structPromise;/);
 });

@@ -39,14 +39,14 @@ const MAX_PROPERTY_NAME_LENGTH = 128;
 const MAX_SEPARATOR_LENGTH = 16;
 const MAX_TABLE_NAME_LENGTH = 128;
 
-let structpastePromise;
+let text2structPromise;
 
-function loadStructpaste() {
-  if (!structpastePromise) {
-    structpastePromise = import("structpaste");
+function loadText2Struct() {
+  if (!text2structPromise) {
+    text2structPromise = import("text2struct");
   }
 
-  return structpastePromise;
+  return text2structPromise;
 }
 
 function isPlainObject(value) {
@@ -349,7 +349,7 @@ function normalizeLibraryError(error) {
     return error;
   }
 
-  const details = error?.name === "StructPasteError"
+  const details = error?.name === "Text2StructError"
     ? {
         row: error.row,
         property: error.property,
@@ -366,15 +366,15 @@ function normalizeLibraryError(error) {
 
 class TextToStructService {
   constructor(options = {}) {
-    this.loadLibrary = options.loadLibrary ?? loadStructpaste;
+    this.loadLibrary = options.loadLibrary ?? loadText2Struct;
   }
 
   async convert(payload) {
     const options = normalizeRequest(payload);
 
     try {
-      const structpaste = await this.loadLibrary();
-      const parsed = structpaste.parse(options.input, {
+      const text2struct = await this.loadLibrary();
+      const parsed = text2struct.parse(options.input, {
         schema: options.schema,
         parser: options.parser,
         deduplicate: options.deduplicate,
@@ -382,7 +382,7 @@ class TextToStructService {
       });
       const records = options.errors === "collect" ? parsed.data : parsed;
       const errors = options.errors === "collect" ? parsed.errors : [];
-      const output = structpaste.serialize(records, {
+      const output = text2struct.serialize(records, {
         ...options.outputOptions,
         format: options.output,
         schema: options.schema,
