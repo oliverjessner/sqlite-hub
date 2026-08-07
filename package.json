@@ -1,6 +1,6 @@
 {
     "name": "sqlite-hub",
-    "version": "2.4.0",
+    "version": "2.4.1",
     "description": "SQLite-only local management app backend and SPA shell",
     "license": "MIT",
     "main": "server/server.js",
@@ -47,7 +47,7 @@
         "marked": "^18.0.5",
         "material-symbols": "^0.45.1",
         "parquetjs-lite": "^0.8.7",
-        "structpaste": "https://github.com/oliverjessner/text2struct/archive/1e8e41d9944e17f698e35e86e3c4612bbc6c0136.tar.gz"
+        "text2struct": "0.1.2"
     },
     "devDependencies": {
         "@tailwindcss/cli": "^4.3.1",

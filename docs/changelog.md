@@ -1,3 +1,7 @@
+# v2.4.1
+
+- fixing wrong package
+
 # v2.4.0
 
 - text2struct implementation
