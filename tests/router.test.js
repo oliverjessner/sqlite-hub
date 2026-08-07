@@ -43,3 +43,10 @@ test("table advisor route supports an optional table name", async () => {
   assert.equal(route.path, "/table-advisor/users");
   assert.equal(route.params.tableName, "users");
 });
+
+test("text-to-struct route resolves to the workspace feature", async () => {
+  const { parseHash } = await loadRouterModule();
+  const route = parseHash("#/text-to-struct");
+
+  assert.deepEqual(route, { name: "textToStruct", path: "/text-to-struct", params: {} });
+});

@@ -224,6 +224,21 @@ import {
     addCurrentTableDesignerColumn,
     applyCurrentMediaTaggingSelection,
     removeCurrentTableDesignerColumn,
+    setTextToStructInput,
+    setTextToStructParserType,
+    updateTextToStructParser,
+    addTextToStructField,
+    updateTextToStructField,
+    removeTextToStructField,
+    setTextToStructDeduplicate,
+    toggleTextToStructDeduplicateField,
+    clearTextToStructDeduplicateFields,
+    setTextToStructErrorMode,
+    setTextToStructOutput,
+    updateTextToStructOutputOptions,
+    convertCurrentTextToStruct,
+    clearTextToStruct,
+    transferTextToStructSqlToEditor,
 } from './store.js';
 import { renderChartsDetail, renderChartsView } from './views/charts.js';
 import { renderBackupsView } from './views/backups.js';
@@ -239,6 +254,7 @@ import { renderSettingsView } from './views/settings.js';
 import { renderStructureView } from './views/structure.js';
 import { renderTableAdvisorView } from './views/tableAdvisor.js';
 import { renderTableDesignerView } from './views/tableDesigner.js';
+import { getInputStats, renderTextToStructView } from './views/textToStruct.js';
 import { replaceChildrenFromRenderedMarkup, replaceElementFromRenderedMarkup } from './utils/dom.js';
 import {
     buildCopyColumnText,
@@ -269,6 +285,7 @@ import {
     formatTextCellCharacterCount,
     getTextCellCharacterCount,
 } from './utils/textCellStats.js';
+import { validateTextToStructFields } from './lib/textToStruct.js';
 import {
     captureTableHorizontalScrollState,
     restoreTableHorizontalScrollState,
@@ -338,6 +355,7 @@ const ROUTE_TITLE_SEGMENTS = {
     editorResults: 'SQL Editor',
     charts: 'Charts',
     documents: 'Documents',
+    textToStruct: 'Text2Struct',
     tableDesigner: 'Table Designer',
     mediaTaggingSetup: 'Media Tagging',
     mediaTaggingQueue: 'Tagging Queue',
@@ -1448,6 +1466,8 @@ function resolveView(state) {
             return renderChartsView(state);
         case 'documents':
             return renderDocumentsView(state);
+        case 'textToStruct':
+            return renderTextToStructView(state);
         case 'data':
             return renderDataView(state);
         case 'editor':
@@ -1786,6 +1806,7 @@ function renderApp(state) {
         'charts',
         'logs',
         'documents',
+        'textToStruct',
         'structure',
         'tableDesigner',
         'tableAdvisor',
@@ -2075,6 +2096,54 @@ async function copyCurrentQueryToClipboard() {
         showToast('SQL query copied.', 'success');
     } catch (error) {
         showToast('SQL query could not be copied.', 'alert');
+    }
+}
+
+function syncTextToStructInputStats(input) {
+    const statsNode = document.querySelector('[data-text-to-struct-input-stats]');
+
+    if (!statsNode) {
+        return;
+    }
+
+    const stats = getInputStats(input);
+    statsNode.textContent = `${formatNumber(stats.lines)} LINES // ${formatNumber(stats.characters)} CHARS`;
+}
+
+function syncTextToStructValidationUi() {
+    const textToStruct = getState().textToStruct;
+    const validation = validateTextToStructFields(textToStruct.fields);
+    const validationNode = document.querySelector('[data-text-to-struct-validation]');
+    const convertButton = document.querySelector('[data-text-to-struct-convert]');
+
+    if (validationNode) {
+        validationNode.textContent = validation.message;
+        validationNode.classList.toggle('is-visible', !validation.valid);
+    }
+
+    if (convertButton instanceof HTMLButtonElement) {
+        convertButton.disabled = textToStruct.converting || !textToStruct.input.trim() || !validation.valid;
+    }
+}
+
+async function copyTextToStructOutput() {
+    const textToStruct = getState().textToStruct;
+
+    if (!textToStruct.result.metadata) {
+        showToast('NO OUTPUT TO COPY', 'alert');
+        return;
+    }
+
+    if (!navigator.clipboard?.writeText) {
+        showToast('CLIPBOARD API IS NOT AVAILABLE', 'alert');
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(String(textToStruct.result.output ?? ''));
+        showToast('OUTPUT COPIED', 'success');
+    } catch {
+        showToast('OUTPUT COULD NOT BE COPIED', 'alert');
     }
 }
 
@@ -2873,6 +2942,31 @@ async function handleAction(actionNode) {
     switch (action) {
         case 'navigate':
             router.navigate(actionNode.dataset.to ?? '/');
+            return;
+        case 'convert-text-to-struct':
+            await convertCurrentTextToStruct();
+            return;
+        case 'clear-text-to-struct':
+            clearTextToStruct();
+            return;
+        case 'add-text-to-struct-field':
+            addTextToStructField();
+            return;
+        case 'remove-text-to-struct-field':
+            removeTextToStructField(actionNode.dataset.columnId);
+            return;
+        case 'clear-text-to-struct-deduplicate-fields':
+            clearTextToStructDeduplicateFields();
+            actionNode.closest('[data-dropdown-button]')?.removeAttribute('open');
+            return;
+        case 'copy-text-to-struct-output':
+            await copyTextToStructOutput();
+            return;
+        case 'open-text-to-struct-in-editor':
+            if (transferTextToStructSqlToEditor()) {
+                pendingQueryEditorFocus = true;
+                router.navigate('/editor');
+            }
             return;
         case 'refresh-view':
             await refreshCurrentRoute();
@@ -4105,6 +4199,41 @@ document.addEventListener('input', event => {
         return;
     }
 
+    if (bindNode.dataset.bind === 'text-to-struct-input') {
+        setTextToStructInput(bindNode.value, { notify: false });
+        syncTextToStructInputStats(bindNode.value);
+        syncTextToStructValidationUi();
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'text-to-struct-parser') {
+        if (bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox') {
+            return;
+        }
+        updateTextToStructParser(bindNode.dataset.field, bindNode.value, { notify: false });
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'text-to-struct-field') {
+        if (bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox') {
+            return;
+        }
+        if (bindNode instanceof HTMLSelectElement) {
+            return;
+        }
+        updateTextToStructField(bindNode.dataset.columnId, bindNode.dataset.field, bindNode.value, { notify: false });
+        syncTextToStructValidationUi();
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'text-to-struct-output-option') {
+        if (bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox') {
+            return;
+        }
+        updateTextToStructOutputOptions(bindNode.dataset.field, bindNode.value, { notify: false });
+        return;
+    }
+
     if (bindNode.dataset.bind === 'type-generation-field') {
         if (bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox') {
             return;
@@ -4334,6 +4463,52 @@ document.addEventListener('change', event => {
             key: bindNode.dataset.locationKey,
             selected: bindNode instanceof HTMLInputElement && bindNode.checked,
         });
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'text-to-struct-parser-type') {
+        setTextToStructParserType(bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'text-to-struct-parser') {
+        const value = bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox' ? bindNode.checked : bindNode.value;
+        updateTextToStructParser(bindNode.dataset.field, value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'text-to-struct-field') {
+        const value = bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox' ? bindNode.checked : bindNode.value;
+        updateTextToStructField(bindNode.dataset.columnId, bindNode.dataset.field, value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'text-to-struct-deduplicate') {
+        setTextToStructDeduplicate(bindNode instanceof HTMLInputElement && bindNode.checked);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'text-to-struct-deduplicate-field') {
+        toggleTextToStructDeduplicateField(
+            bindNode.dataset.fieldName,
+            bindNode instanceof HTMLInputElement && bindNode.checked,
+        );
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'text-to-struct-error-mode') {
+        setTextToStructErrorMode(bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'text-to-struct-output') {
+        setTextToStructOutput(bindNode.value);
+        return;
+    }
+
+    if (bindNode.dataset.bind === 'text-to-struct-output-option') {
+        const value = bindNode instanceof HTMLInputElement && bindNode.type === 'checkbox' ? bindNode.checked : bindNode.value;
+        updateTextToStructOutputOptions(bindNode.dataset.field, value);
         return;
     }
 

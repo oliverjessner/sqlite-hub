@@ -64,6 +64,13 @@ export function getHealth() {
   return request("/api/health");
 }
 
+export function convertTextToStruct(payload) {
+  return request("/api/text-to-struct/convert", {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export function getRecentConnections() {
   return request("/api/connections/recent");
 }

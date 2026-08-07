@@ -56,6 +56,7 @@ SQLite Hub keeps that workflow sharp:
 - export tables and query results as CSV, TSV, Markdown, JSON, Parquet, or duplicate them as a table
 - copy result columns with formatting, headers, first-10 previews, TXT export, and Markdown todo export
 - keep database-scoped Markdown documents with previews, autosave, imports, exports, and saved-query inserts
+- convert plain text into JSON, JSON Lines, CSV, TSV, Markdown, YAML, or SQLite SQL with custom schemas
 - switch between recent databases with sidebar quick picks
 - create verified local backups of the active database and get safety prompts before risky operations
 - run and format SQL in a syntax-highlighted editor with history, messages, and performance metrics
@@ -175,6 +176,10 @@ Magic Snippets are managed blocks. When a document is opened, SQLite Hub refresh
   <a href="./frontend/assets/mockups/documents_2_document_insert_table_modal_1920.webp"><img src="./frontend/assets/mockups/documents_2_document_insert_table_modal_1920.webp" alt="SQLite Hub insert saved query table into a document" width="49%"></a>
   <a href="./frontend/assets/mockups/documents_3_document_insert_note_modal_1920.webp"><img src="./frontend/assets/mockups/documents_3_document_insert_note_modal_1920.webp" alt="SQLite Hub insert saved query note into a document" width="49%"></a>
 </p>
+
+### Text2Struct
+
+Text2Struct converts plain text into JSON, JSON Lines, CSV, TSV, Markdown tables, YAML, or SQLite SQL using custom schemas. Configure parsing, type conversion, validation, error collection, and deduplication in the Workspace view without opening a database. Generated SQLite SQL can be reviewed in the SQL Editor and is never executed automatically.
 
 ### Charts
 

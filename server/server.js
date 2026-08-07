@@ -24,6 +24,7 @@ const { TableDesignerService } = require("./services/sqlite/tableDesignerService
 const { MediaTaggingService } = require("./services/sqlite/mediaTaggingService");
 const { ApiTokenService } = require("./services/apiTokenService");
 const { DatabaseCommandService } = require("./services/databaseCommandService");
+const { TextToStructService } = require("./services/textToStructService");
 const { createMcpServices } = require("./mcp/stdioServer");
 const { createMcpHttpRouter } = require("./mcp/httpRouter");
 const { createConnectionsRouter } = require("./routes/connections");
@@ -40,6 +41,7 @@ const { createExportRouter } = require("./routes/export");
 const { createDocumentsRouter } = require("./routes/documents");
 const { createExternalApiRouter } = require("./routes/externalApi");
 const { createLogsRouter } = require("./routes/logs");
+const { createTextToStructRouter } = require("./routes/textToStruct");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const FRONTEND_ROOT = path.join(PACKAGE_ROOT, "frontend");
@@ -74,6 +76,7 @@ const tableDesignerService = new TableDesignerService({ connectionManager });
 const mediaTaggingService = new MediaTaggingService({ connectionManager, appStateStore });
 const apiTokenService = new ApiTokenService({ appStateStore });
 const databaseCommandService = new DatabaseCommandService({ appStateStore });
+const textToStructService = new TextToStructService();
 const mcpServices = createMcpServices({ appStateStore, transport: "http" });
 
 connectionManager.initialize();
@@ -147,6 +150,7 @@ app.use(
 app.use("/api/export", createExportRouter({ exportService }));
 app.use("/api/documents", createDocumentsRouter({ appStateStore, connectionManager }));
 app.use("/api/logs", createLogsRouter({ appStateStore, connectionManager }));
+app.use("/api/text-to-struct", createTextToStructRouter({ textToStructService }));
 app.use(
   "/api/v1",
   createExternalApiRouter({

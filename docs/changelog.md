@@ -1,3 +1,7 @@
+# v2.4.0
+
+- text2struct implementation
+
 # v2.3.5
 
 - security fixes

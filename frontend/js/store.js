@@ -35,6 +35,7 @@ import {
     normalizeConnectionTagKey,
     normalizeConnectionTagName,
 } from './utils/connectionRegistry.js';
+import { getTextToStructFieldNames, validateTextToStructFields } from './lib/textToStruct.js';
 
 const listeners = new Set();
 const DEFAULT_SETTINGS = {
@@ -96,6 +97,38 @@ const MISSING_DATABASE_ERROR = {
     code: 'ACTIVE_DATABASE_REQUIRED',
     message: 'No active SQLite database selected.',
 };
+const TEXT_TO_STRUCT_PARSERS = new Set(['delimiter', 'lines', 'key-value', 'csv', 'tsv']);
+const TEXT_TO_STRUCT_ERROR_MODES = new Set(['collect', 'skip', 'throw']);
+const TEXT_TO_STRUCT_OUTPUTS = new Set(['json', 'jsonl', 'csv', 'tsv', 'markdown', 'yaml', 'sqlite']);
+const TEXT_TO_STRUCT_FIELD_TYPES = new Set(['string', 'integer', 'float', 'boolean', 'date', 'array']);
+
+function createTextToStructFieldId() {
+    return globalThis.crypto?.randomUUID?.() ?? `text-field-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function createTextToStructField(overrides = {}) {
+    return {
+        id: createTextToStructFieldId(),
+        name: '',
+        type: 'string',
+        required: false,
+        trim: true,
+        separator: ',',
+        primaryKey: false,
+        autoIncrement: false,
+        unique: false,
+        ...overrides,
+    };
+}
+
+function createEmptyTextToStructResult() {
+    return {
+        output: '',
+        records: [],
+        errors: [],
+        metadata: null,
+    };
+}
 
 function createClosedTableDesignerConstraintsDrawer() {
     return {
@@ -490,6 +523,27 @@ const state = {
         deleting: false,
         error: null,
         saveError: null,
+    },
+    textToStruct: {
+        input: '',
+        parser: {
+            type: 'delimiter',
+            delimiter: '|',
+            separator: ':',
+            header: true,
+        },
+        fields: [createTextToStructField()],
+        deduplicate: false,
+        deduplicateFields: [],
+        errors: 'collect',
+        output: 'json',
+        outputOptions: {
+            table: 'items',
+            createTable: true,
+        },
+        result: createEmptyTextToStructResult(),
+        converting: false,
+        error: null,
     },
     tableDesigner: {
         tables: [],
@@ -8911,6 +8965,315 @@ export async function refreshCurrentRoute() {
 
 export function showToast(message, tone = 'muted') {
     pushToast(message, tone);
+}
+
+function clearTextToStructError() {
+    state.textToStruct.error = null;
+}
+
+function syncTextToStructDeduplicateFields() {
+    const availableFields = new Set(getTextToStructFieldNames(state.textToStruct.fields));
+    state.textToStruct.deduplicateFields = state.textToStruct.deduplicateFields.filter(field =>
+        availableFields.has(field),
+    );
+}
+
+function getTextToStructField(fieldId) {
+    return state.textToStruct.fields.find(field => field.id === fieldId) ?? null;
+}
+
+export function setTextToStructInput(input, options = {}) {
+    state.textToStruct.input = String(input ?? '');
+    clearTextToStructError();
+
+    if (options.notify !== false) {
+        emitChange();
+    }
+}
+
+export function setTextToStructParserType(type) {
+    if (!TEXT_TO_STRUCT_PARSERS.has(type)) {
+        return false;
+    }
+
+    state.textToStruct.parser.type = type;
+    clearTextToStructError();
+    emitChange();
+    return true;
+}
+
+export function updateTextToStructParser(field, value, options = {}) {
+    if (!['delimiter', 'separator', 'header'].includes(field)) {
+        return false;
+    }
+
+    state.textToStruct.parser[field] = field === 'header' ? Boolean(value) : String(value ?? '');
+    clearTextToStructError();
+
+    if (options.notify !== false) {
+        emitChange();
+    }
+    return true;
+}
+
+export function addTextToStructField() {
+    const field = createTextToStructField();
+    state.textToStruct.fields.push(field);
+    clearTextToStructError();
+    emitChange();
+    return field.id;
+}
+
+export function updateTextToStructField(fieldId, property, value, options = {}) {
+    const field = getTextToStructField(fieldId);
+
+    if (!field || !['name', 'type', 'required', 'trim', 'separator', 'primaryKey', 'autoIncrement', 'unique'].includes(property)) {
+        return false;
+    }
+
+    if (property === 'type') {
+        if (!TEXT_TO_STRUCT_FIELD_TYPES.has(value)) {
+            return false;
+        }
+        field.type = value;
+        if (value !== 'integer') {
+            field.autoIncrement = false;
+        }
+    } else if (['required', 'trim', 'primaryKey', 'autoIncrement', 'unique'].includes(property)) {
+        field[property] = Boolean(value);
+    } else {
+        field[property] = String(value ?? '');
+    }
+
+    if (property === 'primaryKey' && !field.primaryKey) {
+        field.autoIncrement = false;
+    }
+
+    if (property === 'autoIncrement' && field.autoIncrement && (field.type !== 'integer' || !field.primaryKey)) {
+        field.autoIncrement = false;
+    }
+
+    syncTextToStructDeduplicateFields();
+    clearTextToStructError();
+
+    if (options.notify !== false) {
+        emitChange();
+    }
+    return true;
+}
+
+export function removeTextToStructField(fieldId) {
+    const fieldIndex = state.textToStruct.fields.findIndex(field => field.id === fieldId);
+
+    if (fieldIndex < 0) {
+        return false;
+    }
+
+    if (state.textToStruct.fields.length === 1) {
+        state.textToStruct.fields = [createTextToStructField()];
+    } else {
+        state.textToStruct.fields.splice(fieldIndex, 1);
+    }
+
+    syncTextToStructDeduplicateFields();
+    clearTextToStructError();
+    emitChange();
+    return true;
+}
+
+export function setTextToStructDeduplicate(enabled) {
+    state.textToStruct.deduplicate = Boolean(enabled);
+    if (!state.textToStruct.deduplicate) {
+        state.textToStruct.deduplicateFields = [];
+    }
+    clearTextToStructError();
+    emitChange();
+}
+
+export function toggleTextToStructDeduplicateField(fieldName, selected) {
+    const normalizedName = String(fieldName ?? '').trim();
+    const availableFields = new Set(getTextToStructFieldNames(state.textToStruct.fields));
+
+    if (!availableFields.has(normalizedName)) {
+        return false;
+    }
+
+    const selection = new Set(state.textToStruct.deduplicateFields);
+    if (selected) {
+        selection.add(normalizedName);
+    } else {
+        selection.delete(normalizedName);
+    }
+    state.textToStruct.deduplicateFields = [...selection];
+    clearTextToStructError();
+    emitChange();
+    return true;
+}
+
+export function clearTextToStructDeduplicateFields() {
+    state.textToStruct.deduplicateFields = [];
+    clearTextToStructError();
+    emitChange();
+}
+
+export function setTextToStructErrorMode(mode) {
+    if (!TEXT_TO_STRUCT_ERROR_MODES.has(mode)) {
+        return false;
+    }
+    state.textToStruct.errors = mode;
+    clearTextToStructError();
+    emitChange();
+    return true;
+}
+
+export function setTextToStructOutput(output) {
+    if (!TEXT_TO_STRUCT_OUTPUTS.has(output)) {
+        return false;
+    }
+    if (state.textToStruct.output !== output) {
+        state.textToStruct.output = output;
+        state.textToStruct.result = createEmptyTextToStructResult();
+    }
+    clearTextToStructError();
+    emitChange();
+    return true;
+}
+
+export function updateTextToStructOutputOptions(field, value, options = {}) {
+    if (!['table', 'createTable'].includes(field)) {
+        return false;
+    }
+
+    state.textToStruct.outputOptions[field] = field === 'createTable' ? Boolean(value) : String(value ?? '');
+    clearTextToStructError();
+
+    if (options.notify !== false) {
+        emitChange();
+    }
+    return true;
+}
+
+function buildCurrentTextToStructPayload() {
+    const textToStruct = state.textToStruct;
+    const validation = validateTextToStructFields(textToStruct.fields);
+
+    if (!validation.valid) {
+        return { error: validation.message };
+    }
+
+    if (!textToStruct.input.trim()) {
+        return { error: 'INPUT REQUIRED' };
+    }
+
+    const schema = Object.fromEntries(
+        textToStruct.fields.map(field => {
+            const definition = {
+                type: field.type,
+                required: Boolean(field.required),
+                trim: field.trim !== false,
+                ...(field.type === 'array' ? { separator: field.separator || ',' } : {}),
+                ...(textToStruct.output === 'sqlite'
+                    ? {
+                          primaryKey: Boolean(field.primaryKey),
+                          autoIncrement: Boolean(field.autoIncrement && field.primaryKey && field.type === 'integer'),
+                          unique: Boolean(field.unique),
+                      }
+                    : {}),
+            };
+
+            return [String(field.name).trim(), definition];
+        }),
+    );
+    const parser = { type: textToStruct.parser.type };
+
+    if (parser.type === 'delimiter') {
+        parser.delimiter = textToStruct.parser.delimiter;
+    } else if (parser.type === 'key-value') {
+        parser.separator = textToStruct.parser.separator;
+    } else if (parser.type === 'csv' || parser.type === 'tsv') {
+        parser.header = Boolean(textToStruct.parser.header);
+    }
+
+    return {
+        payload: {
+            input: textToStruct.input,
+            schema,
+            parser,
+            deduplicate: textToStruct.deduplicate
+                ? textToStruct.deduplicateFields.length
+                    ? [...textToStruct.deduplicateFields]
+                    : true
+                : false,
+            errors: textToStruct.errors,
+            output: textToStruct.output,
+            outputOptions:
+                textToStruct.output === 'sqlite'
+                    ? {
+                          table: String(textToStruct.outputOptions.table ?? '').trim(),
+                          createTable: Boolean(textToStruct.outputOptions.createTable),
+                      }
+                    : {},
+        },
+    };
+}
+
+export async function convertCurrentTextToStruct() {
+    if (state.textToStruct.converting) {
+        return false;
+    }
+
+    const request = buildCurrentTextToStructPayload();
+
+    if (request.error) {
+        state.textToStruct.error = {
+            code: 'TEXT_TO_STRUCT_SCHEMA_INVALID',
+            message: request.error,
+        };
+        emitChange();
+        return false;
+    }
+
+    state.textToStruct.converting = true;
+    state.textToStruct.error = null;
+    emitChange();
+
+    try {
+        const response = await api.convertTextToStruct(request.payload);
+        state.textToStruct.result = {
+            output: String(response.data?.output ?? ''),
+            records: response.data?.records ?? [],
+            errors: response.data?.errors ?? [],
+            metadata: response.metadata ?? null,
+        };
+        return true;
+    } catch (error) {
+        state.textToStruct.error = normalizeError(error);
+        return false;
+    } finally {
+        state.textToStruct.converting = false;
+        emitChange();
+    }
+}
+
+export function clearTextToStruct() {
+    state.textToStruct.input = '';
+    state.textToStruct.result = createEmptyTextToStructResult();
+    state.textToStruct.error = null;
+    emitChange();
+}
+
+export function transferTextToStructSqlToEditor() {
+    const output = String(state.textToStruct.result.output ?? '');
+
+    if (state.textToStruct.output !== 'sqlite' || !output.trim()) {
+        return false;
+    }
+
+    setCurrentQuery(output, {
+        origin: 'Generated by Text2Struct',
+        title: state.textToStruct.outputOptions.table || 'Text2Struct SQL',
+    });
+    return true;
 }
 
 export function getCurrentConnection(snapshot = state) {

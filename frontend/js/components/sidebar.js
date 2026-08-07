@@ -31,6 +31,7 @@ const sidebarItems = [
         children: [
             { label: 'DOCUMENTS', href: '#/documents', key: 'documents' },
             { label: 'BACKUPS', href: '#/backups', key: 'backups' },
+            { label: 'TEXT2STRUCT', href: '#/text-to-struct', key: 'textToStruct' },
         ],
     },
     {
@@ -66,7 +67,7 @@ function getActiveSidebarKey(routeName) {
         return 'insights';
     }
 
-    if (routeName === 'documents' || routeName === 'backups') {
+    if (routeName === 'documents' || routeName === 'backups' || routeName === 'textToStruct') {
         return 'workspace';
     }
 

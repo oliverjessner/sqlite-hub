@@ -52,6 +52,8 @@ export function parseHash(hash = window.location.hash) {
                     documentId: segments[1] ? decodeRouteValue(segments[1]) : null,
                 },
             };
+        case 'text-to-struct':
+            return { name: 'textToStruct', path: '/text-to-struct', params: {} };
         case 'editor':
             if (segments[1] === 'results') {
                 return { name: 'editorResults', path: '/editor/results', params: {} };
