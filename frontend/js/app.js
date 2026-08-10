@@ -269,6 +269,7 @@ import {
     getPathTypeLabel,
 } from './utils/filePathPreview.js';
 import { clearInputForEscape } from './utils/inputClear.js';
+import { buildDocumentExport } from './utils/documentExport.js';
 import { formatSqlQuery } from './utils/sqlFormatter.js';
 import { buildTextToStructExport } from './utils/textToStructExport.js';
 import {
@@ -2432,26 +2433,6 @@ function buildCopyColumnExportFilename(columnName, copyMode) {
     return `${columnSlug}-${metadata.suffix}.${metadata.extension}`;
 }
 
-function normalizeMarkdownDownloadFilename(value) {
-    let filename = String(value ?? '')
-        .trim()
-        .replace(/[\u0000-\u001f\u007f]/g, ' ')
-        .replace(/[\\/]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .replace(/^\.+/, '')
-        .trim();
-
-    if (!filename) {
-        filename = 'document.md';
-    }
-
-    if (!/\.md$/i.test(filename)) {
-        filename = `${filename}.md`;
-    }
-
-    return filename;
-}
-
 function countEditedMarkdownTodoItems(text) {
     const lines = String(text ?? '')
         .split(/\r\n|\r|\n/g)
@@ -2750,7 +2731,7 @@ async function insertRowEditorJsonIntoDocument() {
     }
 }
 
-function exportCurrentDocumentMarkdown() {
+function exportCurrentDocument(format = 'md') {
     const documents = getState().documents;
 
     if (!documents.selectedId) {
@@ -2758,14 +2739,14 @@ function exportCurrentDocumentMarkdown() {
         return;
     }
 
-    const filename = normalizeMarkdownDownloadFilename(documents.draftFilename || documents.selected?.filename);
+    const exportConfig = buildDocumentExport(documents.draftFilename || documents.selected?.filename, format);
 
     downloadTextFile({
         text: documents.draftContent ?? '',
-        filename,
-        mimeType: 'text/markdown;charset=utf-8',
+        filename: exportConfig.filename,
+        mimeType: exportConfig.mimeType,
     });
-    showToast(`Document "${filename}" exported.`, 'success');
+    showToast(`Document "${exportConfig.filename}" exported.`, 'success');
 }
 
 function isDocumentEditorInput(node) {
@@ -3102,7 +3083,10 @@ async function handleAction(actionNode) {
             await saveCurrentDocument();
             return;
         case 'export-document-markdown':
-            exportCurrentDocumentMarkdown();
+            exportCurrentDocument('md');
+            return;
+        case 'export-document-text':
+            exportCurrentDocument('txt');
             return;
         case 'open-document-insert-table-modal':
             await openDocumentInsertTableModal(getCurrentDocumentEditorInsertionRange());

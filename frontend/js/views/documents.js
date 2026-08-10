@@ -220,6 +220,12 @@ function renderDocumentsFileDropdown(documents) {
                 icon: 'download',
                 label: 'Export MD',
             },
+            {
+                action: 'export-document-text',
+                disabled: exportDisabled,
+                icon: 'text_snippet',
+                label: 'Export TXT',
+            },
         ],
     });
 }

@@ -140,6 +140,8 @@ test("selected document actions render in one titlebar without a save button", a
     "Import MD",
     'data-action="export-document-markdown"',
     "Export MD",
+    'data-action="export-document-text"',
+    "Export TXT",
     "Move to",
     'data-action="move-document-to-folder"',
     "Delete",

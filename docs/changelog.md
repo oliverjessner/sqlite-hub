@@ -1,3 +1,8 @@
+# v2.4.3
+
+- export button for text2struct
+- export txt in documents
+
 # v2.4.2
 
 - fixing wrong package
