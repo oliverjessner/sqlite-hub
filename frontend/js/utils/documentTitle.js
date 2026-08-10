@@ -21,6 +21,31 @@ const ROUTE_TITLE_SEGMENTS = {
     notFound: 'Not Found',
 };
 
+function resolveDataRowName(state) {
+    if (state.route.name !== 'data') {
+        return '';
+    }
+
+    const dataBrowser = state.dataBrowser ?? {};
+    const rowIndex = dataBrowser.selectedRowIndex;
+    const row =
+        dataBrowser.selectedRow ??
+        (Number.isInteger(rowIndex) ? dataBrowser.table?.rows?.[rowIndex] : null);
+
+    if (!row) {
+        return '';
+    }
+
+    const nameColumn = Object.keys(row).find(columnName => columnName.toLowerCase() === 'name');
+    const name = nameColumn ? row[nameColumn] : '';
+
+    if (['string', 'number', 'bigint'].includes(typeof name) && String(name).trim()) {
+        return String(name).trim();
+    }
+
+    return Number.isInteger(rowIndex) ? `Row ${rowIndex + 1}` : 'Row';
+}
+
 export function resolveDocumentTitle(state) {
     const activeDatabase = String(state.connections.active?.label ?? '').trim();
     const prefix = activeDatabase || APP_TITLE;
@@ -30,10 +55,17 @@ export function resolveDocumentTitle(state) {
         state.route.name === 'documents' && state.documents?.selectedId
             ? String(state.documents.draftFilename ?? state.documents.selected?.filename ?? '').trim()
             : '';
+    const dataRowName = resolveDataRowName(state);
 
     if (!segment) {
         return prefix;
     }
 
-    return [prefix, segment, ...(documentName ? [documentName] : []), ...(running ? ['Running'] : [])].join(' | ');
+    return [
+        prefix,
+        segment,
+        ...(documentName ? [documentName] : []),
+        ...(dataRowName ? [dataRowName] : []),
+        ...(running ? ['Running'] : []),
+    ].join(' | ');
 }

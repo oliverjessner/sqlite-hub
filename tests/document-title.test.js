@@ -14,6 +14,8 @@ function loadDocumentTitleModule() {
 
 function state({
   activeLabel = 'Customers',
+  dataRow = null,
+  dataRowIndex = null,
   documentName = '',
   documentSelected = false,
   executing = false,
@@ -25,6 +27,11 @@ function state({
       draftFilename: documentName,
       selected: documentSelected ? { filename: documentName } : null,
       selectedId: documentSelected ? 'document-one' : null,
+    },
+    dataBrowser: {
+      selectedRow: dataRowIndex === null ? dataRow : null,
+      selectedRowIndex: dataRowIndex,
+      table: dataRowIndex === null ? null : { rows: [dataRow] },
     },
     editor: { executing },
     route: { name: routeName },
@@ -47,6 +54,25 @@ test('documents title includes the selected document name', async () => {
     'Customers | Docs. | Release notes.md',
   );
   assert.equal(resolveDocumentTitle(state({ documentName: '', documentSelected: true })), 'Customers | Docs.');
+});
+
+test('data title includes the selected row name', async () => {
+  const { resolveDocumentTitle } = await loadDocumentTitleModule();
+
+  assert.equal(
+    resolveDocumentTitle(state({ routeName: 'data', dataRow: { id: 7, name: 'Ada Lovelace' }, dataRowIndex: 0 })),
+    'Customers | Data | Ada Lovelace',
+  );
+  assert.equal(resolveDocumentTitle(state({ routeName: 'data' })), 'Customers | Data');
+});
+
+test('data title falls back to the visible row number when a row has no name', async () => {
+  const { resolveDocumentTitle } = await loadDocumentTitleModule();
+
+  assert.equal(
+    resolveDocumentTitle(state({ routeName: 'data', dataRow: { id: 7, email: 'ada@example.com' }, dataRowIndex: 0 })),
+    'Customers | Data | Row 1',
+  );
 });
 
 test('document title falls back to SQLite Hub without an active database', async () => {

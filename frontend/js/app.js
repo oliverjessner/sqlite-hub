@@ -668,9 +668,13 @@ function syncTableDesignerCheckEditorPreview(sourceNode) {
 }
 
 function syncDataRowSelectionUi(selectedRowIndex = null) {
-    if (getState().route.name !== 'data') {
+    const state = getState();
+
+    if (state.route.name !== 'data') {
         return false;
     }
+
+    syncDocumentTitle(state);
 
     const rowNodes = shellRefs.view.querySelectorAll('[data-action="select-data-row"][data-row-index]');
 
@@ -682,7 +686,7 @@ function syncDataRowSelectionUi(selectedRowIndex = null) {
         rowNode.classList.toggle('is-selected', rowNode.dataset.rowIndex === String(selectedRowIndex));
     }
 
-    const panelMarkup = renderDataRowEditorPanel(getState());
+    const panelMarkup = renderDataRowEditorPanel(state);
     const panelOpen = Boolean(panelMarkup);
 
     replaceChildrenFromRenderedMarkup(shellRefs.panel, panelMarkup);

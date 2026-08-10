@@ -1,7 +1,7 @@
 # v2.4.4
 
 - favicon
-- titel now shows database
+- better tab titles
 
 # v2.4.3
 
