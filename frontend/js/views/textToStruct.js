@@ -382,6 +382,10 @@ function renderOutputPanel(textToStruct) {
               <span class="material-symbols-outlined" aria-hidden="true">content_copy</span>
               Copy
             </button>
+            <button class="standard-button" data-action="export-text-to-struct-output" type="button" ${hasResult ? '' : 'disabled'}>
+              <span class="material-symbols-outlined" aria-hidden="true">download</span>
+              Export
+            </button>
             ${
                 textToStruct.output === 'sqlite'
                     ? `<button class="standard-button" data-action="open-text-to-struct-in-editor" type="button" ${hasResult && output.trim() ? '' : 'disabled'}>

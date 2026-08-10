@@ -270,6 +270,7 @@ import {
 } from './utils/filePathPreview.js';
 import { clearInputForEscape } from './utils/inputClear.js';
 import { formatSqlQuery } from './utils/sqlFormatter.js';
+import { buildTextToStructExport } from './utils/textToStructExport.js';
 import {
     buildDataRowEditorJsonObject,
     buildEditorRowEditorJsonObject,
@@ -2147,6 +2148,31 @@ async function copyTextToStructOutput() {
     }
 }
 
+function exportTextToStructOutput() {
+    const textToStruct = getState().textToStruct;
+
+    if (!textToStruct.result.metadata) {
+        showToast('NO OUTPUT TO EXPORT', 'alert');
+        return;
+    }
+
+    const output = String(textToStruct.result.output ?? '');
+    const exportConfig = buildTextToStructExport(textToStruct.result.metadata.format ?? textToStruct.output, {
+        table: textToStruct.outputOptions.table,
+    });
+
+    try {
+        downloadTextFile({
+            text: output,
+            filename: exportConfig.filename,
+            mimeType: exportConfig.mimeType,
+        });
+        showToast(`OUTPUT EXPORTED AS ${exportConfig.label.toUpperCase()}`, 'success');
+    } catch {
+        showToast('OUTPUT COULD NOT BE EXPORTED', 'alert');
+    }
+}
+
 const OPENABLE_URL_PATTERN = /^https?:\/\/[^\s<>"']+$/i;
 
 function getOpenableUrl(value) {
@@ -2961,6 +2987,9 @@ async function handleAction(actionNode) {
             return;
         case 'copy-text-to-struct-output':
             await copyTextToStructOutput();
+            return;
+        case 'export-text-to-struct-output':
+            exportTextToStructOutput();
             return;
         case 'open-text-to-struct-in-editor':
             if (transferTextToStructSqlToEditor()) {

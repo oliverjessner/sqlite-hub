@@ -60,6 +60,8 @@ test("Text2Struct renders schema rows and works without an active database", asy
 
   assert.match(main, /TEXT2STRUCT/i);
   assert.match(main, /data-action="convert-text-to-struct"/);
+  assert.match(main, /data-action="copy-text-to-struct-output"/);
+  assert.match(main, /data-action="export-text-to-struct-output"/);
   assert.match(main, /data-column-id="field-name"/);
   assert.match(main, /data-column-id="field-age"/);
   assert.match(main, /data-bind="text-to-struct-input"/);
@@ -195,11 +197,14 @@ test("Text2Struct route state loads without an active database", async () => {
   }
 });
 
-test("copy uses the complete output and Escape handling does not clear the multiline input", () => {
+test("copy and export use the complete output and Escape handling does not clear the multiline input", () => {
   const source = readFileSync(path.resolve(__dirname, "../frontend/js/app.js"), "utf8");
 
   assert.match(source, /navigator\.clipboard\.writeText\(String\(textToStruct\.result\.output \?\? ''\)\)/);
   assert.match(source, /showToast\('OUTPUT COPIED', 'success'\)/);
+  assert.match(source, /text: output,/);
+  assert.match(source, /filename: exportConfig\.filename,/);
+  assert.match(source, /case 'export-text-to-struct-output':/);
   assert.match(source, /target instanceof HTMLInputElement && clearInputForEscape\(target\)/);
   assert.doesNotMatch(source, /target instanceof HTMLTextAreaElement && clearInputForEscape\(target\)/);
 });
