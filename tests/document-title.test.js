@@ -18,6 +18,8 @@ function state({
   dataRowIndex = null,
   documentName = '',
   documentSelected = false,
+  editorTabs = [],
+  activeEditorTabId = '',
   executing = false,
   routeName = 'documents',
 } = {}) {
@@ -33,7 +35,11 @@ function state({
       selectedRowIndex: dataRowIndex,
       table: dataRowIndex === null ? null : { rows: [dataRow] },
     },
-    editor: { executing },
+    editor: {
+      activeQueryTabId: activeEditorTabId,
+      executing,
+      queryTabs: editorTabs,
+    },
     route: { name: routeName },
   };
 }
@@ -85,7 +91,34 @@ test('running SQL keeps database and menu context in the title', async () => {
   const { resolveDocumentTitle } = await loadDocumentTitleModule();
 
   assert.equal(
-    resolveDocumentTitle(state({ executing: true, routeName: 'editorResults' })),
-    'Customers | SQL Editor | Running',
+    resolveDocumentTitle(
+      state({
+        activeEditorTabId: 'query-2',
+        editorTabs: [
+          { id: 'query-1', title: 'Query 1' },
+          { id: 'query-2', title: 'Customer report' },
+        ],
+        executing: true,
+        routeName: 'editorResults',
+      }),
+    ),
+    'Customers | SQL Editor | Customer report | Running',
+  );
+});
+
+test('SQL editor title follows the active tab when multiple tabs are open', async () => {
+  const { resolveDocumentTitle } = await loadDocumentTitleModule();
+  const editorTabs = [
+    { id: 'query-1', title: 'Query 1' },
+    { id: 'query-2', title: 'Monthly revenue' },
+  ];
+
+  assert.equal(
+    resolveDocumentTitle(state({ routeName: 'editor', editorTabs, activeEditorTabId: 'query-1' })),
+    'Customers | SQL Editor | Query 1',
+  );
+  assert.equal(
+    resolveDocumentTitle(state({ routeName: 'editor', editorTabs, activeEditorTabId: 'query-2' })),
+    'Customers | SQL Editor | Monthly revenue',
   );
 });

@@ -46,6 +46,15 @@ function resolveDataRowName(state) {
     return Number.isInteger(rowIndex) ? `Row ${rowIndex + 1}` : 'Row';
 }
 
+function resolveEditorTabTitle(state) {
+    if (!['editor', 'editorResults'].includes(state.route.name)) {
+        return '';
+    }
+
+    const activeTab = state.editor?.queryTabs?.find(tab => tab.id === state.editor.activeQueryTabId);
+    return String(activeTab?.title ?? '').trim();
+}
+
 export function resolveDocumentTitle(state) {
     const activeDatabase = String(state.connections.active?.label ?? '').trim();
     const prefix = activeDatabase || APP_TITLE;
@@ -56,6 +65,7 @@ export function resolveDocumentTitle(state) {
             ? String(state.documents.draftFilename ?? state.documents.selected?.filename ?? '').trim()
             : '';
     const dataRowName = resolveDataRowName(state);
+    const editorTabTitle = resolveEditorTabTitle(state);
 
     if (!segment) {
         return prefix;
@@ -66,6 +76,7 @@ export function resolveDocumentTitle(state) {
         segment,
         ...(documentName ? [documentName] : []),
         ...(dataRowName ? [dataRowName] : []),
+        ...(editorTabTitle ? [editorTabTitle] : []),
         ...(running ? ['Running'] : []),
     ].join(' | ');
 }
