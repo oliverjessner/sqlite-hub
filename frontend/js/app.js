@@ -256,6 +256,7 @@ import { renderTableAdvisorView } from './views/tableAdvisor.js';
 import { renderTableDesignerView } from './views/tableDesigner.js';
 import { getInputStats, renderTextToStructView } from './views/textToStruct.js';
 import { replaceChildrenFromRenderedMarkup, replaceElementFromRenderedMarkup } from './utils/dom.js';
+import { resolveDocumentTitle } from './utils/documentTitle.js';
 import {
     buildCopyColumnText,
     getCopyColumnExportMetadata,
@@ -331,7 +332,6 @@ let lastDocumentEditorInsertionRange = null;
 
 const DOCUMENT_AUTOSAVE_DELAY_MS = 2000;
 
-const APP_TITLE = 'SQLite Hub';
 const TABLE_DESIGNER_IMPORT_FORMATS = {
     csv: {
         accept: '.csv,text/csv',
@@ -346,41 +346,8 @@ const TABLE_DESIGNER_IMPORT_FORMATS = {
         label: 'JSON',
     },
 };
-const ROUTE_TITLE_SEGMENTS = {
-    connections: 'Connections',
-    backups: 'Backups',
-    overview: 'Overview',
-    data: 'Data',
-    tableAdvisor: 'Table Advisor',
-    structure: 'Structure',
-    editor: 'SQL Editor',
-    editorResults: 'SQL Editor',
-    charts: 'Charts',
-    documents: 'Documents',
-    textToStruct: 'Text2Struct',
-    tableDesigner: 'Table Designer',
-    mediaTaggingSetup: 'Media Tagging',
-    mediaTaggingQueue: 'Tagging Queue',
-    settings: 'Settings',
-    logs: 'Logs',
-    notFound: 'Not Found',
-};
-
 function invalidateMainRenderCache() {
     lastRenderedMainMarkup = null;
-}
-
-function isSqlEditorRouteName(routeName) {
-    return routeName === 'editor' || routeName === 'editorResults';
-}
-
-function resolveDocumentTitle(state) {
-    if (isSqlEditorRouteName(state.route.name) && state.editor.executing) {
-        return `${APP_TITLE} | Running`;
-    }
-
-    const segment = ROUTE_TITLE_SEGMENTS[state.route.name];
-    return segment ? `${APP_TITLE} | ${segment}` : APP_TITLE;
 }
 
 function syncDocumentTitle(state) {

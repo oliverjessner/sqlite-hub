@@ -1,3 +1,8 @@
+# v2.4.4
+
+- favicon
+- titel now shows database
+
 # v2.4.3
 
 - export button for text2struct

@@ -70,5 +70,14 @@ test("serves the SPA entrypoint from the root and direct index routes", async ()
     assert.equal(response.statusCode, 200, pathname);
     assert.match(response.headers["content-type"], /text\/html/);
     assert.match(response.body, /SQLite Hub/);
+    assert.match(response.body, /\/assets\/images\/logo\.webp/);
   }
+});
+
+test("serves the application logo as the favicon fallback", async () => {
+  const response = await request("/favicon.ico");
+
+  assert.equal(response.statusCode, 200);
+  assert.match(response.headers["content-type"], /image\/webp/);
+  assert.ok(response.body.length > 0);
 });

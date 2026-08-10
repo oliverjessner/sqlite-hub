@@ -161,9 +161,9 @@ app.use(
 );
 app.use("/mcp", createMcpHttpRouter({ services: mcpServices }));
 
-// auth: public favicon response; it exposes no application data.
+// auth: public favicon asset; it exposes no application data.
 app.get("/favicon.ico", (req, res) => {
-  res.status(204).end();
+  res.sendFile("assets/images/logo.webp", { root: FRONTEND_ROOT });
 });
 
 // auth: public SPA entrypoint for the local SQLite Hub UI.
