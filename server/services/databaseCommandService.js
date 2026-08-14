@@ -571,6 +571,19 @@ class DatabaseCommandService {
     return this.requireQuery(databaseReference, queryName);
   }
 
+  createStoredQuery(databaseReference, { sql, title, notes } = {}) {
+    const connection = this.getDatabase(databaseReference);
+    const normalizedSql = normalizeLookupValue(sql, "SQL");
+    const normalizedTitle = normalizeLookupValue(title, "Query title");
+
+    return this.appStateStore.createStoredQuery({
+      databaseKey: connection.id,
+      rawSql: normalizedSql,
+      title: normalizedTitle,
+      notes: notes === undefined ? undefined : normalizeOptionalValue(notes),
+    });
+  }
+
   executeSavedQuery(databaseReference, queryName, options = {}) {
     const query = this.requireQuery(databaseReference, queryName);
     const { executedBy = "user" } = options;

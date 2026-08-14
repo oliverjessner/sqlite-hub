@@ -68,6 +68,22 @@ async function startApi(t) {
         },
       };
     },
+    createStoredQuery(databaseId, options = {}) {
+      serviceCalls.push(
+        `${databaseId}:create-stored:${options.sql}:${options.title}:${options.notes ?? ""}`
+      );
+      return {
+        created: true,
+        query: {
+          id: 43,
+          rawSql: options.sql,
+          title: options.title,
+          notes: options.notes ?? null,
+          isSaved: true,
+          lastRun: null,
+        },
+      };
+    },
     executeSavedQuery(databaseId, queryName, options = {}) {
       serviceCalls.push(`${databaseId}:saved:${queryName}:${options.executedBy ?? ""}`);
       return {
@@ -311,6 +327,43 @@ test("query API rejects read-only raw SQL execution", async (t) => {
 
   assert.equal(response.status, 403);
   assert.equal(payload.error.code, "SQLITE_READONLY");
+});
+
+test("API creates a stored query without executing it", async (t) => {
+  const fixture = await startApi(t);
+  const created = fixture.tokenService.createToken(fixture.databaseA.id, "Automation");
+  const response = await fetch(
+    `${fixture.baseUrl}/databases/${fixture.databaseA.id}/queries`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${created.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sql: "DELETE FROM companies WHERE archived = 1",
+        title: "Remove archived companies",
+        notes: "Review before execution",
+      }),
+    }
+  );
+  const payload = await response.json();
+
+  assert.equal(response.status, 201);
+  assert.equal(payload.data.title, "Remove archived companies");
+  assert.equal(payload.data.lastRun, null);
+  assert.equal(payload.metadata.created, true);
+  assert.deepEqual(fixture.serviceCalls, [
+    `${fixture.databaseA.id}:create-stored:DELETE FROM companies WHERE archived = 1:Remove archived companies:Review before execution`,
+  ]);
+
+  const log = fixture.store.listAccessLogs({
+    source: "api",
+    databaseKey: fixture.databaseA.id,
+  }).items[0];
+
+  assert.equal(log.action, "api.query.create.stored");
+  assert.equal(log.targetName, "Remove archived companies");
 });
 
 test("type generation API uses database token auth and returns warnings at top level", async (t) => {

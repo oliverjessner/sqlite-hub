@@ -64,6 +64,7 @@ Read-only and safe tools:
 
 Controlled write tools:
 
+- `create_stored_query`: create or update a saved SQL Editor query with a title and optional notes, without executing the SQL.
 - `execute_stored_query`: execute a saved SQL Editor query by id, title, display title, or SQL fragment, equivalent to `sqlite-hub --database:name --execute:"query"`.
 - `create_backup`: create a verified backup through SQLite Hub's existing backup mechanism.
 - `generate_types`: generate TypeScript, Rust, Kotlin, Swift, or Go types from one table or all tables.
@@ -86,7 +87,7 @@ These statements are blocked in `run_readonly_query`:
 - `VACUUM`
 - other non-reader or mutating statements
 
-Backups are always created through SQLite Hub's managed backup service. Chart creation stores chart metadata only. The MCP server does not write arbitrary local files.
+Backups are always created through SQLite Hub's managed backup service. Stored-query creation and chart creation store SQLite Hub metadata only. `create_stored_query` never executes the supplied SQL or modifies the target database. The MCP server does not write arbitrary local files.
 
 `execute_stored_query` intentionally follows the same behavior as the CLI and external API saved-query execution path. It executes the stored SQL as-is and records the run in Query History with `executedBy: "mcp"`.
 
@@ -114,4 +115,8 @@ Use SQLite Hub MCP to explain the query plan for this SQL query.
 
 ```text
 Use SQLite Hub MCP to list my saved queries and execute the one named "Company List".
+```
+
+```text
+Use SQLite Hub MCP to save a query named "Company List" with the SQL SELECT id, name FROM companies ORDER BY name.
 ```

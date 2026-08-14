@@ -40,6 +40,7 @@ GET  /api/v1/databases/:databaseId/backups
 POST /api/v1/databases/:databaseId/backups
 
 GET  /api/v1/databases/:databaseId/queries
+POST /api/v1/databases/:databaseId/queries
 GET  /api/v1/databases/:databaseId/queries/:queryName
 GET  /api/v1/databases/:databaseId/queries/:queryName/notes
 GET  /api/v1/databases/:databaseId/queries/:queryName/export?format=csv|tsv|md|json
@@ -71,6 +72,20 @@ curl \
   -d '{"databaseId":"DATABASE_ID","sql":"SELECT * FROM companies LIMIT 10","name":"Company Sample"}' \
   http://127.0.0.1:4173/api/v1/query
 ```
+
+Create or update a stored query without executing its SQL:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer shub_..." \
+  -H "Content-Type: application/json" \
+  -d '{"sql":"SELECT * FROM companies ORDER BY name","title":"Company List","notes":"Optional"}' \
+  http://127.0.0.1:4173/api/v1/databases/DATABASE_ID/queries
+```
+
+The endpoint returns HTTP `201` for a new normalized SQL definition and `200`
+when it updates an existing Query History entry. It never executes the supplied
+SQL or modifies the target database.
 
 Row lookup accepts a scalar key or a composite primary-key object:
 

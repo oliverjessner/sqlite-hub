@@ -108,6 +108,7 @@ test("MCP tool registration exposes the initial SQLite Hub tools", (t) => {
   assert.ok(names.includes("run_readonly_query"));
   assert.ok(names.includes("get_saved_queries"));
   assert.equal(names.includes("get_stored_queries"), false);
+  assert.ok(names.includes("create_stored_query"));
   assert.ok(names.includes("execute_stored_query"));
   assert.ok(names.includes("create_backup"));
   assert.ok(names.includes("generate_types"));
@@ -211,6 +212,74 @@ test("MCP saved query tools list and execute saved SQL Editor queries", async (t
 
   assert.deepEqual(run, { executed_by: "mcp", status: "success" });
   assert.equal(statusService.getStatus().lastToolName, "execute_stored_query");
+});
+
+test("MCP create_stored_query saves SQL without executing it", async (t) => {
+  const { toolService, connection, store, statusService } = createFixture(t);
+  const targetDb = new Database(connection.path, { readonly: true });
+  t.after(() => targetDb.close());
+  const result = await toolService.callTool("create_stored_query", {
+    databaseId: connection.id,
+    sql: "DELETE FROM companies WHERE name = 'Globex'",
+    title: "Remove Globex",
+    notes: "Review before executing",
+  });
+
+  assert.equal(result.created, true);
+  assert.equal(result.query.title, "Remove Globex");
+  assert.equal(result.query.notes, "Review before executing");
+  assert.equal(result.query.isSaved, true);
+  assert.equal(result.query.isDestructive, true);
+  assert.equal(result.query.lastRun, null);
+  assert.equal(result.query.useCount, 0);
+  assert.equal(
+    store.db.prepare("SELECT COUNT(*) AS count FROM query_runs WHERE history_id = ?").get(result.query.id).count,
+    0
+  );
+  assert.equal(
+    targetDb.prepare("SELECT COUNT(*) AS count FROM companies WHERE name = 'Globex'").get().count,
+    1
+  );
+  assert.equal(statusService.getStatus().lastToolName, "create_stored_query");
+});
+
+test("MCP create_stored_query updates an existing normalized query", async (t) => {
+  const { toolService, connection, store } = createFixture(t);
+  const result = await toolService.callTool("create_stored_query", {
+    databaseId: connection.id,
+    sql: "SELECT id, name FROM companies ORDER BY id;",
+    title: "Updated Company List",
+  });
+
+  assert.equal(result.created, false);
+  assert.equal(result.query.title, "Updated Company List");
+  assert.equal(result.query.notes, "Used by MCP tests");
+  assert.equal(result.query.isSaved, true);
+  assert.equal(
+    store.db.prepare("SELECT COUNT(*) AS count FROM query_history WHERE database_key = ?").get(connection.id).count,
+    1
+  );
+});
+
+test("MCP create_stored_query validates required SQL and title", async (t) => {
+  const { toolService, connection } = createFixture(t);
+
+  await assert.rejects(
+    () => toolService.callTool("create_stored_query", {
+      databaseId: connection.id,
+      sql: "-- comment only",
+      title: "Comment",
+    }),
+    /requires executable SQL/
+  );
+  await assert.rejects(
+    () => toolService.callTool("create_stored_query", {
+      databaseId: connection.id,
+      sql: "SELECT 1",
+      title: "   ",
+    }),
+    /Query title is required/
+  );
 });
 
 test("MCP JSON-RPC lists tools and calls shared tool service", async (t) => {

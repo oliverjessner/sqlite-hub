@@ -85,6 +85,19 @@ const MCP_TOOL_DEFINITIONS = [
     }, ["databaseId"]),
   },
   {
+    name: "create_stored_query",
+    description: "Create or update a saved SQL Editor query without executing it or modifying the target database.",
+    inputSchema: objectSchema(
+      {
+        databaseId: databaseIdProperty(),
+        sql: { type: "string", minLength: 1 },
+        title: { type: "string", minLength: 1 },
+        notes: { type: "string" },
+      },
+      ["databaseId", "sql", "title"]
+    ),
+  },
+  {
     name: "execute_stored_query",
     description: "Execute a saved SQL Editor query by id, title, display title, or SQL fragment. This is the MCP equivalent of `sqlite-hub --database:name --execute:\"query\"`.",
     inputSchema: objectSchema(
@@ -253,6 +266,12 @@ class McpToolService {
           });
         case "get_saved_queries":
           return this.databaseService.listSavedQueries(args.databaseId, args.limit);
+        case "create_stored_query":
+          return this.databaseService.createStoredQuery(args.databaseId, {
+            sql: args.sql,
+            title: args.title,
+            notes: args.notes,
+          });
         case "execute_stored_query":
           return this.databaseService.executeSavedQuery(args.databaseId, args.queryName, {
             executedBy: "mcp",

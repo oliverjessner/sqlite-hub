@@ -97,6 +97,19 @@ Raw CLI queries are recorded in Query History. Add `--store:"name"` to title the
 history item and mark it as saved. Raw SQL execution is rejected when the target
 database is marked read-only.
 
+Create or update a stored query without executing it:
+
+```bash
+sqlite-hub --database:Unit-00 \
+  --create-stored-query:"SELECT * FROM companies ORDER BY name" \
+  --title:"Company List" \
+  --query-notes:"Optional notes"
+```
+
+`--create-query` is a shorter alias for `--create-stored-query`. This command
+only writes SQLite Hub Query History metadata and does not modify the selected
+database.
+
 List all saved queries for a database:
 
 ```bash
@@ -189,6 +202,8 @@ sqlite-hub --database:Unit-00 --table:companies --export:0a754aba373d34972998792
 | `--database:name --queries`                                     | List saved queries for a database               |
 | `--database:name --query:"sql"`                                 | Execute raw SQL and record it in Query History  |
 | `--database:name --query:"sql" --store:"name"`                  | Save a raw query in Query History with a name   |
+| `--database:name --create-stored-query:"sql" --title:"name"`   | Save SQL without executing it                   |
+| `--query-notes:"text"`                                         | Add notes to a newly stored query               |
 | `--database:name --execute:"query"`                             | Execute a saved query by name                   |
 | `--database:name --saved-query:"query"`                         | Print a saved query by name                     |
 | `--database:name --notes:"query"`                               | Print saved notes for a query                   |

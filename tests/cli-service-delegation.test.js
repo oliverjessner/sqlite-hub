@@ -112,6 +112,70 @@ test("CLI marks raw query executions as cli", async () => {
   assert.match(output.join("\n"), /History ID: 7/);
 });
 
+test("CLI creates a stored query without executing it", async () => {
+  const calls = [];
+  const accessLogs = [];
+  const connection = {
+    id: "db-one",
+    label: "Database One",
+  };
+  const databaseService = {
+    getDatabase(reference) {
+      calls.push(["getDatabase", reference]);
+      return connection;
+    },
+    listDatabases() {
+      calls.push(["listDatabases"]);
+      return [connection];
+    },
+    createStoredQuery(reference, options = {}) {
+      calls.push(["createStoredQuery", reference, options]);
+      return {
+        created: true,
+        query: {
+          title: options.title,
+          rawSql: options.sql,
+          notes: options.notes,
+          isSaved: true,
+        },
+      };
+    },
+  };
+  const appStateStore = {
+    recordAccessLog(entry) {
+      accessLogs.push(entry);
+    },
+  };
+  const output = [];
+  const originalLog = console.log;
+
+  console.log = (...values) => output.push(values.join(" "));
+
+  try {
+    await main([
+      "--database:Database One",
+      "--create-stored-query:SELECT 1",
+      "--title:One",
+      "--query-notes:Smoke test",
+    ], { databaseService, appStateStore });
+  } finally {
+    console.log = originalLog;
+  }
+
+  assert.deepEqual(calls, [
+    ["listDatabases"],
+    ["getDatabase", "Database One"],
+    ["createStoredQuery", "db-one", {
+      sql: "SELECT 1",
+      title: "One",
+      notes: "Smoke test",
+    }],
+  ]);
+  assert.equal(accessLogs[0].action, "cli.query.create.stored");
+  assert.equal(accessLogs[0].targetName, "One");
+  assert.match(output.join("\n"), /Created stored query: One/);
+});
+
 test("CLI marks saved query executions as cli", async () => {
   const calls = [];
   const connection = {

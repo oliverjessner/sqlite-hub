@@ -77,6 +77,25 @@ test("parses raw query, store name, saved query display, and export commands", (
   assert.equal(exportOptions.exportFormat, "md");
 });
 
+test("parses stored query creation without execution", () => {
+  const options = parseCliArguments([
+    "--database:db",
+    "--create-stored-query:SELECT * FROM companies",
+    "--title:Company List",
+    "--query-notes:Used for reporting",
+  ]);
+  const aliasOptions = parseCliArguments([
+    "--database:db",
+    "--create-query:SELECT 1",
+    "--title:One",
+  ]);
+
+  assert.equal(options.createStoredQuerySql, "SELECT * FROM companies");
+  assert.equal(options.storedQueryTitle, "Company List");
+  assert.equal(options.storedQueryNotes, "Used for reporting");
+  assert.equal(aliasOptions.createStoredQuerySql, "SELECT 1");
+});
+
 test("parses row json export command", () => {
   const options = parseCliArguments([
     "--database:db",

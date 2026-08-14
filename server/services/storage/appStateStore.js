@@ -1600,6 +1600,112 @@ class AppStateStore {
     return this.db.transaction(() => this.recordQueryExecutionInTransaction(entry))();
   }
 
+  createStoredQuery({ databaseKey, rawSql, title, notes } = {}) {
+    const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
+    const normalizedRawSql = String(rawSql ?? "").trim();
+    const normalizedSql = normalizeSql(normalizedRawSql);
+    const normalizedTitle = this.normalizeQueryHistoryText(title);
+    const normalizedNotes =
+      notes === undefined ? undefined : this.normalizeQueryHistoryText(notes);
+
+    if (!normalizedDatabaseKey) {
+      throw new ValidationError("Stored query requires a database key.");
+    }
+
+    if (!normalizedSql) {
+      throw new ValidationError("Stored query requires executable SQL.");
+    }
+
+    if (!normalizedTitle) {
+      throw new ValidationError("Stored query title is required.");
+    }
+
+    const queryType = detectQueryType(normalizedRawSql);
+    const serializedTables = JSON.stringify(detectTables(normalizedRawSql));
+    const destructive = isDestructiveQuery(normalizedRawSql) ? 1 : 0;
+    const timestamp = new Date().toISOString();
+
+    return this.db.transaction(() => {
+      const existing = this.db
+        .prepare(
+          `
+            SELECT id
+            FROM query_history
+            WHERE database_key = ? AND normalized_sql = ?
+          `
+        )
+        .get(normalizedDatabaseKey, normalizedSql);
+
+      if (existing?.id) {
+        this.db
+          .prepare(`
+            UPDATE query_history
+            SET
+              raw_sql = ?,
+              title = ?,
+              notes = CASE WHEN ? = 1 THEN ? ELSE notes END,
+              query_type = ?,
+              tables_detected = ?,
+              is_saved = 1,
+              is_destructive = ?
+            WHERE id = ? AND database_key = ?
+          `)
+          .run(
+            normalizedRawSql,
+            normalizedTitle,
+            notes === undefined ? 0 : 1,
+            normalizedNotes ?? null,
+            queryType,
+            serializedTables,
+            destructive,
+            Number(existing.id),
+            normalizedDatabaseKey
+          );
+
+        return {
+          created: false,
+          query: this.getQueryHistoryItemById(existing.id, normalizedDatabaseKey),
+        };
+      }
+
+      const insertResult = this.db
+        .prepare(`
+          INSERT INTO query_history (
+            database_key,
+            normalized_sql,
+            raw_sql,
+            title,
+            notes,
+            query_type,
+            tables_detected,
+            is_saved,
+            is_destructive,
+            use_count,
+            first_executed_at,
+            last_used_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, 0, ?, ?)
+        `)
+        .run(
+          normalizedDatabaseKey,
+          normalizedSql,
+          normalizedRawSql,
+          normalizedTitle,
+          normalizedNotes ?? null,
+          queryType,
+          serializedTables,
+          destructive,
+          timestamp,
+          timestamp
+        );
+
+      return {
+        created: true,
+        query: this.getQueryHistoryItemById(insertResult.lastInsertRowid, normalizedDatabaseKey),
+      };
+    })();
+  }
+
   recordQueryExecutionInTransaction({
     databaseKey,
     rawSql,

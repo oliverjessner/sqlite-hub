@@ -29,6 +29,10 @@ function readStoreName(req) {
   ).trim();
 }
 
+function readStoredQueryTitle(req) {
+  return String(req.body?.title ?? req.body?.name ?? "").trim();
+}
+
 function decodePathPart(value = "") {
   try {
     return decodeURIComponent(value);
@@ -136,10 +140,10 @@ function buildExternalApiAccessDescriptor(req) {
   if (collection === "queries") {
     if (!itemName) {
       return {
-        action: "api.queries.list",
+        action: method === "POST" ? "api.query.create.stored" : "api.queries.list",
         databaseKey,
-        targetType: "database",
-        targetName: databaseKey,
+        targetType: method === "POST" ? "query" : "database",
+        targetName: method === "POST" ? readStoredQueryTitle(req) || "stored query" : databaseKey,
       };
     }
 
@@ -475,6 +479,28 @@ function createExternalApiRouter({
         successResponse({
           data: databaseService.listSavedQueries(req.params.databaseId),
           metadata: { databaseId: req.params.databaseId },
+        })
+      );
+    })
+  );
+
+  router.post(
+    "/databases/:databaseId/queries",
+    route((req, res) => {
+      const result = databaseService.createStoredQuery(req.params.databaseId, {
+        sql: readSqlText(req),
+        title: readStoredQueryTitle(req),
+        notes: req.body?.notes,
+      });
+
+      res.status(result.created ? 201 : 200).json(
+        successResponse({
+          message: result.created ? "Stored query created." : "Stored query updated.",
+          data: result.query,
+          metadata: {
+            databaseId: req.params.databaseId,
+            created: result.created,
+          },
         })
       );
     })

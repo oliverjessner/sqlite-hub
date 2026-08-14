@@ -19,6 +19,7 @@ Usage:
   sqlite-hub --database:"name" --tables
   sqlite-hub --database:"name" --query:"SELECT * FROM table_name"
   sqlite-hub --database:"name" --query:"SELECT * FROM table_name" --store:"Query Name"
+  sqlite-hub --database:"name" --create-stored-query:"SELECT * FROM table_name" --title:"Query Name"
   sqlite-hub --database:"name" --execute:"Saved Query"
   sqlite-hub --database:"name" --saved-query:"Saved Query"
   sqlite-hub --database:"name" --notes:"Saved Query"
@@ -48,6 +49,9 @@ Options:
   --queries                          List saved SQL Editor queries for the selected database.
   --query:"sql"                      Execute raw SQL and record it in query history.
   --store:"name"                     Save a raw --query history item with this name.
+  --create-stored-query:"sql"        Create or update a saved query without executing it.
+  --title:"name"                     Set the title for --create-stored-query.
+  --query-notes:"text"               Add notes to --create-stored-query.
   --execute:"query"                  Execute a saved SQL Editor query by name.
   --saved-query:"query"              Print a saved SQL Editor query by name.
   --notes:"query"                    Print notes for a saved SQL Editor query by name.
@@ -191,6 +195,9 @@ function parseCliArguments(argv) {
         executeQuery: null,
         rawQuery: null,
         storeName: null,
+        createStoredQuerySql: null,
+        storedQueryTitle: null,
+        storedQueryNotes: undefined,
         showQuery: null,
         showNotes: null,
         exportTarget: null,
@@ -348,6 +355,27 @@ function parseCliArguments(argv) {
         if (flag === '--store') {
             const parsed = takeFlagValue(flag, value, argv, index);
             options.storeName = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--create-stored-query' || flag === '--create-query') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.createStoredQuerySql = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--title') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.storedQueryTitle = parsed.value;
+            index = parsed.nextIndex;
+            continue;
+        }
+
+        if (flag === '--query-notes') {
+            const parsed = takeFlagValue(flag, value, argv, index);
+            options.storedQueryNotes = parsed.value;
             index = parsed.nextIndex;
             continue;
         }
@@ -544,6 +572,7 @@ function hasDatabaseOperation(options) {
         options.queries ||
         options.executeQuery ||
         options.rawQuery ||
+        options.createStoredQuerySql ||
         options.storeName ||
         options.showQuery ||
         options.showNotes ||
@@ -741,6 +770,18 @@ function executeRawQuery({ databaseService, conn, sql, storeName = null }) {
 
     if (storedQuery) {
         console.log(`Stored query: ${getQueryTitle(storedQuery)}`);
+    }
+}
+
+function createStoredQuery({ databaseService, conn, sql, title, notes = undefined }) {
+    const result = databaseService.createStoredQuery(conn.id, { sql, title, notes });
+    const action = result.created ? 'Created' : 'Updated';
+
+    console.log(`${action} stored query: ${getQueryTitle(result.query)}`);
+    console.log(`SQL: ${result.query.rawSql}`);
+
+    if (result.query.notes) {
+        console.log(`Notes: ${result.query.notes}`);
     }
 }
 
@@ -1235,6 +1276,19 @@ function describeCliAccess(options, argv = []) {
         };
     }
 
+    if (options.createStoredQuerySql) {
+        return {
+            ...entry,
+            action: 'cli.query.create.stored',
+            targetType: 'query',
+            targetName: options.storedQueryTitle || 'stored query',
+            metadata: {
+                ...metadata,
+                hasNotes: Boolean(options.storedQueryNotes),
+            },
+        };
+    }
+
     if (options.showQuery) {
         return {
             ...entry,
@@ -1397,6 +1451,18 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
             throw new Error('--store requires --query:"sql".');
         }
 
+        if (options.createStoredQuerySql && !options.storedQueryTitle) {
+            throw new Error('--create-stored-query requires --title:"name".');
+        }
+
+        if (options.storedQueryTitle && !options.createStoredQuerySql) {
+            throw new Error('--title requires --create-stored-query:"sql".');
+        }
+
+        if (options.storedQueryNotes && !options.createStoredQuerySql) {
+            throw new Error('--query-notes requires --create-stored-query:"sql".');
+        }
+
         if (options.backup && options.backups) {
             throw new Error('--backup and --backups cannot be combined.');
         }
@@ -1460,6 +1526,7 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
                 options.queries ||
                 options.executeQuery ||
                 options.rawQuery ||
+                options.createStoredQuerySql ||
                 options.showQuery ||
                 options.showNotes ||
                 options.exportTarget ||
@@ -1515,6 +1582,17 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
                         conn,
                         sql: options.rawQuery,
                         storeName: options.storeName,
+                    });
+                    return;
+                }
+
+                if (options.createStoredQuerySql) {
+                    createStoredQuery({
+                        databaseService,
+                        conn,
+                        sql: options.createStoredQuerySql,
+                        title: options.storedQueryTitle,
+                        notes: options.storedQueryNotes,
                     });
                     return;
                 }
