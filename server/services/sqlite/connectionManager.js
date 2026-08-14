@@ -153,7 +153,7 @@ class ConnectionManager {
     };
   }
 
-  createConnection({ filePath, label }) {
+  createConnection({ filePath, label, makeActive = true }) {
     const resolvedPath = resolveUserPath(filePath);
     ensureFileDoesNotExist(resolvedPath, "SQLite database");
     ensureParentDirectory(resolvedPath);
@@ -179,6 +179,15 @@ class ConnectionManager {
     }
 
     db.close();
+
+    if (!makeActive) {
+      return this.rememberConnection({
+        filePath: resolvedPath,
+        label,
+        makeActive: false,
+        readOnly: false,
+      });
+    }
 
     return this.openConnection({
       filePath: resolvedPath,

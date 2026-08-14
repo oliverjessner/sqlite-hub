@@ -93,6 +93,7 @@ function createFixture(t) {
   return {
     connection,
     databaseService,
+    directory,
     statusService,
     store,
     toolService,
@@ -104,6 +105,7 @@ test("MCP tool registration exposes the initial SQLite Hub tools", (t) => {
   const names = toolService.listTools().map((tool) => tool.name);
 
   assert.ok(names.includes("list_connections"));
+  assert.ok(names.includes("add_database"));
   assert.ok(names.includes("get_schema"));
   assert.ok(names.includes("run_readonly_query"));
   assert.ok(names.includes("get_saved_queries"));
@@ -124,6 +126,75 @@ test("MCP list_connections returns imported databases without full paths", async
   assert.equal(result.items[0].id, connection.id);
   assert.equal(result.items[0].label, "Sample");
   assert.equal(result.items[0].path, undefined);
+});
+
+test("MCP add_database creates and registers a new database without making it active", async (t) => {
+  const { toolService, connection, directory, store, statusService } = createFixture(t);
+  const databasePath = path.join(directory, "created", "fresh.sqlite");
+  const result = await toolService.callTool("add_database", {
+    path: databasePath,
+    label: "Fresh",
+    mode: "create",
+  });
+
+  assert.equal(result.created, true);
+  assert.equal(result.mode, "create");
+  assert.equal(result.connection.label, "Fresh");
+  assert.equal(result.connection.readOnly, false);
+  assert.equal(result.connection.path, undefined);
+  assert.equal(fs.existsSync(databasePath), true);
+  assert.equal(store.getActiveConnectionId(), connection.id);
+  assert.equal(store.getRecentConnections().some((item) => item.id === result.connection.id), true);
+  assert.equal(statusService.getStatus().lastToolName, "add_database");
+
+  const db = new Database(databasePath, { readonly: true });
+  t.after(() => db.close());
+  assert.match(db.prepare("SELECT sqlite_version() AS version").get().version, /^\d+\.\d+/);
+});
+
+test("MCP add_database validates and registers an existing database", async (t) => {
+  const { toolService, directory, store } = createFixture(t);
+  const databasePath = path.join(directory, "existing.db");
+  const db = new Database(databasePath);
+  db.exec("CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT)");
+  db.close();
+
+  const result = await toolService.callTool("add_database", {
+    path: databasePath,
+    label: "Existing",
+    mode: "existing",
+    readOnly: true,
+  });
+
+  assert.equal(result.created, false);
+  assert.equal(result.mode, "existing");
+  assert.equal(result.connection.label, "Existing");
+  assert.equal(result.connection.readOnly, true);
+  assert.equal(store.getRecentConnection(result.connection.id).path, databasePath);
+});
+
+test("MCP add_database rejects invalid create options and existing targets", async (t) => {
+  const { toolService, directory } = createFixture(t);
+  const databasePath = path.join(directory, "already.db");
+  const db = new Database(databasePath);
+  db.exec("VACUUM");
+  db.close();
+
+  await assert.rejects(
+    () => toolService.callTool("add_database", {
+      path: path.join(directory, "readonly.db"),
+      mode: "create",
+      readOnly: true,
+    }),
+    /cannot be added as read-only/
+  );
+  await assert.rejects(
+    () => toolService.callTool("add_database", {
+      path: databasePath,
+      mode: "create",
+    }),
+    /already exists/
+  );
 });
 
 test("MCP generates Go structs through the shared type generation service", async (t) => {

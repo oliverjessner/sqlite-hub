@@ -497,7 +497,7 @@ function renderSettingsContent(state) {
               Custom_Port
             </div>
             <div class="mt-3 border border-outline-variant/10 bg-surface-container-high px-4 py-3 font-mono text-sm text-primary-container">
-              sqlite-hub --port:PORT
+              sqlite-hub serve --port PORT
             </div>
           </div>
           <div class="text-sm leading-6 text-on-surface-variant">

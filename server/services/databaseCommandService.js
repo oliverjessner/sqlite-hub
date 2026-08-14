@@ -285,6 +285,39 @@ class DatabaseCommandService {
     return connection;
   }
 
+  addDatabase({ path: databasePath, filePath, label, mode = "existing", readOnly = false } = {}) {
+    const normalizedPath = normalizeLookupValue(databasePath ?? filePath, "Database path");
+    const normalizedMode = String(mode ?? "existing").trim().toLowerCase();
+
+    if (!["existing", "create"].includes(normalizedMode)) {
+      throw new ValidationError('Database mode must be "existing" or "create".');
+    }
+
+    if (normalizedMode === "create" && readOnly) {
+      throw new ValidationError("A newly created database cannot be added as read-only.");
+    }
+
+    const connectionManager = new ConnectionManager({ appStateStore: this.appStateStore });
+    const connection = normalizedMode === "create"
+      ? connectionManager.createConnection({
+          filePath: normalizedPath,
+          label: normalizeOptionalValue(label),
+          makeActive: false,
+        })
+      : connectionManager.rememberConnection({
+          filePath: normalizedPath,
+          label: normalizeOptionalValue(label),
+          readOnly: Boolean(readOnly),
+          makeActive: false,
+        });
+
+    return {
+      created: normalizedMode === "create",
+      mode: normalizedMode,
+      connection,
+    };
+  }
+
   createRuntime(connection, { readOnly = true } = {}) {
     const connectionManager = new ConnectionManager({ appStateStore: this.appStateStore });
 

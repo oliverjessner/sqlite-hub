@@ -52,7 +52,7 @@ GET  /api/v1/databases/:databaseId/documents/:documentName/export
 ```
 
 `GET /api/v1/info` returns the same app/version status shown by
-`sqlite-hub --info`, including the installed SQLite Hub version, SQLite runtime
+`sqlite-hub info`, including the installed SQLite Hub version, SQLite runtime
 version, local URL, and npm update status.
 
 `POST /api/v1/query` executes raw SQL through the same SQL Editor execution path

@@ -28,7 +28,7 @@ test("settings view shows SQLite runtime version and custom port command", async
 
   assert.match(rendered.main, /SQLite_Runtime/);
   assert.match(rendered.main, /3\.53\.1/);
-  assert.match(rendered.main, /sqlite-hub --port:PORT/);
+  assert.match(rendered.main, /sqlite-hub serve --port PORT/);
   assert.match(rendered.main, /Version_Check/);
   assert.match(rendered.main, /data-action="check-app-version"/);
   assert.match(rendered.main, /Check Updates/);
@@ -113,7 +113,7 @@ test("settings view scopes API token controls to the active database", async () 
   assert.match(rendered.main, /data-action="open-delete-api-token-modal"/);
   assert.match(rendered.main, /<span class="material-symbols-outlined text-sm">delete<\/span>\s*Delete/);
   assert.match(rendered.main, /bg-surface-container-lowest/);
-  assert.doesNotMatch(rendered.main, /sqlite-hub --port:PORT/);
+  assert.doesNotMatch(rendered.main, /sqlite-hub serve --port PORT/);
   assert.doesNotMatch(rendered.main, /Open Github/);
   assert.doesNotMatch(rendered.main, /token_hash/);
 });

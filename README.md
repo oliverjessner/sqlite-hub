@@ -33,7 +33,7 @@ npm install -g sqlite-hub
 ## Alternative port
 
 ```bash
-sqlite-hub --port:4174
+sqlite-hub serve --port 4174
 ```
 
 ## Why SQLite Hub?
@@ -299,15 +299,15 @@ Built around local SQLite files, not hosted dashboards or team complexity. The s
 SQLite Hub ships with a built-in CLI for starting the app, inspecting imported
 databases, executing raw or saved SQL, exporting query results, exporting single
 rows as JSON, generating schema types, and working with Markdown documents. See the
-[CLI documentation](./docs/CLI.md) for commands, flags, and examples.
+[CLI documentation](./docs/CLI.md) for resources, actions, options, and examples.
 
 ## API
 
-SQLite Hub also provides a local JSON API for app info, database metadata, tables, saved queries, exports, documents, and schema type generation. `/api/v1/info` returns the same app/version status as `sqlite-hub --info`; database data is protected by database-specific API tokens created in Settings. See the [API documentation](./docs/API.md) for authentication, endpoints, and examples.
+SQLite Hub also provides a local JSON API for app info, database metadata, tables, saved queries, exports, documents, and schema type generation. `/api/v1/info` returns the same app/version status as `sqlite-hub info`; database data is protected by database-specific API tokens created in Settings. See the [API documentation](./docs/API.md) for authentication, endpoints, and examples.
 
 ## MCP
 
-SQLite Hub includes a local MCP server for agents such as Codex. When SQLite Hub is running, the MCP endpoint is available at `/mcp`; a stdio fallback is also available through `sqlite-hub-mcp`. It exposes the shared API/CLI service layer as guarded tools for schema inspection, read-only queries, query-plan explanation, backups, type generation, documents, and chart creation. See the [MCP documentation](./docs/MCP.md) for setup, tool names, and security boundaries.
+SQLite Hub includes a local MCP server for agents such as Codex. When SQLite Hub is running, the MCP endpoint is available at `/mcp`; a stdio fallback is also available through `sqlite-hub-mcp`. It exposes the shared API/CLI service layer as guarded tools for adding or creating database connections, schema inspection, read-only queries, query-plan explanation, backups, type generation, documents, and chart creation. See the [MCP documentation](./docs/MCP.md) for setup, tool names, and security boundaries.
 
 ## Changelog
 

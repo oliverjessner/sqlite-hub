@@ -1,3 +1,8 @@
+# v2.5.0
+
+- better mcp: create_stored_query, add_database
+- new cli grammar!
+
 # v2.4.4
 
 - favicon

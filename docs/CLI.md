@@ -1,264 +1,304 @@
 # SQLite Hub CLI
 
-SQLite Hub ships with a built-in CLI that lets you start the app, inspect
-imported databases, execute raw or saved SQL, export query results, and work
-with Markdown documents from the terminal.
+## Command Structure
 
-CLI commands are recorded in the local Access Log with their action, target,
-database id when available, status, and duration. Raw SQL text is still handled
-by Query History for executed queries and is not duplicated in the Access Log.
+SQLite Hub uses resource and action subcommands:
 
-## Start The App
-
-```bash
-sqlite-hub                  # start on default port 4173
-sqlite-hub --port:4174      # start on a custom port
-sqlite-hub --open           # open SQLite Hub in the browser
-sqlite-hub --info           # show port, URL, versions, and update status
-sqlite-hub --help           # show help text
-sqlite-hub --version        # show version number
+```text
+sqlite-hub <resource> <action> [arguments] [options]
 ```
 
-`--config` is still accepted as a legacy alias for `--info`.
+Options use a separate value or the standard equals form:
+
+```bash
+sqlite-hub table list --db Unit-00
+sqlite-hub table list --db=Unit-00
+```
+
+Run `sqlite-hub --help` for the top-level command list. Resources and actions have focused help pages:
+
+```bash
+sqlite-hub query --help
+sqlite-hub query run --help
+sqlite-hub types generate --help
+```
+
+Database-scoped commands consistently use `--db <database>`. A database can be selected by its SQLite Hub ID or label.
+
+## Starting SQLite Hub
+
+Running the CLI without a command starts the server on port `4173`:
+
+```bash
+sqlite-hub
+```
+
+The explicit server command supports a custom port and opening the default browser:
+
+```bash
+sqlite-hub serve
+sqlite-hub serve --port 4174
+sqlite-hub serve --open
+sqlite-hub serve --port 4174 --open
+```
+
+Show application, SQLite runtime, URL, and version status:
+
+```bash
+sqlite-hub info
+sqlite-hub info --port 4174
+```
+
+Global options:
+
+```bash
+sqlite-hub --help
+sqlite-hub --version
+```
+
+Short forms `-h` and `-v` are also supported.
 
 ## Databases
 
 List all imported databases:
 
 ```bash
-sqlite-hub --database
-sqlite-hub -d
+sqlite-hub db list
+sqlite-hub db list --json
 ```
 
-The database list shows the name, file path, file size, last opened timestamp,
-and read-only status for databases that have been opened in SQLite Hub.
-
-Query details for one database by name or id:
+Show the name, ID, file path, file size, last-opened timestamp, and read-only status of one database:
 
 ```bash
-sqlite-hub --database:Billly --path        # get the file path
-sqlite-hub --database:Billly --size        # get the file size
-sqlite-hub --database:Billly --lastopened  # get last opened timestamp
+sqlite-hub db info Unit-00
+sqlite-hub db info Unit-00 --json
 ```
 
-List all tables in a database:
+## Tables
+
+List tables in a database:
 
 ```bash
-sqlite-hub --database:Billly --tables
+sqlite-hub table list --db Unit-00
+sqlite-hub table list --db Unit-00 --json
 ```
 
-Inspect one table:
+Inspect columns, primary and foreign keys, indexes, row count, and row identity strategy:
 
 ```bash
-sqlite-hub --database:Billly --table:companies
+sqlite-hub table info users --db Unit-00
+sqlite-hub table info users --db Unit-00 --json
 ```
 
-Table inspection prints metadata such as columns, primary keys, foreign keys,
-indexes, row count, and row identity strategy.
+## Rows
 
-Generate application types from a table schema:
+Get one row by its primary key or `rowid`:
 
 ```bash
-sqlite-hub --database:Unit-00 --table:users --types:typescript
-sqlite-hub --database:Unit-00 --table:users --types:rust
-sqlite-hub --database:Unit-00 --table:users --types:typescript --json
-sqlite-hub --database:Unit-00 --table:users --types:typescript --output:User.ts
+sqlite-hub row get companies 0a754aba373d34972998792a0be4333c --db Unit-00
 ```
 
-Aliases are available for common targets: `ts`, `rs`, and `kt`. Without
-`--output` or `--json`, the CLI writes only generated code to stdout so shell
-redirection works cleanly. Warnings are written to stderr. Use `--force` to
-overwrite an existing output file.
-
-Create a verified managed backup for a database:
+The row is shaped through the same Row Editor service as the web app and is always printed as JSON. For a composite primary key, pass the key as a JSON object:
 
 ```bash
-sqlite-hub --database:Unit-00 --backups
-sqlite-hub --database:Unit-00 --backup
-sqlite-hub --database:Unit-00 --backup:"Before import" --backup-notes:"Before loading vendor data"
-sqlite-hub --database:Unit-00 --backup:"Nightly checkpoint" --json
+sqlite-hub row get order_items '{"order_id":42,"item_id":7}' --db Unit-00
 ```
 
-Backup creation uses the same SQLite backup API and verification path as the UI
-Backup Manager. It works for read-only database connections because the source
-database is only read. `--backups` lists the managed backups for the selected
-database; add `--json` for structured output.
+## Queries
 
-## SQL Editor
-
-Execute raw SQL through the same SQL Editor execution path used by the app:
+List saved SQL Editor queries:
 
 ```bash
-sqlite-hub --database:Unit-00 --query:"SELECT * FROM companies LIMIT 10"
-sqlite-hub --database:Unit-00 --query:"SELECT * FROM companies LIMIT 10" --store:"Company Sample"
+sqlite-hub query list --db Unit-00
+sqlite-hub query list --db Unit-00 --json
 ```
 
-Raw CLI queries are recorded in Query History. Add `--store:"name"` to title the
-history item and mark it as saved. Raw SQL execution is rejected when the target
-database is marked read-only.
-
-Create or update a stored query without executing it:
+Run raw SQL through the SQL Editor execution path. The execution is recorded in Query History:
 
 ```bash
-sqlite-hub --database:Unit-00 \
-  --create-stored-query:"SELECT * FROM companies ORDER BY name" \
-  --title:"Company List" \
-  --query-notes:"Optional notes"
+sqlite-hub query run "SELECT * FROM companies LIMIT 10" --db Unit-00
+sqlite-hub query run "SELECT COUNT(*) AS total FROM companies" --db Unit-00 --json
 ```
 
-`--create-query` is a shorter alias for `--create-stored-query`. This command
-only writes SQLite Hub Query History metadata and does not modify the selected
-database.
-
-List all saved queries for a database:
+Run raw SQL and save the resulting history entry under a name:
 
 ```bash
-sqlite-hub --database:Unit-00 --queries
+sqlite-hub query run "SELECT * FROM companies LIMIT 10" \
+  --db Unit-00 \
+  --save "Company Sample"
 ```
 
-Execute a specific saved query by name:
+Save SQL without executing it. `--name` is required and `--notes` is optional:
 
 ```bash
-sqlite-hub --database:Unit-00 --execute:"15min Posting Buckets without id 96"
+sqlite-hub query save "SELECT * FROM companies ORDER BY name" \
+  --db Unit-00 \
+  --name "Company List" \
+  --notes "Used by the weekly report"
 ```
 
-This searches the query history for the selected database, finds the matching
-saved query by title, executes it, and returns results with metadata such as row
-count, columns, timing, and data.
-
-Show the saved query SQL without executing it:
+Show a saved query's SQL and metadata:
 
 ```bash
-sqlite-hub --database:Unit-00 --saved-query:"Stock Winners"
+sqlite-hub query show "Stock Winners" --db Unit-00
+sqlite-hub query show "Stock Winners" --db Unit-00 --json
 ```
 
-Show the saved notes for a query:
+Execute an existing saved query:
 
 ```bash
-sqlite-hub --database:Unit-00 --notes:"TOP25 Loser and Winner EOD, T1, T3, T5"
+sqlite-hub query exec "Stock Winners" --db Unit-00
+sqlite-hub query exec "Stock Winners" --db Unit-00 --json
 ```
 
-Export a saved query using the same CSV, TSV, Markdown, and JSON export logic as
-the SQL Editor:
+Export a saved query. Supported formats are `csv`, `tsv`, `md`, and `json`; the default is `csv`:
 
 ```bash
-sqlite-hub --database:Unit-00 --export:"Stock Winners" --format:csv
-sqlite-hub --database:Unit-00 --export:"Stock Winners" --format:tsv
-sqlite-hub --database:Unit-00 --export:"Stock Winners" --format:md
-sqlite-hub --database:Unit-00 --export:"Stock Winners" --format:json
+sqlite-hub query export "Stock Winners" --db Unit-00 --format csv
+sqlite-hub query export "Stock Winners" --db Unit-00 --format json --output winners.json
 ```
 
-The export is written to the current working directory using the generated query
-export filename.
+Without `--output`, the generated filename is written to the current working directory.
 
 ## Documents
 
-List all Markdown documents stored for a database:
+List Markdown documents:
 
 ```bash
-sqlite-hub --database:Unit-00 --documents
+sqlite-hub doc list --db Unit-00
+sqlite-hub doc list --db Unit-00 --json
 ```
 
-Print one document's Markdown content:
+Show a document selected by ID, filename, title, or a unique partial match:
 
 ```bash
-sqlite-hub --database:Unit-00 --documents:"Research Notes"
+sqlite-hub doc show "Research Notes" --db Unit-00
+sqlite-hub doc show "Research Notes" --db Unit-00 --json
 ```
 
-Export one document as a `.md` file into the current working directory:
+Export a document as Markdown:
 
 ```bash
-sqlite-hub --database:Unit-00 --documents:"Research Notes" --export
-sqlite-hub --database:Unit-00 --documents:"Research Notes--export"
+sqlite-hub doc export "Research Notes" --db Unit-00
+sqlite-hub doc export "Research Notes" --db Unit-00 --output research-notes.md
 ```
 
-Documents can be matched by id, filename, title, or a partial filename/title
-match.
+Without `--output`, the document's generated filename is written to the current working directory.
 
-## Row JSON Export
+## Backups
 
-Export a single row as JSON by primary key or rowid, using the same row-shaping
-logic as the Row Editor:
+List managed backups:
 
 ```bash
-sqlite-hub --database:Unit-00 --table:companies --export:0a754aba373d34972998792a0be4333c
+sqlite-hub backup list --db Unit-00
+sqlite-hub backup list --db Unit-00 --json
 ```
 
-## Available Flags
-
-| Flag                                                            | Description                                     |
-| --------------------------------------------------------------- | ----------------------------------------------- |
-| `--help`, `-h`                                                  | Show help text                                  |
-| `--version`, `-v`                                               | Show version number                             |
-| `--info`                                                        | Show port, URL, versions, and update status     |
-| `--open`                                                        | Open SQLite Hub in the browser                  |
-| `--port:PORT`                                                   | Start the server on a custom port               |
-| `--database`, `-d`                                              | List all imported databases                     |
-| `--database:name`                                               | Select a database by name or id                 |
-| `--database:name --path`                                        | Get the file path of a database                 |
-| `--database:name --size`                                        | Get the size of a database                      |
-| `--database:name --lastopened`                                  | Get the last opened timestamp                   |
-| `--database:name --tables`                                      | Get all table names from a database             |
-| `--database:name --queries`                                     | List saved queries for a database               |
-| `--database:name --query:"sql"`                                 | Execute raw SQL and record it in Query History  |
-| `--database:name --query:"sql" --store:"name"`                  | Save a raw query in Query History with a name   |
-| `--database:name --create-stored-query:"sql" --title:"name"`   | Save SQL without executing it                   |
-| `--query-notes:"text"`                                         | Add notes to a newly stored query               |
-| `--database:name --execute:"query"`                             | Execute a saved query by name                   |
-| `--database:name --saved-query:"query"`                         | Print a saved query by name                     |
-| `--database:name --notes:"query"`                               | Print saved notes for a query                   |
-| `--database:name --export:"query" --format:csv\|tsv\|md\|json` | Set query export format                         |
-| `--database:name --documents`                                   | List Markdown documents for a database          |
-| `--database:name --documents:"document"`                        | Print a document's Markdown content             |
-| `--database:name --documents:"document" --export`               | Export a document as Markdown                   |
-| `--database:name --backups`                                     | List managed backups for a database             |
-| `--database:name --backup`                                      | Create and verify a managed backup              |
-| `--database:name --backup:"name"`                               | Create a managed backup with a custom name      |
-| `--backup-notes:"text"`                                         | Add notes to a backup created by `--backup`     |
-| `--database:name --table:"table"`                               | Print table metadata                            |
-| `--database:name --table:"table" --export:"pk"`                 | Export one row as JSON                          |
-| `--database:name --table:"table" --types:typescript\|ts\|rust\|rs\|kotlin\|kt\|swift\|go\|golang` | Generate application types |
-| `--type-name:"name"`                                            | Override generated type name                    |
-| `--naming:preserve\|camel\|pascal\|snake`                       | Select property naming                          |
-| `--nullable:native\|optional`                                   | Select nullable handling                        |
-| `--comments`                                                    | Include schema comments                         |
-| `--defaults-as-comments`                                        | Include default values as comments              |
-| `--json-type:unknown\|record\|json-value`                       | Select TypeScript JSON mapping                  |
-| `--include-generated`                                           | Include generated columns                       |
-| `--include-hidden`                                              | Include hidden columns                          |
-| `--output:"file"`                                               | Write generated types to a file                 |
-| `--json`                                                        | Print generated type result as JSON             |
-| `--force`                                                       | Overwrite existing `--output` file              |
-
-Legacy aliases such as `--config`, `--database-path:name`,
-`--database-size:name`, `--database-lastopened:name`, `--database-tables:name`,
-and `--database:name --sqleditor:"query"` still work.
-
-## Example
-
-Saved queries created in the graphical SQL Editor can also be executed through
-the CLI. To execute one, run:
+Create and verify a managed backup:
 
 ```bash
-sqlite-hub --database:Unit-00 --execute:"Group by creation Year"
+sqlite-hub backup create --db Unit-00
+sqlite-hub backup create --db Unit-00 --name "Before import"
+sqlite-hub backup create \
+  --db Unit-00 \
+  --name "Before import" \
+  --notes "Before loading vendor data"
+sqlite-hub backup create --db Unit-00 --name "Nightly" --json
 ```
 
-Example output:
+## Type Generation
+
+Generate application types from a table:
 
 ```bash
-Executing: Group by creation Year
-SQL: SELECT STRFTIME('%Y', creation_time, 'unixepoch') AS creation_year, COUNT(*) AS channel_count FROM channels WHERE creation_time IS NOT NU...
-------------------------------------------------------------
+sqlite-hub types generate users --db Unit-00 --lang typescript
+```
 
-Statement count: 1
-Timing: 1ms
+Supported language names and aliases are:
 
-Statement 1 (resultSet):
-Rows: 3
-Columns: creation_year, channel_count
+- TypeScript: `typescript`, `ts`
+- Rust: `rust`, `rs`
+- Kotlin: `kotlin`, `kt`
+- Swift: `swift`
+- Go: `go`, `golang`
 
-Results:
-  [0] 2024 | 11
-  [1] 2025 | 47
-  [2] 2026 | 40
+Generation options:
+
+| Option | Purpose |
+| --- | --- |
+| `--name NAME` | Override the generated type name |
+| `--naming preserve\|camel\|pascal\|snake` | Set property naming |
+| `--nullable native\|optional` | Set nullable-field handling |
+| `--comments` | Include schema comments |
+| `--defaults-as-comments` | Include SQL defaults as comments |
+| `--json-type unknown\|record\|json-value` | Set the JSON column type |
+| `--include-generated` | Include generated columns |
+| `--include-hidden` | Include hidden columns |
+| `--output FILE` | Write code to a file |
+| `--force` | Replace an existing output file |
+| `--json` | Print the complete generation result as JSON |
+
+Example with customization:
+
+```bash
+sqlite-hub types generate users \
+  --db Unit-00 \
+  --lang ts \
+  --name User \
+  --naming camel \
+  --nullable optional \
+  --comments \
+  --defaults-as-comments \
+  --json-type unknown \
+  --include-generated \
+  --include-hidden \
+  --output User.ts \
+  --force
+```
+
+Without `--output` or `--json`, only generated code is written to standard output. Warnings are written to standard error, so shell redirection remains clean:
+
+```bash
+sqlite-hub types generate users --db Unit-00 --lang ts > User.ts
+```
+
+## JSON Output
+
+Use `--json` on commands that expose structured output:
+
+```bash
+sqlite-hub db list --json
+sqlite-hub table info users --db Unit-00 --json
+sqlite-hub query show "Stock Winners" --db Unit-00 --json
+sqlite-hub backup create --db Unit-00 --json
+```
+
+`row get` always outputs JSON. Query exports use `--format json` because they create an export file.
+
+## Exit Codes
+
+- `0`: command completed successfully
+- `1`: invalid syntax, missing arguments, lookup failure, execution failure, or file-output failure
+
+Syntax errors include the relevant command usage. Use the command's `--help` page for all accepted arguments and options.
+
+## Examples
+
+```bash
+# Inspect a table
+sqlite-hub table info users --db Unit-00
+
+# Save a reusable query without running it
+sqlite-hub query save "SELECT * FROM users WHERE active = 1" \
+  --db Unit-00 \
+  --name "Active Users"
+
+# Execute the saved query and receive structured output
+sqlite-hub query exec "Active Users" --db Unit-00 --json
+
+# Create a checkpoint before changing data
+sqlite-hub backup create --db Unit-00 --name "Before migration"
+
+# Generate Go types in the current shell pipeline
+sqlite-hub types generate users --db Unit-00 --lang go
 ```

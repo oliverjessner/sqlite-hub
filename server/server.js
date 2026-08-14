@@ -212,10 +212,6 @@ function parsePortArgument(argv = process.argv.slice(2)) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
 
-    if (argument.startsWith("--port:")) {
-      return argument.slice("--port:".length);
-    }
-
     if (argument.startsWith("--port=")) {
       return argument.slice("--port=".length);
     }

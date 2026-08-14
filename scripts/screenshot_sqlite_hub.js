@@ -101,8 +101,8 @@ function parseArgs(argv) {
       continue;
     }
 
-    const [key, ...valueParts] = argument.split(":");
-    const value = valueParts.join(":");
+    const [key, ...valueParts] = argument.split("=");
+    const value = valueParts.join("=");
 
     if ((key === "--url" || key === "--base-url") && value) {
       options.baseUrl = value.replace(/\/+$/, "");
@@ -145,8 +145,8 @@ function parseBackupFixtureArgs(argv) {
       continue;
     }
 
-    const [key, ...valueParts] = argument.split(":");
-    const value = valueParts.join(":");
+    const [key, ...valueParts] = argument.split("=");
+    const value = valueParts.join("=");
 
     if ((key === "--out" || key === "--output") && value) {
       options.out = value;
@@ -337,7 +337,7 @@ function findChromeExecutable(explicitPath = "") {
   const found = candidates.find(fileExists);
 
   if (!found) {
-    throw new Error("Chrome/Chromium was not found. Set CHROME_PATH or pass --chrome:/path/to/chrome.");
+    throw new Error("Chrome/Chromium was not found. Set CHROME_PATH or pass --chrome=/path/to/chrome.");
   }
 
   return found;
@@ -1200,14 +1200,14 @@ async function runBackupFixtureWorker(options) {
   const args = [
     __filename,
     "--backup-fixture-worker",
-    `--port:${DEFAULT_BACKUP_FIXTURE_PORT}`,
-    `--out:${outputPath}`,
-    `--width:${options.width}`,
-    `--height:${options.height}`,
+    `--port=${DEFAULT_BACKUP_FIXTURE_PORT}`,
+    `--out=${outputPath}`,
+    `--width=${options.width}`,
+    `--height=${options.height}`,
   ];
 
   if (options.chromePath) {
-    args.push(`--chrome:${options.chromePath}`);
+    args.push(`--chrome=${options.chromePath}`);
   }
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {

@@ -58,14 +58,15 @@ Read-only and safe tools:
 - `get_indexes`: return all indexes or indexes for one table.
 - `get_foreign_keys`: return all foreign keys or foreign keys for one table.
 - `run_readonly_query`: execute a read-only `SELECT`, `PRAGMA`, or `EXPLAIN` query.
-- `get_saved_queries`: list saved SQL Editor queries for a database, equivalent to `sqlite-hub --database:name --queries`.
+- `get_saved_queries`: list saved SQL Editor queries for a database, equivalent to `sqlite-hub query list --db <database>`.
 - `explain_query_plan`: run `EXPLAIN QUERY PLAN` and return structured plan rows plus index hints when a table scan appears.
 - `read_documents`: read database-scoped Markdown documents.
 
 Controlled write tools:
 
+- `add_database`: add an existing SQLite file to Connections or create and add a new empty `.db`, `.sqlite`, or `.sqlite3` database. It does not change the active UI connection.
 - `create_stored_query`: create or update a saved SQL Editor query with a title and optional notes, without executing the SQL.
-- `execute_stored_query`: execute a saved SQL Editor query by id, title, display title, or SQL fragment, equivalent to `sqlite-hub --database:name --execute:"query"`.
+- `execute_stored_query`: execute a saved SQL Editor query by id, title, display title, or SQL fragment, equivalent to `sqlite-hub query exec <query> --db <database>`.
 - `create_backup`: create a verified backup through SQLite Hub's existing backup mechanism.
 - `generate_types`: generate TypeScript, Rust, Kotlin, Swift, or Go types from one table or all tables.
 - `create_chart_from_query`: create a saved chart from a read-only `SELECT` query. It writes chart metadata to SQLite Hub but does not export files.
@@ -87,7 +88,7 @@ These statements are blocked in `run_readonly_query`:
 - `VACUUM`
 - other non-reader or mutating statements
 
-Backups are always created through SQLite Hub's managed backup service. Stored-query creation and chart creation store SQLite Hub metadata only. `create_stored_query` never executes the supplied SQL or modifies the target database. The MCP server does not write arbitrary local files.
+Backups are always created through SQLite Hub's managed backup service. `add_database` validates existing files as SQLite databases; in `create` mode it creates a new SQLite file and any missing parent directories at the requested local path. Stored-query creation and chart creation store SQLite Hub metadata only. `create_stored_query` never executes the supplied SQL or modifies the target database. The MCP server does not write arbitrary local files beyond the explicit database path supplied to `add_database` in `create` mode.
 
 `execute_stored_query` intentionally follows the same behavior as the CLI and external API saved-query execution path. It executes the stored SQL as-is and records the run in Query History with `executedBy: "mcp"`.
 
@@ -107,6 +108,10 @@ Use SQLite Hub MCP to inspect my current database schema and suggest missing ind
 
 ```text
 Use SQLite Hub MCP to create a backup before generating TypeScript types.
+```
+
+```text
+Use SQLite Hub MCP to create a new database named "Research" at /absolute/path/research.sqlite.
 ```
 
 ```text

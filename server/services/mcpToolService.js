@@ -23,6 +23,31 @@ const MCP_TOOL_DEFINITIONS = [
     inputSchema: objectSchema(),
   },
   {
+    name: "add_database",
+    description: "Add an existing SQLite database to Connections or create and add a new empty database. The active UI connection is not changed.",
+    inputSchema: objectSchema(
+      {
+        path: {
+          type: "string",
+          minLength: 1,
+          description: "Local SQLite file path. Create mode also creates missing parent directories.",
+        },
+        label: { type: "string", description: "Optional connection label." },
+        mode: {
+          type: "string",
+          enum: ["existing", "create"],
+          default: "existing",
+        },
+        readOnly: {
+          type: "boolean",
+          default: false,
+          description: "Only supported for existing databases.",
+        },
+      },
+      ["path"]
+    ),
+  },
+  {
     name: "get_database_overview",
     description: "Return operational overview, SQLite runtime metadata, and schema statistics for a database.",
     inputSchema: objectSchema({ databaseId: databaseIdProperty() }, ["databaseId"]),
@@ -78,7 +103,7 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "get_saved_queries",
-    description: "List saved SQL Editor queries for a database. This is the MCP equivalent of `sqlite-hub --database:name --queries`.",
+    description: "List saved SQL Editor queries for a database. This is the MCP equivalent of `sqlite-hub query list --db <database>`.",
     inputSchema: objectSchema({
       databaseId: databaseIdProperty(),
       limit: { type: "integer", minimum: 1, maximum: 500, default: 100 },
@@ -99,7 +124,7 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "execute_stored_query",
-    description: "Execute a saved SQL Editor query by id, title, display title, or SQL fragment. This is the MCP equivalent of `sqlite-hub --database:name --execute:\"query\"`.",
+    description: "Execute a saved SQL Editor query by id, title, display title, or SQL fragment. This is the MCP equivalent of `sqlite-hub query exec <query> --db <database>`.",
     inputSchema: objectSchema(
       {
         databaseId: databaseIdProperty(),
@@ -241,6 +266,20 @@ class McpToolService {
           return {
             items: this.databaseService.listDatabases().map(redactConnection),
           };
+        case "add_database": {
+          const result = this.databaseService.addDatabase({
+            path: args.path,
+            label: args.label,
+            mode: args.mode,
+            readOnly: args.readOnly,
+          });
+
+          return {
+            created: result.created,
+            mode: result.mode,
+            connection: redactConnection(result.connection),
+          };
+        }
         case "get_database_overview":
           return redactOverview(this.databaseService.getDatabaseOverview(args.databaseId));
         case "list_tables":
