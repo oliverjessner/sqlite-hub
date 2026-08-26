@@ -1,5 +1,7 @@
 # sqlite-hub ⚡️
 
+![NPM Downloads](https://img.shields.io/npm/dy/sqlite-hub)
+
 [![SQLite Hub database overview](./frontend/assets/mockups/overview_1_1920.webp)](./frontend/assets/mockups/overview_1_1920.webp)
 
 A focused local-first app for browsing, editing, and querying SQLite databases.
