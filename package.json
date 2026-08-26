@@ -1,6 +1,6 @@
 {
     "name": "sqlite-hub",
-    "version": "2.5.0",
+    "version": "2.5.1",
     "description": "SQLite-only local management app backend and SPA shell",
     "license": "MIT",
     "main": "server/server.js",
@@ -23,6 +23,14 @@
         "server/utils/",
         "tailwind.config.cjs"
     ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/oliverjessner/sqlite-hub.git"
+    },
+    "homepage": "https://oliverjessner.at/sqlite-hub",
+    "bugs": {
+        "url": "https://github.com/oliverjessner/sqlite-hub/issues"
+    },
     "scripts": {
         "build": "npm run build:css",
         "build:css": "tailwindcss -i ./frontend/styles/tailwind.css -o ./frontend/styles/tailwind.generated.css --minify",
