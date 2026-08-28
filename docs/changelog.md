@@ -1,3 +1,9 @@
+# v2.5.2
+
+- version in ouput
+- updating all deps
+- limited the body size to 100kb
+
 # v2.5.1
 
 - connection limit from 12 databases to 32
@@ -8,18 +14,9 @@
 
 - favicon
 - better tab titles
-
-# v2.4.3
-
 - export button for text2struct
 - export txt in documents
-
-# v2.4.2
-
 - fixing wrong package
-
-# v2.4.0
-
 - text2struct implementation
 
 # v2.3.5

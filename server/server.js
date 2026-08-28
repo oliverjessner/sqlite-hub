@@ -1,62 +1,59 @@
-const express = require("express");
-const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
-const path = require("node:path");
-const { errorMiddleware } = require("./utils/errors");
-const {
-  LOOPBACK_HOST,
-  listenOnLoopback,
-  localRequestSecurity,
-} = require("./middleware/localRequestSecurity");
-const { resolveAppStatePaths } = require("./utils/appPaths");
-const { AppStateStore } = require("./services/storage/appStateStore");
-const { ConnectionManager } = require("./services/sqlite/connectionManager");
-const { OverviewService } = require("./services/sqlite/overviewService");
-const { SqlExecutor } = require("./services/sqlite/sqlExecutor");
-const { ImportService } = require("./services/sqlite/importService");
-const { BackupService } = require("./services/sqlite/backupService");
-const { NativeFileDialogService } = require("./services/nativeFileDialogService");
-const { DatabaseDiscoveryService } = require("./services/sqlite/databaseDiscoveryService");
-const { ExportService } = require("./services/sqlite/exportService");
-const { StructureService } = require("./services/sqlite/structureService");
-const { DataBrowserService } = require("./services/sqlite/dataBrowserService");
-const { TableDesignerService } = require("./services/sqlite/tableDesignerService");
-const { MediaTaggingService } = require("./services/sqlite/mediaTaggingService");
-const { ApiTokenService } = require("./services/apiTokenService");
-const { DatabaseCommandService } = require("./services/databaseCommandService");
-const { TextToStructService } = require("./services/textToStructService");
-const { createMcpServices } = require("./mcp/stdioServer");
-const { createMcpHttpRouter } = require("./mcp/httpRouter");
-const { createConnectionsRouter } = require("./routes/connections");
-const { createBackupsRouter } = require("./routes/backups");
-const { createOverviewRouter } = require("./routes/overview");
-const { createSqlRouter } = require("./routes/sql");
-const { createChartsRouter } = require("./routes/charts");
-const { createStructureRouter } = require("./routes/structure");
-const { createDataRouter } = require("./routes/data");
-const { createTableDesignerRouter } = require("./routes/tableDesigner");
-const { createMediaTaggingRouter } = require("./routes/mediaTagging");
-const { createSettingsRouter } = require("./routes/settings");
-const { createExportRouter } = require("./routes/export");
-const { createDocumentsRouter } = require("./routes/documents");
-const { createExternalApiRouter } = require("./routes/externalApi");
-const { createLogsRouter } = require("./routes/logs");
-const { createTextToStructRouter } = require("./routes/textToStruct");
+const express = require('express');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const path = require('node:path');
+const { errorMiddleware } = require('./utils/errors');
+const { LOOPBACK_HOST, listenOnLoopback, localRequestSecurity } = require('./middleware/localRequestSecurity');
+const { resolveAppStatePaths } = require('./utils/appPaths');
+const { AppStateStore } = require('./services/storage/appStateStore');
+const { ConnectionManager } = require('./services/sqlite/connectionManager');
+const { OverviewService } = require('./services/sqlite/overviewService');
+const { SqlExecutor } = require('./services/sqlite/sqlExecutor');
+const { ImportService } = require('./services/sqlite/importService');
+const { BackupService } = require('./services/sqlite/backupService');
+const { NativeFileDialogService } = require('./services/nativeFileDialogService');
+const { DatabaseDiscoveryService } = require('./services/sqlite/databaseDiscoveryService');
+const { ExportService } = require('./services/sqlite/exportService');
+const { StructureService } = require('./services/sqlite/structureService');
+const { DataBrowserService } = require('./services/sqlite/dataBrowserService');
+const { TableDesignerService } = require('./services/sqlite/tableDesignerService');
+const { MediaTaggingService } = require('./services/sqlite/mediaTaggingService');
+const { ApiTokenService } = require('./services/apiTokenService');
+const { DatabaseCommandService } = require('./services/databaseCommandService');
+const { TextToStructService } = require('./services/textToStructService');
+const { createMcpServices } = require('./mcp/stdioServer');
+const { createMcpHttpRouter } = require('./mcp/httpRouter');
+const { createConnectionsRouter } = require('./routes/connections');
+const { createBackupsRouter } = require('./routes/backups');
+const { createOverviewRouter } = require('./routes/overview');
+const { createSqlRouter } = require('./routes/sql');
+const { createChartsRouter } = require('./routes/charts');
+const { createStructureRouter } = require('./routes/structure');
+const { createDataRouter } = require('./routes/data');
+const { createTableDesignerRouter } = require('./routes/tableDesigner');
+const { createMediaTaggingRouter } = require('./routes/mediaTagging');
+const { createSettingsRouter } = require('./routes/settings');
+const { createExportRouter } = require('./routes/export');
+const { createDocumentsRouter } = require('./routes/documents');
+const { createExternalApiRouter } = require('./routes/externalApi');
+const { createLogsRouter } = require('./routes/logs');
+const { createTextToStructRouter } = require('./routes/textToStruct');
+const packageJson = require('../package.json');
 
-const PACKAGE_ROOT = path.resolve(__dirname, "..");
-const FRONTEND_ROOT = path.join(PACKAGE_ROOT, "frontend");
+const PACKAGE_ROOT = path.resolve(__dirname, '..');
+const FRONTEND_ROOT = path.join(PACKAGE_ROOT, 'frontend');
 const {
-  appStateDirectory: APP_STATE_DIRECTORY,
-  appStateDbPath: APP_STATE_DB_PATH,
-  legacyStatePath: LEGACY_STATE_PATH,
-  legacyDatabasePaths: LEGACY_DATABASE_PATHS,
+    appStateDirectory: APP_STATE_DIRECTORY,
+    appStateDbPath: APP_STATE_DB_PATH,
+    legacyStatePath: LEGACY_STATE_PATH,
+    legacyDatabasePaths: LEGACY_DATABASE_PATHS,
 } = resolveAppStatePaths(PACKAGE_ROOT);
 const DEFAULT_PORT = 4173;
 const DEFAULT_HOST = LOOPBACK_HOST;
 
 const appStateStore = new AppStateStore(APP_STATE_DB_PATH, {
-  legacyFilePath: LEGACY_STATE_PATH,
-  legacyDatabasePaths: LEGACY_DATABASE_PATHS,
+    legacyFilePath: LEGACY_STATE_PATH,
+    legacyDatabasePaths: LEGACY_DATABASE_PATHS,
 });
 const connectionManager = new ConnectionManager({ appStateStore });
 const overviewService = new OverviewService({ connectionManager });
@@ -66,9 +63,9 @@ const backupService = new BackupService({ connectionManager, appStateStore });
 const nativeFileDialogService = new NativeFileDialogService();
 const databaseDiscoveryService = new DatabaseDiscoveryService({ connectionManager });
 const exportService = new ExportService({
-  appStateStore,
-  connectionManager,
-  sqlExecutor,
+    appStateStore,
+    connectionManager,
+    sqlExecutor,
 });
 const structureService = new StructureService({ connectionManager, appStateStore });
 const dataBrowserService = new DataBrowserService({ connectionManager });
@@ -77,204 +74,186 @@ const mediaTaggingService = new MediaTaggingService({ connectionManager, appStat
 const apiTokenService = new ApiTokenService({ appStateStore });
 const databaseCommandService = new DatabaseCommandService({ appStateStore });
 const textToStructService = new TextToStructService();
-const mcpServices = createMcpServices({ appStateStore, transport: "http" });
+const mcpServices = createMcpServices({ appStateStore, transport: 'http' });
 
 connectionManager.initialize();
 
 const app = express();
 
 app.use(helmet());
-app.use("/api", localRequestSecurity);
+app.use('/api', localRequestSecurity);
 app.use(
-  "/api",
-  rateLimit({
-    windowMs: 60 * 1000,
-    max: 300,
-    standardHeaders: true,
-    legacyHeaders: false,
-  })
+    '/api',
+    rateLimit({
+        windowMs: 60 * 1000,
+        max: 300,
+        standardHeaders: true,
+        legacyHeaders: false,
+    }),
 );
-app.use("/mcp", localRequestSecurity);
+app.use('/mcp', localRequestSecurity);
 app.use(
-  "/mcp",
-  rateLimit({
-    windowMs: 60 * 1000,
-    max: 300,
-    standardHeaders: true,
-    legacyHeaders: false,
-  })
+    '/mcp',
+    rateLimit({
+        windowMs: 60 * 1000,
+        max: 300,
+        standardHeaders: true,
+        legacyHeaders: false,
+    }),
 );
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false }));
 
 // auth: public liveness route for local CLI and browser startup checks.
-app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    message: "SQLite Hub backend is running.",
-    data: {
-      connected: Boolean(connectionManager.getActiveConnection()),
-    },
-    metadata: {},
-    warnings: [],
-  });
+app.get('/api/health', (req, res) => {
+    res.json({
+        success: true,
+        message: 'SQLite Hub backend is running.',
+        data: {
+            connected: Boolean(connectionManager.getActiveConnection()),
+        },
+        metadata: {},
+        warnings: [],
+    });
 });
 
 app.use(
-  "/api/connections",
-  createConnectionsRouter({
-    connectionManager,
-    importService,
-    backupService,
-    nativeFileDialogService,
-    databaseDiscoveryService,
-    appStateStore,
-  })
+    '/api/connections',
+    createConnectionsRouter({
+        connectionManager,
+        importService,
+        backupService,
+        nativeFileDialogService,
+        databaseDiscoveryService,
+        appStateStore,
+    }),
 );
-app.use("/api/backups", createBackupsRouter({ backupService, appStateStore, connectionManager }));
-app.use("/api/db", createOverviewRouter({ overviewService }));
-app.use("/api/sql", createSqlRouter({ appStateStore, connectionManager, sqlExecutor }));
-app.use("/api/charts", createChartsRouter({ appStateStore, connectionManager, sqlExecutor }));
-app.use("/api/structure", createStructureRouter({ structureService }));
-app.use("/api/data", createDataRouter({ dataBrowserService, appStateStore, connectionManager }));
-app.use("/api/table-designer", createTableDesignerRouter({ tableDesignerService, appStateStore, connectionManager }));
-app.use("/api/media-tagging", createMediaTaggingRouter({ mediaTaggingService }));
+app.use('/api/backups', createBackupsRouter({ backupService, appStateStore, connectionManager }));
+app.use('/api/db', createOverviewRouter({ overviewService }));
+app.use('/api/sql', createSqlRouter({ appStateStore, connectionManager, sqlExecutor }));
+app.use('/api/charts', createChartsRouter({ appStateStore, connectionManager, sqlExecutor }));
+app.use('/api/structure', createStructureRouter({ structureService }));
+app.use('/api/data', createDataRouter({ dataBrowserService, appStateStore, connectionManager }));
+app.use('/api/table-designer', createTableDesignerRouter({ tableDesignerService, appStateStore, connectionManager }));
+app.use('/api/media-tagging', createMediaTaggingRouter({ mediaTaggingService }));
 app.use(
-  "/api/settings",
-  createSettingsRouter({
-    appStateStore,
-    connectionManager,
-    tokenService: apiTokenService,
-  })
+    '/api/settings',
+    createSettingsRouter({
+        appStateStore,
+        connectionManager,
+        tokenService: apiTokenService,
+    }),
 );
-app.use("/api/export", createExportRouter({ exportService }));
-app.use("/api/documents", createDocumentsRouter({ appStateStore, connectionManager }));
-app.use("/api/logs", createLogsRouter({ appStateStore, connectionManager }));
-app.use("/api/text-to-struct", createTextToStructRouter({ textToStructService }));
+app.use('/api/export', createExportRouter({ exportService }));
+app.use('/api/documents', createDocumentsRouter({ appStateStore, connectionManager }));
+app.use('/api/logs', createLogsRouter({ appStateStore, connectionManager }));
+app.use('/api/text-to-struct', createTextToStructRouter({ textToStructService }));
 app.use(
-  "/api/v1",
-  createExternalApiRouter({
-    databaseService: databaseCommandService,
-    tokenService: apiTokenService,
-    appStateStore,
-  })
+    '/api/v1',
+    createExternalApiRouter({
+        databaseService: databaseCommandService,
+        tokenService: apiTokenService,
+        appStateStore,
+    }),
 );
-app.use("/mcp", createMcpHttpRouter({ services: mcpServices }));
+app.use('/mcp', createMcpHttpRouter({ services: mcpServices }));
 
 // auth: public favicon asset; it exposes no application data.
-app.get("/favicon.ico", (req, res) => {
-  res.sendFile("assets/images/logo.webp", { root: FRONTEND_ROOT });
+app.get('/favicon.ico', (req, res) => {
+    res.sendFile('assets/images/logo.webp', { root: FRONTEND_ROOT });
 });
 
 // auth: public SPA entrypoint for the local SQLite Hub UI.
 function sendFrontendEntrypoint(res) {
-  return res.sendFile("index.html", { root: FRONTEND_ROOT });
+    return res.sendFile('index.html', { root: FRONTEND_ROOT });
 }
 
-app.get("/", (req, res) => {
-  sendFrontendEntrypoint(res);
+app.get('/', (req, res) => {
+    sendFrontendEntrypoint(res);
 });
 
 // auth: public SPA entrypoint for direct browser reloads.
-app.get("/index.html", (req, res) => {
-  sendFrontendEntrypoint(res);
+app.get('/index.html', (req, res) => {
+    sendFrontendEntrypoint(res);
 });
 
-app.use(
-  "/vendor/cytoscape",
-  express.static(path.resolve(__dirname, "..", "node_modules", "cytoscape"))
-);
-app.use(
-  "/vendor/cytoscape-elk",
-  express.static(path.resolve(__dirname, "..", "node_modules", "cytoscape-elk"))
-);
-app.use(
-  "/vendor/elkjs",
-  express.static(path.resolve(__dirname, "..", "node_modules", "elkjs"))
-);
-app.use(
-  "/vendor/echarts",
-  express.static(path.resolve(__dirname, "..", "node_modules", "echarts"))
-);
-app.use(
-  "/vendor/material-symbols",
-  express.static(path.resolve(__dirname, "..", "node_modules", "material-symbols"))
-);
-app.use(
-  "/vendor/marked",
-  express.static(path.resolve(__dirname, "..", "node_modules", "marked"))
-);
+app.use('/vendor/cytoscape', express.static(path.resolve(__dirname, '..', 'node_modules', 'cytoscape')));
+app.use('/vendor/cytoscape-elk', express.static(path.resolve(__dirname, '..', 'node_modules', 'cytoscape-elk')));
+app.use('/vendor/elkjs', express.static(path.resolve(__dirname, '..', 'node_modules', 'elkjs')));
+app.use('/vendor/echarts', express.static(path.resolve(__dirname, '..', 'node_modules', 'echarts')));
+app.use('/vendor/material-symbols', express.static(path.resolve(__dirname, '..', 'node_modules', 'material-symbols')));
+app.use('/vendor/marked', express.static(path.resolve(__dirname, '..', 'node_modules', 'marked')));
 app.use(express.static(FRONTEND_ROOT));
-app.use("/db_logos", express.static(path.join(APP_STATE_DIRECTORY, "db_logos")));
+app.use('/db_logos', express.static(path.join(APP_STATE_DIRECTORY, 'db_logos')));
 app.use(errorMiddleware);
 
 function parsePortArgument(argv = process.argv.slice(2)) {
-  for (let index = 0; index < argv.length; index += 1) {
-    const argument = argv[index];
+    for (let index = 0; index < argv.length; index += 1) {
+        const argument = argv[index];
 
-    if (argument.startsWith("--port=")) {
-      return argument.slice("--port=".length);
+        if (argument.startsWith('--port=')) {
+            return argument.slice('--port='.length);
+        }
+
+        if (argument === '--port') {
+            return argv[index + 1];
+        }
     }
 
-    if (argument === "--port") {
-      return argv[index + 1];
-    }
-  }
-
-  return undefined;
+    return undefined;
 }
 
 function resolvePort(value = process.env.PORT ?? parsePortArgument()) {
-  if (value === undefined || value === null || value === "") {
-    return DEFAULT_PORT;
-  }
+    if (value === undefined || value === null || value === '') {
+        return DEFAULT_PORT;
+    }
 
-  const port = Number(value);
+    const port = Number(value);
 
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error(`Invalid port: ${value}`);
-  }
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        throw new Error(`Invalid port: ${value}`);
+    }
 
-  return port;
+    return port;
 }
 
 function startServer({ port } = {}) {
-  const resolvedPort = resolvePort(port);
+    const resolvedPort = resolvePort(port);
 
-  return new Promise((resolve, reject) => {
-    const server = listenOnLoopback(app, resolvedPort);
+    return new Promise((resolve, reject) => {
+        const server = listenOnLoopback(app, resolvedPort);
 
-    server.once("error", reject);
-    server.once("listening", () => {
-      const url = `http://127.0.0.1:${resolvedPort}`;
+        server.once('error', reject);
+        server.once('listening', () => {
+            const url = `http://127.0.0.1:${resolvedPort}`;
 
-      console.log(`SQLite Hub server listening on ${url}`);
-      resolve({
-        port: resolvedPort,
-        server,
-        url,
-      });
+            console.log(`SQLite Hub url: ${url} Version: ${packageJson.version}`);
+            resolve({
+                port: resolvedPort,
+                server,
+                url,
+            });
+        });
     });
-  });
 }
 
 if (require.main === module) {
-  startServer().catch((error) => {
-    console.error(error.message);
-    process.exit(1);
-  });
+    startServer().catch(error => {
+        console.error(error.message);
+        process.exit(1);
+    });
 }
 
 module.exports = {
-  app,
-  appStateStore,
-  apiTokenService,
-  connectionManager,
-  databaseCommandService,
-  mcpServices,
-  DEFAULT_HOST,
-  DEFAULT_PORT,
-  parsePortArgument,
-  resolvePort,
-  startServer,
+    app,
+    appStateStore,
+    apiTokenService,
+    connectionManager,
+    databaseCommandService,
+    mcpServices,
+    DEFAULT_HOST,
+    DEFAULT_PORT,
+    parsePortArgument,
+    resolvePort,
+    startServer,
 };

@@ -8,7 +8,7 @@ const { errorMiddleware } = require("../server/utils/errors");
 
 async function startApi(t, textToStructService = new TextToStructService()) {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "100kb" }));
   app.use("/api/text-to-struct", createTextToStructRouter({ textToStructService }));
   app.use(errorMiddleware);
 
@@ -88,4 +88,22 @@ test("route maps service result fields into the expected envelope", async (t) =>
   assert.equal(body.data.output, '[{"value":"one"}]');
   assert.equal(body.data.errors.length, 1);
   assert.equal(body.metadata.errorCount, 1);
+});
+
+test("conversion route rejects JSON bodies larger than 100kb before conversion", async (t) => {
+  let conversionCalled = false;
+  const url = await startApi(t, {
+    async convert() {
+      conversionCalled = true;
+      return {};
+    },
+  });
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ input: "x".repeat(101 * 1024) }),
+  });
+
+  assert.equal(response.ok, false);
+  assert.equal(conversionCalled, false);
 });
