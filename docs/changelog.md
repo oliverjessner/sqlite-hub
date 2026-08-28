@@ -1,3 +1,7 @@
+# v2.5.1
+
+-
+
 # v2.5.0
 
 - better mcp: create_stored_query, add_database
