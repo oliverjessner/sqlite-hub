@@ -1,6 +1,6 @@
 # v2.5.1
 
--
+- connection limit from 12 databases to 32
 
 # v2.5.0
 
