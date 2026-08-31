@@ -23,6 +23,11 @@
         "server/utils/",
         "tailwind.config.cjs"
     ],
+    "author": {
+        "name": "oliverjessner",
+        "url": "https://oliverjessner.at"
+    },
+    "homepage": "https://oliverjessner.at/NO-BULLSHIT-RSS",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/oliverjessner/sqlite-hub.git"
