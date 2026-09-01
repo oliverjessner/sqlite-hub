@@ -32,7 +32,7 @@ test("settings routes create and delete tokens for the active database", async (
   };
   const app = express();
 
-  app.use(express.json());
+  app.use(express.json({ limit: "100kb" }));
   app.use(
     "/api/settings",
     createSettingsRouter({

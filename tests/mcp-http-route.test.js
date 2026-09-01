@@ -49,7 +49,7 @@ function createHttpFixture(t) {
   });
   const app = express();
 
-  app.use(express.json());
+  app.use(express.json({ limit: "100kb" }));
   app.use("/mcp", createMcpHttpRouter({ services: { toolService, statusService } }));
 
   t.after(() => {

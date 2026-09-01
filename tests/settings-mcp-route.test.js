@@ -30,7 +30,7 @@ test("GET /api/settings/mcp returns MCP status and exposed tools", async (t) => 
 
   const app = express();
 
-  app.use(express.json());
+  app.use(express.json({ limit: "100kb" }));
   app.use(
     "/api/settings",
     createSettingsRouter({

@@ -1,6 +1,6 @@
 # v2.6.1
 
-- all security issues fixed
+- a lot of security issues fixed
 
 # v2.6.0
 

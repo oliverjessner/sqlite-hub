@@ -6,7 +6,7 @@ const { errorMiddleware } = require("../server/utils/errors");
 
 test("connections route returns the path selected by the native dialog", async () => {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "100kb" }));
   app.use(
     "/api/connections",
     createConnectionsRouter({
@@ -48,7 +48,7 @@ test("connections route returns the path selected by the native dialog", async (
 
 test("connections route returns the existing database selected by the native dialog", async () => {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "100kb" }));
   app.use(
     "/api/connections",
     createConnectionsRouter({
@@ -90,7 +90,7 @@ test("connections route returns the existing database selected by the native dia
 
 test("connections routes expose discovery scan, preview, cancellation, and partial import", async () => {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "100kb" }));
   const session = {
     id: "scan-1",
     status: "running",

@@ -157,7 +157,7 @@ async function startApi(t) {
   };
   const app = express();
 
-  app.use(express.json());
+  app.use(express.json({ limit: "100kb" }));
   app.use(
     "/api/v1",
     createExternalApiRouter({

@@ -106,7 +106,7 @@ app.use(
     }),
 );
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 
 // auth: public liveness route for local CLI and browser startup checks.
 app.get('/api/health', (req, res) => {
