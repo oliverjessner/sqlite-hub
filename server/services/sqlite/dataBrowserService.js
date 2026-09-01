@@ -280,7 +280,22 @@ class DataBrowserService {
     this.connectionManager.assertWritable();
 
     const db = this.connectionManager.getActiveDatabase();
-    const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
+    const allowedTableNames = getRawStructureEntries(db)
+      .filter((entry) => entry.type === "table")
+      .map((entry) => entry.name);
+    let safeTableName;
+
+    try {
+      safeTableName = ensureKnownIdentifier(tableName, allowedTableNames, "Table name");
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        throw new NotFoundError(`Table not found: ${String(tableName ?? "")}`);
+      }
+
+      throw error;
+    }
+
+    const tableDetail = getTableDetail(db, safeTableName, { includeRowCount: false });
     const identity = payload.identity ?? null;
 
     assertDataTableWritable(tableDetail);
@@ -294,7 +309,7 @@ class DataBrowserService {
     const where = this.buildWhereClause(tableDetail, identity);
     const result = db
       .prepare(
-        ["DELETE FROM", quoteIdentifier(tableName), "WHERE", where.clause].join(" ")
+        ["DELETE FROM", quoteIdentifier(safeTableName), "WHERE", where.clause].join(" ")
       )
       .run(...where.params);
 
@@ -303,7 +318,7 @@ class DataBrowserService {
     }
 
     return {
-      tableName,
+      tableName: safeTableName,
       deleted: true,
       identity,
       affectedRowCount: result.changes,
