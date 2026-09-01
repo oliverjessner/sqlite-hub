@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { DataBrowserService } = require("../server/services/sqlite/dataBrowserService");
 const { getTableDetail } = require("../server/services/sqlite/introspection");
+const { StructureService } = require("../server/services/sqlite/structureService");
 const { NotFoundError } = require("../server/utils/errors");
 const { quoteIdentifier } = require("../server/utils/identifier");
 
@@ -40,7 +41,16 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
         getActiveDatabase: () => db,
       },
     });
+    const structureService = new StructureService({
+      connectionManager: {
+        getActiveDatabase: () => db,
+      },
+      appStateStore: {
+        getSettings: () => ({ defaultPageSize: 10 }),
+      },
+    });
     const tableData = service.getTableData(tableName, { limit: 10, offset: 0 });
+    const tableStructure = structureService.getTableStructure(tableName);
     const filteredTableData = service.getTableData(tableName, {
       limit: 10,
       offset: 0,
@@ -71,6 +81,7 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
     });
 
     assert.equal(filteredTableData.rowCount, 1);
+    assert.equal(tableStructure.preview.rows[0][valueColumn], "before");
     assert.equal(filteredTableData.rows[0][valueColumn], "before");
     assert.deepEqual(filteredTableData.filter, {
       column: valueColumn,
@@ -184,6 +195,14 @@ test("data browser rejects unknown table names as not found", () => {
         getActiveDatabase: () => db,
       },
     });
+    const structureService = new StructureService({
+      connectionManager: {
+        getActiveDatabase: () => db,
+      },
+      appStateStore: {
+        getSettings: () => ({ defaultPageSize: 10 }),
+      },
+    });
 
     for (const tableName of ["missing", 'safe_items"; DROP TABLE safe_items; --']) {
       assert.throws(
@@ -192,6 +211,10 @@ test("data browser rejects unknown table names as not found", () => {
       );
       assert.throws(
         () => service.deleteTableRow(tableName, { identity: { values: { rowid: 1 } } }),
+        (error) => error instanceof NotFoundError && error.statusCode === 404
+      );
+      assert.throws(
+        () => structureService.getTableStructure(tableName),
         (error) => error instanceof NotFoundError && error.statusCode === 404
       );
     }
