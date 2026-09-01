@@ -1,8 +1,12 @@
-# v2.5.2
+# v2.6.0
 
 - version in ouput
 - updating all deps
+- pie chart fix
 - limited the body size to 100kb
+- Charts accessible via address
+- Charts can be inserted directly into Documents as published PNG images
+- clear recent in query history
 
 # v2.5.1
 

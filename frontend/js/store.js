@@ -22,6 +22,7 @@ import {
     suggestQueryChartType,
     validateQueryChartConfig,
 } from './lib/queryCharts.js';
+import { buildChartMarkdownImage, buildChartPublicUrl } from './lib/chartPublicUrl.js';
 import { MEDIA_TAGGING_DEFAULT_MAPPING_TABLE, MEDIA_TAGGING_DEFAULT_TAG_TABLE } from './lib/mediaTaggingDefaults.js';
 import { buildTextExportFilename } from './utils/exportFilenames.js';
 import { toggleMarkdownTodoLine } from './utils/markdownDocuments.js';
@@ -4586,6 +4587,75 @@ export async function openDocumentInsertNoteModal(insertionRange = null) {
     await openDocumentInsertModal('document-insert-note', insertionRange);
 }
 
+export async function openDocumentInsertChartModal(insertionRange = null) {
+    if (!state.documents.selectedId) {
+        pushToast('Select a document before inserting a chart.', 'alert');
+        return;
+    }
+
+    const databaseId = String(state.connections.active?.id ?? '').trim();
+
+    if (!databaseId) {
+        pushToast('Select a database before inserting a chart.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind: 'document-insert-chart',
+        documentId: state.documents.selectedId,
+        databaseId,
+        insertionRange: normalizeDocumentInsertionRange(insertionRange),
+        charts: [],
+        selectedChartId: '',
+        loading: true,
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+
+    try {
+        const response = await api.getQueryHistoryCharts();
+        const charts = (response.data ?? []).map(chart => ({
+            ...chart,
+            publicUrl: buildChartPublicUrl(chart, databaseId),
+        }));
+
+        if (state.modal?.kind !== 'document-insert-chart') {
+            return;
+        }
+
+        state.modal.charts = charts;
+        state.modal.selectedChartId = String(charts[0]?.id ?? '');
+        state.modal.loading = false;
+        state.modal.error = null;
+        emitChange();
+    } catch (error) {
+        if (state.modal?.kind !== 'document-insert-chart') {
+            return;
+        }
+
+        state.modal.loading = false;
+        state.modal.error = normalizeError(error);
+        emitChange();
+    }
+}
+
+export function updateDocumentInsertChartSelection(chartId) {
+    if (state.modal?.kind !== 'document-insert-chart') {
+        return;
+    }
+
+    state.modal.selectedChartId = String(chartId ?? '');
+    state.modal.error = null;
+    emitChange();
+}
+
+function getSelectedDocumentInsertChart(modal) {
+    const selectedChartId = String(modal?.selectedChartId ?? '');
+
+    return (modal?.charts ?? []).find(chart => String(chart.id) === selectedChartId) ?? null;
+}
+
 function getDocumentTableDefinitionModalOptions(modal = state.modal) {
     return normalizeTableDefinitionOptions({
         tableName: modal?.selectedTableName,
@@ -4760,6 +4830,31 @@ export async function submitDocumentInsertTable() {
         withModalError(error);
         return false;
     }
+}
+
+export function submitDocumentInsertChart() {
+    const modal = state.modal;
+
+    if (!canSubmitDocumentInsertModal(modal, 'document-insert-chart')) {
+        return false;
+    }
+
+    const chart = getSelectedDocumentInsertChart(modal);
+    const markdown = buildChartMarkdownImage(chart, modal.databaseId);
+
+    if (!chart || !markdown) {
+        setDocumentInsertModalError('Select a chart before inserting an image.');
+        return false;
+    }
+
+    startModalSubmission();
+    const inserted = insertMarkdownIntoCurrentDocumentDraft(markdown, modal.insertionRange);
+
+    closeModalInternal();
+    if (inserted) {
+        pushToast(`Inserted chart "${chart.name}".`, 'success');
+    }
+    return inserted;
 }
 
 export async function insertCurrentDocumentDatabaseInfo(insertionRange = null) {
@@ -5474,6 +5569,21 @@ export function openDeleteQueryHistoryModal(historyId) {
         kind: 'delete-query-history',
         historyId: queryItem.id,
         queryTitle: queryItem.displayTitle,
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+export function openClearQueryHistoryModal() {
+    if (!state.connections.active?.id) {
+        pushToast('Select a database before clearing query history.', 'alert');
+        return;
+    }
+
+    state.modal = {
+        kind: 'clear-query-history',
+        databaseLabel: state.connections.active.label || state.connections.active.name || state.connections.active.id,
         error: null,
         submitting: false,
     };
@@ -6794,23 +6904,41 @@ export async function executeCurrentQuery(options = {}) {
     }
 }
 
-export async function clearQueryHistoryStateAndData() {
+export async function clearQueryHistoryStateAndData(options = {}) {
     state.editor.historyLoading = true;
     emitChange();
 
     try {
         const response = await api.clearQueryHistory();
         resetQueryHistoryState({ preserveSearch: false });
+        resetChartsState();
+        await refreshQueryHistoryState();
+        if (state.modal?.kind === 'clear-query-history') {
+            closeModalInternal();
+        }
         pushToast(response.message || 'Query history cleared.', 'muted');
         return true;
     } catch (error) {
-        state.editor.historyError = normalizeError(error);
-        emitChange();
+        if (options.reportErrorToModal && state.modal?.kind === 'clear-query-history') {
+            withModalError(error);
+        } else {
+            state.editor.historyError = normalizeError(error);
+            emitChange();
+        }
         return false;
     } finally {
         state.editor.historyLoading = false;
         emitChange();
     }
+}
+
+export async function submitClearQueryHistoryConfirmation() {
+    if (state.modal?.kind !== 'clear-query-history') {
+        return false;
+    }
+
+    startModalSubmission();
+    return clearQueryHistoryStateAndData({ reportErrorToModal: true });
 }
 
 export async function setQueryHistoryTab(tab) {

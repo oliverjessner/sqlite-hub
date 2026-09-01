@@ -378,7 +378,15 @@ function shouldPreferPie(analysis) {
   return distinctCount > 0 && distinctCount <= 8 && (analysis?.numberColumns?.length ?? 0) === 1;
 }
 
+export function isWidePieChartResult(analysis) {
+  return (analysis?.rows?.length ?? 0) === 1 && (analysis?.numberColumns?.length ?? 0) >= 2;
+}
+
 export function suggestQueryChartType(analysis) {
+  if (isWidePieChartResult(analysis)) {
+    return "pie";
+  }
+
   if ((analysis?.numberColumns?.length ?? 0) >= 2 && !(analysis?.textColumns?.length ?? 0)) {
     return "scatter";
   }
@@ -421,8 +429,12 @@ export function buildSuggestedChartConfig(chartType, analysis) {
       };
     case "pie":
       return {
-        label_column: primaryDimension?.name ?? "",
-        value_column: firstNumeric?.name ?? "",
+        label_column:
+          primaryDimension?.name ??
+          (isWidePieChartResult(analysis) ? firstNumeric?.name : "") ??
+          "",
+        value_column:
+          (isWidePieChartResult(analysis) ? secondNumeric?.name : firstNumeric?.name) ?? "",
         show_legend: true,
         show_labels: true,
         donut: false,
@@ -520,6 +532,10 @@ export function validateQueryChartConfig(chartType, config, analysis) {
       break;
     }
     case "pie": {
+      if (isWidePieChartResult(analysis)) {
+        break;
+      }
+
       ensureColumnExists(analysis, config?.label_column, "Pie label column", errors);
       ensureColumnExists(analysis, config?.value_column, "Pie value column", errors);
       validateNumericColumn(getColumn(analysis, config?.value_column), "Pie value column", errors);

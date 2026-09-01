@@ -1,5 +1,6 @@
 import { renderQueryResultsPane } from '../components/queryResults.js';
 import { analyzeQueryChartResult, getQueryChartTypeLabel, validateQueryChartConfig } from '../lib/queryCharts.js';
+import { buildChartPublicUrl } from '../lib/chartPublicUrl.js';
 import { escapeHtml, formatNumber, highlightSql } from '../utils/format.js';
 import { renderStatusBadge } from '../components/badges.js';
 import { renderQueryHistoryHeader, renderQueryHistorySearch } from '../components/queryHistoryHeader.js';
@@ -549,6 +550,38 @@ function renderChartSurface(chart, state, analysis) {
   `;
 }
 
+function renderChartPublicLink(chart, state) {
+    const publicUrl = buildChartPublicUrl(chart, state.connections?.active?.id);
+
+    if (!publicUrl) {
+        return '';
+    }
+
+    return `
+      <footer class="query-chart-card__footer">
+        <div class="query-chart-card__public-url-wrap min-w-0">
+          <span class="material-symbols-outlined text-base text-primary-container">link</span>
+          <a
+            class="query-chart-card__public-url"
+            href="${escapeHtml(publicUrl)}"
+            rel="noopener noreferrer"
+            target="_blank"
+            title="${escapeHtml(publicUrl)}"
+          >${escapeHtml(publicUrl)}</a>
+        </div>
+        <a
+          class="standard-button shrink-0"
+          href="${escapeHtml(publicUrl)}"
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          <span class="material-symbols-outlined text-sm">open_in_new</span>
+          Open in Browser
+        </a>
+      </footer>
+    `;
+}
+
 function renderChartCard(chart, state, analysis) {
     const sizeClass = resolveChartCardSizeClass(state);
 
@@ -573,7 +606,9 @@ function renderChartCard(chart, state, analysis) {
         '" type="button">Export PNG</button>',
         '</div></header><div class="query-chart-card__body">',
         renderChartSurface(chart, state, analysis),
-        '</div></article>',
+        '</div>',
+        renderChartPublicLink(chart, state),
+        '</article>',
     ].join('');
 }
 

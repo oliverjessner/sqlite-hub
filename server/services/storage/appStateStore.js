@@ -2044,6 +2044,55 @@ class AppStateStore {
             .map(row => this.decorateQueryHistoryChartRow(row));
     }
 
+    getQueryHistoryChartsForDatabase(databaseKey, options = {}) {
+        const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
+
+        if (!normalizedDatabaseKey) {
+            return [];
+        }
+
+        const onlyUnsavedClause = options.onlyUnsaved ? 'AND q.is_saved = 0' : '';
+
+        return this.db
+            .prepare(
+                `
+        SELECT
+          c.id,
+          c.query_history_id,
+          c.name,
+          c.chart_type,
+          c.config_json,
+          c.result_columns_json,
+          c.table_visible,
+          c.created_at,
+          c.updated_at,
+          q.title AS query_title,
+          q.raw_sql AS query_raw_sql,
+          q.query_type AS query_type,
+          q.tables_detected AS query_tables_detected
+        FROM query_history_chart c
+        INNER JOIN query_history q
+          ON q.id = c.query_history_id
+        WHERE q.database_key = ?
+          ${onlyUnsavedClause}
+        ORDER BY c.updated_at DESC, c.id DESC
+      `,
+            )
+            .all(normalizedDatabaseKey)
+            .map(row => {
+                const chart = this.decorateQueryHistoryChartRow(row);
+                const queryType = row.query_type ?? 'other';
+                const tablesDetected = this.parseTablesDetected(row.query_tables_detected);
+
+                return {
+                    ...chart,
+                    queryTitle:
+                        this.normalizeQueryHistoryText(row.query_title) ||
+                        buildAutoTitle(row.query_raw_sql, { queryType, tablesDetected }),
+                };
+            });
+    }
+
     getQueryHistoryChartById(chartId) {
         const row = this.db
             .prepare(
@@ -2872,6 +2921,18 @@ class AppStateStore {
         }
 
         return this.db.prepare('DELETE FROM query_history WHERE database_key = ?').run(normalizedDatabaseKey).changes;
+    }
+
+    clearRecentQueryHistoryForDatabase(databaseKey) {
+        const normalizedDatabaseKey = this.normalizeQueryHistoryText(databaseKey);
+
+        if (!normalizedDatabaseKey) {
+            return 0;
+        }
+
+        return this.db
+            .prepare('DELETE FROM query_history WHERE database_key = ? AND is_saved = 0')
+            .run(normalizedDatabaseKey).changes;
     }
 
     decorateBackupRow(row = {}) {

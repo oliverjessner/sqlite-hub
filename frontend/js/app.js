@@ -62,6 +62,7 @@ import {
     openDeleteDataRowModal,
     openDeleteEditorRowModal,
     openDeleteQueryHistoryModal,
+    openClearQueryHistoryModal,
     openDeleteSettingsApiTokenModal,
     openCreateBackupModal,
     openEditBackupModal,
@@ -81,6 +82,7 @@ import {
     openCreateQueryChartModal,
     openCopyColumnModal,
     openEditQueryChartModal,
+    openDocumentInsertChartModal,
     openDocumentInsertNoteModal,
     openDocumentInsertTableModal,
     openDocumentInsertTableDefinitionModal,
@@ -150,6 +152,8 @@ import {
     submitCreateMediaTaggingMappingTable,
     submitDeleteQueryHistoryConfirmation,
     submitDeleteSettingsApiTokenConfirmation,
+    submitClearQueryHistoryConfirmation,
+    submitDocumentInsertChart,
     submitBackupSafetyChoice,
     submitCreateBackupConfirmation,
     submitEditBackupConfirmation,
@@ -201,6 +205,7 @@ import {
     updateDocumentTableDefinitionOption,
     updateDocumentTableDefinitionSampleRowCount,
     updateDocumentTableDefinitionSelection,
+    updateDocumentInsertChartSelection,
     updateDocumentInsertQuerySelection,
     updateCurrentQueryChartDraftConfigField,
     updateCurrentQueryChartDraftField,
@@ -3062,6 +3067,9 @@ async function handleAction(actionNode) {
         case 'open-document-insert-table-modal':
             await openDocumentInsertTableModal(getCurrentDocumentEditorInsertionRange());
             return;
+        case 'open-document-insert-chart-modal':
+            await openDocumentInsertChartModal(getCurrentDocumentEditorInsertionRange());
+            return;
         case 'open-document-insert-note-modal':
             await openDocumentInsertNoteModal(getCurrentDocumentEditorInsertionRange());
             return;
@@ -3393,6 +3401,9 @@ async function handleAction(actionNode) {
         case 'clear-query-history-selection':
             clearQueryHistorySelection({ notify: false });
             syncQueryHistorySelectionUi(null);
+            return;
+        case 'open-clear-query-history-modal':
+            openClearQueryHistoryModal();
             return;
         case 'set-query-history-tab':
             if (actionNode.dataset.tab) {
@@ -4591,6 +4602,11 @@ document.addEventListener('change', event => {
         return;
     }
 
+    if (bindNode.dataset.bind === 'document-insert-chart-select') {
+        updateDocumentInsertChartSelection(bindNode.value);
+        return;
+    }
+
     if (bindNode.dataset.bind === 'document-table-definition-select') {
         updateDocumentTableDefinitionSelection(bindNode.value);
         return;
@@ -4807,6 +4823,9 @@ document.addEventListener('submit', async event => {
         case 'delete-query-history-confirm':
             await submitDeleteQueryHistoryConfirmation();
             return;
+        case 'clear-query-history-confirm':
+            await submitClearQueryHistoryConfirmation();
+            return;
         case 'delete-document-confirm': {
             const result = await submitDeleteDocumentConfirmation();
 
@@ -4826,6 +4845,14 @@ document.addEventListener('submit', async event => {
         }
         case 'document-insert-table': {
             const inserted = await submitDocumentInsertTable();
+
+            if (inserted) {
+                scheduleDocumentAutosave(getState().documents.selectedId);
+            }
+            return;
+        }
+        case 'document-insert-chart': {
+            const inserted = submitDocumentInsertChart();
 
             if (inserted) {
                 scheduleDocumentAutosave(getState().documents.selectedId);

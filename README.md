@@ -187,7 +187,7 @@ Text2Struct converts plain text into JSON, JSON Lines, CSV, TSV, Markdown tables
 
 [![SQLite Hub charts](./frontend/assets/mockups/charts_1_1920.webp)](./frontend/assets/mockups/charts_1_1920.webp)
 
-Create bar, line, pie/donut, and scatter charts from chartable `SELECT` query-history entries. Charts can be saved per query, edited, deleted, resized, reopened later, rendered from live query results, and exported as PNG. Chart configuration supports compatible column selection, sorting, labels, legends, line smoothing, scatter series, and optional scatter point sizing.
+Create bar, line, pie/donut, and scatter charts from chartable `SELECT` query-history entries. Charts can be saved per query, edited, deleted, resized, reopened later, rendered from live query results, and exported as PNG. Every rendered chart is also published automatically to `/<databaseId>/chart/<chartId>.png`; the backing file is stored in `public/<databaseId>/charts/<chartId>.png` inside SQLite Hub's persistent application-state directory. Chart configuration supports compatible column selection, sorting, labels, legends, line smoothing, scatter series, and optional scatter point sizing.
 
 <p>
   <a href="./frontend/assets/mockups/charts_2_query_detail_1920.webp"><img src="./frontend/assets/mockups/charts_2_query_detail_1920.webp" alt="SQLite Hub chart query detail drawer" width="49%"></a>

@@ -47,7 +47,7 @@ function requireActiveDatabaseKey(connectionManager) {
   return databaseKey;
 }
 
-function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
+function createSqlRouter({ appStateStore, chartImageService, connectionManager, sqlExecutor }) {
   const router = express.Router();
 
   router.post(
@@ -103,13 +103,16 @@ function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
     "/history",
     route((req, res) => {
       const databaseKey = requireActiveDatabaseKey(connectionManager);
-      const deletedCount = appStateStore.clearQueryHistoryForDatabase(databaseKey);
+      const charts = appStateStore.getQueryHistoryChartsForDatabase(databaseKey, { onlyUnsaved: true });
+      const deletedCount = appStateStore.clearRecentQueryHistoryForDatabase(databaseKey);
+
+      charts.forEach((chart) => chartImageService?.deleteChartImage(databaseKey, chart.id));
 
       res.json(
         successResponse({
           message: deletedCount
-            ? "Query history cleared for the active database."
-            : "No query history was found for the active database.",
+            ? "Recent query history cleared for the active database. Saved queries were kept."
+            : "No non-saved query history was found for the active database.",
           data: {
             deletedCount,
           },
@@ -200,7 +203,10 @@ function createSqlRouter({ appStateStore, connectionManager, sqlExecutor }) {
     "/history/:historyId",
     route((req, res) => {
       const databaseKey = requireActiveDatabaseKey(connectionManager);
+      const query = appStateStore.getQueryHistoryItemById(req.params.historyId, databaseKey);
+      const charts = appStateStore.getQueryHistoryChartsByHistoryId(query.id);
       appStateStore.deleteQueryHistoryItem(req.params.historyId, databaseKey);
+      charts.forEach((chart) => chartImageService?.deleteChartImage(databaseKey, chart.id));
       res.json(
         successResponse({
           message: "Query history item deleted.",

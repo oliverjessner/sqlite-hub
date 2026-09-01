@@ -8,7 +8,12 @@ import {
 } from '../utils/copyColumnExport.js';
 import { renderConnectionLogo } from './connectionLogo.js';
 import { renderTextInput } from './formControls.js';
-import { analyzeQueryChartResult, getQueryChartTypeLabel, QUERY_CHART_TYPES } from '../lib/queryCharts.js';
+import {
+    analyzeQueryChartResult,
+    getQueryChartTypeLabel,
+    isWidePieChartResult,
+    QUERY_CHART_TYPES,
+} from '../lib/queryCharts.js';
 import {
     hasDefaultMediaTaggingTagTable,
     hasDefaultMediaTaggingMappingTable,
@@ -1569,7 +1574,14 @@ function renderChartEditorForm(modal, state) {
       </div>
     `;
     } else if (draft.chartType === 'pie') {
-        chartSpecificFields = `
+        const usesWidePieLayout = isWidePieChartResult(analysis);
+        const pieColumnMappingFields = usesWidePieLayout
+            ? `
+      <div class="border border-primary-container/20 bg-primary-container/10 px-4 py-3 text-sm text-on-surface">
+        One result row with ${escapeHtml(String(analysis.numberColumns.length))} numeric columns detected. Each numeric column is rendered as its own slice, using the column name as the label.
+      </div>
+    `
+            : `
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         ${renderSelectField({
             label: 'Label Column',
@@ -1584,6 +1596,9 @@ function renderChartEditorForm(modal, state) {
             bind: 'query-chart-draft-config:value_column',
         })}
       </div>
+    `;
+        chartSpecificFields = `
+      ${pieColumnMappingFields}
       <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         ${renderCheckboxField({
             label: 'Donut',
@@ -1730,6 +1745,24 @@ function renderDeleteQueryHistoryForm(modal) {
         '<button class="standard-button" data-action="close-modal" type="button">Cancel</button>',
         '<button class="delete-button" type="submit">',
         modal.submitting ? 'Deleting...' : 'Delete Query',
+        '</button></div></form>',
+    ].join('');
+}
+
+function renderClearQueryHistoryForm(modal) {
+    return [
+        '<form class="space-y-5" data-form="clear-query-history-confirm"><div class="space-y-3">',
+        '<p class="text-sm leading-7 text-on-surface">Clear recent query history for <span class="font-bold text-primary-container">',
+        escapeHtml(modal.databaseLabel ?? 'the active database'),
+        '</span>?</p>',
+        '<p class="text-sm leading-7 text-on-surface-variant/65">This permanently deletes all non-saved query-history entries and their recorded runs and chart definitions.</p>',
+        '<div class="border border-primary-container/20 bg-primary-container/10 px-4 py-3 font-mono text-[10px] uppercase tracking-[0.18em] text-primary-container">Saved queries and their linked data are kept.</div>',
+        '</div>',
+        renderError(modal.error),
+        '<div class="flex items-center justify-between gap-3 pt-2">',
+        '<button class="standard-button" data-action="close-modal" type="button">Cancel</button>',
+        '<button class="delete-button" type="submit">',
+        modal.submitting ? 'Clearing...' : 'Clear Recent',
         '</button></div></form>',
     ].join('');
 }
@@ -1910,6 +1943,98 @@ function renderDocumentInsertNoteForm(modal) {
       </div>
     </form>
   `;
+}
+
+function getSelectedDocumentInsertChart(modal) {
+    const selectedChartId = String(modal.selectedChartId ?? '');
+
+    return (modal.charts ?? []).find(chart => String(chart.id) === selectedChartId) ?? null;
+}
+
+function renderDocumentInsertChartSelect(modal) {
+    const charts = modal.charts ?? [];
+
+    if (modal.loading) {
+        return '<div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface-variant/65">Loading charts...</div>';
+    }
+
+    if (!charts.length) {
+        return '<div class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface-variant/65">No charts are available for this database.</div>';
+    }
+
+    return `
+      <label class="block space-y-2">
+        <span class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+          Chart
+        </span>
+        <select
+          class="control-select w-full border border-outline-variant/20 bg-surface-container-lowest text-sm text-on-surface outline-none transition-colors focus:border-primary-container"
+          data-bind="document-insert-chart-select"
+          name="chartId"
+        >
+          ${charts
+              .map(chart => {
+                  const chartType = getQueryChartTypeLabel(chart.chartType);
+                  const context = chart.queryTitle ? ` — ${chart.queryTitle}` : '';
+
+                  return `
+                    <option
+                      value="${escapeHtml(chart.id)}"
+                      ${String(chart.id) === String(modal.selectedChartId) ? 'selected' : ''}
+                    >
+                      ${escapeHtml(`${chart.name} (${chartType})${context}`)}
+                    </option>
+                  `;
+              })
+              .join('')}
+        </select>
+      </label>
+    `;
+}
+
+function renderDocumentInsertChartForm(modal) {
+    const chart = getSelectedDocumentInsertChart(modal);
+    const publicUrl = String(chart?.publicUrl ?? '');
+    const disabledAttribute = modal.loading || modal.submitting || !chart ? 'disabled aria-disabled="true"' : '';
+
+    return `
+      <form class="space-y-5" data-form="document-insert-chart">
+        ${renderDocumentInsertChartSelect(modal)}
+        ${
+            chart && publicUrl
+                ? `
+                  <div class="space-y-2">
+                    <div class="text-[10px] font-mono uppercase tracking-[0.22em] text-on-surface-variant/60">
+                      Published PNG Preview
+                    </div>
+                    <div class="border border-outline-variant/10 bg-surface-container-lowest p-4">
+                      <img
+                        alt="${escapeHtml(chart.name || 'Chart')}"
+                        class="mx-auto max-h-72 max-w-full object-contain"
+                        loading="lazy"
+                        src="${escapeHtml(publicUrl)}"
+                      />
+                    </div>
+                    <a
+                      class="block truncate font-mono text-[11px] text-primary-container hover:underline"
+                      href="${escapeHtml(publicUrl)}"
+                      rel="noopener noreferrer"
+                      target="_blank"
+                      title="${escapeHtml(publicUrl)}"
+                    >${escapeHtml(publicUrl)}</a>
+                  </div>
+                `
+                : ''
+        }
+        ${renderError(modal.error)}
+        <div class="flex items-center justify-between gap-3 pt-2">
+          <button class="standard-button" data-action="close-modal" type="button">Cancel</button>
+          <button class="signature-button" type="submit" ${disabledAttribute}>
+            ${modal.submitting ? 'Inserting...' : 'Insert Chart'}
+          </button>
+        </div>
+      </form>
+    `;
 }
 
 function renderDocumentTableDefinitionSelect(modal) {
@@ -2563,6 +2688,11 @@ export function renderModal(state) {
             title: 'Delete Query',
             body: renderDeleteQueryHistoryForm(modal),
         },
+        'clear-query-history': {
+            eyebrow: 'History // Confirm permanent deletion',
+            title: 'Clear Recent',
+            body: renderClearQueryHistoryForm(modal),
+        },
         'delete-document': {
             eyebrow: 'Documents // Confirm deletion',
             title: 'Delete Document',
@@ -2587,6 +2717,11 @@ export function renderModal(state) {
             eyebrow: 'Documents // Saved query notes',
             title: 'Insert Query Note',
             body: renderDocumentInsertNoteForm(modal),
+        },
+        'document-insert-chart': {
+            eyebrow: 'Documents // Published chart',
+            title: 'Insert Chart',
+            body: renderDocumentInsertChartForm(modal),
         },
         'document-insert-table-definition': {
             eyebrow: 'Documents // Table definition',
@@ -2637,6 +2772,7 @@ export function renderModal(state) {
           modal.kind === 'chart-editor' ||
           modal.kind === 'document-insert-table' ||
           modal.kind === 'document-insert-note' ||
+          modal.kind === 'document-insert-chart' ||
           modal.kind === 'row-update-preview'
               ? 'max-w-3xl'
               : modal.kind === 'generate-types' || modal.kind === 'generate-data' || modal.kind === 'database-discovery'

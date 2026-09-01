@@ -75,10 +75,34 @@ export function renderQueryHistoryPanel({
     activeHistoryId = null,
     selectedHistoryId = null,
 }) {
+    const historyActionsMenu = `
+      <details class="dropdown-button dropdown-button--align-right query-history-actions-menu" data-dropdown-button>
+        <summary
+          aria-label="Query history actions"
+          class="dropdown-button__toggle query-history-icon-button"
+          title="Query history actions"
+        >
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">more_horiz</span>
+        </summary>
+        <div class="dropdown-button__panel" role="menu">
+          <button
+            class="dropdown-button__item dropdown-button__item--danger"
+            data-action="open-clear-query-history-modal"
+            role="menuitem"
+            type="button"
+            ${loading ? 'disabled aria-disabled="true"' : ''}
+          >
+            <span class="material-symbols-outlined">delete_sweep</span>
+            <span>Clear Recent</span>
+          </button>
+        </div>
+      </details>
+    `;
+
     return `
     <aside class="query-history-panel border-l border-outline-variant/10 bg-surface-container-lowest">
       <div class="query-history-panel__header">
-        ${renderQueryHistoryHeader()}
+        ${renderQueryHistoryHeader({ actionsMarkup: historyActionsMenu })}
         ${renderQueryHistoryTabs({
             tabs: [
                 { id: 'recent', label: 'Recent' },

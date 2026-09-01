@@ -20,7 +20,7 @@ function requireActiveDatabaseKey(connectionManager) {
   return databaseKey;
 }
 
-function createChartsRouter({ appStateStore, connectionManager, sqlExecutor }) {
+function createChartsRouter({ appStateStore, chartImageService, connectionManager, sqlExecutor }) {
   const router = express.Router();
 
   router.get(
@@ -79,6 +79,20 @@ function createChartsRouter({ appStateStore, connectionManager, sqlExecutor }) {
             historyId: item.id,
           },
           timingMs: result.timingMs,
+        })
+      );
+    })
+  );
+
+  router.get(
+    "/",
+    route((req, res) => {
+      const databaseKey = requireActiveDatabaseKey(connectionManager);
+
+      res.json(
+        successResponse({
+          data: appStateStore.getQueryHistoryChartsForDatabase(databaseKey),
+          metadata: { databaseKey },
         })
       );
     })
@@ -144,12 +158,40 @@ function createChartsRouter({ appStateStore, connectionManager, sqlExecutor }) {
     })
   );
 
+  router.post(
+    "/:chartId/png",
+    route((req, res) => {
+      const databaseKey = requireActiveDatabaseKey(connectionManager);
+      const chart = appStateStore.getQueryHistoryChartForDatabase(req.params.chartId, databaseKey);
+      const publishedImage = chartImageService.saveChartImage(
+        databaseKey,
+        chart.id,
+        req.body?.png
+      );
+
+      res.json(
+        successResponse({
+          message: publishedImage.updated ? "Chart PNG published." : "Chart PNG is current.",
+          data: {
+            chartId: chart.id,
+            databaseId: databaseKey,
+            url: publishedImage.url,
+            sizeBytes: publishedImage.sizeBytes,
+            updated: publishedImage.updated,
+          },
+          metadata: { databaseKey },
+        })
+      );
+    })
+  );
+
   router.delete(
     "/:chartId",
     route((req, res) => {
       const databaseKey = requireActiveDatabaseKey(connectionManager);
       const chart = appStateStore.getQueryHistoryChartForDatabase(req.params.chartId, databaseKey);
       appStateStore.deleteQueryHistoryChart(req.params.chartId, databaseKey);
+      chartImageService.deleteChartImage(databaseKey, chart.id);
       recordUserAction({
         appStateStore,
         connectionManager,

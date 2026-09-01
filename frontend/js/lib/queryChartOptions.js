@@ -4,11 +4,23 @@ import {
   formatTimeOfDayAxisValue,
   formatQueryChartAxisValue,
   getAnalysisColumn,
+  isWidePieChartResult,
   sortQueryChartRows,
   sortQueryChartRowsByNumericColumn,
 } from "./queryCharts.js";
 
 const CHART_PALETTE = ["#FCE300", "#2DFAFF", "#FFB4AB", "#CDC7AB", "#7DD3FC", "#86EFAC"];
+
+function buildChartPalette(itemCount) {
+  const colors = [...CHART_PALETTE];
+
+  for (let index = colors.length; index < itemCount; index += 1) {
+    const hue = Math.round(35 + (index - CHART_PALETTE.length) * 137.508) % 360;
+    colors.push(`hsl(${hue}, 78%, 68%)`);
+  }
+
+  return colors;
+}
 
 function buildCommonOption() {
   return {
@@ -127,9 +139,20 @@ export function buildLineChartOption(chart, rows) {
   };
 }
 
-export function buildPieChartOption(chart, rows) {
+export function buildPieChartOption(chart, rows, analysis) {
+  const data = isWidePieChartResult(analysis)
+    ? (analysis.numberColumns ?? []).map((column) => ({
+        name: column.name,
+        value: coerceNumericChartValue(rows[0]?.[column.name]) ?? 0,
+      }))
+    : rows.map((row) => ({
+        name: formatQueryChartAxisValue(row[chart.config.label_column]),
+        value: coerceNumericChartValue(row[chart.config.value_column]) ?? 0,
+      }));
+
   return {
     ...buildCommonOption(),
+    color: buildChartPalette(data.length),
     legend: {
       show: chart.config.show_legend,
       orient: "vertical",
@@ -149,10 +172,7 @@ export function buildPieChartOption(chart, rows) {
           formatter: "{b}: {c}",
           fontSize: 11,
         },
-        data: rows.map((row) => ({
-          name: formatQueryChartAxisValue(row[chart.config.label_column]),
-          value: coerceNumericChartValue(row[chart.config.value_column]) ?? 0,
-        })),
+        data,
       },
     ],
   };

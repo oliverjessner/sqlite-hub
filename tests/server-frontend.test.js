@@ -22,6 +22,8 @@ if (process.platform === "win32") {
 
 const serverModule = require("../server/server");
 const { app } = serverModule;
+const ONE_PIXEL_PNG_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z3aUAAAAASUVORK5CYII=";
 
 for (const [key, value] of Object.entries(originalEnvironment)) {
   if (value === undefined) delete process.env[key];
@@ -79,5 +81,19 @@ test("serves the application logo as the favicon fallback", async () => {
 
   assert.equal(response.statusCode, 200);
   assert.match(response.headers["content-type"], /image\/webp/);
+  assert.ok(response.body.length > 0);
+});
+
+test("serves automatically published chart PNGs from the public chart URL", async () => {
+  const published = serverModule.chartImageService.saveChartImage(
+    "conn_testdatabase",
+    42,
+    ONE_PIXEL_PNG_DATA_URL,
+  );
+  const response = await request(published.url);
+
+  assert.equal(published.url, "/conn_testdatabase/chart/42.png");
+  assert.equal(response.statusCode, 200);
+  assert.match(response.headers["content-type"], /image\/png/);
   assert.ok(response.body.length > 0);
 });

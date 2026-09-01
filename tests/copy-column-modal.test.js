@@ -371,6 +371,44 @@ test("document table definition modal filters shadow tables and renders options"
   assert.match(html, /<option value="10" selected>/);
 });
 
+test("document chart modal renders the published PNG preview and selector", async () => {
+  const { renderModal } = await loadModalModule();
+  const publicUrl = "http://127.0.0.1:4173/db-one/chart/1844.png";
+  const html = renderModal({
+    modal: {
+      kind: "document-insert-chart",
+      documentId: "doc-one",
+      databaseId: "db-one",
+      charts: [
+        {
+          id: 1844,
+          name: "AI vs REAL",
+          chartType: "pie",
+          queryTitle: "Game totals",
+          publicUrl,
+        },
+      ],
+      selectedChartId: "1844",
+      loading: false,
+      error: null,
+      submitting: false,
+    },
+    connections: { recent: [] },
+    charts: { result: null, detail: null },
+    documents: { selectedId: "doc-one" },
+    editor: { result: null },
+    mediaTagging: { config: null },
+    tableDesigner: { draft: null },
+  });
+
+  assert.match(html, /data-form="document-insert-chart"/);
+  assert.match(html, /data-bind="document-insert-chart-select"/);
+  assert.match(html, /AI vs REAL \(Pie\) — Game totals/);
+  assert.match(html, /Published PNG Preview/);
+  assert.match(html, new RegExp(publicUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(html, />\s*Insert Chart\s*</);
+});
+
 test("document folder creation modal renders name input", async () => {
   const { renderModal } = await loadModalModule();
   const html = renderModal({

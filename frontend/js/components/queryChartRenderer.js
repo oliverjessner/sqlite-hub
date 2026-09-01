@@ -5,6 +5,7 @@ import {
   buildScatterChartOption,
 } from "../lib/queryChartOptions.js";
 import { analyzeQueryChartResult, validateQueryChartConfig } from "../lib/queryCharts.js";
+import { publishQueryHistoryChartPng } from "../api.js";
 
 const chartInstances = new Map();
 const chartHosts = new Map();
@@ -50,6 +51,51 @@ function disposeChart(chartId) {
     observer.disconnect();
     resizeObservers.delete(chartId);
   }
+}
+
+function buildChartPngDataUrl(instance) {
+  return instance.getDataURL({
+    type: "png",
+    pixelRatio: 2,
+    backgroundColor: "#131313",
+  });
+}
+
+function scheduleChartPngPublication(chartId, instance, host) {
+  let published = false;
+  let publishing = false;
+  let attempts = 0;
+
+  const publish = async () => {
+    if (published || publishing || chartInstances.get(chartId) !== instance) {
+      return;
+    }
+
+    publishing = true;
+    attempts += 1;
+
+    try {
+      const response = await publishQueryHistoryChartPng(chartId, buildChartPngDataUrl(instance));
+      const publicUrl = response?.data?.url;
+
+      published = true;
+
+      if (publicUrl && host instanceof HTMLElement) {
+        host.dataset.chartPublicUrl = publicUrl;
+      }
+    } catch (error) {
+      console.warn(`Failed to publish chart ${chartId} as PNG.`, error);
+
+      if (attempts < 3 && chartInstances.get(chartId) === instance) {
+        window.setTimeout(publish, attempts * 1000);
+      }
+    } finally {
+      publishing = false;
+    }
+  };
+
+  instance.on("finished", publish);
+  window.setTimeout(publish, 350);
 }
 
 export function teardownQueryChartRenderer() {
@@ -111,9 +157,10 @@ export function mountQueryChartRenderer(state) {
 
     const instance = echartsRuntime.init(host);
 
-    instance.setOption(buildOption(chart, result.rows ?? [], analysis), true);
     chartInstances.set(chartId, instance);
     chartHosts.set(chartId, host);
+    scheduleChartPngPublication(chartId, instance, host);
+    instance.setOption(buildOption(chart, result.rows ?? [], analysis), true);
 
     const resizeObserver = new ResizeObserver(() => {
       instance.resize();
@@ -137,11 +184,7 @@ export function exportQueryChartAsPng(chartId) {
   );
   const fileName = chartNode?.dataset.chartExportName ?? `chart-${chartId}`;
 
-  link.href = instance.getDataURL({
-    type: "png",
-    pixelRatio: 2,
-    backgroundColor: "#131313",
-  });
+  link.href = buildChartPngDataUrl(instance);
   link.download = `${fileName}.png`;
   document.body.appendChild(link);
   link.click();

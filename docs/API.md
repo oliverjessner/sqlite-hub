@@ -26,6 +26,15 @@ with a structured JSON error.
 
 All path values must be URL encoded.
 
+Rendered chart PNGs are published automatically and can be read without an API
+token from the loopback-only server:
+
+```text
+GET /:databaseId/chart/:chartId.png
+```
+
+The PNG is created or refreshed whenever the chart renders in the Charts UI.
+
 ```text
 GET  /api/v1/info
 POST /api/v1/query

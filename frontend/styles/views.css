@@ -1285,6 +1285,52 @@
     padding: var(--spacing-4);
 }
 
+.query-chart-card__footer {
+    align-items: center;
+    background: var(--color-surface-container-highest);
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    gap: var(--spacing-4);
+    justify-content: space-between;
+    padding: var(--spacing-2) var(--spacing-4);
+}
+
+.query-chart-card__public-url-wrap {
+    align-items: center;
+    display: flex;
+    gap: var(--spacing-2);
+}
+
+.query-chart-card__public-url-wrap > .material-symbols-outlined {
+    margin-right: var(--spacing-1);
+}
+
+.query-chart-card__public-url {
+    color: var(--color-on-surface-variant);
+    font-family: var(--font-family-mono);
+    font-size: 0.75rem;
+    overflow: hidden;
+    text-decoration: underline;
+    text-decoration-color: var(--primary-alpha-24);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.query-chart-card__public-url:hover {
+    color: var(--color-primary-container);
+}
+
+@media (max-width: 720px) {
+    .query-chart-card__footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .query-chart-card__footer .standard-button {
+        justify-content: center;
+    }
+}
+
 .query-chart-canvas,
 .query-chart-surface-state {
     height: var(--query-chart-height);

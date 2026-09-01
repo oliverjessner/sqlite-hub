@@ -21,6 +21,7 @@ const { MediaTaggingService } = require('./services/sqlite/mediaTaggingService')
 const { ApiTokenService } = require('./services/apiTokenService');
 const { DatabaseCommandService } = require('./services/databaseCommandService');
 const { TextToStructService } = require('./services/textToStructService');
+const { ChartImageService } = require('./services/chartImageService');
 const { createMcpServices } = require('./mcp/stdioServer');
 const { createMcpHttpRouter } = require('./mcp/httpRouter');
 const { createConnectionsRouter } = require('./routes/connections');
@@ -38,6 +39,7 @@ const { createDocumentsRouter } = require('./routes/documents');
 const { createExternalApiRouter } = require('./routes/externalApi');
 const { createLogsRouter } = require('./routes/logs');
 const { createTextToStructRouter } = require('./routes/textToStruct');
+const { createChartImagesRouter } = require('./routes/chartImages');
 const packageJson = require('../package.json');
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
@@ -50,12 +52,14 @@ const {
 } = resolveAppStatePaths(PACKAGE_ROOT);
 const DEFAULT_PORT = 4173;
 const DEFAULT_HOST = LOOPBACK_HOST;
+const PUBLIC_ROOT = path.join(APP_STATE_DIRECTORY, 'public');
 
 const appStateStore = new AppStateStore(APP_STATE_DB_PATH, {
     legacyFilePath: LEGACY_STATE_PATH,
     legacyDatabasePaths: LEGACY_DATABASE_PATHS,
 });
 const connectionManager = new ConnectionManager({ appStateStore });
+const chartImageService = new ChartImageService(PUBLIC_ROOT);
 const overviewService = new OverviewService({ connectionManager });
 const sqlExecutor = new SqlExecutor({ connectionManager, appStateStore });
 const importService = new ImportService({ connectionManager });
@@ -130,8 +134,11 @@ app.use(
 );
 app.use('/api/backups', createBackupsRouter({ backupService, appStateStore, connectionManager }));
 app.use('/api/db', createOverviewRouter({ overviewService }));
-app.use('/api/sql', createSqlRouter({ appStateStore, connectionManager, sqlExecutor }));
-app.use('/api/charts', createChartsRouter({ appStateStore, connectionManager, sqlExecutor }));
+app.use('/api/sql', createSqlRouter({ appStateStore, chartImageService, connectionManager, sqlExecutor }));
+app.use(
+    '/api/charts',
+    createChartsRouter({ appStateStore, chartImageService, connectionManager, sqlExecutor }),
+);
 app.use('/api/structure', createStructureRouter({ structureService }));
 app.use('/api/data', createDataRouter({ dataBrowserService, appStateStore, connectionManager }));
 app.use('/api/table-designer', createTableDesignerRouter({ tableDesignerService, appStateStore, connectionManager }));
@@ -183,6 +190,7 @@ app.use('/vendor/elkjs', express.static(path.resolve(__dirname, '..', 'node_modu
 app.use('/vendor/echarts', express.static(path.resolve(__dirname, '..', 'node_modules', 'echarts')));
 app.use('/vendor/material-symbols', express.static(path.resolve(__dirname, '..', 'node_modules', 'material-symbols')));
 app.use('/vendor/marked', express.static(path.resolve(__dirname, '..', 'node_modules', 'marked')));
+app.use(createChartImagesRouter({ chartImageService }));
 app.use(express.static(FRONTEND_ROOT));
 app.use('/db_logos', express.static(path.join(APP_STATE_DIRECTORY, 'db_logos')));
 app.use(errorMiddleware);
@@ -248,6 +256,7 @@ module.exports = {
     app,
     appStateStore,
     apiTokenService,
+    chartImageService,
     connectionManager,
     databaseCommandService,
     mcpServices,

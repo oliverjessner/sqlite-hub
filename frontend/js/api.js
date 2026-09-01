@@ -349,6 +349,10 @@ export function getChartsQueryHistoryDetail(historyId) {
   return request(`/api/charts/query-history/${encodeURIComponent(historyId)}`);
 }
 
+export function getQueryHistoryCharts() {
+  return request("/api/charts");
+}
+
 export function executeChartsQueryHistory(historyId) {
   return request(`/api/charts/query-history/${encodeURIComponent(historyId)}/execute`, {
     method: "POST",
@@ -366,6 +370,13 @@ export function updateQueryHistoryChart(chartId, payload) {
   return request(`/api/charts/${encodeURIComponent(chartId)}`, {
     method: "PATCH",
     body: payload,
+  });
+}
+
+export function publishQueryHistoryChartPng(chartId, png) {
+  return request(`/api/charts/${encodeURIComponent(chartId)}/png`, {
+    method: "POST",
+    body: { png },
   });
 }
 

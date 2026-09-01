@@ -297,6 +297,11 @@ function renderDocumentsTitlebar(documents, options = {}) {
                               label: 'Insert Table',
                           },
                           {
+                              action: 'open-document-insert-chart-modal',
+                              icon: 'insert_chart',
+                              label: 'Insert Chart',
+                          },
+                          {
                               action: 'open-document-insert-note-modal',
                               icon: 'note_add',
                               label: 'Insert Query Note',

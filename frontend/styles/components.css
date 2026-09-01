@@ -1508,6 +1508,10 @@
     padding: var(--spacing-4);
 }
 
+.query-history-actions-menu .dropdown-button__panel {
+    min-width: 11rem;
+}
+
 .query-history-tabs {
     align-items: center;
     display: flex;

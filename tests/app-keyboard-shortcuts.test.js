@@ -52,6 +52,10 @@ test("document insert actions use the remembered editor cursor range", () => {
     source,
     /case 'insert-document-database-info':[\s\S]{0,120}?getCurrentDocumentEditorInsertionRange\(\)/
   );
+  assert.match(
+    source,
+    /case 'open-document-insert-chart-modal':[\s\S]{0,120}?getCurrentDocumentEditorInsertionRange\(\)/
+  );
 });
 
 test("dynamic modals focus autofocus controls after render", () => {

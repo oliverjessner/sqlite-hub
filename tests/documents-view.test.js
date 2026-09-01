@@ -123,6 +123,8 @@ test("selected document actions render in one titlebar without a save button", a
     "New Document",
     "New Folder",
     "Insert",
+    'data-action="open-document-insert-chart-modal"',
+    "Insert Chart",
     "Insert Query Note",
     'data-action="open-document-insert-table-definition-modal"',
     "Insert Table Definition",

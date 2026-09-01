@@ -6,6 +6,7 @@ export function renderQueryHistoryHeader({
     closeAction = 'toggle-query-history-panel',
     closeTitle = 'Hide query history',
     nextValue = 'false',
+    actionsMarkup = '',
 } = {}) {
     return `
       <div class="flex items-center justify-between gap-3">
@@ -15,15 +16,18 @@ export function renderQueryHistoryHeader({
             ${escapeHtml(title)}
           </span>
         </div>
-        <button
-          class="query-history-icon-button"
-          data-action="${escapeHtml(closeAction)}"
-          data-next-value="${escapeHtml(nextValue)}"
-          title="${escapeHtml(closeTitle)}"
-          type="button"
-        >
-          <span class="material-symbols-outlined text-[18px]">close</span>
-        </button>
+        <div class="flex items-center gap-2">
+          ${actionsMarkup}
+          <button
+            class="query-history-icon-button"
+            data-action="${escapeHtml(closeAction)}"
+            data-next-value="${escapeHtml(nextValue)}"
+            title="${escapeHtml(closeTitle)}"
+            type="button"
+          >
+            <span class="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
       </div>
     `;
 }
