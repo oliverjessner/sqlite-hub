@@ -1,5 +1,6 @@
 const path = require("node:path");
 const { NotFoundError, ReadOnlyError, ValidationError } = require("../utils/errors");
+const { stripTrailingSemicolons } = require("../utils/sqlText");
 const { ConnectionManager } = require("./sqlite/connectionManager");
 const { BackupService } = require("./sqlite/backupService");
 const { DataBrowserService } = require("./sqlite/dataBrowserService");
@@ -68,7 +69,7 @@ function normalizeMarkdownExportFilename(filename, fallback = "document.md") {
 }
 
 function stripSqlTerminators(sql) {
-  return String(sql ?? "").trim().replace(/;+\s*$/g, "").trim();
+  return stripTrailingSemicolons(sql ?? "");
 }
 
 function removeLeadingSqlComments(sql) {

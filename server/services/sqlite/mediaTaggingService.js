@@ -5,6 +5,7 @@ const { detectQueryType } = require("../storage/queryHistoryUtils");
 const { ConflictError, NotFoundError, ValidationError, mapSqliteError } = require("../../utils/errors");
 const { resolvePathInsideDirectory } = require("../../utils/fileValidation");
 const { quoteIdentifier } = require("../../utils/identifier");
+const { stripTrailingSemicolons } = require("../../utils/sqlText");
 const { getRawStructureEntries, getTableDetail } = require("./introspection");
 const { serializeRow } = require("../../utils/sqliteTypes");
 
@@ -328,10 +329,6 @@ function buildDefaultMediaQueries(tableDetail, config = {}) {
     taggedQuery:
       tableSql + "\nWHERE COALESCE(" + taggedColumnSql + ", 0) = 1" + orderSegment,
   };
-}
-
-function stripTrailingSemicolons(query = "") {
-  return String(query).trim().replace(/;+\s*$/g, "");
 }
 
 function isSelectQuery(query = "") {

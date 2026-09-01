@@ -1,8 +1,24 @@
 const { AuthenticationError } = require("../utils/errors");
 
 function readBearerToken(authorizationHeader) {
-  const match = String(authorizationHeader ?? "").match(/^Bearer\s+(.+)$/i);
-  return match ? match[1].trim() : "";
+  const header = String(authorizationHeader ?? "");
+
+  if (
+    header.length <= "Bearer".length ||
+    header.slice(0, "Bearer".length).toLowerCase() !== "bearer" ||
+    header.includes("\r") ||
+    header.includes("\n")
+  ) {
+    return "";
+  }
+
+  const credentials = header.slice("Bearer".length);
+
+  if (credentials.trimStart() === credentials) {
+    return "";
+  }
+
+  return credentials.trim();
 }
 
 function createApiTokenAuth({ tokenService }) {

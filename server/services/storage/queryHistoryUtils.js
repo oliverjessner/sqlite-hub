@@ -1,9 +1,8 @@
-function stripLineComments(sql = "") {
-  return String(sql)
-    .split(/\r?\n/)
-    .map((line) => line.replace(/--.*$/g, ""))
-    .join("\n");
-}
+const {
+  stripLineComment,
+  stripLineComments,
+  stripTrailingSemicolons,
+} = require("../../utils/sqlText");
 
 function stripBlockComments(sql = "") {
   return String(sql).replace(/\/\*[\s\S]*?\*\//g, " ");
@@ -25,7 +24,7 @@ function truncateText(value = "", maxLength = 80) {
 
 function normalizeSql(sql = "") {
   const withoutComments = stripBlockComments(stripLineComments(sql));
-  const compact = compactWhitespace(withoutComments).replace(/;+\s*$/g, "").trim();
+  const compact = stripTrailingSemicolons(compactWhitespace(withoutComments));
 
   return compact.toLowerCase();
 }
@@ -301,11 +300,11 @@ function detectTables(sql = "") {
 function buildAutoTitle(rawSql = "", { queryType = "other", tablesDetected = [] } = {}) {
   const firstMeaningfulLine = String(rawSql)
     .split(/\r?\n/)
-    .map((line) => line.replace(/--.*$/g, "").trim())
+    .map((line) => stripLineComment(line).trim())
     .find(Boolean);
 
   if (firstMeaningfulLine) {
-    return truncateText(firstMeaningfulLine.replace(/;+\s*$/g, ""), 80);
+    return truncateText(stripTrailingSemicolons(firstMeaningfulLine), 80);
   }
 
   const primaryTable = tablesDetected[0] ? ` on ${tablesDetected[0]}` : "";

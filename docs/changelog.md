@@ -1,3 +1,7 @@
+# v2.6.1
+
+- all security issues fixed
+
 # v2.6.0
 
 - version in ouput
