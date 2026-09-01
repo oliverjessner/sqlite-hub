@@ -2,6 +2,7 @@ const Database = require("better-sqlite3");
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { DataBrowserService } = require("../server/services/sqlite/dataBrowserService");
+const { getTableDetail } = require("../server/services/sqlite/introspection");
 const { NotFoundError } = require("../server/utils/errors");
 const { quoteIdentifier } = require("../server/utils/identifier");
 
@@ -198,6 +199,41 @@ test("data browser rejects unknown table names as not found", () => {
     assert.ok(
       db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'safe_items'").get()
     );
+  } finally {
+    db.close();
+  }
+});
+
+test("introspection parameterizes pragma arguments for unusual schema identifiers", () => {
+  const db = new Database(":memory:");
+  const parentTable = 'parent" records';
+  const childTable = 'child" records';
+  const foreignKeyColumn = 'parent" id';
+  const indexName = 'child" parent index';
+
+  try {
+    db.exec(
+      [
+        `CREATE TABLE ${quoteIdentifier(parentTable)} (id INTEGER PRIMARY KEY)`,
+        [
+          `CREATE TABLE ${quoteIdentifier(childTable)} (`,
+          "id INTEGER PRIMARY KEY,",
+          `${quoteIdentifier(foreignKeyColumn)} INTEGER REFERENCES ${quoteIdentifier(parentTable)}(id)`,
+          ")",
+        ].join(" "),
+        `CREATE INDEX ${quoteIdentifier(indexName)} ON ${quoteIdentifier(childTable)} (${quoteIdentifier(foreignKeyColumn)})`,
+        `INSERT INTO ${quoteIdentifier(childTable)} DEFAULT VALUES`,
+      ].join("; ")
+    );
+
+    const detail = getTableDetail(db, childTable);
+
+    assert.equal(detail.name, childTable);
+    assert.equal(detail.rowCount, 1);
+    assert.equal(detail.foreignKeys[0].referencedTable, parentTable);
+    assert.equal(detail.foreignKeys[0].mappings[0].from, foreignKeyColumn);
+    assert.equal(detail.indexes[0].name, indexName);
+    assert.equal(detail.indexes[0].columns[0].name, foreignKeyColumn);
   } finally {
     db.close();
   }

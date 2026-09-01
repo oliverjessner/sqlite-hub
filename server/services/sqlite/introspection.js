@@ -3,7 +3,7 @@ const {
   ValidationError,
   mapSqliteError,
 } = require("../../utils/errors");
-const { quoteIdentifier } = require("../../utils/identifier");
+const { ensureKnownIdentifier, quoteIdentifier } = require("../../utils/identifier");
 const { normalizeDeclaredType } = require("../../utils/sqliteTypes");
 
 function getTableListMap(db) {
@@ -515,8 +515,13 @@ function groupForeignKeys(rows) {
 
 function safeCountRows(db, tableName) {
   try {
+    const allowedTableNames = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all()
+      .map((entry) => entry.name);
+    const safeTableName = ensureKnownIdentifier(tableName, allowedTableNames, "Table name");
     const row = db
-      .prepare(["SELECT COUNT(*) AS count FROM", quoteIdentifier(tableName)].join(" "))
+      .prepare(["SELECT COUNT(*) AS count FROM", quoteIdentifier(safeTableName)].join(" "))
       .get();
     return row?.count ?? 0;
   } catch (error) {
@@ -554,14 +559,15 @@ function resolveIdentityStrategy(tableDetail) {
 
 function getTableDetail(db, tableName, options = {}) {
   const entry = getMasterEntry(db, "table", tableName);
+  const safeTableName = ensureKnownIdentifier(tableName, [entry.name], "Table name");
   const tableList = getTableListMap(db);
-  const tableListEntry = tableList.get(tableName);
+  const tableListEntry = tableList.get(safeTableName);
   const tableInfo = db
-    .prepare(`PRAGMA table_info(${quoteIdentifier(tableName)})`)
-    .all();
+    .prepare("SELECT * FROM pragma_table_info(?)")
+    .all(safeTableName);
   const extendedInfo = db
-    .prepare(`PRAGMA table_xinfo(${quoteIdentifier(tableName)})`)
-    .all();
+    .prepare("SELECT * FROM pragma_table_xinfo(?)")
+    .all(safeTableName);
   const visibleSet = new Set(tableInfo.map((column) => column.name));
 
   let columns = extendedInfo
@@ -581,7 +587,7 @@ function getTableDetail(db, tableName, options = {}) {
   });
 
   const foreignKeys = groupForeignKeys(
-    db.prepare(`PRAGMA foreign_key_list(${quoteIdentifier(tableName)})`).all()
+    db.prepare("SELECT * FROM pragma_foreign_key_list(?)").all(safeTableName)
   );
   const checkConstraints = extractCheckExpressions(entry.sql).map((expression, index) => ({
     id: index,
@@ -589,8 +595,8 @@ function getTableDetail(db, tableName, options = {}) {
   }));
 
   const indexList = db
-    .prepare(`PRAGMA index_list(${quoteIdentifier(tableName)})`)
-    .all()
+    .prepare("SELECT * FROM pragma_index_list(?)")
+    .all(safeTableName)
     .map((indexEntry) => {
       let indexColumns = [];
       const indexSql =
@@ -600,8 +606,8 @@ function getTableDetail(db, tableName, options = {}) {
 
       try {
         indexColumns = db
-          .prepare(`PRAGMA index_xinfo(${quoteIdentifier(indexEntry.name)})`)
-          .all()
+          .prepare("SELECT * FROM pragma_index_xinfo(?)")
+          .all(indexEntry.name)
           .filter((row) => row.key === 1)
           .map((row) => ({
             sequence: row.seqno,
@@ -612,8 +618,8 @@ function getTableDetail(db, tableName, options = {}) {
           }));
       } catch (error) {
         indexColumns = db
-          .prepare(`PRAGMA index_info(${quoteIdentifier(indexEntry.name)})`)
-          .all()
+          .prepare("SELECT * FROM pragma_index_info(?)")
+          .all(indexEntry.name)
           .map((row) => ({
             sequence: row.seqno,
             cid: row.cid,
@@ -635,7 +641,7 @@ function getTableDetail(db, tableName, options = {}) {
     .prepare(
       "SELECT name, tbl_name AS tableName, sql FROM sqlite_master WHERE type = 'trigger' AND tbl_name = ? ORDER BY name ASC"
     )
-    .all(tableName);
+    .all(safeTableName);
 
   const withoutRowId =
     typeof tableListEntry?.wr === "number"
@@ -658,7 +664,7 @@ function getTableDetail(db, tableName, options = {}) {
     indexes: indexList,
     indexCount: indexList.length,
     triggers,
-    rowCount: options.includeRowCount === false ? null : safeCountRows(db, tableName),
+    rowCount: options.includeRowCount === false ? null : safeCountRows(db, safeTableName),
   };
 
   tableDetail.identityStrategy = resolveIdentityStrategy(tableDetail);
@@ -669,11 +675,12 @@ function getTableDetail(db, tableName, options = {}) {
 
 function getViewDetail(db, viewName) {
   const entry = getMasterEntry(db, "view", viewName);
+  const safeViewName = ensureKnownIdentifier(viewName, [entry.name], "View name");
   let columns = [];
 
   try {
     columns = db
-      .prepare(["SELECT * FROM", quoteIdentifier(viewName), "LIMIT 0"].join(" "))
+      .prepare(["SELECT * FROM", quoteIdentifier(safeViewName), "LIMIT 0"].join(" "))
       .columns()
       .map((column) => ({
         name: column.name,
@@ -693,8 +700,8 @@ function getViewDetail(db, viewName) {
 function getIndexDetail(db, indexName) {
   const entry = getMasterEntry(db, "index", indexName);
   const indexInfo = db
-    .prepare(`PRAGMA index_xinfo(${quoteIdentifier(indexName)})`)
-    .all()
+    .prepare("SELECT * FROM pragma_index_xinfo(?)")
+    .all(entry.name)
     .map((row) => ({
       sequence: row.seqno,
       cid: row.cid,
