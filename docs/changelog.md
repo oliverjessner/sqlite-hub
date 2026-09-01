@@ -1,6 +1,6 @@
 # v2.6.1
 
-- a lot of security issues fixed
+- fixed over 80 security issues, xss, n2 regexes, too large bodys
 
 # v2.6.0
 

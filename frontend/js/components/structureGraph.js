@@ -892,6 +892,29 @@ function positionEdgeReadout(renderedPosition) {
     readout.style.top = `${top}px`;
 }
 
+function createEdgeReadoutText(className, text) {
+    const element = document.createElement('div');
+
+    element.className = className;
+    element.textContent = String(text ?? '');
+    return element;
+}
+
+function createEdgeReadoutPath(className, source, target) {
+    const element = document.createElement('div');
+    const arrow = document.createElement('span');
+
+    element.className = className;
+    arrow.setAttribute('aria-hidden', 'true');
+    arrow.textContent = '→';
+    element.append(
+        document.createTextNode(`${String(source ?? '')} `),
+        arrow,
+        document.createTextNode(` ${String(target ?? '')}`),
+    );
+    return element;
+}
+
 function showEdgeReadout(edge, renderedPosition) {
     if (!currentGraph?.edgeReadout || !edge) {
         return;
@@ -901,12 +924,10 @@ function showEdgeReadout(edge, renderedPosition) {
         const sourceTable = edge.data('sourceTable') || edge.source().data('tableName') || '?';
         const targetTable = edge.data('targetTable') || edge.target().data('tableName') || '?';
 
-        currentGraph.edgeReadout.innerHTML = `
-      <div class="structure-graph__edge-readout-meta">Shadow table</div>
-      <div class="structure-graph__edge-readout-path">
-        ${escapeHtml(sourceTable)} <span aria-hidden="true">→</span> ${escapeHtml(targetTable)}
-      </div>
-    `;
+        currentGraph.edgeReadout.replaceChildren(
+            createEdgeReadoutText('structure-graph__edge-readout-meta', 'Shadow table'),
+            createEdgeReadoutPath('structure-graph__edge-readout-path', sourceTable, targetTable),
+        );
         currentGraph.edgeReadout.removeAttribute('hidden');
         positionEdgeReadout(renderedPosition);
         return;
@@ -919,14 +940,10 @@ function showEdgeReadout(edge, renderedPosition) {
     const sourceLabel = formatQualifiedEdgeColumn(sourceTable, sourceColumn);
     const targetLabel = formatQualifiedEdgeColumn(targetTable, targetColumn);
 
-    currentGraph.edgeReadout.innerHTML = `
-      <div class="structure-graph__edge-readout-meta">
-        ${escapeHtml(sourceTable)} <span aria-hidden="true">→</span> ${escapeHtml(targetTable)}
-      </div>
-      <div class="structure-graph__edge-readout-path">
-        ${escapeHtml(sourceLabel)} <span aria-hidden="true">→</span> ${escapeHtml(targetLabel)}
-      </div>
-    `;
+    currentGraph.edgeReadout.replaceChildren(
+        createEdgeReadoutPath('structure-graph__edge-readout-meta', sourceTable, targetTable),
+        createEdgeReadoutPath('structure-graph__edge-readout-path', sourceLabel, targetLabel),
+    );
     currentGraph.edgeReadout.removeAttribute('hidden');
     positionEdgeReadout(renderedPosition);
 }
