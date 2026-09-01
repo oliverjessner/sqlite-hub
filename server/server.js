@@ -166,7 +166,12 @@ app.use(
 app.use('/mcp', createMcpHttpRouter({ services: mcpServices }));
 
 // auth: public favicon asset; it exposes no application data.
-app.get('/favicon.ico', (req, res) => {
+const faviconRateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+});
+
+app.get('/favicon.ico', faviconRateLimiter, (req, res) => {
     res.sendFile('assets/images/logo.webp', { root: FRONTEND_ROOT });
 });
 
