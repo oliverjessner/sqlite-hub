@@ -122,7 +122,18 @@ class DataBrowserService {
     const allowedTableNames = getRawStructureEntries(db)
       .filter((entry) => entry.type === "table")
       .map((entry) => entry.name);
-    const safeTableName = ensureKnownIdentifier(tableName, allowedTableNames, "Table name");
+    let safeTableName;
+
+    try {
+      safeTableName = ensureKnownIdentifier(tableName, allowedTableNames, "Table name");
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        throw new NotFoundError(`Table not found: ${String(tableName ?? "")}`);
+      }
+
+      throw error;
+    }
+
     const tableDetail = getTableDetail(db, safeTableName);
     const { limit, offset } = normalizePaginationOptions(options);
     const sort = normalizeTableSort(tableDetail, options);

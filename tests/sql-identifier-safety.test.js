@@ -2,6 +2,7 @@ const Database = require("better-sqlite3");
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { DataBrowserService } = require("../server/services/sqlite/dataBrowserService");
+const { NotFoundError } = require("../server/utils/errors");
 const { quoteIdentifier } = require("../server/utils/identifier");
 
 test("data browser mutations preserve quoted dynamic identifiers", () => {
@@ -164,6 +165,33 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
     assert.equal(
       db.prepare(["SELECT COUNT(*) AS count FROM", quoteIdentifier(tableName)].join(" ")).get().count,
       0
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test("data browser rejects unknown table names as not found", () => {
+  const db = new Database(":memory:");
+
+  try {
+    db.exec("CREATE TABLE safe_items (id INTEGER)");
+
+    const service = new DataBrowserService({
+      connectionManager: {
+        getActiveDatabase: () => db,
+      },
+    });
+
+    for (const tableName of ["missing", 'safe_items"; DROP TABLE safe_items; --']) {
+      assert.throws(
+        () => service.getTableData(tableName, { limit: 10 }),
+        (error) => error instanceof NotFoundError && error.statusCode === 404
+      );
+    }
+
+    assert.ok(
+      db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'safe_items'").get()
     );
   } finally {
     db.close();
