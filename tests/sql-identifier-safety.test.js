@@ -2,6 +2,7 @@ const Database = require("better-sqlite3");
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { DataBrowserService } = require("../server/services/sqlite/dataBrowserService");
+const { ExportService } = require("../server/services/sqlite/exportService");
 const { getTableDetail } = require("../server/services/sqlite/introspection");
 const { StructureService } = require("../server/services/sqlite/structureService");
 const { NotFoundError } = require("../server/utils/errors");
@@ -49,8 +50,18 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
         getSettings: () => ({ defaultPageSize: 10 }),
       },
     });
+    const exportService = new ExportService({
+      appStateStore: {
+        getSettings: () => ({ csvDelimiter: "," }),
+      },
+      connectionManager: {
+        getActiveDatabase: () => db,
+      },
+      sqlExecutor: {},
+    });
     const tableData = service.getTableData(tableName, { limit: 10, offset: 0 });
     const tableStructure = structureService.getTableStructure(tableName);
+    const tableExport = exportService.exportTable(tableName, { format: "json" });
     const filteredTableData = service.getTableData(tableName, {
       limit: 10,
       offset: 0,
@@ -82,6 +93,8 @@ test("data browser mutations preserve quoted dynamic identifiers", () => {
 
     assert.equal(filteredTableData.rowCount, 1);
     assert.equal(tableStructure.preview.rows[0][valueColumn], "before");
+    assert.equal(tableExport.filename, `${tableName}.json`);
+    assert.equal(JSON.parse(tableExport.content)[0][valueColumn], "before");
     assert.equal(filteredTableData.rows[0][valueColumn], "before");
     assert.deepEqual(filteredTableData.filter, {
       column: valueColumn,
@@ -203,6 +216,15 @@ test("data browser rejects unknown table names as not found", () => {
         getSettings: () => ({ defaultPageSize: 10 }),
       },
     });
+    const exportService = new ExportService({
+      appStateStore: {
+        getSettings: () => ({ csvDelimiter: "," }),
+      },
+      connectionManager: {
+        getActiveDatabase: () => db,
+      },
+      sqlExecutor: {},
+    });
 
     for (const tableName of ["missing", 'safe_items"; DROP TABLE safe_items; --']) {
       assert.throws(
@@ -215,6 +237,10 @@ test("data browser rejects unknown table names as not found", () => {
       );
       assert.throws(
         () => structureService.getTableStructure(tableName),
+        (error) => error instanceof NotFoundError && error.statusCode === 404
+      );
+      assert.throws(
+        () => exportService.exportTable(tableName, { format: "json" }),
         (error) => error instanceof NotFoundError && error.statusCode === 404
       );
     }

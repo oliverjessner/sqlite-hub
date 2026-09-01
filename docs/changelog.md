@@ -1,6 +1,6 @@
 # v2.6.1
 
-- fixed over 80 security issues, xss, n2 regexes, too large bodys
+- Resolved more than 80 security findings, including potential XSS and SQL injection paths, inefficient O(n²) regular expressions, and missing request-body size limits.
 
 # v2.6.0
 

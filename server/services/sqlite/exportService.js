@@ -381,7 +381,7 @@ class ExportService {
     const statement = db.prepare(
       [
         "SELECT * FROM",
-        quoteIdentifier(tableName),
+        quoteIdentifier(tableDetail.name),
         whereClause,
         orderClause ? "ORDER BY" : "",
         orderClause,
@@ -395,7 +395,7 @@ class ExportService {
     const columns = statement.columns().map((column) => column.name);
 
     return {
-      filenameBase: tableName,
+      filenameBase: tableDetail.name,
       format,
       formatConfig,
       columns,
