@@ -1,5 +1,5 @@
 const { NotFoundError, ValidationError } = require("../../utils/errors");
-const { quoteIdentifier } = require("../../utils/identifier");
+const { ensureKnownIdentifier, quoteIdentifier } = require("../../utils/identifier");
 const {
   deserializeSqliteValue,
   serializeRow,
@@ -119,7 +119,11 @@ class DataBrowserService {
 
   getTableData(tableName, options = {}) {
     const db = this.connectionManager.getActiveDatabase();
-    const tableDetail = getTableDetail(db, tableName);
+    const allowedTableNames = getRawStructureEntries(db)
+      .filter((entry) => entry.type === "table")
+      .map((entry) => entry.name);
+    const safeTableName = ensureKnownIdentifier(tableName, allowedTableNames, "Table name");
+    const tableDetail = getTableDetail(db, safeTableName);
     const { limit, offset } = normalizePaginationOptions(options);
     const sort = normalizeTableSort(tableDetail, options);
     const filter = normalizeTableFilter(tableDetail, options);
@@ -132,7 +136,7 @@ class DataBrowserService {
         "SELECT",
         selectExpression,
         "FROM",
-        quoteIdentifier(tableName),
+        quoteIdentifier(safeTableName),
         whereClause,
         orderClause ? "ORDER BY" : "",
         orderClause,
@@ -149,7 +153,7 @@ class DataBrowserService {
     const rowCount = filter
       ? db
           .prepare(
-            ["SELECT COUNT(*) AS count FROM", quoteIdentifier(tableName), whereClause]
+            ["SELECT COUNT(*) AS count FROM", quoteIdentifier(safeTableName), whereClause]
               .filter(Boolean)
               .join(" ")
           )
