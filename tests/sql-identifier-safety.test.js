@@ -179,6 +179,7 @@ test("data browser rejects unknown table names as not found", () => {
 
     const service = new DataBrowserService({
       connectionManager: {
+        assertWritable() {},
         getActiveDatabase: () => db,
       },
     });
@@ -186,6 +187,10 @@ test("data browser rejects unknown table names as not found", () => {
     for (const tableName of ["missing", 'safe_items"; DROP TABLE safe_items; --']) {
       assert.throws(
         () => service.getTableData(tableName, { limit: 10 }),
+        (error) => error instanceof NotFoundError && error.statusCode === 404
+      );
+      assert.throws(
+        () => service.deleteTableRow(tableName, { identity: { values: { rowid: 1 } } }),
         (error) => error instanceof NotFoundError && error.statusCode === 404
       );
     }
