@@ -160,16 +160,15 @@ class BackupService {
   }
 
   getManifestPathForDirectory(directoryPath) {
-    const resolvedDirectory = resolveExistingPathInsideDirectory(
+    resolveExistingPathInsideDirectory(
       this.backupRootDirectory,
       directoryPath,
       "Backup directory"
     );
-    const canonicalRootDirectory = fs.realpathSync.native(this.backupRootDirectory);
 
     return resolvePathInsideDirectory(
-      canonicalRootDirectory,
-      path.join(resolvedDirectory, "manifest.json"),
+      this.backupRootDirectory,
+      path.join(directoryPath, "manifest.json"),
       "Backup manifest path"
     );
   }

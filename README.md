@@ -1,6 +1,6 @@
 # sqlite-hub ⚡️
 
-[![NPM Downloads]](https://img.shields.io/npm/dy/sqlite-hub)
+![NPM Downloads](https://img.shields.io/npm/dy/sqlite-hub)
 
 [![Dependabot Updates](https://github.com/oliverjessner/sqlite-hub/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/oliverjessner/sqlite-hub/actions/workflows/dependabot/dependabot-updates)
 
