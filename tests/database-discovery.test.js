@@ -131,6 +131,41 @@ test("database discovery detects SQLite files with and without extensions", asyn
   assert.equal(completed.results.find((item) => item.name === "History").extension, null);
 });
 
+test("database discovery rejects traversal roots and candidates outside the scan root", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-discovery-root-"));
+  const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-discovery-outside-"));
+  const outsideDatabase = createSqlite(path.join(outsideRoot, "outside.sqlite"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  t.after(() => fs.rmSync(outsideRoot, { recursive: true, force: true }));
+
+  const service = createTestService(root);
+  const session = {
+    existingConnections: new Map(),
+    progress: {
+      alreadyConnectedCount: 0,
+      discoveredCount: 0,
+      inaccessibleCount: 0,
+    },
+    results: [],
+    seenPaths: new Set(),
+    showAlreadyConnected: false,
+  };
+
+  assert.throws(
+    () => service.resolveRoots({ customDirectories: ["../outside"] }),
+    /parent directory segments/
+  );
+
+  await service.inspectCandidate(
+    session,
+    { custom: true, key: "custom", label: "Root", path: root },
+    outsideDatabase
+  );
+
+  assert.equal(session.results.length, 0);
+  assert.equal(session.progress.inaccessibleCount, 1);
+});
+
 test("database discovery excludes sidecars, symlinks, unreadable files, and duplicate paths", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-discovery-exclusions-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

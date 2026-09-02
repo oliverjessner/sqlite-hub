@@ -6,6 +6,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { ValidationError } = require("../server/utils/errors");
 const {
+  resolveExistingPathInsideDirectory,
   resolvePathInsideDirectory,
   resolveUserPath,
 } = require("../server/utils/fileValidation");
@@ -46,6 +47,26 @@ test("resolvePathInsideDirectory resolves only paths under the supplied root", (
   );
   assert.throws(
     () => resolvePathInsideDirectory(root, "../secret.txt", "Media file path"),
+    ValidationError
+  );
+});
+
+test("resolveExistingPathInsideDirectory rejects symlinks that escape the root", (t) => {
+  const root = createTempDirectory(t);
+  const outsideDirectory = createTempDirectory(t);
+  const outsidePath = path.join(outsideDirectory, "secret.sqlite");
+  const linkedDirectory = path.join(root, "linked");
+
+  fs.writeFileSync(outsidePath, "secret");
+  fs.symlinkSync(outsideDirectory, linkedDirectory, "dir");
+
+  assert.throws(
+    () =>
+      resolveExistingPathInsideDirectory(
+        root,
+        path.join(linkedDirectory, "secret.sqlite"),
+        "Backup path"
+      ),
     ValidationError
   );
 });
