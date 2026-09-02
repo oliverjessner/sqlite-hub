@@ -5,7 +5,30 @@ const {
 } = require("../../utils/sqlText");
 
 function stripBlockComments(sql = "") {
-  return String(sql).replace(/\/\*[\s\S]*?\*\//g, " ");
+  const text = String(sql);
+  const parts = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const commentStart = text.indexOf("/*", cursor);
+
+    if (commentStart === -1) {
+      parts.push(text.slice(cursor));
+      break;
+    }
+
+    const commentEnd = text.indexOf("*/", commentStart + 2);
+
+    if (commentEnd === -1) {
+      parts.push(text.slice(cursor));
+      break;
+    }
+
+    parts.push(text.slice(cursor, commentStart), " ");
+    cursor = commentEnd + 2;
+  }
+
+  return parts.join("");
 }
 
 function compactWhitespace(value = "") {
