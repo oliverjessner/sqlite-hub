@@ -6,7 +6,7 @@
 
 A focused local-first app for browsing, editing, and querying SQLite databases.
 
-SQLite Hub is built for developers and technical users who want a clean SQLite workflow without heavy database clients, cloud layers, or dashboard noise.
+> SQLite Hub is local-first. Your databases are processed locally and are not uploaded to a cloud service.
 
 ## Featured
 

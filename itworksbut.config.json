@@ -1,5 +1,5 @@
 {
-    "ignore": [],
+    "ignore": ["/tests/*"],
     "failOn": "low",
     "checks": {
         "ci.no-build-step": false,

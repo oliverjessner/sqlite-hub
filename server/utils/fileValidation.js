@@ -110,6 +110,23 @@ function resolvePathInsideDirectory(baseDirectory, inputPath, label = "File path
   });
 }
 
+function resolveExistingPathInsideDirectory(baseDirectory, inputPath, label = "File path") {
+  const resolvedBaseDirectory = resolveBaseDirectory(baseDirectory);
+  const resolvedPath = resolvePathInsideDirectory(resolvedBaseDirectory, inputPath, label);
+
+  ensureFileExists(resolvedBaseDirectory, "Base directory");
+  ensureFileExists(resolvedPath, label);
+
+  const canonicalBaseDirectory = fs.realpathSync.native(resolvedBaseDirectory);
+  const canonicalPath = fs.realpathSync.native(resolvedPath);
+
+  if (!isInsideDirectory(canonicalPath, canonicalBaseDirectory)) {
+    throw new ValidationError(`${label} must stay inside ${canonicalBaseDirectory}.`);
+  }
+
+  return canonicalPath;
+}
+
 function assertExtension(filePath, allowedExtensions, label) {
   const extension = path.extname(filePath).toLowerCase();
 
@@ -220,6 +237,7 @@ module.exports = {
   getFileMetadata,
   isRealSqliteDatabase,
   isWritable,
+  resolveExistingPathInsideDirectory,
   resolvePathInsideDirectory,
   resolveUserPath,
   validateSqlDumpPath,

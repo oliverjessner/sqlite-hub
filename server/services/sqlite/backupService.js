@@ -15,6 +15,7 @@ const {
 const {
   ensureParentDirectory,
   getFileMetadata,
+  resolveExistingPathInsideDirectory,
   resolvePathInsideDirectory,
   validateSqlitePath,
 } = require("../../utils/fileValidation");
@@ -60,7 +61,7 @@ function sanitizePathSegment(value, fallback = "backup") {
     .replace(/[^a-zA-Z0-9._-]+/g, "_")
     .replace(/^_+|_+$/g, "");
 
-  return normalized || fallback;
+  return !normalized || normalized === "." || normalized === ".." ? fallback : normalized;
 }
 
 function buildDefaultBackupName(type, date = new Date(), context = "") {
@@ -85,10 +86,34 @@ function buildDefaultBackupName(type, date = new Date(), context = "") {
   return `Manual backup - ${formatDisplayDate(date)}`;
 }
 
-function hashFileSha256(filePath) {
+function resolvePathForWriteInsideDirectory(baseDirectory, filePath, label) {
+  const resolvedPath = resolvePathInsideDirectory(baseDirectory, filePath, label);
+
+  ensureParentDirectory(resolvedPath);
+
+  const canonicalBaseDirectory = fs.realpathSync.native(path.resolve(baseDirectory));
+  const canonicalParentDirectory = resolveExistingPathInsideDirectory(
+    baseDirectory,
+    path.dirname(resolvedPath),
+    `${label} directory`
+  );
+
+  return resolvePathInsideDirectory(
+    canonicalBaseDirectory,
+    path.join(canonicalParentDirectory, path.basename(resolvedPath)),
+    label
+  );
+}
+
+function hashFileSha256(filePath, backupRootDirectory) {
   return new Promise((resolve, reject) => {
+    const resolvedPath = resolveExistingPathInsideDirectory(
+      backupRootDirectory,
+      filePath,
+      "Backup file"
+    );
     const hash = crypto.createHash("sha256");
-    const stream = fs.createReadStream(filePath);
+    const stream = fs.createReadStream(resolvedPath);
 
     stream.on("error", reject);
     stream.on("data", (chunk) => hash.update(chunk));
@@ -96,12 +121,16 @@ function hashFileSha256(filePath) {
   });
 }
 
-function writeJsonAtomic(filePath, value) {
-  ensureParentDirectory(filePath);
-  const temporaryPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+function writeJsonAtomic(filePath, value, backupRootDirectory) {
+  const resolvedPath = resolvePathForWriteInsideDirectory(
+    backupRootDirectory,
+    filePath,
+    "Backup manifest path"
+  );
+  const temporaryPath = `${resolvedPath}.tmp-${process.pid}-${Date.now()}`;
 
   fs.writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`);
-  fs.renameSync(temporaryPath, filePath);
+  fs.renameSync(temporaryPath, resolvedPath);
 }
 
 function readQuickCheckResult(db) {
@@ -114,21 +143,68 @@ class BackupService {
   constructor({ connectionManager, appStateStore, backupRootDirectory = null }) {
     this.connectionManager = connectionManager;
     this.appStateStore = appStateStore;
-    this.backupRootDirectory =
-      backupRootDirectory ?? path.join(appStateStore.stateDirectory, "backups");
+    this.backupRootDirectory = path.resolve(
+      backupRootDirectory ?? path.join(appStateStore.stateDirectory, "backups")
+    );
     this.activeOperations = new Set();
   }
 
   getBackupDirectory(connectionId) {
-    return path.join(this.backupRootDirectory, sanitizePathSegment(connectionId, "database"));
+    return resolvePathInsideDirectory(
+      this.backupRootDirectory,
+      sanitizePathSegment(connectionId, "database"),
+      "Backup directory"
+    );
   }
 
   getManifestPathForDirectory(directoryPath) {
-    return path.join(directoryPath, "manifest.json");
+    const resolvedDirectory = resolveExistingPathInsideDirectory(
+      this.backupRootDirectory,
+      directoryPath,
+      "Backup directory"
+    );
+    const canonicalRootDirectory = fs.realpathSync.native(this.backupRootDirectory);
+
+    return resolvePathInsideDirectory(
+      canonicalRootDirectory,
+      path.join(resolvedDirectory, "manifest.json"),
+      "Backup manifest path"
+    );
   }
 
   assertBackupPathInsideRoot(filePath) {
-    return resolvePathInsideDirectory(this.backupRootDirectory, filePath, "Backup path");
+    const resolvedPath = resolvePathInsideDirectory(
+      this.backupRootDirectory,
+      filePath,
+      "Backup path"
+    );
+
+    if (fs.existsSync(resolvedPath)) {
+      return resolveExistingPathInsideDirectory(
+        this.backupRootDirectory,
+        resolvedPath,
+        "Backup path"
+      );
+    }
+
+    const parentDirectory = path.dirname(resolvedPath);
+
+    if (fs.existsSync(parentDirectory)) {
+      const canonicalParentDirectory = resolveExistingPathInsideDirectory(
+        this.backupRootDirectory,
+        parentDirectory,
+        "Backup directory"
+      );
+      const canonicalRootDirectory = fs.realpathSync.native(this.backupRootDirectory);
+
+      return resolvePathInsideDirectory(
+        canonicalRootDirectory,
+        path.join(canonicalParentDirectory, path.basename(resolvedPath)),
+        "Backup path"
+      );
+    }
+
+    return resolvedPath;
   }
 
   async withOperation(lockKey, callback) {
@@ -176,13 +252,15 @@ class BackupService {
   }
 
   decorateBackupFileState(backup) {
-    const fileExists = Boolean(backup.path && fs.existsSync(backup.path));
+    const resolvedPath = backup.path ? this.assertBackupPathInsideRoot(backup.path) : "";
+    const fileExists = Boolean(resolvedPath && fs.existsSync(resolvedPath));
 
     return {
       ...backup,
+      path: resolvedPath,
       fileExists,
-      fileName: backup.path ? path.basename(backup.path) : "",
-      directory: backup.path ? path.dirname(backup.path) : "",
+      fileName: resolvedPath ? path.basename(resolvedPath) : "",
+      directory: resolvedPath ? path.dirname(resolvedPath) : "",
     };
   }
 
@@ -209,10 +287,17 @@ class BackupService {
       buildDefaultBackupName(type, createdAtDate, options.context);
     const sourcePath = validateSqlitePath(connection.path, { mustExist: true });
     const backupDirectory = this.getBackupDirectory(connection.id);
-    const backupPath = path.join(backupDirectory, `backup-${toBackupTimestamp(createdAtDate)}.sqlite`);
+    const requestedBackupPath = path.join(
+      backupDirectory,
+      `backup-${toBackupTimestamp(createdAtDate)}.sqlite`
+    );
 
     return this.withOperation(`connection:${connection.id}`, async () => {
-      ensureParentDirectory(backupPath);
+      const backupPath = resolvePathForWriteInsideDirectory(
+        this.backupRootDirectory,
+        requestedBackupPath,
+        "Backup path"
+      );
 
       const record = this.appStateStore.createBackupRecord({
         id: crypto.randomUUID(),
@@ -241,7 +326,10 @@ class BackupService {
 
         const sourceMetadata = this.collectSourceMetadata(sourceDb, sourcePath);
         const sizeBytes = getFileMetadata(backupPath).sizeBytes;
-        const checksumSha256 = await hashFileSha256(backupPath);
+        const checksumSha256 = await hashFileSha256(
+          backupPath,
+          this.backupRootDirectory
+        );
         let updated = this.appStateStore.updateBackupRecord(record.id, {
           ...sourceMetadata,
           sizeBytes,
@@ -356,7 +444,8 @@ class BackupService {
   }
 
   updateManifestForBackup(backup) {
-    const directoryPath = path.dirname(backup.path);
+    const backupPath = this.assertBackupPathInsideRoot(backup.path);
+    const directoryPath = path.dirname(backupPath);
     const manifestPath = this.getManifestPathForDirectory(directoryPath);
     const backups = this.appStateStore.listBackupsByDirectory(directoryPath);
     const manifest = {
@@ -380,7 +469,7 @@ class BackupService {
       })),
     };
 
-    writeJsonAtomic(manifestPath, manifest);
+    writeJsonAtomic(manifestPath, manifest, this.backupRootDirectory);
   }
 
   getDownloadInfo(backupId) {
@@ -390,8 +479,16 @@ class BackupService {
       throw new NotFoundError("Backup file is missing.");
     }
 
+    const backupPath = resolveExistingPathInsideDirectory(
+      this.backupRootDirectory,
+      backup.path,
+      "Backup file"
+    );
+
     return {
-      path: backup.path,
+      path: backupPath,
+      directory: path.dirname(backupPath),
+      fileName: path.basename(backupPath),
       filename: `${sanitizePathSegment(backup.name, "backup")}_${toBackupTimestamp(
         new Date(backup.createdAt ?? Date.now())
       )}.sqlite`,

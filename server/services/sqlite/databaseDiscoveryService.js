@@ -4,6 +4,11 @@ const os = require("node:os");
 const path = require("node:path");
 const Database = require("better-sqlite3");
 const { NotFoundError, ValidationError } = require("../../utils/errors");
+const {
+  assertSafePathInput,
+  resolveExistingPathInsideDirectory,
+  resolvePathInsideDirectory,
+} = require("../../utils/fileValidation");
 
 const SQLITE_HEADER = Buffer.from("SQLite format 3\0", "utf8");
 const MIN_DATABASE_SIZE_BYTES = 100;
@@ -317,7 +322,8 @@ class DatabaseDiscoveryService {
 
     const custom = Array.isArray(customDirectories) ? customDirectories.slice(0, MAX_CUSTOM_DIRECTORIES) : [];
     for (const directory of custom) {
-      const resolved = path.resolve(expandHome(directory, this.homeDirectory));
+      const safeDirectory = assertSafePathInput(directory, "Scan directory");
+      const resolved = path.resolve(expandHome(safeDirectory, this.homeDirectory));
       if (!roots.some((root) => normalizePathForComparison(root.path, this) === normalizePathForComparison(resolved, this))) {
         roots.push({ key: `custom:${roots.length}`, label: path.basename(resolved) || resolved, path: resolved, custom: true });
       }
@@ -463,9 +469,21 @@ class DatabaseDiscoveryService {
       return;
     }
 
+    let resolvedPath;
+    try {
+      resolvedPath = resolvePathInsideDirectory(
+        root.path,
+        filePath,
+        "Discovered database path"
+      );
+    } catch {
+      session.progress.inaccessibleCount += 1;
+      return;
+    }
+
     let stat;
     try {
-      stat = await fs.promises.lstat(filePath);
+      stat = await fs.promises.lstat(resolvedPath);
     } catch {
       session.progress.inaccessibleCount += 1;
       return;
@@ -475,16 +493,27 @@ class DatabaseDiscoveryService {
       return;
     }
 
-    const isReadable = await canAccess(filePath, fs.constants.R_OK, hasPermissionBit(stat, 0o444));
+    try {
+      resolvedPath = resolveExistingPathInsideDirectory(
+        root.path,
+        resolvedPath,
+        "Discovered database path"
+      );
+    } catch {
+      session.progress.inaccessibleCount += 1;
+      return;
+    }
+
+    const isReadable = await canAccess(resolvedPath, fs.constants.R_OK, hasPermissionBit(stat, 0o444));
     if (!isReadable) {
       session.progress.inaccessibleCount += 1;
       return;
     }
-    if (!(await hasSqliteHeader(filePath))) {
+    if (!(await hasSqliteHeader(resolvedPath))) {
       return;
     }
 
-    const normalizedPath = normalizePathForComparison(filePath, this);
+    const normalizedPath = normalizePathForComparison(resolvedPath, this);
     if (session.seenPaths.has(normalizedPath)) {
       return;
     }
@@ -498,15 +527,15 @@ class DatabaseDiscoveryService {
       }
     }
 
-    const isWritable = await canAccess(filePath, fs.constants.W_OK, hasPermissionBit(stat, 0o222));
-    const application = inferApplication(filePath, root);
-    const extension = path.extname(filePath).toLowerCase();
-    const hasWal = fs.existsSync(`${filePath}-wal`);
-    const hasShm = fs.existsSync(`${filePath}-shm`);
+    const isWritable = await canAccess(resolvedPath, fs.constants.W_OK, hasPermissionBit(stat, 0o222));
+    const application = inferApplication(resolvedPath, root);
+    const extension = path.extname(resolvedPath).toLowerCase();
+    const hasWal = fs.existsSync(`${resolvedPath}-wal`);
+    const hasShm = fs.existsSync(`${resolvedPath}-shm`);
     const result = {
       id: crypto.createHash("sha1").update(normalizedPath).digest("hex").slice(0, 20),
-      name: databaseNameFromPath(filePath),
-      path: path.resolve(filePath),
+      name: databaseNameFromPath(resolvedPath),
+      path: resolvedPath,
       normalizedPath,
       sizeBytes: stat.size,
       modifiedAt: stat.mtime.toISOString(),
