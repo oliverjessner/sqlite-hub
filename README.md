@@ -1,6 +1,6 @@
 # sqlite-hub ⚡️
 
-![NPM Downloads](https://img.shields.io/npm/dy/sqlite-hub)[![Dependabot Updates](https://github.com/oliverjessner/sqlite-hub/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/oliverjessner/sqlite-hub/actions/workflows/dependabot/dependabot-updates)[![CodeQL](https://github.com/oliverjessner/sqlite-hub/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/oliverjessner/sqlite-hub/actions/workflows/github-code-scanning/codeql)[![CI](https://github.com/oliverjessner/sqlite-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/oliverjessner/sqlite-hub/actions/workflows/ci.yml)
+![NPM Downloads](https://img.shields.io/npm/dy/sqlite-hub) [![Dependabot Updates](https://github.com/oliverjessner/sqlite-hub/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/oliverjessner/sqlite-hub/actions/workflows/dependabot/dependabot-updates) [![CodeQL](https://github.com/oliverjessner/sqlite-hub/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/oliverjessner/sqlite-hub/actions/workflows/github-code-scanning/codeql) [![CI](https://github.com/oliverjessner/sqlite-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/oliverjessner/sqlite-hub/actions/workflows/ci.yml)
 
 [![SQLite Hub database overview](./frontend/assets/mockups/overview_1_1920.webp)](./frontend/assets/mockups/overview_1_1920.webp)
 

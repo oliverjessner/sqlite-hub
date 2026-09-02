@@ -5,9 +5,13 @@ const path = require("node:path");
 const test = require("node:test");
 const Database = require("better-sqlite3");
 
-const { BackupService } = require("../server/services/sqlite/backupService");
+const {
+  BackupService,
+  sanitizePathSegment,
+} = require("../server/services/sqlite/backupService");
 const { ConnectionManager } = require("../server/services/sqlite/connectionManager");
 const { AppStateStore } = require("../server/services/storage/appStateStore");
+const { ValidationError } = require("../server/utils/errors");
 
 function createFixture(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-backups-"));
@@ -285,4 +289,43 @@ test("delete backup removes file, record, and manifest entry", async (t) => {
 
   assert.equal(fs.existsSync(backupPath), false);
   assert.equal(store.getBackup(backup.id), null);
+});
+
+test("backup storage rejects traversal segments and paths outside its root", (t) => {
+  const { backupService, connection, directory, store } = createFixture(t);
+  const outsideDirectory = path.join(directory, "outside");
+  const outsidePath = path.join(outsideDirectory, "outside.sqlite");
+  const linkedDirectory = path.join(backupService.backupRootDirectory, "linked");
+
+  fs.mkdirSync(outsideDirectory, { recursive: true });
+  fs.mkdirSync(backupService.backupRootDirectory, { recursive: true });
+  fs.writeFileSync(outsidePath, "must remain untouched");
+  fs.symlinkSync(outsideDirectory, linkedDirectory, "dir");
+
+  assert.equal(sanitizePathSegment("..", "database"), "database");
+  assert.equal(sanitizePathSegment(".", "database"), "database");
+  assert.equal(
+    backupService.getBackupDirectory(".."),
+    path.join(backupService.backupRootDirectory, "database")
+  );
+
+  for (const [id, backupPath] of [
+    ["outside-backup", outsidePath],
+    ["linked-backup", path.join(linkedDirectory, "outside.sqlite")],
+  ]) {
+    store.createBackupRecord({
+      id,
+      connectionId: connection.id,
+      name: "Untrusted backup",
+      path: backupPath,
+      status: "verified",
+      type: "manual",
+      sourcePath: connection.path,
+      createdAt: new Date().toISOString(),
+    });
+
+    assert.throws(() => backupService.getDownloadInfo(id), ValidationError);
+    assert.throws(() => backupService.deleteBackup(id), ValidationError);
+    assert.equal(fs.readFileSync(outsidePath, "utf8"), "must remain untouched");
+  }
 });

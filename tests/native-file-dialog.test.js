@@ -1,5 +1,9 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const test = require("node:test");
+const Database = require("better-sqlite3");
 const {
   NativeFileDialogService,
   buildDirectoryDialogAttempts,
@@ -8,6 +12,7 @@ const {
   normalizeOpenedDatabasePath,
   normalizeSelectedDatabasePath,
 } = require("../server/services/nativeFileDialogService");
+const { ValidationError } = require("../server/utils/errors");
 
 test("native database dialog normalizes paths and adds a default extension", () => {
   assert.equal(normalizeSelectedDatabasePath("/tmp/customer-data"), "/tmp/customer-data.sqlite");
@@ -123,4 +128,37 @@ test("native directory picker returns the selected folder", async () => {
   });
 
   assert.equal(await service.chooseDirectoryPath(), "/Users/test/Library/Application Support");
+});
+
+test("native reveal validates and canonicalizes SQLite database paths", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-reveal-"));
+  const nestedDirectory = path.join(root, "nested");
+  const databasePath = path.join(root, "catalog.sqlite");
+  const db = new Database(databasePath);
+  const calls = [];
+
+  db.exec("CREATE TABLE items (id INTEGER PRIMARY KEY)");
+  db.close();
+  fs.mkdirSync(nestedDirectory);
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const service = new NativeFileDialogService({
+    platform: "linux",
+    executeFile: async (command, args) => {
+      calls.push({ command, args });
+    },
+  });
+
+  assert.equal(await service.revealPath(databasePath), fs.realpathSync.native(databasePath));
+  assert.deepEqual(calls, [
+    {
+      command: "xdg-open",
+      args: [path.dirname(fs.realpathSync.native(databasePath))],
+    },
+  ]);
+  await assert.rejects(
+    service.revealPath(`${nestedDirectory}${path.sep}..${path.sep}catalog.sqlite`),
+    ValidationError
+  );
+  assert.equal(calls.length, 1);
 });
