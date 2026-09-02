@@ -98,11 +98,13 @@ function resolvePathForWriteInsideDirectory(baseDirectory, filePath, label) {
     `${label} directory`
   );
 
-  return resolvePathInsideDirectory(
+  resolvePathInsideDirectory(
     canonicalBaseDirectory,
     path.join(canonicalParentDirectory, path.basename(resolvedPath)),
     label
   );
+
+  return resolvedPath;
 }
 
 function hashFileSha256(filePath, backupRootDirectory) {
@@ -180,11 +182,12 @@ class BackupService {
     );
 
     if (fs.existsSync(resolvedPath)) {
-      return resolveExistingPathInsideDirectory(
+      resolveExistingPathInsideDirectory(
         this.backupRootDirectory,
         resolvedPath,
         "Backup path"
       );
+      return resolvedPath;
     }
 
     const parentDirectory = path.dirname(resolvedPath);
@@ -197,11 +200,12 @@ class BackupService {
       );
       const canonicalRootDirectory = fs.realpathSync.native(this.backupRootDirectory);
 
-      return resolvePathInsideDirectory(
+      resolvePathInsideDirectory(
         canonicalRootDirectory,
         path.join(canonicalParentDirectory, path.basename(resolvedPath)),
         "Backup path"
       );
+      return resolvedPath;
     }
 
     return resolvedPath;

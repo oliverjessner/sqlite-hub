@@ -160,7 +160,10 @@ function createBackupsRouter({ backupService, appStateStore = null, connectionMa
     route((req, res) => {
       const download = backupService.getDownloadInfo(req.params.backupId);
       res.setHeader("Content-Disposition", `attachment; filename="${download.filename}"`);
-      res.sendFile(download.path);
+      res.sendFile(download.fileName, {
+        root: download.directory,
+        dotfiles: "deny",
+      });
     })
   );
 

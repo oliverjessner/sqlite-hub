@@ -494,7 +494,7 @@ class DatabaseDiscoveryService {
     }
 
     try {
-      resolvedPath = resolveExistingPathInsideDirectory(
+      resolveExistingPathInsideDirectory(
         root.path,
         resolvedPath,
         "Discovered database path"

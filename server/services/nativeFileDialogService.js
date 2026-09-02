@@ -1,8 +1,10 @@
+const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { AppError } = require("../utils/errors");
+const { validateSqlitePath } = require("../utils/fileValidation");
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_DATABASE_FILENAME = "new-database.sqlite";
@@ -268,7 +270,8 @@ class NativeFileDialogService {
   }
 
   async revealPath(filePath) {
-    const resolvedPath = path.resolve(String(filePath ?? ""));
+    const validatedPath = validateSqlitePath(filePath, { mustExist: true });
+    const resolvedPath = fs.realpathSync.native(validatedPath);
     let command;
     let args;
 
