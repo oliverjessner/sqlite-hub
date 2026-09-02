@@ -72,6 +72,21 @@ function getVisibleColumns(tableDetail) {
   );
 }
 
+function requireVisibleColumn(tableDetail, columnName, label = "Column") {
+  const requestedName = String(columnName ?? "").trim();
+  const column = getVisibleColumns(tableDetail).find(
+    (candidate) => candidate.name === requestedName
+  );
+
+  if (!column) {
+    throw new ValidationError(
+      `${label} "${requestedName}" is not part of table "${tableDetail?.name ?? ""}".`
+    );
+  }
+
+  return column;
+}
+
 function isLikelyPathColumn(column) {
   return PATH_COLUMN_PATTERN.test(String(column?.name ?? ""));
 }
@@ -339,28 +354,39 @@ function buildWrappedQuery(query) {
   return stripTrailingSemicolons(query);
 }
 
+function requireReadOnlyMediaStatement(statement) {
+  if (!statement.reader || !statement.readonly) {
+    throw new ValidationError("Media tagging queries must be read-only SELECT statements.");
+  }
+
+  return statement;
+}
+
 function getQueryOutputColumns(db, query) {
-  const statement = db.prepare(
-    [
-      "SELECT * FROM (",
-      buildWrappedQuery(query),
-      ") AS media_tagging_source LIMIT 0",
-    ].join("")
+  const statement = requireReadOnlyMediaStatement(
+    db.prepare(
+      [
+        "SELECT * FROM (",
+        buildWrappedQuery(query),
+        ") AS media_tagging_source LIMIT 0",
+      ].join("")
+    )
   );
 
   return statement.columns().map((column) => column.name);
 }
 
 function countQueryRows(db, query) {
-  const row = db
-    .prepare(
+  const statement = requireReadOnlyMediaStatement(
+    db.prepare(
       [
         "SELECT COUNT(*) AS count FROM (",
         buildWrappedQuery(query),
         ") AS media_tagging_source",
       ].join("")
     )
-    .get();
+  );
+  const row = statement.get();
 
   return Number(row?.count ?? 0);
 }
@@ -1200,7 +1226,9 @@ class MediaTaggingService {
 
     sqlParts.push("LIMIT 1");
 
-    return db.prepare(sqlParts.join(" ")).get(...exclusion.params) ?? null;
+    const statement = requireReadOnlyMediaStatement(db.prepare(sqlParts.join(" ")));
+
+    return statement.get(...exclusion.params) ?? null;
   }
 
   loadMediaTableRow(db, mediaTableDetail, currentRow) {
@@ -1746,6 +1774,11 @@ class MediaTaggingService {
   }
 
   markMediaRowTagged(db, mediaTableDetail, taggedColumn, currentRow) {
+    const taggedColumnDetail = requireVisibleColumn(
+      mediaTableDetail,
+      taggedColumn,
+      "Tagging column"
+    );
     const identity = mediaTableDetail.identityStrategy ?? { type: "none", columns: [] };
 
     if (identity.type === "primaryKey" && identity.columns.length) {
@@ -1759,7 +1792,7 @@ class MediaTaggingService {
           "UPDATE",
           quoteIdentifier(mediaTableDetail.name),
           "SET",
-          quoteIdentifier(taggedColumn),
+          quoteIdentifier(taggedColumnDetail.name),
           "= 1 WHERE",
           whereClause,
         ].join(" ")
@@ -1781,7 +1814,7 @@ class MediaTaggingService {
           "UPDATE",
           quoteIdentifier(mediaTableDetail.name),
           "SET",
-          quoteIdentifier(taggedColumn),
+          quoteIdentifier(taggedColumnDetail.name),
           "= 1 WHERE rowid = ?",
         ].join(" ")
       ).run(rowIdValue);
