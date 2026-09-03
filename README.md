@@ -8,7 +8,7 @@ A focused local-first app for browsing, editing, and querying SQLite databases.
 
 > SQLite Hub is local-first. Your databases are processed locally and are not uploaded to a cloud service.
 
-## Featured
+## Award Winning Software
 
 SQLite Hub was named **Product of the Day** on both Fazier and PeerPush. And 2nd Best Product of the Month on Aura++
 
