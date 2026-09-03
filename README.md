@@ -10,11 +10,15 @@ A focused local-first app for browsing, editing, and querying SQLite databases.
 
 ## Featured
 
-SQLite Hub was named **Product of the Day** on both Fazier and PeerPush.
+SQLite Hub was named **Product of the Day** on both Fazier and PeerPush. And 2nd Best Product of the Month on Aura++
 
 <p>
   <a href="https://fazier.com/launches/sqlite-hub" target="_blank" aria-label="Fazier badge" rel="noopener noreferrer"><img src="https://fazier.com/api/v1/public/badges/embed_image.svg?launch_id=9942&amp;badge_type=daily&amp;theme=dark" alt="Fazier badge" width="230" loading="lazy" decoding="async"></a>
   <a href="https://peerpush.com/p/sqlite-hub" target="_blank" aria-label="SQLite Hub on PeerPush" rel="noopener noreferrer"><img src="https://peerpush.com/p/sqlite-hub/badge.png" alt="SQLite Hub on PeerPush" width="230" loading="lazy" decoding="async"></a>
+
+  <a href="https://auraplusplus.com/projects/sqlite-hub" target="_blank" title="Aura++ Top 2 Monthly Winner">
+  <img src="https://auraplusplus.com/images/badges/2-month-dark.svg" alt="Aura++ Top 2 Monthly Winner" style="width: 195px; height: auto;" />
+</a>
 </p>
 
 ## Install
