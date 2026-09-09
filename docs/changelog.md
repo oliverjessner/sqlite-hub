@@ -1,6 +1,7 @@
 # v2.6.2
 
 - Fixed MCP resource and template discovery returning server errors; discovery now returns empty lists, and unsupported methods use the correct JSON-RPC error code.
+- MCP request errors are now persisted in Logs with the method, request ID, transport, and error details.
 
 # v2.6.1
 

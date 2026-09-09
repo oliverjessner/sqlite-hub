@@ -214,7 +214,7 @@ async function startMcpStdioServer({ input = process.stdin, output = process.std
         output.write(encodeMessage(response));
       }
     } catch (error) {
-      services.statusService.markError(error);
+      services.statusService.markRequestError(error, message);
 
       if (message.id !== undefined) {
         output.write(encodeMessage(createJsonRpcError(message.id, error)));
@@ -238,7 +238,7 @@ async function startMcpStdioServer({ input = process.stdin, output = process.std
   input.on("data", (chunk) => {
     buffer = Buffer.concat([buffer, Buffer.from(chunk)]);
     drainBuffer().catch((error) => {
-      services.statusService.markError(error);
+      services.statusService.markRequestError(error);
       process.stderr.write(`SQLite Hub MCP error: ${error.message}\n`);
     });
   });

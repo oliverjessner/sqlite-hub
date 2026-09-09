@@ -122,6 +122,40 @@ class McpStatusService {
     });
   }
 
+  markRequestError(error, message = null) {
+    const status = this.markError(error);
+    const method = typeof message?.method === "string" ? message.method : null;
+    const toolName = method === "tools/call" && typeof message?.params?.name === "string"
+      ? message.params.name : null;
+    const databaseId = method === "tools/call" && typeof message?.params?.arguments?.databaseId === "string"
+      ? message.params.arguments.databaseId : null;
+
+    // Log at the transport boundary so a tool failure creates one access entry.
+    // Keep logging best effort, and avoid persisting request arguments.
+    try {
+      this.appStateStore?.recordAccessLog?.({
+        source: "mcp",
+        action: "mcp.request.error",
+        databaseKey: databaseId,
+        targetType: "mcp-method",
+        targetName: method ?? "Invalid MCP message",
+        status: "error",
+        errorMessage: status.error,
+        metadata: {
+          transport: this.transport,
+          method,
+          requestId: typeof message?.id === "string" || typeof message?.id === "number" ? message.id : null,
+          toolName,
+          errorCode: error?.code ?? error?.name ?? "MCP_ERROR",
+        },
+      });
+    } catch {
+      // A logging failure must not replace the original MCP error response.
+    }
+
+    return status;
+  }
+
   markStopped() {
     return this.patchStatus({
       serverRunning: false,

@@ -173,6 +173,23 @@ function renderLogPreview(item) {
     }
 
     const metadata = item.metadata ?? {};
+    if (item.source === 'mcp') {
+        const details = [
+            metadata.method,
+            metadata.toolName,
+            metadata.transport,
+            metadata.requestId !== null && metadata.requestId !== undefined ? `Request ${metadata.requestId}` : null,
+            metadata.errorCode,
+            !item.databaseKey ? 'Server-wide' : null,
+        ].filter(Boolean).join(' // ');
+
+        return `
+          <div class="mt-2 max-w-4xl break-words font-mono text-[11px] text-on-surface-variant/60">
+            ${escapeHtml(details)}
+          </div>
+        `;
+    }
+
     const method = metadata.method ? `${metadata.method} ` : '';
     const path = metadata.path ?? '';
 

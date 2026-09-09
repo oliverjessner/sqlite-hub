@@ -104,7 +104,8 @@ test("user action logging is best effort", () => {
   assert.equal(entry, null);
 });
 
-test("access log schema migrates existing sources to include user", (t) => {
+for (const sources of ["'api', 'cli'", "'api', 'cli', 'user'"]) {
+test(`access log schema migrates existing sources (${sources}) to include MCP`, (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-access-log-migration-"));
   const databasePath = path.join(directory, "state.db");
   const db = new Database(databasePath);
@@ -112,7 +113,7 @@ test("access log schema migrates existing sources to include user", (t) => {
   db.exec(`
     CREATE TABLE access_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      source TEXT NOT NULL CHECK(source IN ('api', 'cli')),
+      source TEXT NOT NULL CHECK(source IN (${sources})),
       action TEXT NOT NULL,
       database_key TEXT,
       target_type TEXT,
@@ -166,4 +167,14 @@ test("access log schema migrates existing sources to include user", (t) => {
 
   assert.equal(entry.source, "user");
   assert.equal(logs.total, 2);
+  assert.equal(logs.items.find((item) => item.source === "cli").targetName, "Database One");
+  const mcpEntry = store.recordAccessLog({
+    source: "mcp", action: "mcp.request.error", status: "error",
+    errorMessage: "Unsupported MCP method: unknown/method",
+  });
+  assert.equal(mcpEntry.source, "mcp");
+  assert.equal(store.listAccessLogs().total, 3);
+  store.ensureAccessLogSchema();
+  assert.equal(store.listAccessLogs().total, 3);
 });
+}

@@ -41,7 +41,7 @@ const MAX_CONNECTION_TAG_NAME_LENGTH = 40;
 const MAX_DOCUMENT_CONTENT_BYTES = 5 * 1024 * 1024;
 const MAX_DOCUMENT_FILENAME_LENGTH = 160;
 const QUERY_EXECUTION_SOURCES = new Set(['api', 'cli', 'user', 'mcp']);
-const ACCESS_LOG_SOURCES = new Set(['api', 'cli', 'user']);
+const ACCESS_LOG_SOURCES = new Set(['api', 'cli', 'user', 'mcp']);
 const ACCESS_LOG_STATUSES = new Set(['success', 'error']);
 const MAX_ACCESS_LOG_TEXT_LENGTH = 500;
 const MAX_ACCESS_LOG_METADATA_BYTES = 16 * 1024;
@@ -676,7 +676,7 @@ class AppStateStore {
 
       CREATE TABLE IF NOT EXISTS access_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        source TEXT NOT NULL CHECK(source IN ('api', 'cli', 'user')),
+        source TEXT NOT NULL CHECK(source IN ('api', 'cli', 'user', 'mcp')),
         action TEXT NOT NULL,
         database_key TEXT,
         target_type TEXT,
@@ -795,11 +795,11 @@ class AppStateStore {
         const row = this.db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'access_log'").get();
         const tableSql = String(row?.sql ?? '');
 
-        if (tableSql.includes("'user'")) {
+        if (tableSql.includes("'user'") && tableSql.includes("'mcp'")) {
             return;
         }
 
-        this.db.exec(`
+        this.db.transaction(() => this.db.exec(`
       DROP TABLE IF EXISTS access_log_source_migration;
       DROP INDEX IF EXISTS idx_access_log_started;
       DROP INDEX IF EXISTS idx_access_log_source_started;
@@ -809,7 +809,7 @@ class AppStateStore {
 
       CREATE TABLE access_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        source TEXT NOT NULL CHECK(source IN ('api', 'cli', 'user')),
+        source TEXT NOT NULL CHECK(source IN ('api', 'cli', 'user', 'mcp')),
         action TEXT NOT NULL,
         database_key TEXT,
         target_type TEXT,
@@ -858,7 +858,7 @@ class AppStateStore {
 
       CREATE INDEX IF NOT EXISTS idx_access_log_database_started
       ON access_log(database_key, started_at DESC, id DESC);
-    `);
+    `))();
     }
 
     ensureQueryRunsSchema() {
@@ -2517,7 +2517,8 @@ class AppStateStore {
         }
 
         if (databaseKey) {
-            filters.push('database_key = ?');
+            // Protocol failures without a database apply to the whole MCP server.
+            filters.push("(database_key = ? OR (database_key IS NULL AND source = 'mcp'))");
             params.push(databaseKey);
         }
 
@@ -2527,7 +2528,7 @@ class AppStateStore {
         }
 
         if (actor) {
-            if (actor !== 'api' && actor !== 'cli' && actor !== 'user') {
+            if (!ACCESS_LOG_SOURCES.has(actor)) {
                 return {
                     whereSql: 'WHERE 1 = 0',
                     params: [],

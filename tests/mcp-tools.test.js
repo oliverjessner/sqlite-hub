@@ -3,13 +3,15 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
+const { once } = require("node:events");
+const { PassThrough } = require("node:stream");
 const Database = require("better-sqlite3");
 
 const { DatabaseCommandService } = require("../server/services/databaseCommandService");
 const { MCP_TOOL_DEFINITIONS, McpToolService } = require("../server/services/mcpToolService");
 const { McpStatusService } = require("../server/services/mcpStatusService");
 const { AppStateStore } = require("../server/services/storage/appStateStore");
-const { createJsonRpcError, handleMcpRequest } = require("../server/mcp/stdioServer");
+const { createJsonRpcError, handleMcpRequest, startMcpStdioServer } = require("../server/mcp/stdioServer");
 
 function createFixture(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-mcp-"));
@@ -381,6 +383,42 @@ test("MCP JSON-RPC resource discovery returns empty lists", async () => {
 
     assert.deepEqual(response, { jsonrpc: "2.0", id: 0, result });
   }
+});
+
+test("MCP stdio errors are persisted alongside the JSON-RPC response", async (t) => {
+  const { toolService, statusService, store } = createFixture(t);
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const signals = ["SIGINT", "SIGTERM"].map((signal) => [signal, process.listeners(signal)]);
+  const server = await startMcpStdioServer({ input, output, services: { toolService, statusService } });
+  t.after(() => {
+    input.destroy();
+    output.destroy();
+    for (const [signal, previous] of signals) {
+      for (const listener of process.listeners(signal)) {
+        if (!previous.includes(listener)) process.removeListener(signal, listener);
+      }
+    }
+  });
+  const responsePromise = once(output, "data");
+  input.write(`${JSON.stringify({ jsonrpc: "2.0", id: "stdio-error", method: "unknown/method" })}\n`);
+  const [chunk] = await responsePromise;
+  const response = JSON.parse(chunk.toString().split("\r\n\r\n")[1]);
+  assert.equal(response.error.code, -32601);
+  const logs = store.listAccessLogs({ source: "mcp" });
+  assert.equal(logs.total, 1);
+  assert.equal(logs.items[0].metadata.transport, "stdio");
+  assert.equal(logs.items[0].metadata.requestId, "stdio-error");
+  assert.equal(logs.items[0].metadata.method, "unknown/method");
+  server.stop();
+});
+
+test("MCP request error logging is best effort", () => {
+  const statusService = new McpStatusService({
+    appStateStore: { recordAccessLog() { throw new Error("Logging unavailable"); } },
+  });
+  const status = statusService.markRequestError(new Error("Original MCP failure"));
+  assert.equal(status.error, "Original MCP failure");
 });
 
 test("MCP JSON-RPC distinguishes unknown methods from internal errors", async () => {

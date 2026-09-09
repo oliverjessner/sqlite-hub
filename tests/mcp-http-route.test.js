@@ -60,6 +60,7 @@ function createHttpFixture(t) {
   return {
     app,
     statusService,
+    store,
   };
 }
 
@@ -162,4 +163,40 @@ test("MCP HTTP endpoint documents POST-only transport", async (t) => {
   assert.equal(response.status, 405);
   assert.equal(response.headers.get("allow"), "POST, OPTIONS");
   assert.match(payload.error, /Streamable HTTP POST/);
+});
+
+test("MCP HTTP errors persist request context once and survive reconnecting", async (t) => {
+  const { app, store } = createHttpFixture(t);
+  const baseUrl = await startTestServer(t, app);
+  const unknown = await postMcp(baseUrl, {
+    jsonrpc: "2.0", id: 0, method: "unknown/method",
+    params: { secret: "must-not-be-logged" },
+  });
+  assert.equal(unknown.payload.error.code, -32601);
+
+  const failure = await postMcp(baseUrl, {
+    jsonrpc: "2.0", id: "failed-tool", method: "tools/call",
+    params: { name: "run_readonly_query", arguments: { databaseId: "db-sample", sql: "DELETE FROM companies" } },
+  });
+  assert.ok(failure.payload.error);
+  await postMcp(baseUrl, { jsonrpc: "2.0", id: 3, method: "initialize" });
+
+  const logs = store.listActivityLogs({ actor: "mcp", status: "error", databaseKey: "db-sample" });
+  assert.equal(logs.total, 2);
+  const protocolError = logs.items.find((item) => item.metadata.requestId === 0);
+  assert.equal(protocolError.source, "mcp");
+  assert.equal(protocolError.action, "mcp.request.error");
+  assert.equal(protocolError.databaseKey, null);
+  assert.equal(protocolError.errorMessage, "Unsupported MCP method: unknown/method");
+  assert.match(protocolError.occurredAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.deepEqual(protocolError.metadata, {
+    transport: "http", method: "unknown/method", requestId: 0,
+    toolName: null, errorCode: "MCP_METHOD_NOT_FOUND",
+  });
+  const toolError = logs.items.find((item) => item.metadata.requestId === "failed-tool");
+  assert.equal(toolError.databaseKey, "db-sample");
+  assert.equal(toolError.metadata.toolName, "run_readonly_query");
+  assert.equal(JSON.stringify(logs).includes("must-not-be-logged"), false);
+  assert.equal(JSON.stringify(logs).includes("DELETE FROM companies"), false);
+  assert.equal(store.listActivityLogs({ actor: "mcp", databaseKey: "another-db" }).total, 1);
 });

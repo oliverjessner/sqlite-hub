@@ -13,7 +13,7 @@ async function handleHttpMcpMessage(message, services) {
   try {
     return await handleMcpRequest(message, services);
   } catch (error) {
-    services.statusService?.markError?.(error);
+    services.statusService?.markRequestError?.(error, message);
     return createJsonRpcError(message?.id, error);
   }
 }

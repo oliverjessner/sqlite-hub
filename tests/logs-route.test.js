@@ -85,6 +85,7 @@ async function startLogsApi(t) {
 
   return {
     baseUrl: `http://127.0.0.1:${server.address().port}/api/logs`,
+    store,
   };
 }
 
@@ -176,4 +177,19 @@ test("logs route requires an active database", async (t) => {
 
   assert.equal(response.status, 400);
   assert.equal(payload.error.code, "ACTIVE_DATABASE_REQUIRED");
+});
+
+test("logs route includes server-wide MCP errors while preserving database scope", async (t) => {
+  const { baseUrl, store } = await startLogsApi(t);
+  for (const databaseKey of [null, "db-one", "db-two"]) {
+    store.recordAccessLog({
+      source: "mcp", action: "mcp.request.error", status: "error", databaseKey,
+      errorMessage: "Unsupported MCP method: unknown/method",
+    });
+  }
+  const response = await fetch(`${baseUrl}?actor=mcp&kind=access&status=error&search=unknown%2Fmethod`);
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(payload.data.total, 2);
+  assert.ok(payload.data.items.every((item) => item.databaseKey === null || item.databaseKey === "db-one"));
 });
