@@ -152,9 +152,9 @@ test("settings MCP tab renders status, tools, and Codex config", async () => {
             description: "Run a guarded read-only query.",
           },
         ],
-        command: "http://127.0.0.1:4173/mcp",
+        command: "sqlite-hub mcp",
         codexConfig:
-          '[mcp_servers.sqlitehub]\nurl = "http://127.0.0.1:4173/mcp"',
+          '[mcp_servers.sqlitehub]\ncommand = "sqlite-hub"\nargs = ["mcp"]',
         error: null,
       },
     },
@@ -170,8 +170,9 @@ test("settings MCP tab renders status, tools, and Codex config", async () => {
   assert.match(rendered.main, /get_schema/);
   assert.match(rendered.main, /list_connections/);
   assert.match(rendered.main, /run_readonly_query/);
-  assert.match(rendered.main, /MCP_ENDPOINT/);
-  assert.match(rendered.main, /http:\/\/127\.0\.0\.1:4173\/mcp/);
+  assert.match(rendered.main, /MCP_COMMAND/);
+  assert.match(rendered.main, /sqlite-hub mcp/);
+  assert.doesNotMatch(rendered.main, /MCP_ENDPOINT|HTTP MCP endpoint/);
   assert.match(rendered.main, /data-mcp-config/);
   assert.match(rendered.main, /settings-mcp-config-input/);
   assert.match(rendered.main, /data-action="copy-mcp-config"/);

@@ -251,3 +251,12 @@ test("does not combine type JSON output with file output", () => {
     /--json cannot be combined with --output/
   );
 });
+
+
+test("registers the standalone MCP command with focused help and no network flags", () => {
+  assert.deepEqual(command(["mcp"]), { resource: "mcp", action: null, arguments: [], options: {} });
+  assert.deepEqual(parseCliArguments(["mcp", "--help"]), { help: true, helpPath: ["mcp"] });
+  assert.match(getHelpText(), /mcp\s+Start the SQLite Hub MCP server over STDIO/);
+  assert.match(getHelpText(["mcp"]), /stdout is reserved for MCP protocol/);
+  assert.throws(() => parseCliArguments(["mcp", "--port", "4173"]), /Unknown option/);
+});

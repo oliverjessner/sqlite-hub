@@ -175,7 +175,7 @@ function renderMcpSection(settings) {
         ? status.toolDetails
         : (status.exposedTools ?? []).map(name => ({ name, description: '' }));
     const codexConfig = status.codexConfig ?? '';
-    const command = status.command ?? 'sqlite-hub-mcp';
+    const command = status.command ?? 'sqlite-hub mcp';
 
     return `
       <div class="space-y-6">
@@ -240,7 +240,7 @@ function renderMcpSection(settings) {
           <div class="space-y-4 p-6">
             <div>
               <div class="text-[10px] font-mono uppercase tracking-[0.2em] text-on-surface-variant/60">
-                MCP_ENDPOINT
+                MCP_COMMAND
               </div>
               <div class="mt-3 border border-outline-variant/10 bg-surface-container-high px-4 py-3 font-mono text-sm text-primary-container">
                 ${escapeHtml(command)}
@@ -265,7 +265,7 @@ function renderMcpSection(settings) {
             <div>Read-only queries are limited to SELECT, PRAGMA, and EXPLAIN.</div>
             <div>Mutating SQL statements are blocked server-side before execution.</div>
             <div>Destructive actions must use existing SQLite Hub safety mechanisms such as verified backups.</div>
-            <div>The local HTTP MCP endpoint is bound to SQLite Hub's loopback server and does not expose API tokens.</div>
+            <div>The MCP client starts SQLite Hub over STDIO. No HTTP server, port, or tunnel is required.</div>
           </div>
         </section>
       </div>

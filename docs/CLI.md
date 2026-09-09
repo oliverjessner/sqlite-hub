@@ -58,6 +58,15 @@ sqlite-hub --version
 
 Short forms `-h` and `-v` are also supported.
 
+## MCP Server
+
+```bash
+sqlite-hub mcp
+sqlite-hub mcp --help
+```
+
+Start the SQLite Hub MCP server over STDIO. The local MCP client launches this command and uses stdin/stdout for protocol messages; diagnostics go to stderr. It uses the same configured databases as SQLite Hub and needs no HTTP server, port, or tunnel. See [MCP setup](MCP.md) for ChatGPT Desktop, Codex, and Claude Desktop configuration.
+
 ## Databases
 
 List all imported databases:

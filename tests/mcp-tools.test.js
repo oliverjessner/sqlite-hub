@@ -3,15 +3,15 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const { once } = require("node:events");
-const { PassThrough } = require("node:stream");
 const Database = require("better-sqlite3");
 
 const { DatabaseCommandService } = require("../server/services/databaseCommandService");
 const { MCP_TOOL_DEFINITIONS, McpToolService } = require("../server/services/mcpToolService");
 const { McpStatusService } = require("../server/services/mcpStatusService");
 const { AppStateStore } = require("../server/services/storage/appStateStore");
-const { createJsonRpcError, handleMcpRequest, startMcpStdioServer } = require("../server/mcp/stdioServer");
+const { createMcpServer } = require("../server/mcp/stdioServer");
+const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
+const { InMemoryTransport } = require("@modelcontextprotocol/sdk/inMemory.js");
 
 function createFixture(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-mcp-"));
@@ -355,114 +355,28 @@ test("MCP create_stored_query validates required SQL and title", async (t) => {
   );
 });
 
-test("MCP JSON-RPC lists tools and calls shared tool service", async (t) => {
+test("SDK server exposes existing tools and negotiates initialization", async (t) => {
   const { toolService, statusService } = createFixture(t);
-  const listResponse = await handleMcpRequest(
-    { jsonrpc: "2.0", id: 1, method: "tools/list" },
-    { toolService, statusService }
-  );
-
-  assert.equal(listResponse.result.tools.some((tool) => tool.name === "list_connections"), true);
-
-  const callResponse = await handleMcpRequest(
-    { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "list_connections" } },
-    { toolService, statusService }
-  );
-
-  assert.equal(callResponse.result.content[0].type, "text");
-  assert.match(callResponse.result.content[0].text, /Sample/);
-  assert.equal(callResponse.result.structuredContent.items.length, 1);
-});
-
-test("MCP JSON-RPC resource discovery returns empty lists", async () => {
-  for (const [method, result] of [
-    ["resources/list", { resources: [] }],
-    ["resources/templates/list", { resourceTemplates: [] }],
-  ]) {
-    const response = await handleMcpRequest({ jsonrpc: "2.0", id: 0, method }, {});
-
-    assert.deepEqual(response, { jsonrpc: "2.0", id: 0, result });
-  }
-});
-
-test("MCP stdio errors are persisted alongside the JSON-RPC response", async (t) => {
-  const { toolService, statusService, store } = createFixture(t);
-  const input = new PassThrough();
-  const output = new PassThrough();
-  const signals = ["SIGINT", "SIGTERM"].map((signal) => [signal, process.listeners(signal)]);
-  const server = await startMcpStdioServer({ input, output, services: { toolService, statusService } });
-  t.after(() => {
-    input.destroy();
-    output.destroy();
-    for (const [signal, previous] of signals) {
-      for (const listener of process.listeners(signal)) {
-        if (!previous.includes(listener)) process.removeListener(signal, listener);
-      }
-    }
-  });
-  const responsePromise = once(output, "data");
-  input.write(`${JSON.stringify({ jsonrpc: "2.0", id: "stdio-error", method: "unknown/method" })}\n`);
-  const [chunk] = await responsePromise;
-  const response = JSON.parse(chunk.toString().split("\r\n\r\n")[1]);
-  assert.equal(response.error.code, -32601);
-  const logs = store.listAccessLogs({ source: "mcp" });
-  assert.equal(logs.total, 1);
-  assert.equal(logs.items[0].metadata.transport, "stdio");
-  assert.equal(logs.items[0].metadata.requestId, "stdio-error");
-  assert.equal(logs.items[0].metadata.method, "unknown/method");
-  server.stop();
+  const { server } = createMcpServer({ services: { toolService, statusService } });
+  const client = new Client({ name: "sqlite-hub-test", version: "1.0.0" });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  t.after(() => client.close());
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  const list = await client.listTools();
+  assert.equal(client.getServerVersion().name, "sqlite-hub");
+  assert.deepEqual(list.tools, toolService.listTools());
+  const call = await client.callTool({ name: "list_connections", arguments: {} });
+  assert.match(call.content[0].text, /Sample/);
+  assert.equal(call.structuredContent.items.length, 1);
+  assert.deepEqual(await client.listResources(), { resources: [] });
+  assert.deepEqual(await client.listResourceTemplates(), { resourceTemplates: [] });
+  assert.equal(statusService.getStatus().connected, true);
 });
 
 test("MCP request error logging is best effort", () => {
   const statusService = new McpStatusService({
     appStateStore: { recordAccessLog() { throw new Error("Logging unavailable"); } },
   });
-  const status = statusService.markRequestError(new Error("Original MCP failure"));
-  assert.equal(status.error, "Original MCP failure");
-});
-
-test("MCP JSON-RPC distinguishes unknown methods from internal errors", async () => {
-  await assert.rejects(
-    () => handleMcpRequest({ jsonrpc: "2.0", id: 1, method: "unknown/method" }, {}),
-    (error) => {
-      assert.deepEqual(createJsonRpcError(1, error), {
-        jsonrpc: "2.0",
-        id: 1,
-        error: {
-          code: -32601,
-          message: "Unsupported MCP method: unknown/method",
-          data: { code: "MCP_METHOD_NOT_FOUND" },
-        },
-      });
-      return true;
-    }
-  );
-
-  assert.equal(createJsonRpcError(2, new Error("Unexpected failure")).error.code, -32603);
-  assert.equal(
-    createJsonRpcError(3, { code: "MCP_TOOL_NOT_FOUND", message: "Unknown tool" }).error.code,
-    -32601
-  );
-});
-
-test("MCP JSON-RPC lifecycle updates connection status", async (t) => {
-  const { toolService, statusService } = createFixture(t);
-  const services = { toolService, statusService };
-
-  const initResponse = await handleMcpRequest(
-    { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
-    services
-  );
-
-  assert.equal(initResponse.result.serverInfo.name, "sqlite-hub");
-  assert.equal(statusService.getStatus().connected, true);
-  assert.equal(statusService.getStatus().activeClientCount, 1);
-  assert.match(statusService.getStatus().lastConnectedAt, /^\d{4}-\d{2}-\d{2}T/);
-
-  await handleMcpRequest({ jsonrpc: "2.0", id: 2, method: "shutdown" }, services);
-
-  assert.equal(statusService.getStatus().connected, false);
-  assert.equal(statusService.getStatus().serverRunning, false);
-  assert.equal(statusService.getStatus().activeClientCount, 0);
-  assert.match(statusService.getStatus().lastDisconnectedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(statusService.markRequestError(new Error("Original MCP failure")).error, "Original MCP failure");
 });

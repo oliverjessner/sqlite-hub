@@ -22,8 +22,6 @@ const { ApiTokenService } = require('./services/apiTokenService');
 const { DatabaseCommandService } = require('./services/databaseCommandService');
 const { TextToStructService } = require('./services/textToStructService');
 const { ChartImageService } = require('./services/chartImageService');
-const { createMcpServices } = require('./mcp/stdioServer');
-const { createMcpHttpRouter } = require('./mcp/httpRouter');
 const { createConnectionsRouter } = require('./routes/connections');
 const { createBackupsRouter } = require('./routes/backups');
 const { createOverviewRouter } = require('./routes/overview');
@@ -78,7 +76,6 @@ const mediaTaggingService = new MediaTaggingService({ connectionManager, appStat
 const apiTokenService = new ApiTokenService({ appStateStore });
 const databaseCommandService = new DatabaseCommandService({ appStateStore });
 const textToStructService = new TextToStructService();
-const mcpServices = createMcpServices({ appStateStore, transport: 'http' });
 
 connectionManager.initialize();
 
@@ -88,16 +85,6 @@ app.use(helmet());
 app.use('/api', localRequestSecurity);
 app.use(
     '/api',
-    rateLimit({
-        windowMs: 60 * 1000,
-        max: 300,
-        standardHeaders: true,
-        legacyHeaders: false,
-    }),
-);
-app.use('/mcp', localRequestSecurity);
-app.use(
-    '/mcp',
     rateLimit({
         windowMs: 60 * 1000,
         max: 300,
@@ -163,7 +150,6 @@ app.use(
         appStateStore,
     }),
 );
-app.use('/mcp', createMcpHttpRouter({ services: mcpServices }));
 
 // auth: public favicon asset; it exposes no application data.
 const faviconRateLimiter = rateLimit({
@@ -264,7 +250,6 @@ module.exports = {
     chartImageService,
     connectionManager,
     databaseCommandService,
-    mcpServices,
     DEFAULT_HOST,
     DEFAULT_PORT,
     parsePortArgument,

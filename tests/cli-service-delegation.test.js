@@ -356,3 +356,14 @@ test("CLI generates types with clean stdout and warnings on stderr", async () =>
   assert.equal(output.stdout.join(""), "export interface User {}\n");
   assert.deepEqual(output.errors, ["Warning: Column payload uses unknown."]);
 });
+
+
+test("CLI delegates MCP without starting the web server or opening a second registry", async () => {
+  let started = false;
+  await main(["mcp"], {
+    startMcpServer: async () => { started = true; return { closed: Promise.resolve() }; },
+    startServer: () => { throw new Error("Must not start HTTP"); },
+    appStateStore: { recordAccessLog: () => { throw new Error("Must not create CLI access entries for MCP"); } },
+  });
+  assert.equal(started, true);
+});

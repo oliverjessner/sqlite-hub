@@ -35,12 +35,12 @@ test.after(() => {
   fs.rmSync(isolatedStateRoot, { recursive: true, force: true });
 });
 
-function request(pathname) {
+function request(pathname, method = "GET") {
   return new Promise((resolve, reject) => {
     const server = app.listen(0, "127.0.0.1", () => {
       const { port } = server.address();
-      const request = http.get(
-        { hostname: "127.0.0.1", port, path: pathname },
+      const request = http.request(
+        { hostname: "127.0.0.1", port, path: pathname, method },
         (response) => {
           let body = "";
           response.setEncoding("utf8");
@@ -55,6 +55,7 @@ function request(pathname) {
           });
         },
       );
+      request.end();
       request.on("error", (error) => {
         server.close(() => reject(error));
       });
@@ -96,4 +97,13 @@ test("serves automatically published chart PNGs from the public chart URL", asyn
   assert.equal(response.statusCode, 200);
   assert.match(response.headers["content-type"], /image\/png/);
   assert.ok(response.body.length > 0);
+});
+
+
+test("web app no longer registers an MCP endpoint or starts MCP services", async () => {
+  for (const method of ["GET", "POST", "OPTIONS"]) {
+    assert.equal((await request("/mcp", method)).statusCode, 404);
+  }
+  assert.equal(serverModule.mcpServices, undefined);
+  assert.notEqual(serverModule.appStateStore.getMcpStatus().serverRunning, true);
 });

@@ -5,8 +5,7 @@
     "license": "MIT",
     "main": "server/server.js",
     "bin": {
-        "sqlite-hub": "bin/sqlite-hub.js",
-        "sqlite-hub-mcp": "bin/sqlite-hub-mcp.js"
+        "sqlite-hub": "bin/sqlite-hub.js"
     },
     "files": [
         "bin/",
@@ -47,6 +46,7 @@
         "screenshots": "node scripts/screenshot_sqlite_hub.js --width=1920 --height=1280"
     },
     "dependencies": {
+        "@modelcontextprotocol/sdk": "1.30.0",
         "better-sqlite3": "^13.0.3",
         "cytoscape": "^3.34.2",
         "cytoscape-elk": "^2.3.0",

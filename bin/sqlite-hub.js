@@ -28,6 +28,7 @@ Usage:
 
 Commands:
   serve       Start SQLite Hub
+  mcp         Start the SQLite Hub MCP server over STDIO
   info        Show SQLite Hub information
   db          Work with databases
   table       Inspect database tables
@@ -42,6 +43,16 @@ Global Options:
   -v, --version`;
 
 const RESOURCE_HELP = {
+    mcp: `Usage:
+  sqlite-hub mcp
+
+Start the SQLite Hub MCP server over STDIO.
+The MCP client launches this command and communicates over stdin/stdout.
+Uses the same database registry as SQLite Hub. No HTTP server or port is required.
+Diagnostics go to stderr; stdout is reserved for MCP protocol messages.
+
+Options:
+  -h, --help    Show this help`,
     serve: `Usage:
   sqlite-hub serve [options]
 
@@ -206,6 +217,7 @@ Options:
 };
 
 const COMMAND_SPECS = {
+    mcp: { positionalCount: 0, options: [] },
     serve: {
         positionalCount: 0,
         options: ['port', 'open'],
@@ -519,7 +531,7 @@ function parseCliArguments(argv = []) {
         throw syntaxError(`Unknown command: ${resource}`);
     }
 
-    if (['serve', 'info'].includes(resource)) {
+    if (['serve', 'info', 'mcp'].includes(resource)) {
         if (tokens.slice(1).some(token => ['--help', '-h'].includes(token))) {
             return { help: true, helpPath: [resource] };
         }
@@ -1127,7 +1139,7 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
     let commandError = null;
 
     function getAccessLogStore() {
-        if (dependencies.disableAccessLog) return null;
+        if (dependencies.disableAccessLog || command?.resource === 'mcp' || command?.helpPath?.[0] === 'mcp') return null;
         if (accessLogStore) return accessLogStore;
         if (databaseService?.appStateStore) {
             accessLogStore = databaseService.appStateStore;
@@ -1152,6 +1164,21 @@ async function main(argv = process.argv.slice(2), dependencies = {}) {
         if (command.version) {
             const { version } = require('../package.json');
             console.log(`SQLite Hub CLI version ${version}`);
+            return;
+        }
+
+        if (command.resource === 'mcp') {
+            const { Console } = require('node:console');
+            const previousConsole = global.console;
+            global.console = new Console({ stdout: process.stderr, stderr: process.stderr });
+            try {
+                const startMcpServer = dependencies.startMcpServer
+                    ?? require('../server/mcp/stdioServer').startMcpStdioServer;
+                const mcp = await startMcpServer();
+                await mcp.closed;
+            } finally {
+                global.console = previousConsole;
+            }
             return;
         }
 

@@ -38,39 +38,20 @@ function buildSettingsMetadata(context) {
   };
 }
 
-function buildMcpHttpUrl(req) {
-  const host = String(req?.get?.("host") ?? "127.0.0.1:4173").trim() || "127.0.0.1:4173";
-  return `http://${host}/mcp`;
-}
-
-function buildMcpCodexConfig({ url = null, commandPath = null } = {}) {
-  if (url) {
-    return [
-      "[mcp_servers.sqlitehub]",
-      `url = ${JSON.stringify(url)}`,
-      "startup_timeout_sec = 10",
-      "tool_timeout_sec = 60",
-    ].join("\n");
-  }
-
-  const serverPath = commandPath ?? path.resolve(__dirname, "../../bin/sqlite-hub-mcp.js");
-
+function buildMcpCodexConfig() {
   return [
     "[mcp_servers.sqlitehub]",
-    'command = "node"',
-    `args = [${JSON.stringify(serverPath)}]`,
+    `command = ${JSON.stringify(process.execPath)}`,
+    `args = [${JSON.stringify(path.resolve(__dirname, "../../bin/sqlite-hub.js"))}, "mcp"]`,
     "startup_timeout_sec = 10",
     "tool_timeout_sec = 60",
   ].join("\n");
 }
 
-function buildMcpSettingsStatus(appStateStore, options = {}) {
-  const httpUrl = options.httpUrl ?? null;
-  const stdioCommandPath = path.resolve(__dirname, "../../bin/sqlite-hub-mcp.js");
+function buildMcpSettingsStatus(appStateStore) {
   const statusService = new McpStatusService({
     appStateStore,
     exposedTools: MCP_TOOL_DEFINITIONS,
-    transport: httpUrl ? "http" : "stdio",
   });
   const status = statusService.getStatus();
 
@@ -80,11 +61,8 @@ function buildMcpSettingsStatus(appStateStore, options = {}) {
       name: tool.name,
       description: tool.description,
     })),
-    command: httpUrl ?? `node ${stdioCommandPath}`,
-    codexConfig: buildMcpCodexConfig({ url: httpUrl, commandPath: stdioCommandPath }),
-    httpUrl,
-    stdioCommand: `node ${stdioCommandPath}`,
-    stdioCodexConfig: buildMcpCodexConfig({ commandPath: stdioCommandPath }),
+    command: "sqlite-hub mcp",
+    codexConfig: buildMcpCodexConfig(),
   };
 }
 
@@ -148,9 +126,7 @@ function createSettingsRouter({ appStateStore, connectionManager, tokenService, 
     route((req, res) => {
       res.json(
         successResponse({
-          data: buildMcpSettingsStatus(appStateStore, {
-            httpUrl: buildMcpHttpUrl(req),
-          }),
+          data: buildMcpSettingsStatus(appStateStore),
         })
       );
     })
@@ -225,7 +201,6 @@ function createSettingsRouter({ appStateStore, connectionManager, tokenService, 
 module.exports = {
   createSettingsRouter,
   buildMcpCodexConfig,
-  buildMcpHttpUrl,
   buildMcpSettingsStatus,
   buildSettingsMetadata,
   checkLatestAppVersion,

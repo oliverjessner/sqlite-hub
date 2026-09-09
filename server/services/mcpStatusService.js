@@ -7,7 +7,7 @@ const DEFAULT_MCP_STATUS = {
   lastDisconnectedAt: null,
   lastToolCallAt: null,
   lastToolName: null,
-  transport: "unknown",
+  transport: "stdio",
   exposedTools: [],
   error: null,
 };
@@ -23,9 +23,9 @@ function normalizeToolNames(exposedTools = []) {
 }
 
 class McpStatusService {
-  constructor({ appStateStore, exposedTools = [], transport = "unknown" } = {}) {
+  constructor({ appStateStore, exposedTools = [] } = {}) {
     this.appStateStore = appStateStore;
-    this.transport = transport;
+    this.transport = "stdio";
     this.exposedTools = normalizeToolNames(exposedTools);
   }
 
@@ -43,6 +43,10 @@ class McpStatusService {
     return {
       ...this.getDefaultStatus(),
       ...status,
+      ...(status.transport && status.transport !== this.transport
+        ? { serverRunning: false, connected: false, activeClientCount: 0, error: null }
+        : {}),
+      transport: this.transport,
       exposedTools: this.exposedTools.length ? this.exposedTools : normalizeToolNames(status.exposedTools),
     };
   }

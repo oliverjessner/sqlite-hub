@@ -1,7 +1,6 @@
-# v2.6.2
+# v2.6.3
 
-- Fixed MCP resource and template discovery returning server errors; discovery now returns empty lists, and unsupported methods use the correct JSON-RPC error code.
-- MCP request errors are now persisted in Logs with the method, request ID, transport, and error details.
+- Replaced HTTP MCP with native STDIO through `sqlite-hub mcp`, using the official MCP SDK and the existing tools and database registry. Updated client setup, error logging, and clean shutdown handling.
 
 # v2.6.1
 

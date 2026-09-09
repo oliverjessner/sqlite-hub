@@ -25,7 +25,7 @@ test("GET /api/settings/mcp returns MCP status and exposed tools", async (t) => 
     lastConnectedAt: "2026-06-28T10:15:00.000Z",
     lastToolCallAt: "2026-06-28T10:16:12.000Z",
     lastToolName: "get_schema",
-    transport: "http",
+    transport: "stdio",
   });
 
   const app = express();
@@ -62,7 +62,7 @@ test("GET /api/settings/mcp returns MCP status and exposed tools", async (t) => 
   assert.equal(payload.data.connected, true);
   assert.equal(payload.data.activeClientCount, 1);
   assert.equal(payload.data.lastToolName, "get_schema");
-  assert.equal(payload.data.transport, "http");
+  assert.equal(payload.data.transport, "stdio");
   assert.ok(payload.data.exposedTools.includes("list_connections"));
   assert.ok(payload.data.exposedTools.includes("add_database"));
   assert.ok(payload.data.exposedTools.includes("run_readonly_query"));
@@ -72,7 +72,15 @@ test("GET /api/settings/mcp returns MCP status and exposed tools", async (t) => 
   assert.ok(payload.data.exposedTools.includes("execute_stored_query"));
   assert.ok(payload.data.toolDetails.some((tool) => tool.name === "get_schema"));
   assert.match(payload.data.codexConfig, /\[mcp_servers\.sqlitehub\]/);
-  assert.match(payload.data.codexConfig, /url = "http:\/\/127\.0\.0\.1:\d+\/mcp"/);
-  assert.match(payload.data.command, /http:\/\/127\.0\.0\.1:\d+\/mcp/);
-  assert.match(payload.data.stdioCommand, /sqlite-hub-mcp\.js/);
+  assert.ok(payload.data.codexConfig.includes(`command = ${JSON.stringify(process.execPath)}`));
+  assert.match(payload.data.codexConfig, /sqlite-hub\.js", "mcp"/);
+  assert.equal(payload.data.command, "sqlite-hub mcp");
+  assert.equal(payload.data.httpUrl, undefined);
+
+  store.patchMcpStatus({ transport: "http", connected: true, serverRunning: true, activeClientCount: 1 });
+  const migrated = await (await fetch(`http://127.0.0.1:${server.address().port}/api/settings/mcp`)).json();
+  assert.equal(migrated.data.transport, "stdio");
+  assert.equal(migrated.data.connected, false);
+  assert.equal(migrated.data.serverRunning, false);
+  assert.equal(migrated.data.activeClientCount, 0);
 });
