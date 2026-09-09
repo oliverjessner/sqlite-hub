@@ -273,6 +273,13 @@ class ${FORMULA_CLASS} < Formula
     cd libexec/"lib/node_modules/${PACKAGE_NAME}" do
       system "npm", "rebuild", "better-sqlite3"
     end
+    # better-sqlite3 ships prebuilds for multiple platforms and architectures.
+    platform = OS.mac? ? "darwin" : "linux"
+    arch = Hardware::CPU.arm? ? "arm64" : "x64"
+    prebuilds = libexec/"lib/node_modules/${PACKAGE_NAME}/node_modules/better-sqlite3/prebuilds"
+    prebuilds.glob("*.node").each do |binary|
+      binary.unlink unless binary.basename.to_s == "#{platform}-#{arch}.node"
+    end
     bin.install_symlink libexec.glob("bin/*")
   end
 
@@ -439,6 +446,13 @@ class ${FORMULA_CLASS} < Formula
     system "npm", "install", *std_npm_args
     cd libexec/"lib/node_modules/${PACKAGE_NAME}" do
       system "npm", "rebuild", "better-sqlite3"
+    end
+    # better-sqlite3 ships prebuilds for multiple platforms and architectures.
+    platform = OS.mac? ? "darwin" : "linux"
+    arch = Hardware::CPU.arm? ? "arm64" : "x64"
+    prebuilds = libexec/"lib/node_modules/${PACKAGE_NAME}/node_modules/better-sqlite3/prebuilds"
+    prebuilds.glob("*.node").each do |binary|
+      binary.unlink unless binary.basename.to_s == "#{platform}-#{arch}.node"
     end
     bin.install_symlink libexec.glob("bin/*")
   end

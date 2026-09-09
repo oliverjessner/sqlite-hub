@@ -1,5 +1,7 @@
 # v2.6.3
 
+- Fixed Homebrew architecture audits by removing unused better-sqlite3 prebuilds for other platforms and CPUs during installation.
+
 - Replaced HTTP MCP with native STDIO through `sqlite-hub mcp`, using the official MCP SDK and the existing tools and database registry. Updated client setup, error logging, and clean shutdown handling.
 
 # v2.6.1
