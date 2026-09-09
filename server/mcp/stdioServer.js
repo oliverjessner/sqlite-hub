@@ -50,7 +50,7 @@ function createJsonRpcResult(id, result) {
 }
 
 function createJsonRpcError(id, error) {
-  const code = error?.code === "MCP_TOOL_NOT_FOUND" ? -32601 : -32603;
+  const code = ["MCP_TOOL_NOT_FOUND", "MCP_METHOD_NOT_FOUND"].includes(error?.code) ? -32601 : -32603;
 
   return {
     jsonrpc: "2.0",
@@ -100,6 +100,15 @@ async function handleMcpRequest(message, services) {
     return createJsonRpcResult(id, {
       tools: services.toolService.listTools(),
     });
+  }
+
+  // Some clients probe resource discovery even when only tools are advertised.
+  if (method === "resources/list") {
+    return createJsonRpcResult(id, { resources: [] });
+  }
+
+  if (method === "resources/templates/list") {
+    return createJsonRpcResult(id, { resourceTemplates: [] });
   }
 
   if (method === "tools/call") {

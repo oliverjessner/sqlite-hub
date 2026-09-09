@@ -9,7 +9,7 @@ const { DatabaseCommandService } = require("../server/services/databaseCommandSe
 const { MCP_TOOL_DEFINITIONS, McpToolService } = require("../server/services/mcpToolService");
 const { McpStatusService } = require("../server/services/mcpStatusService");
 const { AppStateStore } = require("../server/services/storage/appStateStore");
-const { handleMcpRequest } = require("../server/mcp/stdioServer");
+const { createJsonRpcError, handleMcpRequest } = require("../server/mcp/stdioServer");
 
 function createFixture(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "sqlite-hub-mcp-"));
@@ -370,6 +370,41 @@ test("MCP JSON-RPC lists tools and calls shared tool service", async (t) => {
   assert.equal(callResponse.result.content[0].type, "text");
   assert.match(callResponse.result.content[0].text, /Sample/);
   assert.equal(callResponse.result.structuredContent.items.length, 1);
+});
+
+test("MCP JSON-RPC resource discovery returns empty lists", async () => {
+  for (const [method, result] of [
+    ["resources/list", { resources: [] }],
+    ["resources/templates/list", { resourceTemplates: [] }],
+  ]) {
+    const response = await handleMcpRequest({ jsonrpc: "2.0", id: 0, method }, {});
+
+    assert.deepEqual(response, { jsonrpc: "2.0", id: 0, result });
+  }
+});
+
+test("MCP JSON-RPC distinguishes unknown methods from internal errors", async () => {
+  await assert.rejects(
+    () => handleMcpRequest({ jsonrpc: "2.0", id: 1, method: "unknown/method" }, {}),
+    (error) => {
+      assert.deepEqual(createJsonRpcError(1, error), {
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32601,
+          message: "Unsupported MCP method: unknown/method",
+          data: { code: "MCP_METHOD_NOT_FOUND" },
+        },
+      });
+      return true;
+    }
+  );
+
+  assert.equal(createJsonRpcError(2, new Error("Unexpected failure")).error.code, -32603);
+  assert.equal(
+    createJsonRpcError(3, { code: "MCP_TOOL_NOT_FOUND", message: "Unknown tool" }).error.code,
+    -32601
+  );
 });
 
 test("MCP JSON-RPC lifecycle updates connection status", async (t) => {

@@ -1,3 +1,7 @@
+# v2.6.2
+
+- Fixed MCP resource and template discovery returning server errors; discovery now returns empty lists, and unsupported methods use the correct JSON-RPC error code.
+
 # v2.6.1
 
 - Resolved more than 80 security findings, including potential XSS and SQL injection paths, inefficient O(n²) regular expressions, and missing request-body size limits.

@@ -134,6 +134,25 @@ test("MCP HTTP endpoint handles initialize, tools/list, and tools/call", async (
   assert.equal(statusService.getStatus().lastToolName, "list_connections");
 });
 
+test("MCP HTTP resource discovery succeeds without recording a server error", async (t) => {
+  const { app, statusService } = createHttpFixture(t);
+  const baseUrl = await startTestServer(t, app);
+
+  await postMcp(baseUrl, { jsonrpc: "2.0", id: 1, method: "initialize" });
+
+  for (const [method, result] of [
+    ["resources/list", { resources: [] }],
+    ["resources/templates/list", { resourceTemplates: [] }],
+  ]) {
+    const { response, payload } = await postMcp(baseUrl, { jsonrpc: "2.0", id: 2, method });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(payload, { jsonrpc: "2.0", id: 2, result });
+    assert.equal(statusService.getStatus().error, null);
+    assert.equal(statusService.getStatus().connected, true);
+  }
+});
+
 test("MCP HTTP endpoint documents POST-only transport", async (t) => {
   const { app } = createHttpFixture(t);
   const baseUrl = await startTestServer(t, app);
