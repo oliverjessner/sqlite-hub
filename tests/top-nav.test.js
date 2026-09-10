@@ -19,7 +19,7 @@ test("top nav exposes logs from the upper-right action row", async () => {
   const { renderTopNav } = await loadTopNavModule();
   const markup = renderTopNav();
 
-  assert.match(markup, /data-to="\/logs"/);
+  assert.match(markup, /data-action="toggle-logs"/);
   assert.match(markup, /aria-label="Logs"/);
   assert.match(markup, />receipt_long<\/span>/);
   assert.doesNotMatch(markup, /aria-label="Open Database"/);

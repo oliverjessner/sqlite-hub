@@ -109,8 +109,14 @@ export function parseHash(hash = window.location.hash) {
 }
 
 export function createRouter(onRouteChange) {
+    let lastMenuHash = '#/';
+
     const handleRouteChange = () => {
-        onRouteChange(parseHash(window.location.hash));
+        const route = parseHash(window.location.hash);
+        if (route.name !== 'logs') {
+            lastMenuHash = window.location.hash || '#/';
+        }
+        onRouteChange(route);
     };
 
     return {
@@ -133,6 +139,15 @@ export function createRouter(onRouteChange) {
             }
 
             window.location.hash = nextHash;
+        },
+        toggleLogs() {
+            if (parseHash(window.location.hash).name === 'logs') {
+                this.navigate(lastMenuHash);
+                return;
+            }
+
+            lastMenuHash = window.location.hash || '#/';
+            this.navigate('/logs');
         },
     };
 }

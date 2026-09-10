@@ -2926,6 +2926,9 @@ async function handleAction(actionNode) {
         case 'navigate':
             router.navigate(actionNode.dataset.to ?? '/');
             return;
+        case 'toggle-logs':
+            router.toggleLogs();
+            return;
         case 'convert-text-to-struct':
             await convertCurrentTextToStruct();
             return;
