@@ -17,3 +17,12 @@ test("automatic screenshots include the Find Installed Databases modal", () => {
   assert.ok(connections.modalActions.includes("open-database-discovery"));
   assert.equal(modalExtraName({ action: "open-database-discovery" }), "database_discovery_modal");
 });
+
+test("automatic screenshots cover Browse and Sheets as separate table modes", () => {
+  const browse = MENU_SCENARIOS.find((scenario) => scenario.slug === "browse");
+  const sheets = MENU_SCENARIOS.find((scenario) => scenario.slug === "sheets");
+
+  assert.equal(browse?.path, "/browse");
+  assert.ok(browse.drawers.some((drawer) => drawer.extra === "roweditor"));
+  assert.equal(sheets?.path, "/sheets");
+});

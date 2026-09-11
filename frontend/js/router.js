@@ -60,12 +60,25 @@ export function parseHash(hash = window.location.hash) {
             }
 
             return { name: 'editor', path: '/editor', params: {} };
-        case 'data':
+        case 'browse':
+        case 'sheets':
             return {
                 name: 'data',
-                path: cleanPath,
+                path: `/${segments[0]}`,
+                params: {
+                    tableName: null,
+                    mode: segments[0],
+                    rowPrimaryKey: null,
+                },
+            };
+        case 'data':
+            // Legacy Data URLs remain readable for existing bookmarks and row deep links.
+            return {
+                name: 'data',
+                path: '/browse',
                 params: {
                     tableName: segments[1] ? decodeRouteValue(segments[1]) : null,
+                    mode: 'browse',
                     rowPrimaryKey: decodedRouteFragment,
                 },
             };
@@ -113,8 +126,14 @@ export function createRouter(onRouteChange) {
 
     const handleRouteChange = () => {
         const route = parseHash(window.location.hash);
+        const isLegacyDataRoute = /^#\/data(?:\/|#|\?|$)/.test(window.location.hash);
+
+        if (isLegacyDataRoute) {
+            window.history.replaceState(null, '', '#/browse');
+        }
+
         if (route.name !== 'logs') {
-            lastMenuHash = window.location.hash || '#/';
+            lastMenuHash = isLegacyDataRoute ? '#/browse' : window.location.hash || '#/';
         }
         onRouteChange(route);
     };

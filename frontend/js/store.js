@@ -1,3 +1,4 @@
+import { getDataCellReadonlyReason, getAdjacentDataCell } from './components/editableDataCell.js';
 import * as api from './api.js';
 import { formatBytes, formatCellValue, formatNumber, inferStatusTone, truncateMiddle } from './utils/format.js';
 import {
@@ -53,12 +54,17 @@ const QUERY_HISTORY_TAB_STORAGE_KEY = 'query_history_tab';
 const COPY_COLUMN_SEPARATOR_STORAGE_KEY = 'sqlitehub.copyColumn.separator';
 const COPY_COLUMN_WRAPPER_STORAGE_KEY = 'sqlitehub.copyColumn.wrapper';
 const COPY_COLUMN_LINE_BREAKS_STORAGE_KEY = 'sqlitehub.copyColumn.lineBreaks';
+const DATA_SHEET_LAYOUT_STORAGE_PREFIX = 'sqlite_hub_data_sheet_layout';
+const DATA_SHEET_MIN_COLUMN_WIDTH = 96;
+const DATA_SHEET_MAX_COLUMN_WIDTH = 480;
+const DATA_SHEET_DEFAULT_COLUMN_WIDTH = 192;
 const UI_PREFERENCE_STORAGE_KEYS = {
     sqlEditorHistoryVisible: 'sqlite_hub_sql_editor_history_visible',
     sqlEditorEditorVisible: 'sqlite_hub_sql_editor_editor_visible',
     sqlEditorActiveTab: 'sqlite_hub_sql_editor_active_tab',
     sqlEditorQueryDraft: 'sqlite_hub_sql_editor_query_draft',
     dataTablesVisible: 'sqlite_hub_data_tables_visible',
+    dataSheetsTablesVisible: 'sqlite_hub_data_sheets_tables_visible',
     structureTablesVisible: 'sqlite_hub_structure_tables_visible',
     chartsHistoryVisible: 'sqlite_hub_charts_history_visible',
     chartsQueryVisible: 'sqlite_hub_charts_query_visible',
@@ -237,6 +243,50 @@ function storeString(key, value) {
     } catch {
         // Ignore unavailable browser storage; the in-memory value still applies.
     }
+}
+
+function getDataSheetLayoutStorageKey(tableName) {
+    const connectionId = state.connections.active?.id ?? 'active';
+    return `${DATA_SHEET_LAYOUT_STORAGE_PREFIX}:${connectionId}:${String(tableName ?? '')}`;
+}
+
+function normalizeDataSheetColumnWidth(value) {
+    const numericValue = Math.round(Number(value));
+    if (!Number.isFinite(numericValue)) return DATA_SHEET_DEFAULT_COLUMN_WIDTH;
+    return Math.min(DATA_SHEET_MAX_COLUMN_WIDTH, Math.max(DATA_SHEET_MIN_COLUMN_WIDTH, numericValue));
+}
+
+function readDataSheetLayout(tableName, columns = []) {
+    let stored = null;
+    try {
+        stored = JSON.parse(globalThis.localStorage?.getItem(getDataSheetLayoutStorageKey(tableName)) ?? 'null');
+    } catch {
+        stored = null;
+    }
+    const available = [...new Set(columns.map(column => String(column)).filter(Boolean))];
+    const order = [
+        ...(Array.isArray(stored?.order) ? stored.order : []).filter(column => available.includes(column)),
+        ...available.filter(column => !stored?.order?.includes?.(column)),
+    ];
+    const widths = Object.fromEntries(
+        available.map(column => [column, normalizeDataSheetColumnWidth(stored?.widths?.[column])]),
+    );
+    return { order, widths };
+}
+
+function storeDataSheetLayout(tableName, layout) {
+    try {
+        globalThis.localStorage?.setItem(getDataSheetLayoutStorageKey(tableName), JSON.stringify(layout));
+    } catch {
+        // Ignore unavailable browser storage; the in-memory layout still applies.
+    }
+}
+
+function applyDataSheetLayout(table) {
+    if (!table || state.dataBrowser.mode !== 'sheets') return table;
+    const layout = readDataSheetLayout(table.name, table.columns ?? []);
+    state.dataBrowser.sheetColumnWidths = layout.widths;
+    return { ...table, columns: layout.order };
 }
 
 function readCopyColumnPreferences() {
@@ -418,12 +468,24 @@ const state = {
         metadata: null,
     },
     dataBrowser: {
+        mode: 'browse',
+        editingCell: null,
+        savingCell: null,
         tables: [],
         selectedTable: null,
         tablesVisible: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.dataTablesVisible, true),
+        tablesVisibleByMode: {
+            browse: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.dataTablesVisible, true),
+            sheets: readStoredBoolean(UI_PREFERENCE_STORAGE_KEYS.dataSheetsTablesVisible, true),
+        },
         table: null,
+        sheetColumnWidths: {},
+        sheetSchemaChanging: false,
+        sheetInsertingRow: false,
         loading: false,
         tableLoading: false,
+        sheetsLoadingMore: false,
+        sheetsHasMore: false,
         saving: false,
         deleting: false,
         page: 1,
@@ -1471,6 +1533,8 @@ function setMissingDatabaseState() {
 
     state.dataBrowser.loading = false;
     state.dataBrowser.tableLoading = false;
+    state.dataBrowser.sheetsLoadingMore = false;
+    state.dataBrowser.sheetsHasMore = false;
     state.dataBrowser.tables = [];
     state.dataBrowser.selectedTable = null;
     state.dataBrowser.table = null;
@@ -2380,28 +2444,34 @@ async function resolvePendingDataBrowserRow(version) {
 }
 
 async function loadDataTable(version, options = {}) {
+    state.dataBrowser.editingCell = null;
     const tableName = state.dataBrowser.selectedTable;
     const routeRowPrimaryKey = options.rowPrimaryKey ?? null;
-    const pageSize = normalizeDataPageSize(state.dataBrowser.pageSize, DEFAULT_DATA_PAGE_SIZE);
+    const sheetsMode = (options.mode ?? state.dataBrowser.mode) === 'sheets';
+    const pageSize = sheetsMode ? 100 : normalizeDataPageSize(state.dataBrowser.pageSize, DEFAULT_DATA_PAGE_SIZE);
     const page = Math.max(1, Number(state.dataBrowser.page) || 1);
     const sortColumn = state.dataBrowser.sortColumn;
     const sortDirection = normalizeSortDirection(state.dataBrowser.sortDirection);
 
     if (!tableName) {
         state.dataBrowser.table = null;
+        state.dataBrowser.sheetsLoadingMore = false;
+        state.dataBrowser.sheetsHasMore = false;
         clearDataBrowserRowSelectionState();
         state.dataBrowser.pendingOpenRow = null;
         return;
     }
 
     state.dataBrowser.tableLoading = true;
+    state.dataBrowser.sheetsLoadingMore = false;
+    state.dataBrowser.sheetsHasMore = false;
     state.dataBrowser.saveError = null;
     emitChange();
 
     try {
         const response = await api.getDataTable(tableName, {
             limit: pageSize,
-            offset: (page - 1) * pageSize,
+            offset: sheetsMode ? 0 : (page - 1) * pageSize,
             sortColumn,
             sortDirection,
             filterColumn: state.dataBrowser.searchColumn,
@@ -2413,9 +2483,13 @@ async function loadDataTable(version, options = {}) {
             return;
         }
 
-        state.dataBrowser.table = response.data ?? null;
-        state.dataBrowser.pageSize = pageSize;
-        state.dataBrowser.page = response.data?.page ?? page;
+        state.dataBrowser.table = applyDataSheetLayout(response.data ?? null);
+        state.dataBrowser.sheetsHasMore = sheetsMode &&
+            (response.data?.rows?.length ?? 0) < (response.data?.rowCount ?? 0);
+        if (!sheetsMode) {
+            state.dataBrowser.pageSize = pageSize;
+            state.dataBrowser.page = response.data?.page ?? page;
+        }
         state.dataBrowser.sortColumn = response.data?.sort?.column ?? null;
         state.dataBrowser.sortDirection = response.data?.sort?.direction ?? null;
         const responseColumns = response.data?.columns ?? [];
@@ -2967,6 +3041,8 @@ function invalidateDatabaseCaches(options = {}) {
         state.dataBrowser.selectedTable = null;
     }
     state.dataBrowser.table = null;
+    state.dataBrowser.sheetsLoadingMore = false;
+    state.dataBrowser.sheetsHasMore = false;
     if (!preserveDataBrowserState) {
         state.dataBrowser.page = 1;
         resetDataBrowserTableSearch();
@@ -3256,7 +3332,28 @@ export async function initializeApp() {
 }
 
 export async function setRoute(route) {
+    const browser = state.dataBrowser;
+    const isDataRoute = route.name === 'data';
+    const nextMode = route.params?.rowPrimaryKey != null ? 'browse' : (route.params?.mode === 'sheets' ? 'sheets' : 'browse');
+    const sameLoadedTable = isDataRoute && state.route.name === 'data' && browser.table &&
+        !browser.loading && !browser.tableLoading && route.params?.rowPrimaryKey == null &&
+        (route.params?.tableName ?? browser.selectedTable) === browser.selectedTable;
+    const modeNavigation = sameLoadedTable && route.path !== state.route.path;
+
+    browser.editingCell = null;
+    if (isDataRoute) {
+        browser.mode = nextMode;
+        browser.tablesVisible = browser.tablesVisibleByMode[nextMode] !== false;
+    }
     state.route = route;
+    if (modeNavigation) {
+        clearDataBrowserRowSelectionState();
+        browser.saveError = null;
+        browser.table = null;
+        emitChange();
+        await loadDataTable(++routeLoadVersion, { mode: nextMode });
+        return;
+    }
     syncRouteContext();
     emitChange();
     await loadRouteData(route);
@@ -3336,7 +3433,7 @@ export function openGenerateDataModal() {
     }
 
     if (table.isShadow) {
-        pushToast('Shadow tables are read-only in Data.', 'alert');
+        pushToast('Shadow tables are read-only in Tables.', 'alert');
         return;
     }
 
@@ -5624,7 +5721,7 @@ export async function openDataRowUpdatePreview(rowIndex, values, identity = null
     }
 
     if (state.dataBrowser.table?.isShadow) {
-        pushToast('Shadow tables are read-only in Data.', 'alert');
+        pushToast('Shadow tables are read-only in Tables.', 'alert');
         return null;
     }
 
@@ -8281,7 +8378,114 @@ export function dismissMediaTaggingIssue(issueKey) {
     emitChange();
 }
 
+export function setDataMode(mode) {
+    if (!['browse', 'sheets'].includes(mode) || state.dataBrowser.mode === mode) return;
+    state.dataBrowser.mode = mode;
+    state.dataBrowser.tablesVisible = state.dataBrowser.tablesVisibleByMode[mode] !== false;
+    state.dataBrowser.editingCell = null;
+    clearDataBrowserRowSelectionState();
+    state.dataBrowser.saveError = null;
+    emitChange();
+}
+
+export async function selectDataTable(tableName) {
+    const normalizedTableName = String(tableName ?? '').trim();
+    const browser = state.dataBrowser;
+
+    if (!normalizedTableName || !browser.tables.some(table => table.name === normalizedTableName)) {
+        return false;
+    }
+
+    if (browser.selectedTable === normalizedTableName && browser.table?.name === normalizedTableName) {
+        return true;
+    }
+
+    browser.selectedTable = normalizedTableName;
+    browser.page = 1;
+    browser.editingCell = null;
+    resetDataBrowserSort();
+    resetDataBrowserSearch();
+    clearDataBrowserRowSelectionState();
+    browser.saveError = null;
+    emitChange();
+    await loadDataTable(++routeLoadVersion);
+    return browser.table?.name === normalizedTableName;
+}
+
+export function startDataCellEdit(rowIndex, columnName) {
+    const browser = state.dataBrowser;
+    const index = Number(rowIndex);
+    const row = browser.table?.rows?.[index];
+    if (browser.mode !== 'sheets' || browser.loading || browser.tableLoading || browser.savingCell ||
+        !Number.isInteger(index) || !row || getDataCellReadonlyReason(state, row, columnName)) return false;
+    browser.editingCell = { rowIndex: index, columnName, identity: row.__identity, value: row[columnName] == null ? '' : String(row[columnName]) };
+    emitChange();
+    return true;
+}
+
+export function updateDataCellDraft(value) {
+    if (state.dataBrowser.editingCell && !state.dataBrowser.savingCell) {
+        state.dataBrowser.editingCell.value = String(value);
+    }
+}
+
+export function cancelDataCellEdit() {
+    if (state.dataBrowser.savingCell) return;
+    state.dataBrowser.editingCell = null;
+    emitChange();
+}
+
+export async function commitDataCellEdit(direction = 0) {
+    const browser = state.dataBrowser;
+    const cell = browser.editingCell;
+    const table = browser.table;
+    const row = table?.rows?.[cell?.rowIndex];
+    if (!cell || browser.savingCell || browser.mode !== 'sheets' || browser.tableLoading ||
+        getDataCellReadonlyReason(state, row, cell.columnName)) return false;
+    const version = routeLoadVersion;
+    const connectionId = state.connections.active?.id;
+    const tableName = browser.selectedTable;
+    const isCurrent = () => version === routeLoadVersion && browser.table === table &&
+        browser.selectedTable === tableName && state.connections.active?.id === connectionId;
+    const advance = () => {
+        if (browser.editingCell !== cell) return;
+        const next = direction ? getAdjacentDataCell(state, cell, direction < 0 ? -1 : 1) : null;
+        browser.editingCell = next ? {
+            ...next,
+            identity: table.rows[next.rowIndex].__identity,
+            value: table.rows[next.rowIndex][next.columnName] == null ? '' : String(table.rows[next.rowIndex][next.columnName]),
+        } : null;
+    };
+    // NULL is deliberately distinct from an empty input. Leave NULL unchanged with Escape.
+    if (row[cell.columnName] !== null && String(row[cell.columnName]) === cell.value) {
+        advance();
+        emitChange();
+        return true;
+    }
+    browser.savingCell = { rowIndex: cell.rowIndex, columnName: cell.columnName };
+    emitChange();
+    try {
+        const response = await api.updateDataTableRow(tableName, {
+            identity: cell.identity,
+            values: { [cell.columnName]: cell.value },
+        });
+        if (!isCurrent()) return false;
+        table.rows[cell.rowIndex] = response.data.row;
+        advance();
+        return true;
+    } catch (error) {
+        // No optimistic mutation: a rejected update keeps the original SQLite row intact.
+        if (isCurrent() && browser.editingCell === cell) browser.editingCell = null;
+        pushToast(normalizeError(error).message, 'alert');
+        return false;
+    } finally {
+        browser.savingCell = null;
+        emitChange();
+    }
+}
+
 export function selectDataRow(index, options = {}) {
+    if (state.dataBrowser.mode === 'sheets') return;
     const numericIndex = Number(index);
 
     if (!Number.isInteger(numericIndex) || numericIndex < 0) {
@@ -8304,6 +8508,8 @@ export function openDataRowByIdentity(tableName, identity) {
         return false;
     }
 
+    state.dataBrowser.mode = 'browse';
+    state.dataBrowser.editingCell = null;
     state.dataBrowser.pendingOpenRow = {
         tableName: normalizedTableName,
         identity,
@@ -8423,8 +8629,14 @@ export async function setDataFilterOperator(operator) {
 }
 
 export function toggleDataTablesPanel() {
-    state.dataBrowser.tablesVisible = state.dataBrowser.tablesVisible === false;
-    storeBoolean(UI_PREFERENCE_STORAGE_KEYS.dataTablesVisible, state.dataBrowser.tablesVisible);
+    const browser = state.dataBrowser;
+    const mode = browser.mode === 'sheets' ? 'sheets' : 'browse';
+    const storageKey = mode === 'sheets'
+        ? UI_PREFERENCE_STORAGE_KEYS.dataSheetsTablesVisible
+        : UI_PREFERENCE_STORAGE_KEYS.dataTablesVisible;
+    browser.tablesVisible = browser.tablesVisible === false;
+    browser.tablesVisibleByMode[mode] = browser.tablesVisible;
+    storeBoolean(storageKey, browser.tablesVisible);
     emitChange();
 }
 
@@ -8449,6 +8661,71 @@ export async function setDataPage(page) {
     }
 }
 
+export async function loadMoreDataSheets() {
+    const browser = state.dataBrowser;
+    const table = browser.table;
+
+    if (
+        state.route.name !== 'data' ||
+        browser.mode !== 'sheets' ||
+        !table ||
+        browser.tableLoading ||
+        browser.sheetsLoadingMore ||
+        !browser.sheetsHasMore
+    ) {
+        return false;
+    }
+
+    const version = routeLoadVersion;
+    const tableName = browser.selectedTable;
+    const offset = table.rows?.length ?? 0;
+    browser.sheetsLoadingMore = true;
+    emitChange();
+
+    try {
+        const response = await api.getDataTable(tableName, {
+            limit: 100,
+            offset,
+            sortColumn: browser.sortColumn,
+            sortDirection: normalizeSortDirection(browser.sortDirection),
+            filterColumn: browser.searchColumn,
+            filterOperator: browser.filterOperator,
+            filterValue: browser.searchQuery,
+        });
+
+        if (
+            version !== routeLoadVersion ||
+            browser.mode !== 'sheets' ||
+            browser.selectedTable !== tableName ||
+            browser.table !== table
+        ) {
+            return false;
+        }
+
+        const nextRows = response.data?.rows ?? [];
+        browser.table = applyDataSheetLayout({
+            ...table,
+            ...response.data,
+            limit: 100,
+            offset: 0,
+            page: 1,
+            rows: [...(table.rows ?? []), ...nextRows],
+        });
+        browser.sheetsHasMore = browser.table.rows.length < (browser.table.rowCount ?? 0);
+        return nextRows.length > 0;
+    } catch (error) {
+        if (version === routeLoadVersion && browser.mode === 'sheets' && browser.table === table) {
+            pushToast(normalizeError(error).message, 'alert');
+        }
+        return false;
+    } finally {
+        if (version === routeLoadVersion && browser.mode === 'sheets') {
+            browser.sheetsLoadingMore = false;
+            emitChange();
+        }
+    }
+}
+
 export async function sortDataTableByColumn(columnName) {
     const normalizedColumn = String(columnName ?? '').trim();
 
@@ -8469,6 +8746,154 @@ export async function sortDataTableByColumn(columnName) {
 
     if (state.route.name === 'data' && state.dataBrowser.selectedTable) {
         await loadDataTable(++routeLoadVersion);
+    }
+}
+
+export function setDataSheetColumnWidth(columnName, width) {
+    const browser = state.dataBrowser;
+    const table = browser.table;
+    const normalizedColumn = String(columnName ?? '').trim();
+    if (browser.mode !== 'sheets' || !table?.columns?.includes(normalizedColumn)) return false;
+    const normalizedWidth = normalizeDataSheetColumnWidth(width);
+    const layout = readDataSheetLayout(table.name, table.columns);
+    layout.widths[normalizedColumn] = normalizedWidth;
+    browser.sheetColumnWidths = layout.widths;
+    storeDataSheetLayout(table.name, layout);
+    return normalizedWidth;
+}
+
+function getNextDataSheetColumnName(columns = []) {
+    const names = new Set(columns.map(column => String(column).toLowerCase()));
+    let index = 1;
+    while (names.has(`column_${index}`)) index += 1;
+    return `column_${index}`;
+}
+
+export async function insertDataSheetColumn(columnName, direction = 'right') {
+    const browser = state.dataBrowser;
+    const table = browser.table;
+    const targetColumn = String(columnName ?? '').trim();
+    if (browser.mode !== 'sheets' || !table || browser.sheetSchemaChanging ||
+        !table.columns?.includes(targetColumn) || state.connections.active?.readOnly || table.isShadow) return false;
+    const newColumnName = getNextDataSheetColumnName(table.columns);
+    browser.sheetSchemaChanging = true;
+    emitChange();
+    try {
+        const response = await api.addDataTableColumn(table.name, { name: newColumnName });
+        const savedName = response.data?.columnName ?? newColumnName;
+        const layout = readDataSheetLayout(table.name, table.columns);
+        const targetIndex = Math.max(0, layout.order.indexOf(targetColumn));
+        layout.order.splice(targetIndex + (direction === 'left' ? 0 : 1), 0, savedName);
+        layout.widths[savedName] = DATA_SHEET_DEFAULT_COLUMN_WIDTH;
+        storeDataSheetLayout(table.name, layout);
+        pushToast(response.message || `Column ${savedName} added.`, 'success');
+        await loadDataTable(++routeLoadVersion);
+        return true;
+    } catch (error) {
+        pushToast(normalizeError(error).message, 'alert');
+        return false;
+    } finally {
+        browser.sheetSchemaChanging = false;
+        emitChange();
+    }
+}
+
+export function openRenameDataSheetColumnModal(columnName) {
+    const table = state.dataBrowser.table;
+    const normalizedColumn = String(columnName ?? '').trim();
+    if (state.dataBrowser.mode !== 'sheets' || !table?.columns?.includes(normalizedColumn)) return;
+    state.modal = {
+        kind: 'rename-data-sheet-column',
+        tableName: table.name,
+        columnName: normalizedColumn,
+        newColumnName: normalizedColumn,
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+export function openDeleteDataSheetColumnModal(columnName) {
+    const table = state.dataBrowser.table;
+    const normalizedColumn = String(columnName ?? '').trim();
+    if (state.dataBrowser.mode !== 'sheets' || !table?.columns?.includes(normalizedColumn)) return;
+    state.modal = {
+        kind: 'delete-data-sheet-column',
+        tableName: table.name,
+        columnName: normalizedColumn,
+        error: null,
+        submitting: false,
+    };
+    emitChange();
+}
+
+export async function submitRenameDataSheetColumn(newColumnName) {
+    const modal = state.modal;
+    if (modal?.kind !== 'rename-data-sheet-column') return false;
+    const nextName = String(newColumnName ?? '').trim();
+    if (!nextName) {
+        modal.error = { message: 'Column name is required.' };
+        emitChange();
+        return false;
+    }
+    startModalSubmission();
+    try {
+        const response = await api.renameDataTableColumn(modal.tableName, modal.columnName, { name: nextName });
+        const layout = readDataSheetLayout(modal.tableName, state.dataBrowser.table?.columns ?? []);
+        layout.order = layout.order.map(column => column === modal.columnName ? nextName : column);
+        layout.widths[nextName] = layout.widths[modal.columnName] ?? DATA_SHEET_DEFAULT_COLUMN_WIDTH;
+        delete layout.widths[modal.columnName];
+        storeDataSheetLayout(modal.tableName, layout);
+        closeModalInternal();
+        pushToast(response.message || `Column renamed to ${nextName}.`, 'success');
+        await loadDataTable(++routeLoadVersion);
+        return true;
+    } catch (error) {
+        withModalError(error);
+        return false;
+    }
+}
+
+export async function submitDeleteDataSheetColumn() {
+    const modal = state.modal;
+    if (modal?.kind !== 'delete-data-sheet-column') return false;
+    startModalSubmission();
+    try {
+        const response = await api.deleteDataTableColumn(modal.tableName, modal.columnName);
+        const layout = readDataSheetLayout(modal.tableName, state.dataBrowser.table?.columns ?? []);
+        layout.order = layout.order.filter(column => column !== modal.columnName);
+        delete layout.widths[modal.columnName];
+        storeDataSheetLayout(modal.tableName, layout);
+        closeModalInternal();
+        pushToast(response.message || `Column ${modal.columnName} deleted.`, 'success');
+        await loadDataTable(++routeLoadVersion);
+        return true;
+    } catch (error) {
+        withModalError(error);
+        return false;
+    }
+}
+
+export async function insertDataSheetRow() {
+    const browser = state.dataBrowser;
+    const table = browser.table;
+    if (browser.mode !== 'sheets' || !table || browser.sheetInsertingRow || browser.sheetsHasMore ||
+        state.connections.active?.readOnly || table.isShadow) return false;
+    browser.sheetInsertingRow = true;
+    emitChange();
+    try {
+        const response = await api.insertDataTableRow(table.name, {});
+        if (browser.table !== table || browser.mode !== 'sheets') return false;
+        table.rows = [...(table.rows ?? []), response.data.row];
+        table.rowCount = Number(table.rowCount ?? table.rows.length - 1) + 1;
+        pushToast(response.message || 'Row added.', 'success');
+        return true;
+    } catch (error) {
+        pushToast(normalizeError(error).message, 'alert');
+        return false;
+    } finally {
+        browser.sheetInsertingRow = false;
+        emitChange();
     }
 }
 
@@ -8502,7 +8927,7 @@ export async function submitDataRowUpdate(rowIndex, values, identity = null, opt
     }
 
     if (state.dataBrowser.table?.isShadow) {
-        pushToast('Shadow tables are read-only in Data.', 'alert');
+        pushToast('Shadow tables are read-only in Tables.', 'alert');
         return null;
     }
 
@@ -8545,7 +8970,7 @@ export async function submitDataRowDelete(rowIndex, options = {}) {
     }
 
     if (state.dataBrowser.table?.isShadow) {
-        pushToast('Shadow tables are read-only in Data.', 'alert');
+        pushToast('Shadow tables are read-only in Tables.', 'alert');
         return null;
     }
 

@@ -82,7 +82,7 @@ function renderWorkspaceToolbar(state) {
             {
               icon: "table_rows",
               key: "data",
-              label: "Data",
+              label: "Tables",
               target: name => `/data/${encodeURIComponent(name)}`,
             },
             {

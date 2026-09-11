@@ -1364,6 +1364,49 @@ function renderDeleteRowConfirmForm(modal) {
     ].join('');
 }
 
+function renderRenameDataSheetColumnForm(modal) {
+    return `
+      <form class="space-y-5" data-form="rename-data-sheet-column">
+        <label class="block space-y-2">
+          <span class="text-[10px] font-mono uppercase tracking-[0.18em] text-on-surface-variant/55">Column name</span>
+          <input
+            class="control-input w-full border border-outline-variant/20 bg-surface-container-lowest px-3 text-sm text-on-surface outline-none"
+            name="columnName"
+            value="${escapeHtml(modal.newColumnName ?? modal.columnName ?? '')}"
+            autocomplete="off"
+            required
+            autofocus
+          />
+        </label>
+        ${renderError(modal.error)}
+        <div class="flex items-center justify-between gap-3 pt-2">
+          <button class="standard-button" data-action="close-modal" type="button">Cancel</button>
+          <button class="signature-button" type="submit" ${modal.submitting ? 'disabled aria-disabled="true"' : ''}>
+            ${modal.submitting ? 'Renaming...' : 'Rename Column'}
+          </button>
+        </div>
+      </form>
+    `;
+}
+
+function renderDeleteDataSheetColumnForm(modal) {
+    return `
+      <form class="space-y-5" data-form="delete-data-sheet-column">
+        <div class="space-y-3">
+          <p class="text-sm leading-7 text-on-surface">Delete column <span class="font-bold text-primary-container">${escapeHtml(modal.columnName ?? '')}</span> from <span class="font-bold text-primary-container">${escapeHtml(modal.tableName ?? '')}</span>?</p>
+          <p class="text-sm leading-7 text-on-surface-variant/65">The column and all of its values will be permanently deleted.</p>
+        </div>
+        ${renderError(modal.error)}
+        <div class="flex items-center justify-between gap-3 pt-2">
+          <button class="standard-button" data-action="close-modal" type="button">Cancel</button>
+          <button class="delete-button" type="submit" ${modal.submitting ? 'disabled aria-disabled="true"' : ''}>
+            ${modal.submitting ? 'Deleting...' : 'Delete Column'}
+          </button>
+        </div>
+      </form>
+    `;
+}
+
 function renderRowUpdatePreviewForm(modal) {
     const preview = modal.preview ?? {};
     const changes = preview.changes ?? [];
@@ -2654,7 +2697,7 @@ export function renderModal(state) {
             body: renderGenerateTypesForm(modal),
         },
         'generate-data': {
-            eyebrow: 'Data Browser // Synthetic rows',
+            eyebrow: 'Tables // Synthetic rows',
             title: 'Generate Synthetic Data',
             body: renderGenerateDataForm(modal),
         },
@@ -2667,6 +2710,16 @@ export function renderModal(state) {
             eyebrow: 'Mutation // Confirm row deletion',
             title: 'Delete Row',
             body: renderDeleteRowConfirmForm(modal),
+        },
+        'rename-data-sheet-column': {
+            eyebrow: 'Sheets // Column settings',
+            title: 'Rename Column',
+            body: renderRenameDataSheetColumnForm(modal),
+        },
+        'delete-data-sheet-column': {
+            eyebrow: 'Sheets // Confirm column deletion',
+            title: 'Delete Column',
+            body: renderDeleteDataSheetColumnForm(modal),
         },
         'row-update-preview': {
             eyebrow: 'Mutation // Review row update',
@@ -2734,7 +2787,7 @@ export function renderModal(state) {
             body: renderQueryExportModal(modal),
         },
         'data-export': {
-            eyebrow: 'Data Browser // Export table data',
+            eyebrow: 'Tables // Export table data',
             title: 'Export Table',
             body: renderDataExportModal(modal),
         },

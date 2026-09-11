@@ -1,3 +1,4 @@
+import { focusDataCellEditor, handleDataCellKeydown, patchDataGridCells } from './components/editableDataCell.js';
 import { renderAppShell } from './components/appShell.js';
 import { renderModal } from './components/modal.js';
 import { renderQueryHistoryDetail } from './components/queryHistoryDetail.js';
@@ -55,6 +56,7 @@ import {
     insertMarkdownIntoLastOpenDocument,
     loadMoreQueryHistory,
     loadMoreLogs,
+    loadMoreDataSheets,
     openModal,
     openDatabaseDiscoveryModal,
     openOverviewInFinder,
@@ -162,7 +164,19 @@ import {
     previewGenerateDataRows,
     previewDiscoveredDatabase,
     setQueryHistoryPanelVisibility,
+    selectDataTable,
+    startDataCellEdit,
+    updateDataCellDraft,
+    cancelDataCellEdit,
+    commitDataCellEdit,
     sortDataTableByColumn,
+    insertDataSheetColumn,
+    insertDataSheetRow,
+    openRenameDataSheetColumnModal,
+    openDeleteDataSheetColumnModal,
+    setDataSheetColumnWidth,
+    submitRenameDataSheetColumn,
+    submitDeleteDataSheetColumn,
     sortEditorResultsByColumn,
     setQueryHistorySearchInput,
     setQueryHistoryTab,
@@ -766,7 +780,14 @@ function patchDataMainUi(state, { tableHorizontalScrollState = null } = {}) {
         return false;
     }
 
+    if (state.dataBrowser.mode === 'sheets' && patchDataGridCells(currentWorkspace, nextWorkspace)) {
+        return syncDataSidebarActiveTable(state);
+    }
+    const oldScroll = currentWorkspace.querySelector('[data-table-horizontal-scroll]');
+    const newScroll = nextWorkspace.querySelector('[data-table-horizontal-scroll]');
+    const scrollTop = oldScroll?.scrollTop ?? 0;
     currentWorkspace.replaceWith(nextWorkspace);
+    if (newScroll && oldScroll?.dataset.tableScrollKey === newScroll.dataset.tableScrollKey) newScroll.scrollTop = scrollTop;
     restoreTableHorizontalScrollState({
         snapshot: tableHorizontalScrollState,
         routeName: state.route.name,
@@ -2360,6 +2381,14 @@ function closeCopyColumnMenus(exceptMenu = null) {
     });
 }
 
+function closeDataSheetColumnMenus(exceptMenu = null) {
+    document.querySelectorAll('[data-data-sheet-column-menu][open]').forEach(menu => {
+        if (menu !== exceptMenu && menu instanceof HTMLDetailsElement) {
+            menu.open = false;
+        }
+    });
+}
+
 function closeDropdownButtons(exceptDropdown = null) {
     document.querySelectorAll('[data-dropdown-button][open]').forEach(dropdown => {
         if (dropdown !== exceptDropdown && dropdown instanceof HTMLDetailsElement) {
@@ -2925,6 +2954,9 @@ async function handleAction(actionNode) {
     switch (action) {
         case 'navigate':
             router.navigate(actionNode.dataset.to ?? '/');
+            return;
+        case 'select-data-table':
+            await selectDataTable(actionNode.dataset.dataTableName);
             return;
         case 'toggle-logs':
             router.toggleLogs();
@@ -3750,7 +3782,7 @@ async function handleAction(actionNode) {
             const identity = currentState.mediaTagging.workflow?.currentItem?.identity ?? null;
 
             if (!openDataRowByIdentity(mediaTableName, identity)) {
-                showToast('The current media row could not be opened in Data.', 'alert');
+                showToast('The current media row could not be opened in Tables.', 'alert');
                 return;
             }
 
@@ -3785,6 +3817,11 @@ async function handleAction(actionNode) {
             fileInput.click();
             return;
         }
+        case 'edit-data-cell':
+            if (startDataCellEdit(actionNode.dataset.rowIndex, actionNode.dataset.columnName)) {
+                focusDataCellEditor(shellRefs.view);
+            }
+            return;
         case 'select-data-row':
             if (actionNode.dataset.rowIndex) {
                 selectDataRow(actionNode.dataset.rowIndex, { notify: false });
@@ -3813,6 +3850,28 @@ async function handleAction(actionNode) {
                 await sortDataTableByColumn(actionNode.dataset.columnName);
             }
             return;
+        case 'insert-data-sheet-column-left':
+            await insertDataSheetColumn(actionNode.dataset.columnName, 'left');
+            return;
+        case 'insert-data-sheet-column-right':
+            await insertDataSheetColumn(actionNode.dataset.columnName, 'right');
+            return;
+        case 'open-rename-data-sheet-column-modal':
+            openRenameDataSheetColumnModal(actionNode.dataset.columnName);
+            return;
+        case 'open-delete-data-sheet-column-modal':
+            openDeleteDataSheetColumnModal(actionNode.dataset.columnName);
+            return;
+        case 'insert-data-sheet-row': {
+            const inserted = await insertDataSheetRow();
+            if (inserted) {
+                window.requestAnimationFrame(() => {
+                    const scrollNode = shellRefs.view.querySelector('[data-sheets-infinite-scroll]');
+                    if (scrollNode) scrollNode.scrollTop = scrollNode.scrollHeight;
+                });
+            }
+            return;
+        }
         case 'sort-editor-results-column':
             if (actionNode.dataset.columnName) {
                 sortEditorResultsByColumn(actionNode.dataset.columnName);
@@ -3880,6 +3939,8 @@ document.addEventListener('click', event => {
         return;
     }
 
+    if (target.closest('[data-bind="data-sheet-value"]')) return;
+
     const copyColumnMenu = target.closest('[data-copy-column-menu]');
 
     if (!copyColumnMenu) {
@@ -3890,6 +3951,20 @@ document.addEventListener('click', event => {
                 closeCopyColumnMenus(copyColumnMenu);
             }
         });
+    }
+
+    const dataSheetColumnMenu = target.closest('[data-data-sheet-column-menu]');
+
+    if (!dataSheetColumnMenu) {
+        closeDataSheetColumnMenus();
+    } else if (target.closest('.query-result-column-menu__toggle')) {
+        window.requestAnimationFrame(() => {
+            if (dataSheetColumnMenu instanceof HTMLDetailsElement && dataSheetColumnMenu.open) {
+                closeDataSheetColumnMenus(dataSheetColumnMenu);
+            }
+        });
+    } else if (target.closest('.query-result-column-menu__item')) {
+        closeDataSheetColumnMenus();
     }
 
     const dropdownButton = target.closest('[data-dropdown-button]');
@@ -3951,6 +4026,62 @@ document.addEventListener('pointerup', event => {
     rememberDocumentEditorInsertionRangeFromTarget(event.target);
 });
 
+let dataSheetColumnResize = null;
+
+document.addEventListener('pointerdown', event => {
+    const target = event.target instanceof Element
+        ? event.target.closest('[data-data-sheet-column-resizer]')
+        : null;
+
+    if (!target) return;
+
+    const header = target.closest('[data-data-sheet-header]');
+    const table = target.closest('table');
+    const columnName = target.dataset.columnName;
+
+    if (!header || !table || !columnName) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    closeDataSheetColumnMenus();
+    dataSheetColumnResize = {
+        pointerId: event.pointerId,
+        columnName,
+        startX: event.clientX,
+        startWidth: header.getBoundingClientRect().width,
+        startTableWidth: table.getBoundingClientRect().width,
+        table,
+        col: table.querySelector(`col[data-data-sheet-col="${CSS.escape(columnName)}"]`),
+    };
+    target.setPointerCapture?.(event.pointerId);
+    document.body.classList.add('is-resizing-data-sheet-column');
+});
+
+document.addEventListener('pointermove', event => {
+    if (!dataSheetColumnResize || event.pointerId !== dataSheetColumnResize.pointerId) return;
+
+    const delta = event.clientX - dataSheetColumnResize.startX;
+    const width = Math.max(96, Math.min(480, Math.round(dataSheetColumnResize.startWidth + delta)));
+    const appliedDelta = width - dataSheetColumnResize.startWidth;
+
+    if (dataSheetColumnResize.col) {
+        dataSheetColumnResize.col.style.width = `${width}px`;
+    }
+    dataSheetColumnResize.table.style.width = `${Math.max(0, dataSheetColumnResize.startTableWidth + appliedDelta)}px`;
+    dataSheetColumnResize.width = width;
+});
+
+document.addEventListener('pointerup', event => {
+    if (!dataSheetColumnResize || event.pointerId !== dataSheetColumnResize.pointerId) return;
+
+    setDataSheetColumnWidth(
+        dataSheetColumnResize.columnName,
+        dataSheetColumnResize.width ?? dataSheetColumnResize.startWidth,
+    );
+    dataSheetColumnResize = null;
+    document.body.classList.remove('is-resizing-data-sheet-column');
+});
+
 document.addEventListener(
     'select',
     event => {
@@ -3965,6 +4096,31 @@ document.addEventListener('selectionchange', () => {
 
 document.addEventListener('keydown', event => {
     const target = event.target;
+    if (target?.matches?.('[data-bind="data-sheet-value"]') && ['Enter', 'Escape', 'Tab'].includes(event.key)) {
+        const before = getState();
+        const cellNode = target.closest('[data-sheet-cell]');
+        const rowIndex = cellNode.dataset.rowIndex;
+        const columnName = cellNode.dataset.columnName;
+        void handleDataCellKeydown(event, {
+            commit: commitDataCellEdit,
+            cancel: cancelDataCellEdit,
+            focus: () => {
+                const current = getState();
+                if (current.route.path !== before.route.path || current.dataBrowser.page !== before.dataBrowser.page ||
+                    current.dataBrowser.mode !== 'sheets' || current.connections.active?.id !== before.connections.active?.id) return;
+                if (current.dataBrowser.editingCell) focusDataCellEditor(shellRefs.view);
+                else shellRefs.view.querySelector(
+                    `[data-sheet-cell][data-row-index="${rowIndex}"][data-column-name="${CSS.escape(columnName)}"]`,
+                )?.focus({ preventScroll: true });
+            },
+        });
+        return;
+    }
+    if (target?.matches?.('[data-sheet-cell][data-action="edit-data-cell"]') && event.key === 'Enter') {
+        event.preventDefault();
+        void handleAction(target);
+        return;
+    }
     const state = getState();
 
     if (
@@ -4165,6 +4321,10 @@ document.addEventListener('keydown', event => {
 });
 
 document.addEventListener('input', event => {
+    if (event.target?.matches?.('[data-bind="data-sheet-value"]')) {
+        updateDataCellDraft(event.target.value);
+        return;
+    }
     const target = event.target instanceof Element ? event.target : null;
     const valueInput = target?.closest('[data-row-editor-value-source]');
     const timestampInput = target?.closest('[data-row-editor-timestamp-source]');
@@ -4417,6 +4577,12 @@ document.addEventListener(
     'scroll',
     event => {
         const target = event.target;
+
+        if (target instanceof HTMLElement && target.hasAttribute('data-sheets-infinite-scroll')) {
+            const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
+            if (remaining <= 240) void loadMoreDataSheets();
+            return;
+        }
 
         if (!(target instanceof HTMLTextAreaElement)) {
             return;
@@ -4800,6 +4966,12 @@ document.addEventListener('submit', async event => {
         }
         case 'delete-row-confirm':
             await submitDeleteRowConfirmation();
+            return;
+        case 'rename-data-sheet-column':
+            await submitRenameDataSheetColumn(String(formData.get('columnName') ?? ''));
+            return;
+        case 'delete-data-sheet-column':
+            await submitDeleteDataSheetColumn();
             return;
         case 'create-backup':
             await submitCreateBackupConfirmation({

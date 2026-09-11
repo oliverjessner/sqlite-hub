@@ -579,6 +579,33 @@ export function updateDataTableRow(tableName, payload) {
   });
 }
 
+export function insertDataTableRow(tableName, payload = {}) {
+  return request(`/api/data/${encodeURIComponent(tableName)}/rows`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function addDataTableColumn(tableName, payload) {
+  return request(`/api/data/${encodeURIComponent(tableName)}/columns`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function renameDataTableColumn(tableName, columnName, payload) {
+  return request(`/api/data/${encodeURIComponent(tableName)}/columns/${encodeURIComponent(columnName)}`, {
+    method: "PATCH",
+    body: payload,
+  });
+}
+
+export function deleteDataTableColumn(tableName, columnName) {
+  return request(`/api/data/${encodeURIComponent(tableName)}/columns/${encodeURIComponent(columnName)}`, {
+    method: "DELETE",
+  });
+}
+
 export function previewDataTableRowUpdate(tableName, payload) {
   return request(`/api/data/${encodeURIComponent(tableName)}/rows/preview-update`, {
     method: "POST",

@@ -67,9 +67,9 @@ test('data title includes the selected row name', async () => {
 
   assert.equal(
     resolveDocumentTitle(state({ routeName: 'data', dataRow: { id: 7, name: 'Ada Lovelace' }, dataRowIndex: 0 })),
-    'Customers | Data | Ada Lovelace',
+    'Customers | Tables | Ada Lovelace',
   );
-  assert.equal(resolveDocumentTitle(state({ routeName: 'data' })), 'Customers | Data');
+  assert.equal(resolveDocumentTitle(state({ routeName: 'data' })), 'Customers | Tables');
 });
 
 test('data title falls back to the visible row number when a row has no name', async () => {
@@ -77,7 +77,7 @@ test('data title falls back to the visible row number when a row has no name', a
 
   assert.equal(
     resolveDocumentTitle(state({ routeName: 'data', dataRow: { id: 7, email: 'ada@example.com' }, dataRowIndex: 0 })),
-    'Customers | Data | Row 1',
+    'Customers | Tables | Row 1',
   );
 });
 

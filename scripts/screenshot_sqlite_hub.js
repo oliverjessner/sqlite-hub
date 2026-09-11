@@ -29,8 +29,8 @@ const MENU_SCENARIOS = [
   },
   { slug: "overview", path: "/overview", drawers: [] },
   {
-    slug: "data",
-    path: "/data",
+    slug: "browse",
+    path: "/browse",
     drawers: [
       {
         extra: "roweditor",
@@ -39,6 +39,7 @@ const MENU_SCENARIOS = [
       },
     ],
   },
+  { slug: "sheets", path: "/sheets", drawers: [] },
   { slug: "structure", path: "/structure", drawers: [] },
   {
     slug: "sql_editor",

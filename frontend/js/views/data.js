@@ -1,3 +1,4 @@
+import { renderEditableDataCell } from '../components/editableDataCell.js';
 import { renderDataGrid } from '../components/dataGrid.js';
 import { renderRowEditorPanel } from '../components/rowEditorPanel.js';
 import { renderVirtualTableBadge } from '../components/badges.js';
@@ -118,10 +119,9 @@ function renderTableList(state) {
                       ? 'is-active border-primary-container/30 bg-surface-container-high'
                       : 'border-outline-variant/10 bg-surface-container-lowest hover:bg-surface-container-high'
               }"
-              data-action="navigate"
+              data-action="select-data-table"
               data-data-table-item
               data-data-table-name="${escapeHtml(table.name)}"
-              data-to="/data/${encodeURIComponent(table.name)}"
               type="button"
             >
               <div class="flex min-w-0 items-center gap-2">
@@ -145,15 +145,71 @@ function renderTableList(state) {
   `;
 }
 
-function renderWorkspaceHeader(state) {
-    const table = state.dataBrowser.table;
-    const tablesVisible = state.dataBrowser.tablesVisible !== false;
+function renderBrowseActions(state, table) {
     const generateDisabled = !table || table.isShadow;
     const generateTitle = !table
         ? 'Select a table before generating rows'
         : table.isShadow
-          ? 'Shadow tables are read-only in Data'
+          ? 'Shadow tables are read-only in Tables'
           : 'Generate synthetic test rows for this table';
+
+    return `
+      <div class="flex flex-wrap items-center justify-end gap-3">
+        <button
+          class="standard-button"
+          data-action="open-generate-data-modal"
+          title="${escapeHtml(generateTitle)}"
+          type="button"
+          ${generateDisabled ? 'disabled aria-disabled="true"' : ''}
+        >
+          <span class="material-symbols-outlined text-sm">auto_awesome</span>
+          Generate
+        </button>
+        ${
+            table
+                ? renderWorkspaceOpenDropdown({
+                      tableName: table.name,
+                      destinations: [
+                          {
+                              icon: 'account_tree',
+                              key: 'structure',
+                              label: 'Structure',
+                              target: tableName => `/structure/${encodeURIComponent(tableName)}`,
+                          },
+                          {
+                              icon: 'table_chart',
+                              key: 'table-designer',
+                              label: 'Table Designer',
+                              target: tableName => `/table-designer/${encodeURIComponent(tableName)}`,
+                          },
+                          {
+                              icon: 'troubleshoot',
+                              key: 'table-advisor',
+                              label: 'Table Advisor',
+                              target: tableName => `/table-advisor/${encodeURIComponent(tableName)}`,
+                          },
+                          { key: 'sql-editor' },
+                      ],
+                  })
+                : ''
+        }
+        ${
+            table
+                ? `<button class="standard-button" data-action="open-data-export-modal" type="button">
+                    <span class="material-symbols-outlined text-sm">download</span>
+                    ${state.dataBrowser.exportLoading ? 'Exporting...' : 'Export'}
+                  </button>`
+                : ''
+        }
+        <button class="standard-button" data-action="refresh-view" type="button">Reload Data</button>
+      </div>
+    `;
+}
+
+function renderWorkspaceHeader(state) {
+    const table = state.dataBrowser.table;
+    const tablesVisible = state.dataBrowser.tablesVisible !== false;
+    const mode = state.dataBrowser.mode === 'sheets' ? 'sheets' : 'browse';
 
     return `
     <header class="workspace-header">
@@ -177,67 +233,7 @@ function renderWorkspaceHeader(state) {
                   : ''
           }
         </div>
-        <div class="flex flex-wrap items-center justify-end gap-3">
-          <button
-            class="standard-button"
-            data-action="open-generate-data-modal"
-            title="${escapeHtml(generateTitle)}"
-            type="button"
-            ${generateDisabled ? 'disabled aria-disabled="true"' : ''}
-          >
-            <span class="material-symbols-outlined text-sm">auto_awesome</span>
-            Generate
-          </button>
-          ${
-              table
-                  ? renderWorkspaceOpenDropdown({
-                        tableName: table.name,
-                        destinations: [
-                            {
-                                icon: 'account_tree',
-                                key: 'structure',
-                                label: 'Structure',
-                                target: tableName => `/structure/${encodeURIComponent(tableName)}`,
-                            },
-                            {
-                                icon: 'table_chart',
-                                key: 'table-designer',
-                                label: 'Table Designer',
-                                target: tableName => `/table-designer/${encodeURIComponent(tableName)}`,
-                            },
-                            {
-                                icon: 'troubleshoot',
-                                key: 'table-advisor',
-                                label: 'Table Advisor',
-                                target: tableName => `/table-advisor/${encodeURIComponent(tableName)}`,
-                            },
-                            {
-                                key: 'sql-editor',
-                            },
-                        ],
-                    })
-                  : ''
-          }
-          ${
-              table
-                  ? `<button
-                    class="standard-button"
-                    data-action="open-data-export-modal"
-                    type="button"
-                  >
-                    <span class="material-symbols-outlined text-sm">download</span>
-                    ${state.dataBrowser.exportLoading ? 'Exporting...' : 'Export'}
-                  </button>`
-                  : ''
-          }
-          <button
-            class="standard-button"
-            data-action="refresh-view"
-            type="button"
-          >
-            Reload Data
-          </button>
-        </div>
+        ${mode === 'browse' ? renderBrowseActions(state, table) : ''}
       </div>
     </header>
   `;
@@ -284,8 +280,21 @@ function getSortIcon(columnName, sortColumn, sortDirection) {
     return sortDirection === 'desc' ? 'south' : 'north';
 }
 
-function renderSortableHeader(columnName, sortColumn, sortDirection, action) {
+function renderSheetColumnLock(lockKind) {
+    const lockLabel = lockKind === 'primary-key'
+        ? 'Primary key column'
+        : lockKind === 'foreign-key'
+          ? 'Foreign key column'
+          : '';
+
+    return lockKind
+        ? `<span class="material-symbols-outlined shrink-0 text-sm leading-none opacity-60" data-sheet-column-lock="${lockKind}" aria-label="${lockLabel}" title="${lockLabel}">lock</span>`
+        : '';
+}
+
+function renderSortableHeader(columnName, sortColumn, sortDirection, action, options = {}) {
     const isActive = columnName === sortColumn;
+    const lockKind = String(options.lockKind ?? '');
 
     return `
     <button
@@ -296,7 +305,12 @@ function renderSortableHeader(columnName, sortColumn, sortDirection, action) {
       data-column-name="${escapeHtml(columnName)}"
       type="button"
     >
-      <span class="truncate">${escapeHtml(columnName)}</span>
+      <span class="flex min-w-0 items-center gap-2">
+        <span class="truncate">${escapeHtml(columnName)}</span>
+        ${
+            renderSheetColumnLock(lockKind)
+        }
+      </span>
       <span class="material-symbols-outlined text-sm leading-none">${getSortIcon(
           columnName,
           sortColumn,
@@ -304,6 +318,50 @@ function renderSortableHeader(columnName, sortColumn, sortDirection, action) {
       )}</span>
     </button>
   `;
+}
+
+function renderSheetColumnHeader(columnName, sortColumn, sortDirection, lockKind, disabled) {
+    const isActive = columnName === sortColumn;
+    const nextSortLabel = isActive && sortDirection === 'asc' ? 'Sort descending' : 'Sort ascending';
+    const disabledAttribute = disabled ? 'disabled aria-disabled="true"' : '';
+    const itemClass = 'query-result-column-menu__item';
+
+    return `
+      <div class="data-sheet-column-header flex min-w-0 items-center gap-1" data-column-name="${escapeHtml(columnName)}">
+        <span class="flex min-w-0 flex-1 items-center gap-2">
+          <span class="truncate" title="${escapeHtml(columnName)}">${escapeHtml(columnName)}</span>
+          ${renderSheetColumnLock(lockKind)}
+          ${
+              isActive
+                  ? `<span class="material-symbols-outlined shrink-0 text-sm leading-none" aria-label="Sorted ${escapeHtml(sortDirection)}">${getSortIcon(columnName, sortColumn, sortDirection)}</span>`
+                  : ''
+          }
+        </span>
+        <details class="query-result-column-menu" data-data-sheet-column-menu>
+          <summary class="query-result-column-menu__toggle" aria-label="Column actions for ${escapeHtml(columnName)}" title="Column actions">
+            <span class="material-symbols-outlined text-base leading-none">more_vert</span>
+          </summary>
+          <div class="query-result-column-menu__panel" role="menu">
+            <button class="${itemClass}" data-action="sort-data-column" data-column-name="${escapeHtml(columnName)}" type="button">
+              <span class="material-symbols-outlined text-sm">${isActive && sortDirection === 'asc' ? 'south' : 'north'}</span>${nextSortLabel}
+            </button>
+            <button class="${itemClass}" data-action="insert-data-sheet-column-left" data-column-name="${escapeHtml(columnName)}" type="button" ${disabledAttribute}>
+              <span class="material-symbols-outlined text-sm">view_column_2</span>Insert column left
+            </button>
+            <button class="${itemClass}" data-action="insert-data-sheet-column-right" data-column-name="${escapeHtml(columnName)}" type="button" ${disabledAttribute}>
+              <span class="material-symbols-outlined text-sm">view_column_2</span>Insert column right
+            </button>
+            <button class="${itemClass}" data-action="open-rename-data-sheet-column-modal" data-column-name="${escapeHtml(columnName)}" type="button" ${disabledAttribute}>
+              <span class="material-symbols-outlined text-sm">edit</span>Rename column
+            </button>
+            <button class="${itemClass} data-sheet-column-menu__danger" data-action="open-delete-data-sheet-column-modal" data-column-name="${escapeHtml(columnName)}" type="button" ${disabledAttribute}>
+              <span class="material-symbols-outlined text-sm">delete</span>Delete column
+            </button>
+          </div>
+        </details>
+        <span class="data-sheet-column-resizer" data-data-sheet-column-resizer data-column-name="${escapeHtml(columnName)}" role="separator" aria-label="Resize ${escapeHtml(columnName)} column" aria-orientation="vertical"></span>
+      </div>
+    `;
 }
 
 function getActiveFilterColumn(table, state) {
@@ -420,6 +478,10 @@ function renderTableSurface(state) {
     `;
     }
 
+    const sheetsMode = state.dataBrowser.mode === 'sheets';
+    const sheetSchemaDisabled = Boolean(
+        state.connections.active?.readOnly || table.isShadow || state.dataBrowser.sheetSchemaChanging,
+    );
     const activeColumn = getActiveFilterColumn(table, state);
     const indexedRows = (table.rows ?? []).map((row, index) => ({
         row,
@@ -431,12 +493,44 @@ function renderTableSurface(state) {
         columns: table.columnMeta ?? [],
         foreignKeys: table.foreignKeys ?? [],
     };
-    const columns = (table.columns ?? []).map(columnName => ({
+    const sheetForeignKeyColumns = new Set(
+        (table.foreignKeys ?? []).flatMap(foreignKey =>
+            (foreignKey.mappings ?? []).map(mapping => String(mapping.from ?? '').trim()).filter(Boolean),
+        ),
+    );
+    const getSheetLockKind = columnName => {
+        if (!sheetsMode) return '';
+        const column = (table.columnMeta ?? []).find(item => item.name === columnName);
+        if (Number(column?.primaryKeyPosition ?? 0) > 0) return 'primary-key';
+        return sheetForeignKeyColumns.has(columnName) ? 'foreign-key' : '';
+    };
+    const dataColumns = (table.columns ?? []).map(columnName => {
+        const sheetColumnWidth = state.dataBrowser.sheetColumnWidths?.[columnName] ?? 192;
+
+        return {
+        colAttrs: sheetsMode ? `data-data-sheet-col="${escapeHtml(columnName)}"` : '',
+        colStyle: sheetsMode ? `width:${sheetColumnWidth}px` : '',
         headerClassName:
-            'border-b border-primary-container/20 px-4 py-3 text-[10px] font-bold tracking-[0.08em] text-primary-container',
-        renderHeader: () => renderSortableHeader(columnName, sortColumn, sortDirection, 'sort-data-column'),
-        cellClassName: 'px-4 py-2 align-top text-[11px] text-on-surface',
-        render: row => {
+            `border-b border-primary-container/20 px-4 py-3 text-[10px] font-bold tracking-[0.08em] text-primary-container ${sheetsMode ? 'relative' : ''}`,
+        headerAttrs: sheetsMode
+            ? `data-data-sheet-header data-column-name="${escapeHtml(columnName)}"`
+            : '',
+        renderHeader: () => sheetsMode
+            ? renderSheetColumnHeader(
+                  columnName,
+                  sortColumn,
+                  sortDirection,
+                  getSheetLockKind(columnName),
+                  sheetSchemaDisabled,
+              )
+            : renderSortableHeader(columnName, sortColumn, sortDirection, 'sort-data-column'),
+        cellClassName: `px-4 py-2 align-top text-[11px] text-on-surface ${sheetsMode ? 'relative data-sheet-cell' : ''}`,
+        getCellAttrs: (row, index) => sheetsMode
+            ? renderEditableDataCell(state, row, index, columnName, getCellWidthClass(columnName)).attrs : '',
+        render: (row, index) => {
+            if (sheetsMode) {
+                return renderEditableDataCell(state, row, index, columnName, getCellWidthClass(columnName)).markup;
+            }
             const rawValue = row[columnName];
             const email = detectEmailValue(rawValue);
             const filePath = detectFilePathValue(rawValue, columnName, tableMeta);
@@ -478,7 +572,26 @@ function renderTableSurface(state) {
                 isNull ? 'text-on-surface-variant/45' : 'text-on-surface'
             }" title="${escapeHtml(value)}">${escapeHtml(displayValue)}</span>`;
         },
-    }));
+        };
+    });
+    const rowOffset = table.offset ?? 0;
+    const columns =
+        sheetsMode
+            ? [
+                  {
+                      key: '__sheetRowNumber',
+                      label: '#',
+                      colAttrs: 'data-data-sheet-row-number-col',
+                      colStyle: 'width:44px',
+                      headerClassName:
+                          'data-sheet-row-number border-b border-r border-primary-container/20 px-3 py-3 text-center text-[10px] font-bold text-on-surface-variant/45',
+                      cellClassName:
+                          'data-sheet-row-number border-r border-outline-variant/15 px-3 py-2 text-center text-[10px] text-on-surface-variant/45',
+                      render: (_row, index) => escapeHtml(formatNumber(rowOffset + index + 1)),
+                  },
+                  ...dataColumns,
+              ]
+            : dataColumns;
     const totalRows = table.rowCount ?? 0;
     const page = table.page ?? state.dataBrowser.page ?? 1;
     const pageCount = table.pageCount ?? Math.max(1, Math.ceil(totalRows / (table.limit ?? 50)));
@@ -486,11 +599,20 @@ function renderTableSurface(state) {
     const toRow = totalRows === 0 ? 0 : Math.min((table.offset ?? 0) + (table.rows?.length ?? 0), totalRows);
     const pageSizes = Object.freeze([25, 50, 100, 250]);
     const hasActiveFilter = Boolean(String(state.dataBrowser.searchQuery ?? '').trim() && activeColumn);
+    const sheetTableWidth = sheetsMode
+        ? 44 + (table.columns ?? []).reduce(
+              (total, columnName) => total + Number(state.dataBrowser.sheetColumnWidths?.[columnName] ?? 192),
+              0,
+          )
+        : 0;
     const gridMarkup = renderDataGrid({
         columns,
         rows: indexedRows.map(({ row }) => row),
-        tableClass: 'data-table min-w-full border-collapse text-left font-mono text-xs',
-        theadClass: 'sticky top-0 z-10 bg-surface-container-highest',
+        tableClass: `data-table data-browser-grid min-w-full text-left font-mono text-xs ${
+            state.dataBrowser.mode === 'sheets' ? 'data-sheet-grid' : ''
+        }`,
+        tableStyle: sheetsMode ? `width:${sheetTableWidth}px;min-width:100%` : '',
+        theadClass: 'bg-surface-container-highest',
         tbodyClass: 'divide-y divide-outline-variant/5',
         getRowClass: (_, rowIndexOnPage) => {
             const rowIndex = indexedRows[rowIndexOnPage]?.index ?? rowIndexOnPage;
@@ -499,7 +621,7 @@ function renderTableSurface(state) {
                 'data-browser-row',
                 rowIndexOnPage % 2 === 0 ? 'data-browser-row--even' : 'data-browser-row--odd',
                 state.dataBrowser.selectedRowIndex === rowIndex ? 'is-selected' : '',
-                'cursor-pointer transition-colors',
+                sheetsMode ? '' : 'cursor-pointer transition-colors',
             ]
                 .filter(Boolean)
                 .join(' ');
@@ -507,7 +629,7 @@ function renderTableSurface(state) {
         getRowAttrs: (_, rowIndexOnPage) => {
             const rowIndex = indexedRows[rowIndexOnPage]?.index ?? rowIndexOnPage;
 
-            return ['data-action="select-data-row" data-row-index="', rowIndex, '"'].join('');
+            return sheetsMode ? '' : ['data-action="select-data-row" data-row-index="', rowIndex, '"'].join('');
         },
     });
     const emptyMarkup = !table.rows?.length
@@ -532,54 +654,77 @@ function renderTableSurface(state) {
             ].join(''),
         )
         .join('');
+    const sheetsLoadState = sheetsMode && state.dataBrowser.sheetsLoadingMore
+        ? '<div class="flex items-center justify-center gap-2 border-t border-outline-variant/10 px-6 py-4 font-mono text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/55" data-sheets-loading-more><span class="material-symbols-outlined animate-spin text-sm">progress_activity</span>Loading rows</div>'
+        : '';
+    const addSheetRowMarkup = sheetsMode && !state.dataBrowser.sheetsHasMore
+        ? [
+              '<button class="data-sheet-add-row" data-action="insert-data-sheet-row" type="button" ',
+              sheetSchemaDisabled || state.dataBrowser.sheetInsertingRow ? 'disabled aria-disabled="true"' : '',
+              '><span class="material-symbols-outlined text-base">add</span>',
+              state.dataBrowser.sheetInsertingRow ? 'Adding row...' : 'Add row',
+              '</button>',
+          ].join('')
+        : '';
+    const paginationFooter = sheetsMode
+        ? ''
+        : [
+              '<footer class="flex flex-wrap items-center justify-between gap-4 border-t border-outline-variant/10 bg-surface-container px-6 py-4">',
+              '<div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">showing ',
+              escapeHtml(formatNumber(fromRow)),
+              '-',
+              escapeHtml(formatNumber(toRow)),
+              ' of ',
+              escapeHtml(formatNumber(totalRows)),
+              filteredRowsText,
+              ' rows',
+              ' // columns ',
+              escapeHtml(formatNumber(table.columns?.length ?? 0)),
+              '</div>',
+              '<div class="flex flex-wrap items-center gap-4"><div class="flex items-center gap-2">',
+              '<span class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">rows</span>',
+              '<div class="flex items-center gap-2">',
+              pageSizeButtons,
+              '</div></div>',
+              '<div class="flex items-center gap-2">',
+              '<button class="standard-button" data-action="set-data-page" data-page="',
+              page - 1,
+              '" type="button" ',
+              page <= 1 ? 'disabled' : '',
+              '>Prev</button>',
+              '<div class="min-w-[7rem] text-center text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">page ',
+              escapeHtml(formatNumber(page)),
+              ' / ',
+              escapeHtml(formatNumber(pageCount)),
+              '</div>',
+              '<button class="standard-button" data-action="set-data-page" data-page="',
+              page + 1,
+              '" type="button" ',
+              page >= pageCount ? 'disabled' : '',
+              '>Next</button>',
+              '</div></div></footer>',
+          ].join('');
 
     return [
         '<div class="flex flex-1 min-h-0 flex-col bg-surface-container-lowest">',
-        renderTableFilterBar(table, state, activeColumn),
-        '<div class="custom-scrollbar flex-1 overflow-auto" data-table-horizontal-scroll data-table-scroll-key="data:',
+        state.dataBrowser.mode === 'sheets' ? '' : renderTableFilterBar(table, state, activeColumn),
+        '<div class="custom-scrollbar flex-1 overflow-auto" data-table-horizontal-scroll ',
+        sheetsMode ? 'data-sheets-infinite-scroll ' : '',
+        'data-table-scroll-key="data:',
         escapeHtml(table.name),
         '">',
         gridMarkup,
         emptyMarkup,
+        sheetsLoadState,
+        addSheetRowMarkup,
         '</div>',
-        '<footer class="flex flex-wrap items-center justify-between gap-4 border-t border-outline-variant/10 bg-surface-container px-6 py-4">',
-        '<div class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">showing ',
-        escapeHtml(formatNumber(fromRow)),
-        '-',
-        escapeHtml(formatNumber(toRow)),
-        ' of ',
-        escapeHtml(formatNumber(totalRows)),
-        filteredRowsText,
-        ' rows',
-        ' // columns ',
-        escapeHtml(formatNumber(table.columns?.length ?? 0)),
+        paginationFooter,
         '</div>',
-        '<div class="flex flex-wrap items-center gap-4"><div class="flex items-center gap-2">',
-        '<span class="text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">rows</span>',
-        '<div class="flex items-center gap-2">',
-        pageSizeButtons,
-        '</div></div>',
-        '<div class="flex items-center gap-2">',
-        '<button class="standard-button" data-action="set-data-page" data-page="',
-        page - 1,
-        '" type="button" ',
-        page <= 1 ? 'disabled' : '',
-        '>Prev</button>',
-        '<div class="min-w-[7rem] text-center text-[10px] font-mono uppercase tracking-[0.16em] text-on-surface-variant/55">page ',
-        escapeHtml(formatNumber(page)),
-        ' / ',
-        escapeHtml(formatNumber(pageCount)),
-        '</div>',
-        '<button class="standard-button" data-action="set-data-page" data-page="',
-        page + 1,
-        '" type="button" ',
-        page >= pageCount ? 'disabled' : '',
-        '>Next</button>',
-        '</div></div></footer></div>',
     ].join('');
 }
 
 export function renderDataRowEditorPanel(state) {
+    if (state.dataBrowser.mode === 'sheets') return '';
     const table = state.dataBrowser.table;
     const rowIndex = state.dataBrowser.selectedRowIndex;
     const row = getSelectedRow(state);
@@ -670,7 +815,7 @@ export function renderDataRowEditorPanel(state) {
         disabledMessage: state.connections.active?.readOnly
             ? 'The active database is opened read-only, so row editing is disabled.'
             : table.isShadow
-              ? 'Shadow tables are read-only in Data.'
+              ? 'Shadow tables are read-only in Tables.'
             : table.notSafelyUpdatable
               ? 'This table has no stable identity column, so SQLite Hub cannot safely update rows.'
               : '',

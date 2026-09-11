@@ -1,4 +1,4 @@
-const { NotFoundError, ValidationError } = require("../../utils/errors");
+const { NotFoundError, ValidationError, mapSqliteError } = require("../../utils/errors");
 const { ensureKnownIdentifier, quoteIdentifier } = require("../../utils/identifier");
 const {
   deserializeSqliteValue,
@@ -322,6 +322,156 @@ class DataBrowserService {
       deleted: true,
       identity,
       affectedRowCount: result.changes,
+    };
+  }
+
+  insertTableRow(tableName) {
+    this.connectionManager.assertWritable();
+
+    const db = this.connectionManager.getActiveDatabase();
+    const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
+
+    assertDataTableWritable(tableDetail);
+
+    const selectExpression =
+      tableDetail.identityStrategy?.type === "rowid" ? "rowid AS __rowid__, *" : "*";
+    let rawRow;
+
+    try {
+      rawRow = db
+        .prepare(
+          `INSERT INTO ${quoteIdentifier(tableDetail.name)} DEFAULT VALUES RETURNING ${selectExpression}`
+        )
+        .get();
+    } catch (error) {
+      throw mapSqliteError(error);
+    }
+
+    const serialized = serializeRow(rawRow);
+    const identity = buildRowIdentity(tableDetail, serialized);
+
+    delete serialized.__rowid__;
+
+    return {
+      tableName: tableDetail.name,
+      inserted: true,
+      row: {
+        ...serialized,
+        __identity: identity,
+      },
+    };
+  }
+
+  addTableColumn(tableName, payload = {}) {
+    this.connectionManager.assertWritable();
+
+    const db = this.connectionManager.getActiveDatabase();
+    const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
+    const columnName = String(payload.name ?? "").trim();
+
+    assertDataTableWritable(tableDetail);
+
+    if (!columnName) {
+      throw new ValidationError("Column name is required.");
+    }
+
+    if (tableDetail.columns.some((column) => column.name.toLowerCase() === columnName.toLowerCase())) {
+      throw new ValidationError(`Column already exists: ${columnName}`);
+    }
+
+    try {
+      db.exec(
+        `ALTER TABLE ${quoteIdentifier(tableDetail.name)} ADD COLUMN ${quoteIdentifier(columnName)} TEXT`
+      );
+    } catch (error) {
+      throw mapSqliteError(error);
+    }
+
+    return {
+      tableName: tableDetail.name,
+      columnName,
+      added: true,
+    };
+  }
+
+  renameTableColumn(tableName, columnName, payload = {}) {
+    this.connectionManager.assertWritable();
+
+    const db = this.connectionManager.getActiveDatabase();
+    const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
+    const currentColumnName = ensureKnownIdentifier(
+      columnName,
+      tableDetail.columns.map((column) => column.name),
+      "Column name"
+    );
+    const nextColumnName = String(payload.name ?? "").trim();
+
+    assertDataTableWritable(tableDetail);
+
+    if (!nextColumnName) {
+      throw new ValidationError("Column name is required.");
+    }
+
+    if (
+      currentColumnName !== nextColumnName &&
+      tableDetail.columns.some(
+        (column) => column.name.toLowerCase() === nextColumnName.toLowerCase()
+      )
+    ) {
+      throw new ValidationError(`Column already exists: ${nextColumnName}`);
+    }
+
+    if (currentColumnName !== nextColumnName) {
+      try {
+        db.exec(
+          `ALTER TABLE ${quoteIdentifier(tableDetail.name)} RENAME COLUMN ${quoteIdentifier(
+            currentColumnName
+          )} TO ${quoteIdentifier(nextColumnName)}`
+        );
+      } catch (error) {
+        throw mapSqliteError(error);
+      }
+    }
+
+    return {
+      tableName: tableDetail.name,
+      previousColumnName: currentColumnName,
+      columnName: nextColumnName,
+      renamed: currentColumnName !== nextColumnName,
+    };
+  }
+
+  deleteTableColumn(tableName, columnName) {
+    this.connectionManager.assertWritable();
+
+    const db = this.connectionManager.getActiveDatabase();
+    const tableDetail = getTableDetail(db, tableName, { includeRowCount: false });
+    const currentColumnName = ensureKnownIdentifier(
+      columnName,
+      tableDetail.columns.map((column) => column.name),
+      "Column name"
+    );
+
+    assertDataTableWritable(tableDetail);
+
+    if (tableDetail.columns.filter((column) => column.visible).length <= 1) {
+      throw new ValidationError("A table must keep at least one column.");
+    }
+
+    try {
+      db.exec(
+        `ALTER TABLE ${quoteIdentifier(tableDetail.name)} DROP COLUMN ${quoteIdentifier(
+          currentColumnName
+        )}`
+      );
+    } catch (error) {
+      throw mapSqliteError(error);
+    }
+
+    return {
+      tableName: tableDetail.name,
+      columnName: currentColumnName,
+      deleted: true,
     };
   }
 

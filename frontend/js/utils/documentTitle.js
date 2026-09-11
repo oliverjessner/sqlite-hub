@@ -5,7 +5,7 @@ const ROUTE_TITLE_SEGMENTS = {
     connections: 'Connections',
     backups: 'Backups',
     overview: 'Overview',
-    data: 'Data',
+    data: 'Tables',
     tableAdvisor: 'Table Advisor',
     structure: 'Structure',
     editor: 'SQL Editor',

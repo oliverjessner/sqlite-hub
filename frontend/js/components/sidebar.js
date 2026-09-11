@@ -1,10 +1,20 @@
 import { escapeHtml, formatCompactDateTime, truncateMiddle } from '../utils/format.js';
 import { renderConnectionLogo } from './connectionLogo.js';
 
+const SIDEBAR_LAST_CHILD_STORAGE_PREFIX = 'sqlite_hub_sidebar_last_child';
+
 const sidebarItems = [
     { label: 'Connections', href: '#/connections', key: 'connections', icon: 'database' },
-    { label: 'Data', href: '#/data', key: 'data', icon: 'table_rows' },
     { label: 'SQL_Editor', href: '#/editor', key: 'editor', icon: 'terminal' },
+    {
+        label: 'Tables',
+        key: 'data',
+        icon: 'table_rows',
+        children: [
+            { label: 'Browse', href: '#/browse', key: 'data', mode: 'browse' },
+            { label: 'Sheets', href: '#/sheets', key: 'data', mode: 'sheets' },
+        ],
+    },
     {
         label: 'SCHEMA',
         key: 'schema',
@@ -72,6 +82,34 @@ function getActiveSidebarKey(routeName) {
     }
 
     return routeName;
+}
+
+function getActiveSidebarChild(item, state) {
+    return item.children.find(
+        child =>
+            state.route.name === child.key &&
+            (!child.mode || (state.dataBrowser?.mode ?? 'browse') === child.mode),
+    );
+}
+
+function getLastSidebarChildHref(item, activeChild) {
+    const storageKey = `${SIDEBAR_LAST_CHILD_STORAGE_PREFIX}:${item.key}`;
+
+    try {
+        if (activeChild) {
+            globalThis.localStorage?.setItem(storageKey, activeChild.href);
+            return activeChild.href;
+        }
+
+        const storedHref = globalThis.localStorage?.getItem(storageKey);
+        if (item.children.some(child => child.href === storedHref)) {
+            return storedHref;
+        }
+    } catch {
+        // Storage can be unavailable in restricted browser contexts.
+    }
+
+    return item.children[0].href;
 }
 
 function getConnectionTimeValue(connection) {
@@ -184,9 +222,11 @@ export function renderSidebar(state) {
               if (item.children) {
                   const isExpanded = expandedKey === item.key;
                   const isActive = activeKey === item.key;
+                  const activeChild = getActiveSidebarChild(item, state);
+                  const groupHref = getLastSidebarChildHref(item, activeChild);
                   return `
             <div class="sidebar-group">
-              <a class="sidebar-link ${isActive ? 'is-active' : ''}" href="${item.children[0].href}" data-group="${item.key}">
+              <a class="sidebar-link ${isActive ? 'is-active' : ''}" href="${groupHref}" data-group="${item.key}">
                 <span class="material-symbols-outlined">${item.icon}</span>
                 <span>${item.label}</span>
                 <span class="material-symbols-outlined ml-auto text-[14px] ${isExpanded ? 'rotate-180' : ''}">expand_more</span>
@@ -198,7 +238,9 @@ export function renderSidebar(state) {
                 ${item.children
                     .map(
                         child => `
-                <a class="sidebar-sublink ${state.route.name === child.key ? 'is-active' : ''}" href="${child.href}">
+                <a class="sidebar-sublink ${child === activeChild ? 'is-active' : ''}"
+                  href="${child.href}"
+                  ${child.mode ? `data-mode="${child.mode}" aria-current="${(state.dataBrowser?.mode ?? 'browse') === child.mode ? 'page' : 'false'}"` : ''}>
                   ${child.label}
                 </a>
                 `,

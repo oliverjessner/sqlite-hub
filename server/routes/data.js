@@ -134,6 +134,88 @@ function createDataRouter({ dataBrowserService, appStateStore = null, connection
   );
 
   router.post(
+    "/:tableName/rows",
+    route((req, res) => {
+      const data = dataBrowserService.insertTableRow(req.params.tableName, req.body ?? {});
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "data.row.insert",
+        targetType: "table",
+        targetName: data.tableName ?? req.params.tableName,
+      });
+
+      res.json(
+        successResponse({
+          message: "Table row added.",
+          data,
+        })
+      );
+    })
+  );
+
+  router.post(
+    "/:tableName/columns",
+    route((req, res) => {
+      const data = dataBrowserService.addTableColumn(req.params.tableName, req.body ?? {});
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "data.column.add",
+        targetType: "table",
+        targetName: data.tableName ?? req.params.tableName,
+        metadata: { columnName: data.columnName },
+      });
+
+      res.json(successResponse({ message: "Table column added.", data }));
+    })
+  );
+
+  router.patch(
+    "/:tableName/columns/:columnName",
+    route((req, res) => {
+      const data = dataBrowserService.renameTableColumn(
+        req.params.tableName,
+        req.params.columnName,
+        req.body ?? {}
+      );
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "data.column.rename",
+        targetType: "table",
+        targetName: data.tableName ?? req.params.tableName,
+        metadata: {
+          previousColumnName: data.previousColumnName,
+          columnName: data.columnName,
+        },
+      });
+
+      res.json(successResponse({ message: "Table column renamed.", data }));
+    })
+  );
+
+  router.delete(
+    "/:tableName/columns/:columnName",
+    route((req, res) => {
+      const data = dataBrowserService.deleteTableColumn(
+        req.params.tableName,
+        req.params.columnName
+      );
+      recordUserAction({
+        appStateStore,
+        connectionManager,
+        action: "data.column.delete",
+        targetType: "table",
+        targetName: data.tableName ?? req.params.tableName,
+        metadata: { columnName: data.columnName },
+      });
+
+      res.json(successResponse({ message: "Table column deleted.", data }));
+    })
+  );
+
+  router.post(
     "/:tableName/rows/preview-update",
     route((req, res) => {
       const data = dataBrowserService.previewTableRowUpdate(req.params.tableName, req.body ?? {});

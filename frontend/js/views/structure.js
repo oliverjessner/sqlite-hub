@@ -250,7 +250,7 @@ function renderGraphSurface(structure, selectedName, detail, detailLoading, tabl
                   {
                       icon: 'table_rows',
                       key: 'data',
-                      label: 'Data',
+                      label: 'Tables',
                       target: tableName => `/data/${encodeURIComponent(tableName)}`,
                   },
                   {

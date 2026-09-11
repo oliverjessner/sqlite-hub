@@ -210,8 +210,8 @@ test("data view treats selected shadow tables as read-only", async () => {
     },
   });
 
-  assert.match(rendered.main, /title="Shadow tables are read-only in Data"/);
+  assert.match(rendered.main, /title="Shadow tables are read-only in Tables"/);
   assert.match(rendered.main, /data-action="open-generate-data-modal"[\s\S]*disabled aria-disabled="true"/);
-  assert.match(rendered.panel, /Shadow tables are read-only in Data\./);
+  assert.match(rendered.panel, /Shadow tables are read-only in Tables\./);
   assert.doesNotMatch(rendered.panel, /data-action="delete-data-row"[\s\S]*Delete Row/);
 });

@@ -1,3 +1,8 @@
+# v2.7.0
+
+- sheets feature, a excel like way to edit your tables
+- no it remembers the last oben sub menu
+
 # v2.6.3
 
 - Clicking Logs again now returns to the previously opened menu.

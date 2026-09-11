@@ -48,7 +48,7 @@ Many database tools are powerful, but feel oversized when all you want is to ins
 
 SQLite Hub keeps that workflow sharp:
 
-- browse tables and rows
+- browse tables with filters and row editing or switch to a spreadsheet-like Sheets view
 - open existing databases or create new SQLite files with a native save dialog
 - manage recent connections with labels, custom icons, and read-only mode
 - discover installed SQLite databases in standard macOS, Windows, and Linux application-data locations
@@ -98,17 +98,19 @@ The Table Advisor analyzes one table at a time and produces a deterministic, loc
 
 For each table, SQLite Hub calculates a score, lists findings by severity, shows the evidence behind each finding, and includes copyable SQL suggestions where a direct fix is useful. The advisor can flag missing primary keys, foreign-key-like columns without constraints, join/filter columns without indexes, likely-unique values without a UNIQUE index, enum-like columns that could use a `CHECK` constraint, mostly-null columns, empty strings mixed with nullable text, timestamp columns that need defaults or update logic, and generic column names that hide intent.
 
-### Data browser
+### Tables: Browse and Sheets
 
 [![SQLite Hub data browser](./frontend/assets/mockups/data_1_1920.webp)](./frontend/assets/mockups/data_1_1920.webp)
 
-Scan rows, sort columns, move through local data quickly, and export full tables as CSV, TSV, Markdown, JSON, or Parquet. Virtual and shadow tables are tagged in the table list, and shadow tables open read-only.
+Browse is the focused database view for scanning rows, filtering and sorting columns, opening the row editor, moving through pages, and exporting full tables as CSV, TSV, Markdown, JSON, or Parquet. Virtual and shadow tables are tagged in the table list, and shadow tables open read-only.
 
-Use `Generate` in the Data browser to create local synthetic test rows from the current table schema. The generator respects required columns, foreign keys, simple `CHECK` constraints, and shows a preview before insertion.
+Sheets provides a spreadsheet-like view at `#/sheets`. It loads more rows automatically while you scroll, keeps column headers and row numbers visible, and lets you edit writable cells directly. Primary-key and foreign-key columns show a lock in the header. Each column has a settings menu for sorting, inserting a column to either side, renaming, and deleting; column widths can be changed by dragging and are saved per database and table. At the end of a fully loaded table, **Add row** inserts a row using the table's SQLite defaults.
+
+Use `Generate` in Browse to create local synthetic test rows from the current table schema. The generator respects required columns, foreign keys, simple `CHECK` constraints, and shows a preview before insertion.
 
 [![SQLite Hub synthetic data generator](./frontend/assets/mockups/data_3_generate_data_modal_1920.webp)](./frontend/assets/mockups/data_3_generate_data_modal_1920.webp)
 
-The Data browser also supports duplicating exports as a new table, searchable and hideable table navigation, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching.
+Browse also supports duplicating exports as a new table, searchable and hideable table navigation, page sizes up to 250 rows, and advanced filters with column/operator/value controls. Text filters support case-insensitive `contains`, `not contains`, and exact `equals` matching. Browse and Sheets remember hidden table navigation independently.
 
 Wide tables keep their horizontal scroll position when sorting causes the grid to re-render. Cells use compact previews for long values, BLOBs, and detected file paths, while exports retain complete BLOB content.
 

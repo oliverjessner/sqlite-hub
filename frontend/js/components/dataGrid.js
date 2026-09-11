@@ -2,6 +2,7 @@ export function renderDataGrid({
   columns,
   rows,
   tableClass = "",
+  tableStyle = "",
   theadClass = "",
   headerRowClass = "",
   tbodyClass = "",
@@ -9,7 +10,11 @@ export function renderDataGrid({
   getRowAttrs = () => "",
 }) {
   return `
-    <table class="${tableClass}">
+    <table class="${tableClass}" ${tableStyle ? `style="${tableStyle}"` : ""}>
+      ${columns.some((column) => column.colStyle || column.colAttrs) ? `
+      <colgroup>
+        ${columns.map((column) => `<col ${column.colAttrs ?? ""} ${column.colStyle ? `style="${column.colStyle}"` : ""}>`).join("")}
+      </colgroup>` : ""}
       <thead class="${theadClass}">
         <tr class="${headerRowClass}">
           ${columns
@@ -31,7 +36,7 @@ export function renderDataGrid({
                 ${columns
                   .map(
                     (column) => `
-                      <td class="${column.cellClassName ?? ""}">
+                      <td class="${column.cellClassName ?? ""}" ${column.getCellAttrs ? column.getCellAttrs(row, index) : ""}>
                         ${column.render ? column.render(row, index) : row[column.key]}
                       </td>
                     `
