@@ -540,7 +540,11 @@ async function evaluate(page, expression, options = {}) {
   );
 
   if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.text || "Runtime evaluation failed.");
+    throw new Error(
+      result.exceptionDetails.exception?.description ||
+        result.exceptionDetails.text ||
+        "Runtime evaluation failed.",
+    );
   }
 
   return result.result?.value;
@@ -999,7 +1003,7 @@ async function collectModalDescriptors(page, additionalActions = []) {
       const selectors = [
         "button[data-action*='modal']",
         "button[data-modal]",
-        ...Array.from(additionalActions, (action) => "button[data-action=\"" + CSS.escape(action) + "\"]"),
+        ...Array.from(additionalActions, (action) => 'button[data-action="' + CSS.escape(action) + '"]'),
       ];
       const nodes = roots.flatMap((root) => Array.from(root.querySelectorAll(selectors.join(","))));
       const seen = new Set();
