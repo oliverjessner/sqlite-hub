@@ -209,7 +209,7 @@ function resolvePort(value = process.env.PORT ?? parsePortArgument()) {
 
     const port = Number(value);
 
-    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    if (!Number.isInteger(port) || port < 0 || port > 65535) {
         throw new Error(`Invalid port: ${value}`);
     }
 
@@ -224,11 +224,12 @@ function startServer({ port } = {}) {
 
         server.once('error', reject);
         server.once('listening', () => {
-            const url = `http://127.0.0.1:${resolvedPort}`;
+            const listeningPort = server.address().port;
+            const url = `http://127.0.0.1:${listeningPort}`;
 
             console.log(`SQLite Hub url: ${url} Version: ${packageJson.version}`);
             resolve({
-                port: resolvedPort,
+                port: listeningPort,
                 server,
                 url,
             });

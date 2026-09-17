@@ -8,7 +8,6 @@ const Database = require("better-sqlite3");
 
 const DEFAULT_URL = "http://127.0.0.1:4180";
 const DEFAULT_OUT_DIR = "screenshots/sqlite-hub";
-const DEFAULT_BACKUP_FIXTURE_PORT = 4191;
 const BACKUP_FIXTURE_FILENAME = "backup_drawer.png";
 const DEFAULT_VIEWPORT = {
   width: 1988,
@@ -131,7 +130,7 @@ function parseArgs(argv) {
 
 function parseBackupFixtureArgs(argv) {
   const options = {
-    port: DEFAULT_BACKUP_FIXTURE_PORT,
+    port: 0,
     out: path.join(DEFAULT_OUT_DIR, BACKUP_FIXTURE_FILENAME),
     width: DEFAULT_VIEWPORT.width,
     height: DEFAULT_VIEWPORT.height,
@@ -164,7 +163,7 @@ function parseBackupFixtureArgs(argv) {
     }
   }
 
-  if (!Number.isInteger(options.port) || options.port < 1 || options.port > 65535) {
+  if (!Number.isInteger(options.port) || options.port < 0 || options.port > 65535) {
     throw new Error(`Invalid --port value: ${options.port}`);
   }
 
@@ -1205,7 +1204,7 @@ async function runBackupFixtureWorker(options) {
   const args = [
     __filename,
     "--backup-fixture-worker",
-    `--port=${DEFAULT_BACKUP_FIXTURE_PORT}`,
+    "--port=0",
     `--out=${outputPath}`,
     `--width=${options.width}`,
     `--height=${options.height}`,

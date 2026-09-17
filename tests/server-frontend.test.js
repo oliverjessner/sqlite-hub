@@ -64,6 +64,18 @@ function request(pathname, method = "GET") {
   });
 }
 
+test("startServer returns the port assigned when port zero is requested", async (t) => {
+  const { port, server, url } = await serverModule.startServer({ port: 0 });
+  t.after(() => new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  }));
+
+  assert.ok(port > 0);
+  assert.equal(url, `http://127.0.0.1:${port}`);
+  const response = await fetch(`${url}/api/health`);
+  assert.equal(response.status, 200);
+});
+
 test("serves the SPA entrypoint from the root and direct index routes", async () => {
   assert.equal(serverModule.appStateStore.filePath.startsWith(isolatedStateRoot), true);
 
