@@ -1,6 +1,7 @@
 # v2.7.1
 
 - improved the table advisor
+- adding the table advisor to the mcp
 
 # v2.7.0
 
