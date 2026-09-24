@@ -65,6 +65,7 @@ test("GET /api/settings/mcp returns MCP status and exposed tools", async (t) => 
   assert.equal(payload.data.transport, "stdio");
   assert.ok(payload.data.exposedTools.includes("list_connections"));
   assert.ok(payload.data.exposedTools.includes("add_database"));
+  assert.ok(payload.data.exposedTools.includes("analyze_table"));
   assert.ok(payload.data.exposedTools.includes("run_readonly_query"));
   assert.ok(payload.data.exposedTools.includes("get_saved_queries"));
   assert.equal(payload.data.exposedTools.includes("get_stored_queries"), false);

@@ -109,6 +109,7 @@ test("MCP tool registration exposes the initial SQLite Hub tools", (t) => {
   assert.ok(names.includes("list_connections"));
   assert.ok(names.includes("add_database"));
   assert.ok(names.includes("get_schema"));
+  assert.ok(names.includes("analyze_table"));
   assert.ok(names.includes("run_readonly_query"));
   assert.ok(names.includes("get_saved_queries"));
   assert.equal(names.includes("get_stored_queries"), false);
@@ -221,6 +222,23 @@ test("MCP get_schema returns database tables and indexes", async (t) => {
   assert.ok(schema.tables.some((table) => table.name === "companies"));
   assert.ok(schema.tables.some((table) => table.name === "contacts"));
   assert.ok(schema.indexes.some((index) => index.name === "idx_companies_name"));
+});
+
+test("MCP analyze_table runs the shared Table Advisor logic", async (t) => {
+  const { toolService, connection, statusService } = createFixture(t);
+  const result = await toolService.callTool("analyze_table", {
+    databaseId: connection.id,
+    tableName: "contacts",
+  });
+
+  assert.equal(result.tableName, "contacts");
+  assert.equal(typeof result.score, "number");
+  assert.equal(result.issueCount, result.issues.length);
+  assert.ok(Array.isArray(result.columnProfiles));
+  assert.ok(result.columnProfiles.some((profile) => profile.name === "email"));
+  assert.ok(result.issues.some((issue) => issue.id === "constraints:email:missing-unique-index"));
+  assert.match(result.analyzedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(statusService.getStatus().lastToolName, "analyze_table");
 });
 
 test("MCP run_readonly_query allows SELECT and records mcp execution", async (t) => {

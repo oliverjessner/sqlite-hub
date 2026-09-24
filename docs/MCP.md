@@ -108,6 +108,7 @@ Read-only and safe tools:
 - `get_database_overview`: inspect database health, SQLite metadata, table counts, and schema-map statistics.
 - `list_tables`: list database tables.
 - `describe_table`: inspect columns, indexes, foreign keys, triggers, and row counts for one table.
+- `analyze_table`: run the same deterministic Table Advisor analysis as `GET /api/data/:tableName/advisor`, including the score, findings, evidence, recommendations, SQL fixes, and column profiles.
 - `get_schema`: return tables, views, indexes, triggers, and raw schema entries.
 - `get_indexes`: return all indexes or indexes for one table.
 - `get_foreign_keys`: return all foreign keys or foreign keys for one table.
@@ -162,6 +163,10 @@ The status panel reflects the most recently updated process; it is not a per-cli
 
 ```text
 Use SQLite Hub MCP to inspect my current database schema and suggest missing indexes.
+```
+
+```text
+Use SQLite Hub MCP to run the Table Advisor for the contacts table.
 ```
 
 ```text

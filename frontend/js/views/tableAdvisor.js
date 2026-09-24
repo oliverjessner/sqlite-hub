@@ -3,7 +3,6 @@ import {
     formatDateTime,
     formatNumber,
     highlightSql,
-    truncateMiddle,
 } from '../utils/format.js';
 import { renderVirtualTableBadge } from '../components/badges.js';
 import { renderWorkspaceOpenDropdown } from '../components/workspaceOpenDropdown.js';
@@ -71,30 +70,6 @@ function renderRiskBadge(risk = 'low') {
     return `<span class="inline-flex h-6 items-center border bg-surface-container-lowest px-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] ${className}">Risk ${escapeHtml(
         normalized,
     )}</span>`;
-}
-
-function renderAffectedObjects(affectedObjects = {}) {
-    const items = [
-        ...(affectedObjects.tables ?? []).map(value => `Table: ${value}`),
-        ...(affectedObjects.columns ?? []).map(value => `Column: ${value}`),
-        ...(affectedObjects.indexes ?? []).map(value => `Index: ${value}`),
-    ];
-
-    if (!items.length) {
-        return '';
-    }
-
-    return `
-      <div class="mt-3 flex flex-wrap items-center gap-2" aria-label="Affected database objects">
-        ${items
-            .map(
-                item => `<span class="inline-flex border border-outline-variant/15 bg-surface-container-low px-2 py-1 font-mono text-[10px] text-on-surface-variant/70">${escapeHtml(
-                    item,
-                )}</span>`,
-            )
-            .join('')}
-      </div>
-    `;
 }
 
 function renderFixWarnings(warnings = [], severity = 'warning') {
@@ -174,16 +149,7 @@ function renderSummary(result = {}) {
     const score = Number(result.score ?? 0);
 
     return `
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <div class="border border-outline-variant/10 bg-surface-container-low px-4 py-3">
-          <div class="font-mono text-[10px] uppercase tracking-[0.2em] text-on-surface-variant/55">Table</div>
-          <div class="mt-2 flex min-w-0 items-center gap-2">
-            <div class="min-w-0 truncate text-lg font-black text-on-surface" title="${escapeHtml(
-                result.tableName ?? '',
-            )}">${escapeHtml(result.tableName ?? 'Unknown')}</div>
-            ${renderVirtualTableBadge(result)}
-          </div>
-        </div>
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div class="border border-outline-variant/10 bg-surface-container-low px-4 py-3">
           <div class="font-mono text-[10px] uppercase tracking-[0.2em] text-on-surface-variant/55">Score</div>
           <div class="mt-2 text-3xl font-black ${getScoreClass(score)}">${escapeHtml(formatNumber(score))}</div>
@@ -209,19 +175,13 @@ function renderIssue(issue = {}) {
 
     return `
       <article class="border border-outline-variant/10 bg-surface-container-lowest px-4 py-4">
-        <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="flex flex-wrap items-start gap-3">
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
               ${renderSeverityBadge(issue.severity)}
               ${renderRiskBadge(issue.risk)}
             </div>
             <h4 class="mt-3 text-lg font-black text-on-surface">${escapeHtml(issue.title ?? 'Advisor issue')}</h4>
-            ${renderAffectedObjects(issue.affectedObjects)}
-          </div>
-          <div class="font-mono text-[10px] uppercase tracking-[0.16em] text-on-surface-variant/45" title="${escapeHtml(
-              issue.id ?? '',
-          )}">
-            ${escapeHtml(truncateMiddle(issue.id ?? '', 42))}
           </div>
         </div>
         <div class="mt-3 grid grid-cols-1 gap-3 text-sm leading-6 text-on-surface-variant/75 lg:grid-cols-3">

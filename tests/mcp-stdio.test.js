@@ -87,6 +87,11 @@ test("CLI STDIO handshake, tools, query, protocol-only stdout, stderr logs, and 
     name: "run_readonly_query", arguments: { databaseId: "db-sample", sql: "SELECT name FROM companies" },
   });
   assert.deepEqual(query.result.structuredContent.result.rows, [{ name: "Acme" }]);
+  const analysis = await proc.request("tools/call", {
+    name: "analyze_table", arguments: { databaseId: "db-sample", tableName: "companies" },
+  });
+  assert.equal(analysis.result.structuredContent.tableName, "companies");
+  assert.equal(analysis.result.structuredContent.issueCount, analysis.result.structuredContent.issues.length);
   assert.equal(options.store.getMcpStatus().connected, true);
   proc.child.stdin.end();
   assert.deepEqual(await proc.exit, [0, null]);

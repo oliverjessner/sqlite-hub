@@ -398,6 +398,13 @@ class DatabaseCommandService {
     );
   }
 
+  analyzeTable(databaseReference, tableName) {
+    const normalizedTableName = normalizeLookupValue(tableName, "Table name");
+    return this.withDatabase(databaseReference, ({ runtime }) =>
+      runtime.dataBrowserService.analyzeTable(normalizedTableName)
+    );
+  }
+
   getSchema(databaseReference) {
     return this.withDatabase(databaseReference, ({ runtime }) => listSchema(runtime.db));
   }

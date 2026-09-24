@@ -69,6 +69,17 @@ const MCP_TOOL_DEFINITIONS = [
     ),
   },
   {
+    name: "analyze_table",
+    description: "Run the deterministic SQLite Hub Table Advisor for one table and return its score, findings, evidence, recommendations, SQL fixes, and column profiles.",
+    inputSchema: objectSchema(
+      {
+        databaseId: databaseIdProperty(),
+        tableName: { type: "string", minLength: 1 },
+      },
+      ["databaseId", "tableName"]
+    ),
+  },
+  {
     name: "get_schema",
     description: "Return the database schema: tables, views, indexes, triggers, and schema entries.",
     inputSchema: objectSchema({ databaseId: databaseIdProperty() }, ["databaseId"]),
@@ -288,6 +299,8 @@ class McpToolService {
           };
         case "describe_table":
           return this.databaseService.getTable(args.databaseId, args.tableName);
+        case "analyze_table":
+          return this.databaseService.analyzeTable(args.databaseId, args.tableName);
         case "get_schema":
           return this.databaseService.getSchema(args.databaseId);
         case "get_indexes":

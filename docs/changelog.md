@@ -1,3 +1,7 @@
+# v2.7.1
+
+- improved the table advisor
+
 # v2.7.0
 
 - sheets feature, a excel like way to edit your tables
