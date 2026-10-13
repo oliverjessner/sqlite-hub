@@ -5,6 +5,7 @@ const { ConnectionManager } = require("./sqlite/connectionManager");
 const { BackupService } = require("./sqlite/backupService");
 const { DataBrowserService } = require("./sqlite/dataBrowserService");
 const { insertRows } = require("./sqlite/insertOnlyService");
+const { updateRows } = require("./sqlite/updateOnlyService");
 const { ExportService } = require("./sqlite/exportService");
 const { getTableDetail, listSchema } = require("./sqlite/introspection");
 const { OverviewService } = require("./sqlite/overviewService");
@@ -508,6 +509,33 @@ class DatabaseCommandService {
       });
     } catch {
       // Logging must not turn a committed insert into a failure that gets retried.
+    }
+    return { databaseId: connection.id, ...result };
+  }
+
+  updateRows(databaseReference, tableName, updates) {
+    const connection = this.getDatabase(databaseReference);
+    if (connection.readOnly) {
+      throw new ReadOnlyError(`Cannot update rows in a read-only database: ${connection.label}`);
+    }
+
+    const startedAt = Date.now();
+    const result = this.withDatabase(connection.id, ({ runtime }) =>
+      updateRows(runtime.db, tableName, updates), { readOnly: false }
+    );
+    try {
+      this.appStateStore.recordAccessLog({
+        source: "mcp",
+        action: "mcp.rows.update",
+        databaseKey: connection.id,
+        targetType: "table",
+        targetName: result.tableName,
+        status: "success",
+        durationMs: Date.now() - startedAt,
+        metadata: { updatedRowCount: result.updatedRowCount },
+      });
+    } catch {
+      // A logging failure must not turn committed updates into a failed request.
     }
     return { databaseId: connection.id, ...result };
   }

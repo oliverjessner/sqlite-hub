@@ -1,5 +1,6 @@
-const { NotFoundError, ValidationError, mapSqliteError } = require("../../utils/errors");
+const { ValidationError, mapSqliteError } = require("../../utils/errors");
 const { assertValidIdentifier, quoteIdentifier } = require("../../utils/identifier");
+const { normalizeColumnValues, getMcpWritableTable } = require("./mcpWriteGuards");
 
 const MAX_INSERT_ROWS = 1000;
 
@@ -8,20 +9,7 @@ function normalizeRows(rows) {
     throw new ValidationError(`Rows must contain between 1 and ${MAX_INSERT_ROWS} objects.`);
   }
 
-  return Array.from(rows, (row, index) => {
-    if (!row || typeof row !== "object" || Array.isArray(row)) {
-      throw new ValidationError(`Row ${index + 1} must be an object of column values.`);
-    }
-
-    return Object.entries(row).map(([column, value]) => {
-      assertValidIdentifier(column, "Column name");
-      if (value === null || typeof value === "string" || typeof value === "boolean" ||
-          (typeof value === "number" && Number.isFinite(value))) {
-        return [column, typeof value === "boolean" ? Number(value) : value];
-      }
-      throw new ValidationError(`Row ${index + 1}, column ${column} must be a string, finite number, boolean, or null.`);
-    });
-  });
+  return Array.from(rows, (row, index) => normalizeColumnValues(row, `Row ${index + 1}`));
 }
 
 function serializeRowId(rowId) {
@@ -38,26 +26,8 @@ function insertRows(db, tableName, rows) {
     // Hold the write lock while checking the schema and inserting. A concurrent
     // schema change must not introduce a trigger after the checks below.
     return db.transaction(() => {
-      const table = db.prepare("PRAGMA main.table_list").all().find((entry) => entry.name === tableName);
-      if (!table) {
-        throw new NotFoundError(`Table not found: ${tableName}`);
-      }
-      if (table.type !== "table" || /^sqlite_/i.test(table.name)) {
-        throw new ValidationError("MCP inserts require an ordinary, non-internal table.", {
-          code: "MCP_INSERT_TABLE_REQUIRED",
-        });
-      }
-
-      for (const schema of ["main", "temp"]) {
-        const trigger = db.prepare(`SELECT name FROM ${schema}.sqlite_schema WHERE type = 'trigger' AND tbl_name = ? COLLATE NOCASE LIMIT 1`).get(table.name);
-        if (trigger) {
-          throw new ValidationError("MCP inserts are blocked for tables with triggers because they may update or delete rows.", {
-            code: "MCP_INSERT_TRIGGER_BLOCKED",
-          });
-        }
-      }
-
-      const columns = new Set(db.prepare("SELECT name FROM pragma_table_xinfo(?, 'main') WHERE hidden = 0").all(table.name).map((column) => column.name));
+      const { table, columns: tableColumns } = getMcpWritableTable(db, tableName, "INSERT");
+      const columns = new Set(tableColumns.filter((column) => column.hidden === 0).map((column) => column.name));
       const statements = new Map();
       const lastInsertRowids = [];
       for (const entries of normalizedRows) {

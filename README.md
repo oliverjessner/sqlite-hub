@@ -313,7 +313,7 @@ SQLite Hub also provides a local JSON API for app info, database metadata, table
 
 ## MCP
 
-SQLite Hub includes a local MCP server for agents such as Codex. Clients launch it directly with `sqlite-hub mcp` over STDIO. No HTTP server, port, or tunnel is required. It exposes the shared API/CLI service layer as guarded tools for adding or creating database connections, schema inspection, Table Advisor analysis, read-only queries, inserting JSON rows, query-plan explanation, backups, type generation, documents, and chart creation. MCP can insert new rows but cannot update or delete existing rows or drop tables. See the [MCP documentation](./docs/MCP.md) for setup, tool names, and security boundaries.
+SQLite Hub includes a local MCP server for agents such as Codex. Clients launch it directly with `sqlite-hub mcp` over STDIO. No HTTP server, port, or tunnel is required. It exposes the shared API/CLI service layer as guarded tools for adding or creating database connections, schema inspection, Table Advisor analysis, read-only queries, inserting JSON rows, updating rows by primary key, query-plan explanation, backups, type generation, documents, and chart creation. MCP can insert new rows and update selected existing rows, while deleting rows and dropping tables remain blocked. See the [MCP documentation](./docs/MCP.md) for setup, tool names, and security boundaries.
 
 ## Changelog
 

@@ -122,6 +122,7 @@ Controlled write tools:
 
 - `add_database`: add an existing SQLite file to Connections or create and add a new empty `.db`, `.sqlite`, or `.sqlite3` database. It does not change the active UI connection.
 - `insert_rows`: insert 1–1000 JSON rows into an existing ordinary table in a writable database. The entire batch succeeds or rolls back.
+- `update_rows`: update 1–1000 existing rows by their complete primary keys using JSON values. The entire batch succeeds or rolls back; primary and referenced keys cannot be changed.
 - `create_stored_query`: create or update a saved SQL Editor query with a title and optional notes, without executing the SQL.
 - `create_backup`: create a verified backup through SQLite Hub's existing backup mechanism.
 - `generate_types`: generate TypeScript, Rust, Kotlin, Swift, or Go types from one table or all tables.
@@ -150,9 +151,32 @@ Raw SQL and conflict-mode options are rejected. The server binds all values, val
 
 Read-only connections, views, virtual/shadow/internal tables, and tables with triggers are rejected. Trigger execution could indirectly update or delete existing rows, so MCP does not insert into those tables. Successful inserts are recorded under **Logs → MCP** with the table and inserted count, without row values. The active UI connection is not changed.
 
+## Updating Rows
+
+Call `update_rows` with a database id (or exact connection label), an existing table name, and a batch of primary-key selectors and new column values:
+
+```json
+{
+  "databaseId": "db-sample",
+  "tableName": "companies",
+  "updates": [
+    { "key": { "id": 1 }, "values": { "name": "Updated Company" } },
+    { "key": { "id": 2 }, "values": { "name": "Another Updated Company" } }
+  ]
+}
+```
+
+Each `key` must contain exactly all declared primary-key columns with non-null values. Composite keys and `WITHOUT ROWID` tables are supported. Tables without a declared primary key are rejected; implicit `rowid` selectors and arbitrary filters are not accepted. Each row must already exist and may appear only once in a batch, including equivalent keys after SQLite affinity or collation comparison.
+
+Each non-empty `values` object supplies literal strings, finite numbers, booleans (stored as 1/0), or `null`. Omitted columns remain unchanged. Primary keys, generated columns, and columns referenced by foreign keys cannot be assigned. Tables with a generated column referenced by a foreign key are rejected entirely, since updating another column could indirectly change that key and trigger a cascade.
+
+The server binds all values, enforces foreign keys, and uses `UPDATE OR ABORT` inside one transaction. A missing row, duplicate selector, invalid column, or constraint failure rolls back the entire batch. Read-only connections, views, virtual/shadow/internal tables, and tables with triggers are rejected. Raw SQL, `WHERE` filters, conflict-mode options, replacements, and upserts are not accepted.
+
+The response contains `databaseId`, `tableName`, and `updatedRowCount`, which counts matched rows even when the assigned value was already present. Successful updates appear under **Logs → MCP** with the table and updated count, without keys or row values. The active UI connection is not changed.
+
 ## Security
 
-`run_readonly_query` and `execute_stored_query` validate SQL server-side before execution and use read-only database handles. Only `SELECT`, `PRAGMA`, and `EXPLAIN` statements that return rows are allowed. `insert_rows` is the only MCP tool that can modify rows in an existing database; it only adds rows. MCP exposes no update, delete, drop, replacement, or upsert operation.
+`run_readonly_query` and `execute_stored_query` validate SQL server-side before execution and use read-only database handles. Only `SELECT`, `PRAGMA`, and `EXPLAIN` statements that return rows are allowed. `insert_rows` and `update_rows` are the only MCP tools that can modify rows in an existing database: they add rows or update selected existing rows. Deleting rows, dropping tables, replacements, and upserts remain blocked.
 
 These statements are blocked in `run_readonly_query` and `execute_stored_query`:
 
@@ -211,6 +235,10 @@ Use SQLite Hub MCP to list my saved queries and execute the one named "Company L
 
 ```text
 Use SQLite Hub MCP to insert a new company named "New Company" into the companies table.
+```
+
+```text
+Use SQLite Hub MCP to change the name of company id 1 to "Updated Company".
 ```
 
 ```text

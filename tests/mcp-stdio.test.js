@@ -184,6 +184,28 @@ test("official SDK STDIO client inserts JSON rows and rejects destructive reques
   await client.close();
 });
 
+test("official SDK STDIO client updates by primary key while deletes and drops stay blocked", { timeout: 15000 }, async (t) => {
+  const options = fixture(t);
+  const client = new Client({ name: "sdk-update-test", version: "1.0.0" });
+  const transport = new StdioClientTransport({ command: process.execPath, args: options.args, env: options.env, stderr: "pipe" });
+  t.after(() => client.close());
+  await client.connect(transport);
+  const args = { databaseId: "db-sample", tableName: "companies", updates: [{ key: { id: 1 }, values: { name: "Updated via STDIO" } }] };
+  const updated = await client.callTool({ name: "update_rows", arguments: args });
+  assert.equal(updated.structuredContent.updatedRowCount, 1);
+  await assert.rejects(() => client.callTool({ name: "update_rows", arguments: { ...args, sql: "DROP TABLE companies" } }), /accepts only/);
+  await assert.rejects(() => client.callTool({ name: "update_rows", arguments: { ...args, updates: [{ values: { name: "All rows" } }] } }), /must be an object/);
+  for (const [index, sql] of ["DELETE FROM companies RETURNING *", "DROP TABLE companies", "UPDATE companies SET name = 'Bypass' RETURNING *"].entries()) {
+    await assert.rejects(() => client.callTool({ name: "run_readonly_query", arguments: { databaseId: "db-sample", sql } }), /read-only MCP queries/);
+    const title = `Blocked write ${index}`;
+    await client.callTool({ name: "create_stored_query", arguments: { databaseId: "db-sample", sql, title } });
+    await assert.rejects(() => client.callTool({ name: "execute_stored_query", arguments: { databaseId: "db-sample", queryName: title } }), /read-only MCP queries/);
+  }
+  const result = await client.callTool({ name: "run_readonly_query", arguments: { databaseId: "db-sample", sql: "SELECT name FROM companies" } });
+  assert.deepEqual(result.structuredContent.result.rows.map((row) => row.name), ["Updated via STDIO"]);
+  await client.close();
+});
+
 test("EOF drains an asynchronous tool call before closing the registry", { timeout: 15000 }, async (t) => {
   const { PassThrough } = require("node:stream");
   const { startMcpStdioServer } = require("../server/mcp/stdioServer");

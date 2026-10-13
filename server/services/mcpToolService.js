@@ -1,5 +1,6 @@
 const { ValidationError } = require("../utils/errors");
 const { MAX_INSERT_ROWS } = require("./sqlite/insertOnlyService");
+const { MAX_UPDATE_ROWS } = require("./sqlite/updateOnlyService");
 
 function objectSchema(properties = {}, required = []) {
   return {
@@ -133,6 +134,34 @@ const MCP_TOOL_DEFINITIONS = [
     }, ["databaseId", "tableName", "rows"]),
   },
   {
+    name: "update_rows",
+    description: "Update existing rows by their complete primary keys using JSON values. Keys cannot be changed. No raw SQL, filters, deletes, replacements, upserts, or trigger execution; the batch is atomic.",
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    inputSchema: objectSchema({
+      databaseId: databaseIdProperty(),
+      tableName: { type: "string", minLength: 1 },
+      updates: {
+        type: "array",
+        minItems: 1,
+        maxItems: MAX_UPDATE_ROWS,
+        items: objectSchema({
+          key: {
+            type: "object",
+            minProperties: 1,
+            additionalProperties: { type: ["string", "number", "boolean"] },
+            description: "All declared primary-key columns and their non-null values identifying one existing row.",
+          },
+          values: {
+            type: "object",
+            minProperties: 1,
+            additionalProperties: { type: ["string", "number", "boolean", "null"] },
+            description: "Columns to change. Primary keys, referenced keys, and generated columns are excluded; omitted columns remain unchanged.",
+          },
+        }, ["key", "values"]),
+      },
+    }, ["databaseId", "tableName", "updates"]),
+  },
+  {
     name: "get_saved_queries",
     description: "List saved SQL Editor queries for a database. This is the MCP equivalent of `sqlite-hub query list --db <database>`.",
     inputSchema: objectSchema({
@@ -155,7 +184,7 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "execute_stored_query",
-    description: "Execute a read-only saved SQL Editor query by id, title, display title, or SQL fragment. Mutating SQL is blocked; use insert_rows to add rows.",
+    description: "Execute a read-only saved SQL Editor query by id, title, display title, or SQL fragment. Mutating SQL is blocked; use insert_rows or update_rows for controlled row writes.",
     inputSchema: objectSchema(
       {
         databaseId: databaseIdProperty(),
@@ -345,6 +374,14 @@ class McpToolService {
             throw new ValidationError("insert_rows accepts only databaseId, tableName, and rows; raw SQL and conflict modes are not allowed.");
           }
           return this.databaseService.insertRows(args.databaseId, args.tableName, args.rows);
+        }
+        case "update_rows": {
+          if (!args || typeof args !== "object" || Array.isArray(args) ||
+              Object.keys(args).some((key) => !["databaseId", "tableName", "updates"].includes(key)) ||
+              typeof args.databaseId !== "string") {
+            throw new ValidationError("update_rows accepts only databaseId, tableName, and updates; raw SQL, filters, and conflict modes are not allowed.");
+          }
+          return this.databaseService.updateRows(args.databaseId, args.tableName, args.updates);
         }
         case "create_stored_query":
           return this.databaseService.createStoredQuery(args.databaseId, {
