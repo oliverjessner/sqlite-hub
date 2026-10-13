@@ -1,3 +1,8 @@
+# v2.7.2
+
+- deps update
+- mcp insert
+
 # v2.7.1
 
 - improved the table advisor
