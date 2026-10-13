@@ -1,4 +1,5 @@
 const { ValidationError } = require("../utils/errors");
+const { MAX_INSERT_ROWS } = require("./sqlite/insertOnlyService");
 
 function objectSchema(properties = {}, required = []) {
   return {
@@ -113,6 +114,25 @@ const MCP_TOOL_DEFINITIONS = [
     ),
   },
   {
+    name: "insert_rows",
+    description: "Insert JSON rows into an existing table without updating or deleting existing rows. Read-only connections and tables with triggers are rejected; the batch is atomic.",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    inputSchema: objectSchema({
+      databaseId: databaseIdProperty(),
+      tableName: { type: "string", minLength: 1 },
+      rows: {
+        type: "array",
+        minItems: 1,
+        maxItems: MAX_INSERT_ROWS,
+        items: {
+          type: "object",
+          additionalProperties: { type: ["string", "number", "boolean", "null"] },
+        },
+        description: "Column-value objects. Omitted columns use defaults; booleans become 1/0. Use an empty object for DEFAULT VALUES.",
+      },
+    }, ["databaseId", "tableName", "rows"]),
+  },
+  {
     name: "get_saved_queries",
     description: "List saved SQL Editor queries for a database. This is the MCP equivalent of `sqlite-hub query list --db <database>`.",
     inputSchema: objectSchema({
@@ -135,7 +155,7 @@ const MCP_TOOL_DEFINITIONS = [
   },
   {
     name: "execute_stored_query",
-    description: "Execute a saved SQL Editor query by id, title, display title, or SQL fragment. This is the MCP equivalent of `sqlite-hub query exec <query> --db <database>`.",
+    description: "Execute a read-only saved SQL Editor query by id, title, display title, or SQL fragment. Mutating SQL is blocked; use insert_rows to add rows.",
     inputSchema: objectSchema(
       {
         databaseId: databaseIdProperty(),
@@ -318,6 +338,14 @@ class McpToolService {
           });
         case "get_saved_queries":
           return this.databaseService.listSavedQueries(args.databaseId, args.limit);
+        case "insert_rows": {
+          if (!args || typeof args !== "object" || Array.isArray(args) ||
+              Object.keys(args).some((key) => !["databaseId", "tableName", "rows"].includes(key)) ||
+              typeof args.databaseId !== "string") {
+            throw new ValidationError("insert_rows accepts only databaseId, tableName, and rows; raw SQL and conflict modes are not allowed.");
+          }
+          return this.databaseService.insertRows(args.databaseId, args.tableName, args.rows);
+        }
         case "create_stored_query":
           return this.databaseService.createStoredQuery(args.databaseId, {
             sql: args.sql,
@@ -327,6 +355,7 @@ class McpToolService {
         case "execute_stored_query":
           return this.databaseService.executeSavedQuery(args.databaseId, args.queryName, {
             executedBy: "mcp",
+            requireReadOnly: true,
           });
         case "explain_query_plan":
           return this.databaseService.explainQueryPlan(args.databaseId, args.sql);

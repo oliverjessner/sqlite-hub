@@ -159,6 +159,31 @@ test("official SDK STDIO client connects to sqlite-hub mcp", { timeout: 15000 },
   await client.close();
 });
 
+test("official SDK STDIO client inserts JSON rows and rejects destructive requests", { timeout: 15000 }, async (t) => {
+  const options = fixture(t);
+  const client = new Client({ name: "sdk-insert-test", version: "1.0.0" });
+  const transport = new StdioClientTransport({ command: process.execPath, args: options.args, env: options.env, stderr: "pipe" });
+  t.after(() => client.close());
+  await client.connect(transport);
+  const args = { databaseId: "db-sample", tableName: "companies", rows: [{ name: "Inserted via STDIO" }] };
+  const inserted = await client.callTool({ name: "insert_rows", arguments: args });
+  assert.equal(inserted.structuredContent.insertedRowCount, 1);
+  assert.deepEqual(inserted.structuredContent.lastInsertRowids, [2]);
+  await assert.rejects(() => client.callTool({ name: "insert_rows", arguments: { ...args, sql: "DROP TABLE companies" } }), /accepts only/);
+  const stored = await client.callTool({ name: "create_stored_query", arguments: {
+    databaseId: "db-sample", sql: "DELETE FROM companies RETURNING *", title: "Blocked deletion",
+  } });
+  assert.ok(stored.structuredContent.query.id);
+  await assert.rejects(() => client.callTool({ name: "execute_stored_query", arguments: {
+    databaseId: "db-sample", queryName: "Blocked deletion",
+  } }), /read-only MCP queries/);
+  const result = await client.callTool({ name: "run_readonly_query", arguments: {
+    databaseId: "db-sample", sql: "SELECT name FROM companies ORDER BY id",
+  } });
+  assert.deepEqual(result.structuredContent.result.rows.map((row) => row.name), ["Acme", "Inserted via STDIO"]);
+  await client.close();
+});
+
 test("EOF drains an asynchronous tool call before closing the registry", { timeout: 15000 }, async (t) => {
   const { PassThrough } = require("node:stream");
   const { startMcpStdioServer } = require("../server/mcp/stdioServer");

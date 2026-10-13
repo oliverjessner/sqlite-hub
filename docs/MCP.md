@@ -114,23 +114,47 @@ Read-only and safe tools:
 - `get_foreign_keys`: return all foreign keys or foreign keys for one table.
 - `run_readonly_query`: execute a read-only `SELECT`, `PRAGMA`, or `EXPLAIN` query.
 - `get_saved_queries`: list saved SQL Editor queries for a database, equivalent to `sqlite-hub query list --db <database>`.
+- `execute_stored_query`: execute a read-only saved SQL Editor query by id, title, display title, or SQL fragment. Mutating saved queries are rejected by MCP.
 - `explain_query_plan`: run `EXPLAIN QUERY PLAN` and return structured plan rows plus index hints when a table scan appears.
 - `read_documents`: read database-scoped Markdown documents.
 
 Controlled write tools:
 
 - `add_database`: add an existing SQLite file to Connections or create and add a new empty `.db`, `.sqlite`, or `.sqlite3` database. It does not change the active UI connection.
+- `insert_rows`: insert 1–1000 JSON rows into an existing ordinary table in a writable database. The entire batch succeeds or rolls back.
 - `create_stored_query`: create or update a saved SQL Editor query with a title and optional notes, without executing the SQL.
-- `execute_stored_query`: execute a saved SQL Editor query by id, title, display title, or SQL fragment, equivalent to `sqlite-hub query exec <query> --db <database>`.
 - `create_backup`: create a verified backup through SQLite Hub's existing backup mechanism.
 - `generate_types`: generate TypeScript, Rust, Kotlin, Swift, or Go types from one table or all tables.
 - `create_chart_from_query`: create a saved chart from a read-only `SELECT` query. It writes chart metadata to SQLite Hub but does not export files.
 
+## Inserting Rows
+
+Call `insert_rows` with a database id (or exact connection label), an existing table name, and column-value objects:
+
+```json
+{
+  "databaseId": "db-sample",
+  "tableName": "companies",
+  "rows": [
+    { "name": "New Company" },
+    { "name": "Another Company" }
+  ]
+}
+```
+
+The response contains `databaseId`, `tableName`, `insertedRowCount`, and `lastInsertRowids` in input order. Row ids outside JavaScript's safe integer range are returned as strings; `WITHOUT ROWID` tables return `null` for each row id.
+
+Values can be strings, finite numbers, booleans (stored as 1/0), or `null`. Serialize nested JSON as a string before inserting it. Omitted columns use SQLite defaults; an empty row object inserts `DEFAULT VALUES`. Generated columns cannot be supplied.
+
+Raw SQL and conflict-mode options are rejected. The server binds all values, validates and quotes table/column names, enforces foreign keys, and runs the batch inside one transaction. Any invalid column or constraint failure rolls back all rows in the batch. Conflicts always abort, including when the table declares `ON CONFLICT REPLACE` or `ON CONFLICT IGNORE`.
+
+Read-only connections, views, virtual/shadow/internal tables, and tables with triggers are rejected. Trigger execution could indirectly update or delete existing rows, so MCP does not insert into those tables. Successful inserts are recorded under **Logs → MCP** with the table and inserted count, without row values. The active UI connection is not changed.
+
 ## Security
 
-`run_readonly_query` validates SQL server-side before execution. Only `SELECT`, `PRAGMA`, and `EXPLAIN` statements that return rows are allowed.
+`run_readonly_query` and `execute_stored_query` validate SQL server-side before execution and use read-only database handles. Only `SELECT`, `PRAGMA`, and `EXPLAIN` statements that return rows are allowed. `insert_rows` is the only MCP tool that can modify rows in an existing database; it only adds rows. MCP exposes no update, delete, drop, replacement, or upsert operation.
 
-These statements are blocked in `run_readonly_query`:
+These statements are blocked in `run_readonly_query` and `execute_stored_query`:
 
 - `INSERT`
 - `UPDATE`
@@ -145,7 +169,7 @@ These statements are blocked in `run_readonly_query`:
 
 Backups are always created through SQLite Hub's managed backup service. `add_database` validates existing files as SQLite databases; in `create` mode it creates a new SQLite file and any missing parent directories at the requested local path. Stored-query creation and chart creation store SQLite Hub metadata only. `create_stored_query` never executes the supplied SQL or modifies the target database. The MCP server does not write arbitrary local files beyond the explicit database path supplied to `add_database` in `create` mode.
 
-`execute_stored_query` intentionally follows the same behavior as the CLI and external API saved-query execution path. It executes the stored SQL as-is and records the run in Query History with `executedBy: "mcp"`.
+`execute_stored_query` records successful read-only runs in Query History with `executedBy: "mcp"`. SQL can still be stored for later review through `create_stored_query`, but saving a query never grants MCP permission to execute mutating SQL. CLI and external API behavior is unchanged.
 
 STDIO grants the local client access to the existing MCP tools under your OS user's permissions. API tokens are not exposed through MCP tool responses.
 
@@ -183,6 +207,10 @@ Use SQLite Hub MCP to explain the query plan for this SQL query.
 
 ```text
 Use SQLite Hub MCP to list my saved queries and execute the one named "Company List".
+```
+
+```text
+Use SQLite Hub MCP to insert a new company named "New Company" into the companies table.
 ```
 
 ```text

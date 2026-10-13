@@ -1,7 +1,7 @@
 # v2.7.2
 
 - deps update
-- mcp insert
+- Added the insert-only MCP tool `insert_rows` with atomic JSON batches, bound values, conflict protection, and trigger/read-only guards. Saved-query execution over MCP is restricted to read-only SQL.
 
 # v2.7.1
 

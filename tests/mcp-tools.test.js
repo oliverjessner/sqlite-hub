@@ -111,6 +111,7 @@ test("MCP tool registration exposes the initial SQLite Hub tools", (t) => {
   assert.ok(names.includes("get_schema"));
   assert.ok(names.includes("analyze_table"));
   assert.ok(names.includes("run_readonly_query"));
+  assert.ok(names.includes("insert_rows"));
   assert.ok(names.includes("get_saved_queries"));
   assert.equal(names.includes("get_stored_queries"), false);
   assert.ok(names.includes("create_stored_query"));

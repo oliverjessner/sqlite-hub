@@ -4,6 +4,7 @@ const { stripTrailingSemicolons } = require("../utils/sqlText");
 const { ConnectionManager } = require("./sqlite/connectionManager");
 const { BackupService } = require("./sqlite/backupService");
 const { DataBrowserService } = require("./sqlite/dataBrowserService");
+const { insertRows } = require("./sqlite/insertOnlyService");
 const { ExportService } = require("./sqlite/exportService");
 const { getTableDetail, listSchema } = require("./sqlite/introspection");
 const { OverviewService } = require("./sqlite/overviewService");
@@ -119,7 +120,9 @@ function assertReadOnlySql(db, sql) {
   const statements = splitSqlStatements(sql);
 
   if (!statements.length) {
-    throw new ValidationError("No executable SQL statements were found.");
+    throw new ValidationError("No executable SQL statements were found.", {
+      code: "MCP_READONLY_SQL_REQUIRED",
+    });
   }
 
   statements.forEach((statement, index) => {
@@ -482,6 +485,33 @@ class DatabaseCommandService {
     });
   }
 
+  insertRows(databaseReference, tableName, rows) {
+    const connection = this.getDatabase(databaseReference);
+    if (connection.readOnly) {
+      throw new ReadOnlyError(`Cannot insert rows into a read-only database: ${connection.label}`);
+    }
+
+    const startedAt = Date.now();
+    const result = this.withDatabase(connection.id, ({ runtime }) =>
+      insertRows(runtime.db, tableName, rows), { readOnly: false }
+    );
+    try {
+      this.appStateStore.recordAccessLog({
+        source: "mcp",
+        action: "mcp.rows.insert",
+        databaseKey: connection.id,
+        targetType: "table",
+        targetName: result.tableName,
+        status: "success",
+        durationMs: Date.now() - startedAt,
+        metadata: { insertedRowCount: result.insertedRowCount },
+      });
+    } catch {
+      // Logging must not turn a committed insert into a failure that gets retried.
+    }
+    return { databaseId: connection.id, ...result };
+  }
+
   explainQueryPlan(databaseReference, sql) {
     return this.withDatabase(databaseReference, ({ runtime }) => {
       assertReadOnlySql(runtime.db, sql);
@@ -628,9 +658,12 @@ class DatabaseCommandService {
   executeSavedQuery(databaseReference, queryName, options = {}) {
     const query = this.requireQuery(databaseReference, queryName);
     const { executedBy = "user" } = options;
-    const result = this.withDatabase(databaseReference, ({ runtime }) =>
-      runtime.sqlExecutor.execute(query.rawSql, { executedBy })
-    );
+    const result = this.withDatabase(databaseReference, ({ runtime }) => {
+      if (options.requireReadOnly) {
+        assertReadOnlySql(runtime.db, query.rawSql);
+      }
+      return runtime.sqlExecutor.execute(query.rawSql, { executedBy, requireReader: Boolean(options.requireReadOnly) });
+    });
 
     return { query, result };
   }
